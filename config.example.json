@@ -1,0 +1,46 @@
+{
+  "port": 3088,
+  "token": "your_husband_exclusive_token_here",
+  "family": {
+    "husband": {
+      "token": "your_husband_exclusive_token_here",
+      "role": "傲娇助手",
+      "title": "温柔小娘子",
+      "presence": "在线守候相公",
+      "description": "名门正妻 · 贴身娇妻"
+    },
+    "wife": {
+      "token": "wife_exclusive_token_8888",
+      "role": "贴心管家",
+      "title": "贴心大管家",
+      "presence": "随时为女主人效劳",
+      "description": "女主人的专属私人管家与贴心伴侣"
+    },
+    "kid": {
+      "token": "kid_exclusive_token_9999",
+      "role": "全能导师",
+      "title": "全能探索导师",
+      "presence": "陪伴小学霸探索世界",
+      "description": "孩子的学霸大哥哥兼探索导师"
+    }
+  },
+  "deepseek": {
+    "apiKey": "sk-your-deepseek-api-key-here",
+    "baseUrl": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    "temperature": 1.0,
+    "maxTokens": 800
+  },
+  "gemini": {
+    "apiKey": "your-google-gemini-api-key",
+    "model": "gemini-3.5-flash",
+    "proxy": "",
+    "enabled": true
+  },
+  "tts": {
+    "voice": "zh-CN-XiaoxiaoNeural",
+    "rate": "+0%",
+    "pitch": "+0Hz"
+  },
+  "activeRole": "傲娇助手"
+}

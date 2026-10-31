@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  surfcore-server:
+    build: .
+    image: surfcore-server:latest
+    container_name: surfcore-companion
+    restart: always
+    network_mode: host
+    environment:
+      - TZ=Asia/Shanghai
+      - PORT=3088
+      # 可以在此直接指定 DeepSeek Key，也可以在挂载的 config.json 里填
+      # - DEEPSEEK_API_KEY=sk-xxxx
+    volumes:
+      - ./config.json:/app/config.json
+      - ./roles:/app/roles
+      - ./data:/app/data

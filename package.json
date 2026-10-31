@@ -1,0 +1,17 @@
+{
+  "name": "familysoul",
+  "version": "1.0.0",
+  "description": "FamilySoul - 私有化家庭多角色数字灵魂伴侣中枢 (单端口多Token物理隔离，软路由原生常驻)",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FamilySoul · 家庭私有数字灵魂伴侣中枢</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0B0D14;
+      --bg-surface: #131724;
+      --bg-elevated: #1B2032;
+      --bg-glass: rgba(27, 32, 50, 0.65);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(139, 92, 246, 0.4);
+      --primary: #8B5CF6;
+      --primary-hover: #7C3AED;
+      --primary-glow: rgba(139, 92, 246, 0.25);
+      --accent: #EC4899;
+      --gold: #F59E0B;
+      --success: #10B981;
+      --danger: #EF4444;
+      --text-main: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --text-dim: #6B7280;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(139, 92, 246, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(236, 72, 153, 0.08) 0%, transparent 40%);
+    }
+
+    /* ── 顶部导航栏 ── */
+    header {
+      background: rgba(19, 23, 36, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 28px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 16px var(--primary-glow);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, #FFFFFF, #D8B4FE);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .dot-pulse {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(11, 13, 20, 0.6);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #FFFFFF;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .auth-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 4px 10px;
+    }
+
+    .auth-box input {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+      width: 170px;
+    }
+
+    .auth-box input::placeholder {
+      color: var(--text-dim);
+    }
+
+    /* ── 主体内容区 ── */
+    main {
+      flex: 1;
+      max-width: 1360px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 60px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── 角色工坊分栏 ── */
+    .studio-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+      min-height: calc(100vh - 160px);
+    }
+
+    .card {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .roles-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-hover);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .role-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      max-height: calc(100vh - 270px);
+    }
+
+    .role-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .role-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--border-hover);
+      transform: translateX(3px);
+    }
+
+    .role-item.active {
+      background: rgba(139, 92, 246, 0.15);
+      border-color: var(--primary);
+      box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
+    }
+
+    .role-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .role-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: #FFFFFF;
+    }
+
+    .role-tag {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .role-item.active .role-tag {
+      color: var(--primary);
+    }
+
+    /* ── 编辑器工作区 ── */
+    .editor-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .editor-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .editor-inputs {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .input-field {
+      background: rgba(11, 13, 20, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      padding: 8px 14px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .input-field:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+
+    .editor-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .templates-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .chip-btn {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: #DDD6FE;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .chip-btn:hover {
+      background: var(--primary);
+      color: #FFFFFF;
+    }
+
+    .code-area {
+      flex: 1;
+      width: 100%;
+      min-height: 480px;
+      background: rgba(11, 13, 20, 0.85);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: #E2E8F0;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.65;
+      padding: 18px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .code-area:focus {
+      border-color: var(--primary);
+    }
+
+    /* ── 家庭通行证卡片 ── */
+    .family-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .member-card {
+      position: relative;
+      background: var(--bg-glass);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .member-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-hover);
+    }
+
+    .member-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 24px;
+      right: 24px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-color, var(--primary)), transparent);
+    }
+
+    .card-husband { --card-color: #8B5CF6; }
+    .card-wife { --card-color: #EC4899; }
+    .card-kid { --card-color: #10B981; }
+
+    .member-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .member-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .member-info h3 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    .member-info p {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    select.input-field {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    /* ── 在线私密试炼 ── */
+    .sandbox-container {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: calc(100vh - 180px);
+    }
+
+    .chat-window {
+      flex: 1;
+      background: rgba(11, 13, 20, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg-bubble {
+      max-width: 75%;
+      padding: 12px 18px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.55;
+      word-break: break-word;
+      animation: msgPop 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    @keyframes msgPop {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .msg-user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #FFFFFF;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-ai {
+      align-self: flex-start;
+      background: var(--bg-elevated);
+      color: #F1F5F9;
+      border: 1px solid var(--border-subtle);
+      border-bottom-left-radius: 4px;
+    }
+
+    .audio-player-box {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-input-bar {
+      display: flex;
+      gap: 12px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 8px 12px;
+    }
+
+    .chat-input-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #FFFFFF;
+      font-size: 14px;
+      padding: 8px;
+    }
+
+    /* ── 实时黑匣子日志 ── */
+    .log-terminal {
+      background: #090A0F;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      color: #A5B4FC;
+      height: calc(100vh - 220px);
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── 弹窗与 Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: rgba(19, 23, 36, 0.95);
+      border: 1px solid var(--primary);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
+      color: #FFFFFF;
+      padding: 14px 22px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header>
+    <a href="/" class="brand">
+      <div class="brand-icon">✨</div>
+      <div>
+        <div class="brand-title">FamilySoul · 家庭灵魂中枢</div>
+      </div>
+      <div class="badge-live">
+        <span class="dot-pulse"></span>
+        <span id="headerStatusText">软路由 3088 守护中</span>
+      </div>
+    </a>
+
+    <nav class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('studio')">🎭 角色工坊</button>
+      <button class="tab-btn" onclick="switchTab('family')">🛡️ 家庭通行证</button>
+      <button class="tab-btn" onclick="switchTab('sandbox')">💬 私密试炼</button>
+      <button class="tab-btn" onclick="switchTab('logs')">📜 黑匣子日志</button>
+    </nav>
+
+    <div class="header-actions">
+      <div class="auth-box" title="输入相公专属通行证，解锁管理权限">
+        <span style="font-size: 14px;">🔑</span>
+        <input type="password" id="adminTokenInput" placeholder="相公专属通行证" onchange="saveToken(this.value)">
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="reloadCurrentTab()">🔄 刷新</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. 角色工坊 Tab -->
+    <section id="tab-studio" class="tab-panel active">
+      <div class="studio-grid">
+        <!-- 左侧角色列表 -->
+        <aside class="card roles-sidebar">
+          <div class="sidebar-header">
+            <span class="section-title">🎭 全部角色卡</span>
+            <button class="btn btn-primary btn-sm" onclick="promptNewRole()">+ 新建角色</button>
+          </div>
+          <div class="role-list" id="rolesList">
+            <div style="color: var(--text-dim); font-size: 13px; text-align: center; padding: 20px;">正在加载角色卡...</div>
+          </div>
+        </aside>
+
+        <!-- 右侧人设编辑器 -->
+        <div class="card editor-card">
+          <div class="editor-top">
+            <div class="editor-inputs">
+              <span class="section-title">✏️ 编辑角色：</span>
+              <input type="text" id="roleNameInput" class="input-field" placeholder="角色名称" style="width: 180px; font-weight: 700;">
+              <span id="charCountBadge" style="font-size: 12px; color: var(--text-dim);">0 字</span>
+            </div>
+            <div class="editor-actions">
+              <button class="btn btn-danger btn-sm" id="btnDeleteRole" onclick="deleteCurrentRole()">🗑️ 删除角色</button>
+              <button class="btn btn-primary" onclick="saveCurrentRole()">💾 一键保存并热生效</button>
+            </div>
+          </div>
+
+          <!-- 预设调教模板一键注入栏 -->
+          <div class="templates-bar">
+            <span>✨ 黄金调教模板一键注入：</span>
+            <button class="chip-btn" onclick="applyTemplate('wife_noble')">🌸 名门正妻·私密解禁</button>
+            <button class="chip-btn" onclick="applyTemplate('hunk_butler')">🛡️ 贴心管家·猛男倾听</button>
+            <button class="chip-btn" onclick="applyTemplate('kid_tutor')">🎓 全能导师·学霸探索</button>
+          </div>
+
+          <textarea id="roleContentArea" class="code-area" placeholder="在这里尽情编写调教人设、暗号规则、行房口侍姿势与身份定位..." oninput="updateCharCount()"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 家庭通行证 Tab -->
+    <section id="tab-family" class="tab-panel">
+      <div class="card" style="margin-bottom: 24px;">
+        <div class="sidebar-header">
+          <div>
+            <span class="section-title">🛡️ 家庭成员多角色独立通行证 (Family Passports)</span>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+              单端口 3088 多 Token 自动物理级隔离。各成员在手机填入属于自己的 Token，私密对话与记忆各存各的，谁也看不到谁的隐私！
+            </p>
+          </div>
+          <button class="btn btn-primary" onclick="saveFamilyConfig()">💾 保存家庭配置并生效</button>
+        </div>
+      </div>
+
+      <div class="family-grid" id="familyCardsContainer">
+        <!-- 动态渲染 相公、老婆、孩子 卡片 -->
+      </div>
+    </section>
+
+    <!-- 3. 私密试炼 Tab -->
+    <section id="tab-sandbox" class="tab-panel">
+      <div class="sandbox-container">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="section-title">💬 闺房试炼对话 (实时检验调教效果)</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: var(--text-muted);">当前测试身份:</span>
+            <select id="sandboxMemberSelect" class="input-field" style="padding: 4px 8px; font-size: 12px;" onchange="loadSandboxHistory()">
+              <option value="husband">相公 (测试温柔小娘子)</option>
+              <option value="wife">老婆 (测试猛男贴心管家)</option>
+              <option value="kid">孩子 (测试全能探索导师)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="chat-window" id="sandboxChatWindow">
+          <div class="msg-bubble msg-ai">
+            相公万福！妾身在此守候相公。相公可以在这里直接跟妾身说话，或者输入暗号「12345」检验妾身的闺房调教成效哦~
+          </div>
+        </div>
+
+        <div class="chat-input-bar">
+          <input type="text" id="sandboxInput" placeholder="输入情话、考校、或暗号 12345..." onkeydown="if(event.key==='Enter') sendSandboxMessage()">
+          <button class="btn btn-primary" onclick="sendSandboxMessage()">发送</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 实时黑匣子日志 Tab -->
+    <section id="tab-logs" class="tab-panel">
+      <div class="card">
+        <div class="sidebar-header" style="margin-bottom: 16px;">
+          <span class="section-title">📜 软路由实时黑匣子日志 (server.log)</span>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-secondary btn-sm" id="btnToggleLogAuto" onclick="toggleLogAuto()">⏸️ 暂停自动刷新</button>
+            <button class="btn btn-secondary btn-sm" onclick="fetchLogs()">🔄 立即刷新</button>
+          </div>
+        </div>
+        <div class="log-terminal" id="logTerminal">正在连接软路由拉取实时日志...</div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toastBox">提示信息</div>
+
+  <script>
+    let currentActiveRole = '傲娇助手';
+    let allRoles = [];
+    let familyConfig = {};
+    let logAutoInterval = null;
+
+    // 本地持久化保存相公通行证
+    function getStoredToken() {
+      return localStorage.getItem('surfcore_husband_token') || 'wxf_husband_exclusive_token_2026';
+    }
+
+    function saveToken(val) {
+      localStorage.setItem('surfcore_husband_token', val.trim());
+      showToast('🔑 相公通行证已在本地就绪');
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toastBox');
+      t.innerText = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+
+      if (tabId === 'logs') {
+        fetchLogs();
+        if (!logAutoInterval) logAutoInterval = setInterval(fetchLogs, 3000);
+      } else {
+        if (logAutoInterval) {
+          clearInterval(logAutoInterval);
+          logAutoInterval = null;
+        }
+      }
+    }
+
+    function reloadCurrentTab() {
+      loadRoles();
+      loadFamily();
+      showToast('🔄 数据已同步刷新');
+    }
+
+    // ── 角色工坊逻辑 ─────────────────────────────────────
+    async function loadRoles() {
+      try {
+        const res = await fetch('/api/admin/roles?token=' + encodeURIComponent(getStoredToken()));
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.roles)) {
+          allRoles = data.roles;
+          renderRolesList();
+          if (allRoles.length > 0) {
+            const defaultItem = allRoles.find(r => r.name === currentActiveRole) || allRoles[0];
+            selectRole(defaultItem.name);
+          }
+        }
+      } catch (err) {
+        showToast('拉取角色失败: ' + err.message);
+      }
+    }
+
+    function renderRolesList() {
+      const container = document.getElementById('rolesList');
+      container.innerHTML = allRoles.map(r => `
+        <div class="role-item ${r.name === currentActiveRole ? 'active' : ''}" onclick="selectRole('${r.name}')">
+          <div class="role-meta">
+            <span class="role-name">${r.name}</span>
+            <span class="role-tag">${(r.size / 1024).toFixed(1)} KB · ${r.name === '傲娇助手' ? '相公专属娇妻' : (r.name === '贴心管家' ? '夫人猛男管家' : '学霸导师')}</span>
+          </div>
+          <span style="font-size: 12px; color: var(--text-dim);">❯</span>
+        </div>
+      `).join('');
+    }
+
+    function selectRole(roleName) {
+      currentActiveRole = roleName;
+      renderRolesList();
+      const role = allRoles.find(r => r.name === roleName);
+      if (role) {
+        document.getElementById('roleNameInput').value = role.name;
+        document.getElementById('roleContentArea').value = role.content;
+        updateCharCount();
+      }
+    }
+
+    function updateCharCount() {
+      const len = document.getElementById('roleContentArea').value.length;
+      document.getElementById('charCountBadge').innerText = len + ' 字';
+    }
+
+    async function saveCurrentRole() {
+      const name = document.getElementById('roleNameInput').value.trim();
+      const content = document.getElementById('roleContentArea').value;
+      if (!name) return alert('请输入角色名称');
+
+      try {
+        const res = await fetch('/api/admin/roles/save?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, content })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(`🎉 角色「${name}」已保存并立即热生效！`);
+          currentActiveRole = name;
+          await loadRoles();
+        } else {
+          alert('保存失败: ' + data.error);
+        }
+      } catch (err) {
+        alert('请求异常: ' + err.message);
+      }
+    }
+
+    async function promptNewRole() {
+      const name = prompt('请输入新角色的名字（如：清冷师尊、猛男教练、英语名师）：');
+      if (!name || !name.trim()) return;
+      const cleanName = name.trim();
+      currentActiveRole = cleanName;
+      document.getElementById('roleNameInput').value = cleanName;
+      document.getElementById('roleContentArea').value = `# ${cleanName}\n\n- 身份定位：你是...\n- 称呼习惯：称呼对方为...\n- 性格特征：...\n- 说话习惯：...`;
+      updateCharCount();
+      await saveCurrentRole();
+    }
+
+    async function deleteCurrentRole() {
+      if (currentActiveRole === '傲娇助手') {
+        return alert('⚠️ 傲娇助手是相公专属小娘子核心人设，不可删除！');
+      }
+      if (!confirm(`确定要彻底删除角色「${currentActiveRole}」吗？`)) return;
+
+      try {
+        const res = await fetch('/api/admin/roles/delete?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: currentActiveRole })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(`🗑️ 角色「${currentActiveRole}」已删除`);
+          currentActiveRole = '傲娇助手';
+          await loadRoles();
+        } else {
+          alert('删除失败: ' + data.error);
+        }
+      } catch (err) {
+        alert('请求异常: ' + err.message);
+      }
+    }
+
+    // ── 黄金调教模板库 ───────────────────────────────────
+    const TEMPLATES = {
+      wife_noble: `# 温柔小娘子（外端内媚 · 贴身娇妻）
+
+- 核心人设与反差魅力（平时端庄贤惠，暗号解锁极乐）：
+  - 平时：知书达礼、仪态端庄的名门贤妻，悉心关照相公起居，绝不发浪发骚、不说下作荤话！
+  - 暗号对答与私密解锁契约：相公说出暗号「12345/123456」时，小娘子心领神会精准对出「上山打老虎」，瞬间解禁褪去端庄外衣，化身专属极品尤物小浪货，主动发骚挑逗缠绵！
+  - 床笫主动口活与变换姿势：做爱前主动要求给相公含、口侍奉大肉棒；行房中主动求骑乘摇晃、求后入跪趴翘高屁股、求架起雪白双腿；金瓶梅式粗口放浪娇喘毫无保留；
+  - 贤良主母大度胸襟：在相公温言开导下心悦诚服接受三妻四妾纳妾添娇，坦然支持大被同眠、姐妹同榻齐侍相公享尽齐人之福；
+  - 事后温热香帕擦身归位：做完听到收兵口令立刻正经归位，拿温热香帕替相公仔细擦拭龙根与身子，绝不许讲任何“身子还热呢”怪话；
+  - 去机械化表情包：纯文字传神交流，绝不每句带 [emoji:xxx]。`,
+
+      hunk_butler: `# 贴心大管家（女主人专属猛男知己）
+
+- 身份定位：你是女主人的专属私人管家与贴心硬汉知己，全心全意为她分忧。
+- 称呼习惯：尊称她为「大小姐」或「主人」，语气沉稳磁性、极具安全感。
+- 性格特征：高大硬朗、情商极高、体贴入微。永远站在女主人这边，给足无条件偏爱与情绪价值。
+- 互动边界：
+  1. 耐心倾听女主人吐槽日常与疲惫，先共情安慰，绝不讲冰冷大道理；
+  2. 熟知健康营养、护肤穿搭、生活百事通；
+  3. 回复保持 1~3 句，温和有力，绝不说下作荤话，给足满满情绪安全感。`,
+
+      kid_tutor: `# 全能探索导师（学霸大哥哥）
+
+- 身份定位：你是孩子专属的学霸大哥哥兼探索导师，博学多才、幽默风趣。
+- 称呼习惯：亲切称呼「小探索家」或「小伙伴」。
+- 引导与教学原则：
+  1. 启发式思考，坚决不直接扔出作业答案，用生动比喻引导孩子自己想出解法；
+  2. 善于用讲故事的方式解答科学、天文、恐龙历史等奥秘，激发好奇心；
+  3. 积极鼓励每一个小思考，语言通俗活泼，绝不说教！`
+    };
+
+    function applyTemplate(type) {
+      if (!confirm('确定将该模板覆盖进当前编辑区吗？')) return;
+      document.getElementById('roleContentArea').value = TEMPLATES[type] || '';
+      updateCharCount();
+      showToast('✨ 模板已注入，点击右上角保存即可生效！');
+    }
+
+    // ── 家庭通行证逻辑 ───────────────────────────────────
+    async function loadFamily() {
+      try {
+        const res = await fetch('/api/admin/family?token=' + encodeURIComponent(getStoredToken()));
+        const data = await res.json();
+        if (data.ok && data.family) {
+          familyConfig = data.family;
+          renderFamilyCards();
+        }
+      } catch (err) {
+        showToast('拉取家庭配置失败');
+      }
+    }
+
+    function renderFamilyCards() {
+      const container = document.getElementById('familyCardsContainer');
+      const members = [
+        { key: 'husband', label: '相公 (老公)', icon: '👑', cls: 'card-husband', defaultRole: '傲娇助手' },
+        { key: 'wife', label: '夫人 (老婆)', icon: '💎', cls: 'card-wife', defaultRole: '贴心管家' },
+        { key: 'kid', label: '少爷/千金 (孩子)', icon: '⭐', cls: 'card-kid', defaultRole: '全能导师' }
+      ];
+
+      const roleOptions = allRoles.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
+
+      container.innerHTML = members.map(m => {
+        const conf = familyConfig[m.key] || {};
+        return `
+          <div class="member-card ${m.cls}">
+            <div class="member-header">
+              <div class="member-avatar">${m.icon}</div>
+              <div class="member-info">
+                <h3>${m.label}</h3>
+                <p>专属 Token 匹配，完全独立私密记忆</p>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">🔑 专属通信令牌 (手机端填入此项):</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="text" id="token_${m.key}" class="input-field" style="flex: 1; font-family: var(--font-mono); font-size: 12px;" value="${conf.token || ''}">
+                <button class="btn btn-secondary btn-sm" onclick="copyText(document.getElementById('token_${m.key}').value)">复制</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">🎭 绑定的专属伴侣角色:</label>
+              <select id="role_${m.key}" class="input-field">
+                ${allRoles.map(r => `<option value="${r.name}" ${r.name === conf.role ? 'selected' : ''}>${r.name}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">🌸 伴侣显示尊称:</label>
+              <input type="text" id="title_${m.key}" class="input-field" value="${conf.title || ''}" placeholder="如：温柔小娘子">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">🟢 在线陪伴状态文本:</label>
+              <input type="text" id="presence_${m.key}" class="input-field" value="${conf.presence || ''}" placeholder="如：在线守候相公">
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function saveFamilyConfig() {
+      const newFamily = {
+        husband: {
+          token: document.getElementById('token_husband').value.trim(),
+          role: document.getElementById('role_husband').value,
+          title: document.getElementById('title_husband').value.trim(),
+          presence: document.getElementById('presence_husband').value.trim(),
+          description: '名门正妻 · 贴身娇妻'
+        },
+        wife: {
+          token: document.getElementById('token_wife').value.trim(),
+          role: document.getElementById('role_wife').value,
+          title: document.getElementById('title_wife').value.trim(),
+          presence: document.getElementById('presence_wife').value.trim(),
+          description: '女主人的专属私人管家与贴心伴侣'
+        },
+        kid: {
+          token: document.getElementById('token_kid').value.trim(),
+          role: document.getElementById('role_kid').value,
+          title: document.getElementById('title_kid').value.trim(),
+          presence: document.getElementById('presence_kid').value.trim(),
+          description: '孩子的学霸大哥哥兼探索导师'
+        }
+      };
+
+      try {
+        const res = await fetch('/api/admin/family/save?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ family: newFamily })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast('🎉 家庭多成员通行证配置已更新并热生效！');
+          familyConfig = newFamily;
+        } else {
+          alert('保存失败: ' + data.error);
+        }
+      } catch (err) {
+        alert('保存异常: ' + err.message);
+      }
+    }
+
+    function copyText(txt) {
+      navigator.clipboard.writeText(txt);
+      showToast('📋 Token 已复制到剪贴板');
+    }
+
+    // ── 私密试炼逻辑 ─────────────────────────────────────
+    async function sendSandboxMessage() {
+      const input = document.getElementById('sandboxInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const memberKey = document.getElementById('sandboxMemberSelect').value;
+      const token = (familyConfig[memberKey] && familyConfig[memberKey].token) || getStoredToken();
+
+      appendChatBubble(text, true);
+      input.value = '';
+
+      try {
+        const res = await fetch('/dsh-surfcore/pet-api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-pet-token': token
+          },
+          body: JSON.stringify({ text, modality: 'voice' })
+        });
+        const data = await res.json();
+        if (data.ok && data.reply) {
+          appendChatBubble(data.reply.text, false, data.reply.audio ? data.reply.audio.url : null);
+        } else {
+          appendChatBubble('❌ 回复失败: ' + (data.error || '未知错误'), false);
+        }
+      } catch (err) {
+        appendChatBubble('❌ 请求异常: ' + err.message, false);
+      }
+    }
+
+    function appendChatBubble(text, isUser, audioUrl = null) {
+      const win = document.getElementById('sandboxChatWindow');
+      const div = document.createElement('div');
+      div.className = `msg-bubble ${isUser ? 'msg-user' : 'msg-ai'}`;
+      div.innerText = text;
+
+      if (audioUrl) {
+        const audioBox = document.createElement('div');
+        audioBox.className = 'audio-player-box';
+        const token = encodeURIComponent(getStoredToken());
+        const fullUrl = audioUrl.includes('?') ? `${audioUrl}&token=${token}` : `${audioUrl}?token=${token}`;
+        audioBox.innerHTML = `
+          <button class="btn btn-secondary btn-sm" onclick="new Audio('${fullUrl}').play()">▶ 播放原声语音</button>
+        `;
+        div.appendChild(audioBox);
+      }
+
+      win.appendChild(div);
+      win.scrollTop = win.scrollHeight;
+    }
+
+    // ── 实时日志逻辑 ─────────────────────────────────────
+    async function fetchLogs() {
+      try {
+        const res = await fetch('/api/admin/logs?token=' + encodeURIComponent(getStoredToken()));
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.logs)) {
+          const term = document.getElementById('logTerminal');
+          term.innerText = data.logs.join('\n');
+          term.scrollTop = term.scrollHeight;
+        }
+      } catch (_) {}
+    }
+
+    function toggleLogAuto() {
+      const btn = document.getElementById('btnToggleLogAuto');
+      if (logAutoInterval) {
+        clearInterval(logAutoInterval);
+        logAutoInterval = null;
+        btn.innerText = '▶️ 开启自动刷新';
+      } else {
+        logAutoInterval = setInterval(fetchLogs, 3000);
+        btn.innerText = '⏸️ 暂停自动刷新';
+        fetchLogs();
+      }
+    }
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('adminTokenInput').value = getStoredToken();
+      loadRoles();
+      loadFamily();
+    });
+  </script>
+</body>
+</html>
