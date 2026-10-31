@@ -24,6 +24,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // 豆包风格语音按住说话状态
   bool _isVoiceMode = false; // 是否处于底部按住说话大按钮模式
   bool _isHoldingRecord = false; // 是否当前正按住录音
+  bool _isSettling = false; // 是否处于松手后等待最后一段识别文本冲刷结算的缓冲窗口
   bool _isCanceling = false; // 是否上滑进入取消模式
   String _liveWords = ''; // 实时识别文字
   DateTime? _voiceStartTime;
@@ -38,16 +39,16 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       _speechAvailable = await _speech.initialize(
         onError: (val) {
-          if (mounted && _isHoldingRecord) {
-            setState(() => _isHoldingRecord = false);
+          debugPrint('[STT] 语音识别报错: ${val.errorMsg} (permanent: ${val.permanent})');
+          if (mounted && (_isHoldingRecord || _isSettling)) {
+            setState(() {
+              _isHoldingRecord = false;
+              _isSettling = false;
+            });
           }
         },
         onStatus: (val) {
-          if (val == 'done' || val == 'notListening') {
-            if (mounted && _isHoldingRecord) {
-              // 保持 holding 状态由松手控制
-            }
-          }
+          debugPrint('[STT] 语音引擎状态变更: $val');
         },
       );
       if (_speechAvailable) {
@@ -88,6 +89,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// 按下开始录音（豆包模式）
   void _onVoiceStart() async {
+    // 防重入：正在录音中或正在松手结算中直接忽略，杜绝 Android 原生 client error 5
+    if (_isHoldingRecord || _isSettling) return;
+
     if (!_speechAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -102,6 +106,7 @@ class _ChatScreenState extends State<ChatScreen> {
     HapticFeedback.mediumImpact();
     setState(() {
       _isHoldingRecord = true;
+      _isSettling = false;
       _isCanceling = false;
       _liveWords = '';
       _voiceStartTime = DateTime.now();
@@ -110,10 +115,13 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await _speech.listen(
         onResult: (result) {
-          if (!mounted || !_isHoldingRecord) return;
-          setState(() {
-            _liveWords = result.recognizedWords;
-          });
+          if (!mounted) return;
+          // 只要处于按住录音中或松手结算缓冲窗口内，都允许刷入最新识别文本
+          if (_isHoldingRecord || _isSettling) {
+            setState(() {
+              _liveWords = result.recognizedWords;
+            });
+          }
         },
         listenOptions: stt.SpeechListenOptions(
           listenMode: stt.ListenMode.dictation,
@@ -125,7 +133,12 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     } catch (e) {
       debugPrint('[STT] 启动录音异常: $e');
-      if (mounted) setState(() => _isHoldingRecord = false);
+      if (mounted) {
+        setState(() {
+          _isHoldingRecord = false;
+          _isSettling = false;
+        });
+      }
     }
   }
 
@@ -140,6 +153,21 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// 异常打断或取消手势
+  void _onVoiceCancel() async {
+    if (!_isHoldingRecord && !_isSettling) return;
+    try {
+      await _speech.stop();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _isHoldingRecord = false;
+        _isCanceling = false;
+        _isSettling = false;
+      });
+    }
+  }
+
   /// 松手结束录音并自动发送（豆包模式）
   void _onVoiceEnd() async {
     if (!_isHoldingRecord) return;
@@ -148,19 +176,26 @@ class _ChatScreenState extends State<ChatScreen> {
     final duration = DateTime.now().difference(_voiceStartTime ?? DateTime.now());
 
     HapticFeedback.lightImpact();
+
+    // 关键优化：手指已松开，但开启结算窗口 _isSettling = true，确保 Android 底层异步吐出的最终分词不被拦截
+    setState(() {
+      _isHoldingRecord = false;
+      _isCanceling = false;
+      _isSettling = true;
+    });
+
     try {
       await _speech.stop();
     } catch (_) {}
 
-    setState(() {
-      _isHoldingRecord = false;
-      _isCanceling = false;
-    });
-
-    if (!mounted) return;
+    if (!mounted) {
+      _isSettling = false;
+      return;
+    }
 
     // 1. 用户主动上滑取消
     if (wasCanceling) {
+      _isSettling = false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('已取消发送'),
@@ -173,6 +208,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // 2. 录音时间太短（小于 500ms）
     if (duration.inMilliseconds < 500) {
+      _isSettling = false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('说话时间太短'),
@@ -183,9 +219,14 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // 稍等 150ms 确保语音引擎最后一段文本刷回
-    await Future.delayed(const Duration(milliseconds: 150));
-    if (!mounted) return;
+    // 缓冲 350ms 确保 Android 系统底层在 stop 后的异步最终分词刷回
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (!mounted) {
+      _isSettling = false;
+      return;
+    }
+    _isSettling = false;
+
     final textToSend = _liveWords.trim();
     if (textToSend.isNotEmpty) {
       final provider = context.read<ChatProvider>();
@@ -551,9 +592,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     onLongPressStart: (_) => _onVoiceStart(),
                     onLongPressMoveUpdate: (d) => _onVoiceMove(d.localPosition),
                     onLongPressEnd: (_) => _onVoiceEnd(),
-                    onVerticalDragStart: (_) => _onVoiceStart(),
-                    onVerticalDragUpdate: (d) => _onVoiceMove(d.localPosition),
-                    onVerticalDragEnd: (_) => _onVoiceEnd(),
+                    onLongPressCancel: () => _onVoiceCancel(),
+                    behavior: HitTestBehavior.opaque,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       height: 44,
