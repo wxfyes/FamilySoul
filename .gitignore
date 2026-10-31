@@ -23,6 +23,8 @@ mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/.packages
 mobile/build/
+mobile/*.apk
+*.apk
 mobile/.idea/
 mobile/*.iml
 mobile/ios/.symlinks/
