@@ -398,8 +398,16 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 播放音频（支持气泡点击播放或自动播报）
-  Future<void> playAudio(String url) async {
+  Future<void> playAudio(String rawUrl) async {
     try {
+      String url = rawUrl.trim();
+      if (url.startsWith('/')) {
+        url = '${_config.baseUrl}$url';
+      }
+      if (url.contains('/audio/') && !url.contains('token=') && _config.token.trim().isNotEmpty) {
+        final sep = url.contains('?') ? '&' : '?';
+        url = '$url${sep}token=${Uri.encodeComponent(_config.token.trim())}';
+      }
       if (_currentPlayingUrl == url && _isPlayingAudio) {
         await _audioPlayer.pause();
         _isPlayingAudio = false;
@@ -697,8 +705,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
       final replyData = res['reply'] as Map<String, dynamic>?;
       final replyText = replyData?['text'] as String? ?? res['text'] as String? ?? '';
-      final audioUrl = replyData?['audio']?['url'] as String? ??
-          (replyData?['audioKey'] != null ? '/dsh-surfcore/pet-api/audio/${replyData!['audioKey']}.wav' : null);
+      final audioKey = replyData?['audio']?['key'] as String? ?? replyData?['audioKey'] as String?;
+      String? audioUrl;
+      if (audioKey != null && audioKey.isNotEmpty) {
+        audioUrl = '${_config.apiPrefix}/audio/$audioKey.wav?token=${Uri.encodeComponent(_config.token.trim())}';
+      }
 
       if (replyText.isNotEmpty) {
         final aiMsg = ChatMessage(

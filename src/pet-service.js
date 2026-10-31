@@ -161,7 +161,7 @@ export class PetService {
     return lines.join('\n');
   }
 
-  cleanReply(rawReply, userText = '') {
+  cleanReply(rawReply, userText = '', isVideoCall = false) {
     let out = String(rawReply || '').trim();
     out = out.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
     out = out.replace(/^\*\*([\s\S]+)\*\*$/, '$1').trim();
@@ -176,9 +176,21 @@ export class PetService {
     const userLow = String(userText || '').toLowerCase();
     const replyLow = out.toLowerCase();
 
-    // 1. 自拍兜底
-    const isImageIntent = /自拍|照片|看你|穿什么|照镜子|美照|发自拍|生成图片|生图|美女|美女图|看图|发张图|画个画/.test(userLow) ||
-                          /画给相公|对镜理|画给你瞧|画影|瞧瞧妾身模样|灯下这|画给相公一人看/.test(replyLow);
+    // 视频通话模式下，彻底清理掉所有 [image:...] / [sticker:...] 等标签，保持纯粹口语字幕
+    if (isVideoCall) {
+      out = out
+        .replace(/\[(image|music|sticker|card|compare):[^\]]*\]/gi, '')
+        .replace(/\[\s*emoji[:_][^\]]+\]/gi, '')
+        .trim();
+      return out;
+    }
+
+    // 1. 自拍兜底（仅当用户明确索要伴侣自拍画像且非系统视觉提示词时触发）
+    const isSystemVisionPrompt = userLow.includes('【收到') || userLow.includes('实时照片') || userLow.includes('视讯');
+    const isImageIntent = !isSystemVisionPrompt && (
+      /发自拍|来张自拍|看你自拍|发张美照|生成图片|生图|美女图|画个画/.test(userLow) ||
+      /画给相公|画给你瞧|画给相公一人看/.test(replyLow)
+    );
     if (isImageIntent && !out.includes('[image:')) {
       out += ' [image:selfie]';
     }
@@ -248,7 +260,7 @@ export class PetService {
       .trim();
   }
 
-  async chat({ text = '', modality = 'text', profileKey = 'husband', roleName = null } = {}) {
+  async chat({ text = '', modality = 'text', profileKey = 'husband', roleName = null, isVideoCall = false } = {}) {
     const say = String(text || '').trim();
     if (!say) return { ok: false, error: '输入内容为空' };
 
@@ -387,7 +399,7 @@ export class PetService {
         system: systemPrompt,
         messages,
       });
-      reply = this.cleanReply(completion.text, say);
+      reply = this.cleanReply(completion.text, say, isVideoCall);
     } catch (err) {
       console.error(`[Chat] ❌ 模型应答失败:`, err.message);
       return { ok: false, error: `大模型应答失败：${err.message}` };
@@ -479,7 +491,7 @@ export class PetService {
       promptSay = `【${targetTitle}发来了一张照片】请以你的专属身份亲切问候，询问是否要帮你端详气色、肤质或穿搭。`;
     }
 
-    const result = await this.chat({ text: promptSay, modality, profileKey });
+    const result = await this.chat({ text: promptSay, modality, profileKey, isVideoCall: true });
     if (result.ok) {
       const replyText = result.reply?.text || '';
       const audioKey = result.reply?.audioKey || result.reply?.audio?.key || null;

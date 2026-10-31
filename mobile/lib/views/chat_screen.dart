@@ -27,6 +27,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   String? _currentRecordPath;
   bool _speechAvailable = false;
+  bool _usingFallbackRecorder = false;
   String _currentLocaleId = 'zh_CN';
 
   // 豆包风格语音按住说话状态
@@ -43,7 +44,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _initSpeech();
   }
 
-  void _initSpeech() async {
+  Future<void> _initSpeech() async {
     try {
       _speechAvailable = await _speech.initialize(
         onError: (val) {
@@ -153,8 +154,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!mounted) return;
 
-    // Android 端：采用豆包同款「手机纯录音直传中枢」极速架构，彻底免疫任何手机系统引擎限制
-    if (!Platform.isIOS) {
+    // 优先使用系统自带语音引擎（iOS / Android 均优先本地/系统引擎），仅当系统无可用语音服务时降级云端转写
+    if (!_speechAvailable) {
+      await _initSpeech();
+    }
+    if (!_speechAvailable) {
+      _usingFallbackRecorder = true;
       HapticFeedback.mediumImpact();
       try {
         final tempDir = await getTemporaryDirectory();
@@ -195,6 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    _usingFallbackRecorder = false;
     HapticFeedback.mediumImpact();
     setState(() {
       _isHoldingRecord = true;
@@ -257,7 +263,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _onVoiceCancel() async {
     if (!_isHoldingRecord && !_isSettling) return;
 
-    if (!Platform.isIOS) {
+    if (_usingFallbackRecorder) {
       try {
         final path = await _audioRecorder.stop();
         if (path != null) {
@@ -298,7 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
     HapticFeedback.lightImpact();
 
     // Android 端：直传中枢模式
-    if (!Platform.isIOS) {
+    if (_usingFallbackRecorder) {
       String? recordPath;
       try {
         recordPath = await _audioRecorder.stop();
