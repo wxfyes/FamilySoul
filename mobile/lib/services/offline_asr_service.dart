@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show MethodChannel, rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
@@ -11,6 +11,7 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
 class OfflineAsrService {
   OfflineAsrService._();
   static final OfflineAsrService instance = OfflineAsrService._();
+  static const MethodChannel _nativeChannel = MethodChannel('familysoul/local_vision');
 
   sherpa_onnx.OnlineRecognizer? _recognizer;
   sherpa_onnx.OnlineStream? _stream;
@@ -56,16 +57,29 @@ class OfflineAsrService {
         modelDir.createSync(recursive: true);
       }
 
-      for (final fileName in _assetFiles) {
-        final targetFile = File('${modelDir.path}/$fileName');
-        if (!targetFile.existsSync() || targetFile.lengthSync() < 1024) {
-          final byteData = await rootBundle.load('assets/asr/$fileName');
-          final bytes = byteData.buffer.asUint8List(
-            byteData.offsetInBytes,
-            byteData.lengthInBytes,
-          );
-          await targetFile.writeAsBytes(bytes, flush: true);
-          debugPrint('[OfflineASR] 📦 已释放离线模型组件: $fileName (${(bytes.length / 1024).toStringAsFixed(0)} KB)');
+      // 优先通过 Android 原生 64KB 流式缓冲区解压 154MB 大模型，杜绝 rootBundle.load 内存溢出闪退
+      bool extractedNatively = false;
+      try {
+        final ok = await _nativeChannel.invokeMethod<bool>('extractAsrAssets', {
+          'targetDir': modelDir.path,
+          'files': _assetFiles,
+        });
+        extractedNatively = (ok == true);
+      } catch (e) {
+        debugPrint('[OfflineASR] 原生流式解压回退: $e');
+      }
+
+      if (!extractedNatively) {
+        for (final fileName in _assetFiles) {
+          final targetFile = File('${modelDir.path}/$fileName');
+          if (!targetFile.existsSync() || targetFile.lengthSync() < 1024) {
+            final byteData = await rootBundle.load('assets/asr/$fileName');
+            final bytes = byteData.buffer.asUint8List(
+              byteData.offsetInBytes,
+              byteData.lengthInBytes,
+            );
+            await targetFile.writeAsBytes(bytes, flush: true);
+          }
         }
       }
 
@@ -77,13 +91,14 @@ class OfflineAsrService {
         joiner: '${modelDir.path}/joiner.int8.onnx',
       );
 
+      // 关键修复：2025 满血版模型架构为 zipformer2（若误传 zipformer v1 会触发 C++ 底层 exit(-1) 直接闪退）
       final modelConfig = sherpa_onnx.OnlineModelConfig(
         transducer: transducer,
         tokens: '${modelDir.path}/tokens.txt',
         numThreads: 2,
         provider: 'cpu',
         debug: false,
-        modelType: 'zipformer',
+        modelType: 'zipformer2',
       );
 
       final config = sherpa_onnx.OnlineRecognizerConfig(

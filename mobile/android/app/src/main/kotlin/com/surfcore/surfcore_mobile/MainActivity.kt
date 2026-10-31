@@ -11,34 +11,85 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
 import kotlin.concurrent.thread
 
 class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        try {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } catch (_: Exception) {}
     }
 
     override fun onResume() {
         super.onResume()
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        try {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } catch (_: Exception) {}
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "familysoul/local_vision")
             .setMethodCallHandler { call, result ->
-                if (call.method == "analyzeImage") {
-                    val path = call.argument<String>("path") ?: ""
-                    val base64Str = call.argument<String>("base64") ?: ""
-                    thread {
-                        val summary = analyzeBitmapOffline(path, base64Str)
-                        runOnUiThread { result.success(summary) }
+                when (call.method) {
+                    "analyzeImage" -> {
+                        val path = call.argument<String>("path") ?: ""
+                        val base64Str = call.argument<String>("base64") ?: ""
+                        thread {
+                            val summary = analyzeBitmapOffline(path, base64Str)
+                            runOnUiThread { result.success(summary) }
+                        }
                     }
-                } else {
-                    result.notImplemented()
+                    "extractAsrAssets" -> {
+                        val targetDirPath = call.argument<String>("targetDir") ?: ""
+                        val files = call.argument<List<String>>("files") ?: emptyList()
+                        thread {
+                            val ok = extractAsrAssetsStreaming(targetDirPath, files)
+                            runOnUiThread { result.success(ok) }
+                        }
+                    }
+                    else -> result.notImplemented()
                 }
             }
+    }
+
+    /**
+     * 使用 64KB 流式缓冲区在后台线程解压大体积 ONNX 语音模型，
+     * 避免 Flutter rootBundle.load 一次性在内存分配 154MB 导致 Android OOM 闪退
+     */
+    private fun extractAsrAssetsStreaming(targetDirPath: String, files: List<String>): Boolean {
+        return try {
+            if (targetDirPath.isEmpty()) return false
+            val dir = File(targetDirPath)
+            if (!dir.exists()) dir.mkdirs()
+
+            for (fileName in files) {
+                val outFile = File(dir, fileName)
+                if (outFile.exists() && outFile.length() > 1024) {
+                    continue
+                }
+                val assetKey = "flutter_assets/assets/asr/$fileName"
+                val tmpFile = File(dir, "$fileName.tmp")
+                assets.open(assetKey).use { input ->
+                    FileOutputStream(tmpFile).use { output ->
+                        val buffer = ByteArray(65536)
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                        }
+                        output.flush()
+                    }
+                }
+                if (outFile.exists()) outFile.delete()
+                tmpFile.renameTo(outFile)
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     private fun analyzeBitmapOffline(path: String, base64Str: String): String {
