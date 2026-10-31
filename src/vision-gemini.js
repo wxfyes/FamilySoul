@@ -119,10 +119,10 @@ export class VisionGeminiService {
     if (!this.isReady() || !audioBase64) return null;
 
     const cleanBase64 = audioBase64.includes(',') ? audioBase64.split(',')[1] : audioBase64;
-    const modelsToTry = Array.from(new Set(['gemini-2.5-flash', 'gemini-1.5-flash', this.model]));
+    const modelsToTry = [this.model || 'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 
     const promptText =
-      '请严格将这段语音内容直接转录为纯中文文字。要求：\n1. 仔细辨别语音中的语句，只输出听写的文字内容；\n2. 去除口吃、语气停顿；\n3. 严禁添加任何解释、旁白、问候或说明文字，只输出转录结果；\n4. 若完全未听到说话或仅为噪音，请只输出空。';
+      '请将这段语音内容直接转录为纯中文文字。只输出听写出的文字，切勿输出多余解释或标点，若无说话则输出空。';
 
     const payload = JSON.stringify({
       contents: [
@@ -153,14 +153,14 @@ export class VisionGeminiService {
             targetHost: 'generativelanguage.googleapis.com',
             path: `/v1beta/models/${model}:generateContent`,
             body: payload,
-            timeoutMs: 3500,
+            timeoutMs: 6500,
           });
         } else {
           respData = await this._requestDirect({
             targetHost: 'generativelanguage.googleapis.com',
             path: `/v1beta/models/${model}:generateContent`,
             body: payload,
-            timeoutMs: 3500,
+            timeoutMs: 6500,
           });
         }
 
@@ -168,7 +168,7 @@ export class VisionGeminiService {
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (text) return text;
       } catch (err) {
-        // console.warn(`[ASR] 模型 ${model} 转录中断:`, err.message);
+        console.warn(`[ASR] 模型 ${model} 转录中断:`, err.message);
       }
     }
 
