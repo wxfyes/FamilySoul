@@ -683,6 +683,7 @@ const server = http.createServer(async (req, res) => {
         imageBase64: body.imageBase64,
         modality: body.modality || 'voice',
         profileKey: currentMember.memberKey,
+        roleName: currentMember.role,
       });
 
       console.log(`[VideoChat] ✅ 视讯通话处理完成 (耗时: ${result.latencyMs || 0}ms, 视觉: "${result.visualFact || '降级温存模式'}")`);

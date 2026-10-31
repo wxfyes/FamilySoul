@@ -459,7 +459,7 @@ export class PetService {
     };
   }
 
-  async videoChat({ text = '', imageBase64 = null, modality = 'voice', profileKey = 'husband' } = {}) {
+  async videoChat({ text = '', imageBase64 = null, modality = 'voice', profileKey = 'husband', roleName = null } = {}) {
     const say = String(text || '').trim();
     const hasClientVision = say.includes('【系统视觉已看清') || say.includes('【手机原生离线视觉');
     const visualFact = hasClientVision ? say : '';
@@ -480,7 +480,7 @@ export class PetService {
       promptSay = say || `请以你的专属身份主动向${targetTitle}温柔问候一声。`;
     }
 
-    const result = await this.chat({ text: promptSay, modality, profileKey, isVideoCall: true });
+    const result = await this.chat({ text: promptSay, modality, profileKey, roleName, isVideoCall: true });
     if (result.ok) {
       const replyText = result.reply?.text || '';
       const audioKey = result.reply?.audioKey || result.reply?.audio?.key || null;
