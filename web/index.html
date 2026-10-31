@@ -760,6 +760,7 @@
               <option value="wife">老婆 (测试猛男贴心管家)</option>
               <option value="kid">孩子 (测试全能探索导师)</option>
             </select>
+            <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="clearCurrentHistory()">🧹 清空记忆</button>
           </div>
         </div>
 
@@ -1127,6 +1128,31 @@
         }
       } catch (err) {
         appendChatBubble('❌ 请求异常: ' + err.message, false);
+      }
+    }
+
+    async function clearCurrentHistory() {
+      if (!confirm('确定要清空当前身份的私密对话记忆吗？清空后将从头开始交流。')) return;
+      const memberKey = document.getElementById('sandboxMemberSelect').value;
+      const token = (familyConfig[memberKey] && familyConfig[memberKey].token) || getStoredToken();
+      try {
+        const res = await fetch('/dsh-surfcore/pet-api/history/clear', {
+          method: 'POST',
+          headers: { 'x-pet-token': token }
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast('🧹 对话记忆已彻底清空重置！');
+          document.getElementById('sandboxChatWindow').innerHTML = `
+            <div class="msg-bubble msg-ai">
+              相公万福！妾身在侧贴心伺候。对话记忆已重置如初，相公有什么想聊的尽管吩咐妾身~
+            </div>
+          `;
+        } else {
+          showToast('清空失败: ' + (data.error || '未知错误'));
+        }
+      } catch (err) {
+        showToast('清空异常: ' + err.message);
       }
     }
 

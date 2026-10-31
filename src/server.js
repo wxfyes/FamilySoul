@@ -505,6 +505,13 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // 8.1 清空对话历史 POST /dsh-surfcore/pet-api/history/clear
+  if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/history/clear') {
+    petService.saveHistory(currentMember.memberKey, { messages: [], lastUserAt: 0, lastAssistantAt: 0 });
+    console.log(`[Chat] 成员 [${currentMember.memberKey}] 历史对话记忆已成功清空`);
+    return sendJson(res, 200, { ok: true, message: '历史记忆已成功重置' });
+  }
+
   // 9. 事件轮询 GET /dsh-surfcore/pet-api/events
   if (req.method === 'GET' && pathname === '/dsh-surfcore/pet-api/events') {
     return sendJson(res, 200, {
