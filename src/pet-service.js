@@ -109,6 +109,9 @@ export class PetService {
       return '';
     }).replace(/^\s*[\r\n]+/gm, '').trim();
 
+    const userLow = String(userText || '').toLowerCase();
+    const replyLow = out.toLowerCase();
+
     // 1. 自拍兜底
     const isImageIntent = /自拍|照片|看你|穿什么|照镜子|美照|发自拍|生成图片|生图|美女|美女图|看图|发张图|画个画/.test(userLow) ||
                           /画给相公|对镜理|画给你瞧|画影|瞧瞧妾身模样|灯下这|画给相公一人看/.test(replyLow);

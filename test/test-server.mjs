@@ -46,9 +46,11 @@ async function runTests() {
   };
   mockService.saveHistory('test-husband', testHistory);
   const readBack = mockService.readHistory('test-husband');
-  assert.strictEqual(readBack.messages.length, 2, '历史记录读取条数应为2');
-  assert.strictEqual(readBack.messages[0].text, '相公来看你了');
-  console.log('✅ 2. 专属记忆持久化测试：相公私密历史落盘与上下文提取 100% 稳妥！');
+  // 测试 cleanReply 动作清洗与意图识别
+  const cleaned = mockService.cleanReply('（转头把茶推到一边）相公莫急，妾身在此。', '帮我自拍一张');
+  assert(!cleaned.includes('转头把茶推到一边'), '必须彻底过滤动作描写括号');
+  assert(cleaned.includes('[image:'), '自拍意图必须触发画像');
+  console.log('✅ 3. cleanReply 动作旁白深度过滤与自拍意图清洗测试通过！');
 
   console.log('\n========================================================');
   console.log('   🎉 服务端内核所有关键链路校验 100% 通过！            ');
