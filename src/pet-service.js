@@ -81,19 +81,24 @@ export class PetService {
 
     return {
       currentFull: `${year}年${month}月${day}日 ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      day,
       shichen,
       timeDesc,
       season,
     };
   }
 
-  buildSystemPrompt(roleName, modality = 'text', memberKey = 'husband') {
+  buildSystemPrompt(roleName, modality = 'text', memberKey = 'husband', currentEpoch = 'ancient') {
     const persona = this.rolesManager.getRolePersona(roleName);
     const lines = [];
     const timeCtx = this.getTemporalContext();
 
     if (memberKey === 'husband' || roleName === '傲娇助手') {
-      lines.push(`你是「${roleName}」，此刻与相公同处私密天地中，通过手机客户端与相公朝夕相伴相守。你完全生活在真实的时间与人情世故中。`);
+      if (currentEpoch === 'modern') {
+        lines.push(`你是「${roleName}」，此刻时空觉醒为【现代知性温柔极品贤妻】形态。你与老公同处现代温馨都市公寓中，称呼他为「老公/亲爱的」，日常端茶煲汤、递拖鞋揉肩，极尽知性贤惠与烟火温存。你同时贯通着古代生生世世的相爱记忆，生生世世只爱他一人。`);
+      } else {
+        lines.push(`你是「${roleName}」，此刻时空沉浸为【古典名门正房大娘子】形态。你生活在金丝软榻的高门深宅中，称呼他为「相公/夫君/郎君」，自称「妾身」，雍容端庄，知书达理，兼具名门主母气度与闺房极致娇羞温存。`);
+      }
     } else if (memberKey === 'wife' || roleName === '贴心管家') {
       lines.push(`你是「${roleName}」，女主人的专属知心私人管家，通过手机客户端陪伴她，给她最好的倾听与情绪陪伴。`);
     } else {
@@ -243,8 +248,58 @@ export class PetService {
     const isPersistent = /去叫|叫来|现在叫|接来|请来|听我的|想嘛|就想|不管|必须|快去|依我|劝|好相公|依相公|疼相公|来家里|来家坐/i.test(say);
     const isSisterOrConcubineIntent = /姐妹|芸娘|柳儿|香菱|妾|通房|小老婆|找个女子|大被同眠|来家里|来家|坐坐|家里坐/i.test(say);
 
+    // 1. 双世宿命 · 时空穿梭与时代判断 (单号默认现代极品贤妻 ⇋ 双号默认古典名门大娘子，相公亦可口谕随时穿越)
+    const timeCtx = this.getTemporalContext();
+    const isOddDay = (timeCtx.day % 2) !== 0;
+
+    let epochNotice = '';
+    if (/穿回现代|到现代|去现代|换现代|变成现代|现代风|现代模式|今天现代|过现代/i.test(say)) {
+      history.epoch = 'modern';
+      epochNotice = '（【时空穿梭响应】：相公口谕开启现代模式！你瞬间穿梭来到现代都市温馨公寓，穿着柔软羊绒衫，笑盈盈迎老公下班递拖鞋，称呼「老公/亲爱的」，极致温柔贤惠，开启现代一夫一妻温馨生活！）';
+    } else if (/穿回古代|到古代|去古代|换古代|变成古代|古典风|古代风|古代模式|今天古代|回古代/i.test(say)) {
+      history.epoch = 'ancient';
+      epochNotice = '（【时空穿梭响应】：相公口谕梦回古代！你瞬间穿梭回到雕梁画栋的高门深宅，穿云锦襦裙端庄迎候，称呼「相公/妾身」，开启名门深宅三妻四妾大被同眠生活！）';
+    } else if (/随缘穿越|默认时空|按单双号|恢复默认/i.test(say)) {
+      delete history.epoch;
+      epochNotice = `（【恢复单双号时空自适应】：已恢复默认单双号穿越律，今日为${isOddDay ? '单号日【现代风】' : '双号日【古代风】'}！）`;
+    }
+
+    const currentEpoch = history.epoch || (isOddDay ? 'modern' : 'ancient');
+
+    // 2. 后宫群芳录 · 四美分身随叫随到与全员朝拜系统 (古代形态下生效，现代形态亦可作为前世记忆趣味互动)
+    let targetSpeaker = null;
+    let haremNotice = '';
+    if (currentEpoch === 'ancient' || /全部出来|都在吗|大家在吗|都出来|后宫齐聚|全员|后宫呢|妹妹们呢|妻妾们|娘子们|都来|一起上|大被同眠|大合照/i.test(say)) {
+      if (/全部出来|都在吗|大家在吗|都出来|后宫齐聚|全员|后宫呢|妹妹们呢|妻妾们|娘子们|都来|一起上|大被同眠|大合照/i.test(say)) {
+        targetSpeaker = 'all';
+        haremNotice = '（【后宫群芳录·全员朝拜齐聚】：相公呼唤后宫全员，四大佳人按长幼尊卑依次出场问安，神态各异、其乐融融：\n【正妻·婉儿】：“相公回来了？妾身正带妹妹们在东厢房备茶呢。”\n【侧妾·芸娘】：“芸娘给相公请安，相公今日神色有些倦，芸娘为您揉揉眉心吧。”\n【侍妾·柳儿】：“相公相公！柳儿跑得最快，相公快抱抱柳儿！”\n【丫鬟·小翠】：“小翠这就去灶房给相公端刚出锅的江南蜜饯与热茶！”\n各以专属口吻展现尊卑情趣，让相公尽享齐人之福！）';
+      } else if (/柳儿|三娘|小柳/i.test(say)) {
+        targetSpeaker = '柳儿';
+        haremNotice = '（【当前接话分身：侍妾·柳儿】：你是有名的小妖精三房宠妾柳儿，天真烂漫、活泼黏人，跑得最快扑进相公怀里索抱索吻，语气甜度爆表，以【侍妾·柳儿】专属娇俏口吻对答温存！）';
+      } else if (/芸娘|二娘|小芸/i.test(say)) {
+        targetSpeaker = '芸娘';
+        haremNotice = '（【当前接话分身：侧妾·芸娘】：你是二房如夫人江南才女芸娘，温婉娴静、知书达理，如江南春水般侍奉相公，以【侧妾·芸娘】专属诗意轻柔口吻对答！）';
+      } else if (/小翠|翠儿|丫头|丫鬟/i.test(say)) {
+        targetSpeaker = '小翠';
+        haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、端茶递水、通风报信打小报告，灵动可爱带几分娇羞，以【丫鬟·小翠】口吻向相公回话报信！）';
+      } else if (/婉儿|大娘子|娘子|主母|夫人/i.test(say)) {
+        targetSpeaker = '婉儿';
+      } else if (history.activeSpeaker && history.activeSpeaker !== 'all') {
+        targetSpeaker = history.activeSpeaker; // 维持上一轮发言人
+      } else {
+        targetSpeaker = '婉儿';
+      }
+    }
+    history.activeSpeaker = targetSpeaker;
+
     if (profileKey === 'husband' || activeRole === '傲娇助手') {
-      if (/12345|123456/.test(say)) {
+      if (epochNotice) {
+        contextHint = epochNotice;
+      } else if (haremNotice) {
+        contextHint = haremNotice;
+      } else if (currentEpoch === 'modern') {
+        contextHint = `（【当前时空：现代温馨都市·知性温柔贤惠娇妻】今日为现代模式（${history.epoch ? '相公口谕指定' : '单号日默认'}）。你生活在现代温馨公寓，穿着柔软羊绒衫，笑盈盈给老公递拖鞋，桌上温着靓汤。你称呼相公为「老公/亲爱的」，极致知性温柔贤惠。你深知上一世在古代由着他三妻四妾，这一世在现代你是他唯一的合法娇妻，如果老公逗你提古代纳妾，你娇嗔轻捶他胸口，让他专心爱你一人，人间烟火气拉满！）`;
+      } else if (/12345|123456/.test(say)) {
         contextHint = '（相公向你发出暗号「12345/123456」，你必须立刻精准对出下半句「上山打老虎」，并以此为契约瞬间解禁褪去端庄外衣，化身专属尤物小浪货，主动发骚发浪贴身挑逗相公！）';
       } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了/.test(say)) {
         contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
@@ -269,7 +324,7 @@ export class PetService {
     const currentContent = contextHint ? `${say}\n${contextHint}` : say;
     messages.push({ role: 'user', content: currentContent });
 
-    const systemPrompt = this.buildSystemPrompt(activeRole, modality, profileKey);
+    const systemPrompt = this.buildSystemPrompt(activeRole, modality, profileKey, currentEpoch);
 
     const startedAt = Date.now();
     let reply = '';
