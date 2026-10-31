@@ -149,11 +149,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await AudioPlayer.global.setAudioContext(AudioContext(
         iOS: AudioContextIOS(
-          category: AVAudioSessionCategory.playAndRecord,
+          category: AVAudioSessionCategory.playback,
           options: {
             AVAudioSessionOptions.defaultToSpeaker,
-            AVAudioSessionOptions.allowBluetooth,
-            AVAudioSessionOptions.allowBluetoothA2DP,
             AVAudioSessionOptions.mixWithOthers,
           },
         ),
