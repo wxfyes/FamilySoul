@@ -89,13 +89,13 @@ import Vision
 
       let handler = VNImageRequestHandler(cgImage: targetCGImage, options: [:])
 
-      // A. 实况文本 OCR (中英混排高精度离线文字识别)
+      // A. 实况文本 OCR (中英混排高精度离线文字识别，过滤低于2字符的噪点纹理)
       let textReq = VNRecognizeTextRequest { req, _ in
         guard let obs = req.results as? [VNRecognizedTextObservation] else { return }
         for o in obs.prefix(35) {
-          if let top = o.topCandidates(1).first, top.confidence > 0.35 {
+          if let top = o.topCandidates(1).first, top.confidence > 0.45 {
             let line = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !line.isEmpty {
+            if line.count >= 2 {
               recognizedTexts.append(line)
             }
           }
@@ -104,34 +104,30 @@ import Vision
       textReq.recognitionLevel = .accurate
       textReq.usesLanguageCorrection = true
       textReq.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+      try? handler.perform([textReq])
 
-      // B. 人脸与神态检测
+      // B. 人脸与神态检测（独立执行，防止与分类请求互相中断）
       let faceReq = VNDetectFaceLandmarksRequest { req, _ in
         if let faces = req.results as? [VNFaceObservation] {
           faceCount = faces.count
         }
       }
+      try? handler.perform([faceReq])
 
-      // C. 场景与物体分类 (1300+ 类离线物体场景标签)
-      var requests: [VNRequest] = [textReq, faceReq]
+      // C. 场景与物体分类 (1300+ 类离线物体场景标签，独立执行并降低多物体场景阈值至 0.04)
       if #available(iOS 13.0, *) {
         let classifyReq = VNClassifyImageRequest { req, _ in
           guard let obs = req.results as? [VNClassificationObservation] else { return }
-          for item in obs where item.confidence > 0.22 {
+          let sorted = obs.sorted { $0.confidence > $1.confidence }
+          for item in sorted where item.confidence > 0.04 {
             let zh = Self.translateVisionLabel(item.identifier)
-            if !sceneLabels.contains(zh) {
+            if !zh.isEmpty && !sceneLabels.contains(zh) {
               sceneLabels.append(zh)
             }
-            if sceneLabels.count >= 8 { break }
+            if sceneLabels.count >= 10 { break }
           }
         }
-        requests.append(classifyReq)
-      }
-
-      do {
-        try handler.perform(requests)
-      } catch {
-        // 即使部分请求受限也尽可能返回已识别内容
+        try? handler.perform([classifyReq])
       }
 
       var summaryParts: [String] = []
@@ -160,6 +156,22 @@ import Vision
 
   private static func translateVisionLabel(_ id: String) -> String {
     let map: [String: String] = [
+      "teapot": "茶壶/泡茶器",
+      "kettle": "水壶/茶壶",
+      "pitcher": "玻璃茶壶/水壶",
+      "carafe": "玻璃壶",
+      "jug": "水壶/茶具",
+      "beaker": "透明玻璃器皿",
+      "glass": "玻璃杯/玻璃器皿",
+      "mug": "马克杯/水杯",
+      "coffee_cup": "咖啡杯/马克杯",
+      "teacup": "茶杯",
+      "cup": "杯子",
+      "tableware": "茶具/桌面器皿",
+      "drinkware": "杯具/茶具",
+      "bottle": "瓶子",
+      "lighter": "打火机",
+      "remote": "遥控器",
       "person": "人物",
       "people": "人物",
       "adult": "成年人",
@@ -180,22 +192,32 @@ import Vision
       "bedroom": "卧室",
       "living_room": "客厅",
       "office": "办公桌面环境",
+      "desk": "书桌/办公桌",
+      "table": "桌面/台面",
+      "countertop": "台面",
+      "wood": "木质台面",
+      "furniture": "家具/桌椅",
       "computer": "电脑设备",
       "laptop": "笔记本电脑",
-      "display": "电子屏幕/显示器",
-      "monitor": "显示器画面",
-      "television": "电视屏幕",
+      "keyboard": "电脑键盘",
+      "mouse": "鼠标",
+      "display": "电脑显示器/屏幕",
+      "monitor": "电脑显示器",
+      "television": "显示屏/电视",
+      "screen": "电子屏幕",
+      "electronics": "电子数码设备",
       "mobile_phone": "智能手机",
-      "screenshot": "屏幕截图",
+      "cellphone": "手机",
+      "screenshot": "手机屏幕截图",
       "text": "文字界面",
       "document": "文档资料",
       "paper": "纸张文件",
       "book": "书籍",
       "food": "美食佳肴",
       "dish": "菜品",
+      "tea": "茶水/茶饮",
+      "beverage": "茶饮/饮品",
       "drink": "饮品",
-      "cup": "杯子",
-      "table": "桌面",
       "chair": "座椅",
       "cat": "猫咪",
       "dog": "狗狗",

@@ -32,9 +32,6 @@ jobs:
         run: |
           cd mobile
           flutter pub get
-          # iOS 端 100% 使用苹果原生 Apple Speech，无需打包 25MB 的 SherpaOnnxC.xcframework（避免免费 Apple ID 签名多动态库卡 87% 及体积膨胀）
-          find ~/.pub-cache -name "sherpa_onnx_ios.podspec" -exec sed -i '' '/vendored_frameworks/d' {} +
-          find ~/.pub-cache -name "Package.swift" -path "*sherpa_onnx_ios*" -exec rm -f {} +
 
       - name: Build unsigned iOS IPA
         run: |

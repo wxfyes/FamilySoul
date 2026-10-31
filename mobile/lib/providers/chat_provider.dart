@@ -485,9 +485,10 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
 
+      // 当手机本地已提取视觉特征时，不再向服务端传 imageBase64，彻底杜绝服务端再去调 Google Gemini 或报代理错误
       final res = await _apiClient.sendVideoChat(
         text: effectiveText,
-        imageBase64: imageBase64,
+        imageBase64: localFact.isNotEmpty ? null : imageBase64,
         modality: 'voice',
       );
 
@@ -634,9 +635,10 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
 
+      // 手机端已完成原生离线识图，传 imageBase64: null 直接走服务端 DeepSeek 纯文本秒回，100% 绕过服务端 Gemini 与代理检查
       final res = await _apiClient.sendVideoChat(
         text: effectivePrompt,
-        imageBase64: base64Image,
+        imageBase64: localFact.isNotEmpty ? null : base64Image,
         modality: modality,
       );
 
