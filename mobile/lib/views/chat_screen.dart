@@ -455,9 +455,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('上传照片看脸 · 肤质气色端详', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('发送图片 · 视觉万物识别', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       SizedBox(height: 2),
-                      Text('Gemini 视觉大脑为你专业分析面容、肤质与气色', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text('拍照或发图，伴侣亲眼看清图中内容并听候询问', style: TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                 ],
@@ -472,8 +472,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF8B5CF6)),
                 ),
-                title: const Text('拍照看脸 / 肤质 / 穿搭', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('即时自拍，伴侣实时端详为你量身建议'),
+                title: const Text('拍照发送', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('拍下眼前画面、物品、文字或自拍'),
                 contentPadding: EdgeInsets.zero,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -491,7 +491,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: const Icon(Icons.photo_library_rounded, color: Colors.blue),
                 ),
                 title: const Text('从手机相册选取', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('选择手机相册中的精修照片或特写'),
+                subtitle: const Text('发送相册中的任意图片、截图或照片'),
                 contentPadding: EdgeInsets.zero,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -523,7 +523,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       await provider.sendImageMessage(
         filePath: picked.path,
-        text: promptText.isNotEmpty ? promptText : '帮我仔细端详看看照片里的肤质、脸色和整体气色，给出建议',
+        text: promptText,
       );
       _scrollToBottom();
     } catch (e) {

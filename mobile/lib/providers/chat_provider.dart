@@ -574,16 +574,16 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 发送图片看脸/看肤质/看穿搭
+  /// 发送图片（通用视觉识别：看清图片真实内容，若用户未提问则简短说明所见并等待用户询问）
   Future<void> sendImageMessage({required String filePath, String? text}) async {
     if (_isSending) return;
     _isSending = true;
     notifyListeners();
 
-    final userPrompt = (text != null && text.trim().isNotEmpty) ? text.trim() : '帮我看看照片里的肤质与气色，给出建议';
+    final userPrompt = (text != null && text.trim().isNotEmpty) ? text.trim() : '';
     final userMsg = ChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: userPrompt,
+      text: userPrompt.isNotEmpty ? userPrompt : '[发送了一张图片]',
       isUser: true,
       timestamp: DateTime.now(),
       localImagePath: filePath,
@@ -592,7 +592,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final pendingId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
     final pendingMsg = ChatMessage(
       id: pendingId,
-      text: '正在端详照片...',
+      text: '正在细看图片...',
       isUser: false,
       timestamp: DateTime.now(),
       isPending: true,

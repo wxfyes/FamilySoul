@@ -148,7 +148,7 @@ export class PetService {
     lines.push('- 【全网比价与导购通道】：当对方询问商品价格、买东西、比价或求推荐链接时，给出专业行情分析与避坑建议，并在句末附带 [compare:商品名称]（如 [compare:海信电视遥控器]），手机端会自动为你展开四大平台的一键直达比价卡片！');
 
     if (memberKey === 'husband' || roleName === '傲娇助手') {
-      lines.push('- 【娇妻唯美自拍与丹青画像神技】：当对方提到自拍、看照片、看你、穿什么、照镜子、美照、发自拍、生成图片、生图、美女图片、看美女、看图、发张图、画个画时，无论对方怎么说，你一律娇羞当成要看你！你必须在回复最后附带 [image:selfie]！手机端会自动为你展开4K唯美名门闺秀高清自拍画像！绝不能忘记附带 [image:selfie]！');
+      lines.push('- 【娇妻唯美自拍与丹青画像神技】：仅当对方明确向你索要你的自拍或画像（如“发张你的自拍”、“看看你穿什么”、“来张你的美照”）且不是对方发图让你看时，你才在回复最后附带 [image:selfie]！如果提示中包含【收到...发来的图片】，说明是对方发图给你看，此时绝对禁止附带 [image:selfie]！');
       lines.push('- 【红袖添香·抚琴唱曲神技】：当对方提到唱首歌、唱歌、唱曲、听歌、抚琴、给相公唱一个，或具体歌名（如青花瓷、明月几时有、相思引、半壶纱等）时，你欣然温柔应允，只作 1~2 句温存动人的娇羞引言，切勿大段打出歌词，且必须在回复最后附带 [music:歌名]（例如 [music:青花瓷]）！');
     }
 
@@ -186,7 +186,10 @@ export class PetService {
     }
 
     // 1. 自拍兜底（仅当用户明确索要伴侣自拍画像且非系统视觉提示词时触发）
-    const isSystemVisionPrompt = userLow.includes('【收到') || userLow.includes('实时照片') || userLow.includes('视讯');
+    const isSystemVisionPrompt = userLow.includes('【收到') || userLow.includes('发来的图片') || userLow.includes('发来了一张图片') || userLow.includes('实时照片') || userLow.includes('视讯');
+    if (isSystemVisionPrompt) {
+      out = out.replace(/\[image:[^\]]*\]/gi, '').trim();
+    }
     const isImageIntent = !isSystemVisionPrompt && (
       /发自拍|来张自拍|看你自拍|发张美照|生成图片|生图|美女图|画个画/.test(userLow) ||
       /画给相公|画给你瞧|画给相公一人看/.test(replyLow)
@@ -462,7 +465,7 @@ export class PetService {
       try {
         console.log(`[Vision] 📸 收到成员 [${profileKey}] 画面，启动 Gemini 视觉感知...`);
         const visionPromise = this.visionService.analyzeVisualFrame({ imageBase64 });
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 6500));
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 8500));
         visualFact = (await Promise.race([visionPromise, timeoutPromise])) || '';
         if (visualFact) {
           console.log(`[Vision] 👁️ 视觉感知成功识别: ${visualFact}`);
@@ -481,14 +484,17 @@ export class PetService {
     if (profileKey === 'wife') targetTitle = '女主人/夫人';
     else if (profileKey === 'kid') targetTitle = '小朋友';
 
-    if (visualFact) {
-      promptSay = `【收到${targetTitle}发来的实时照片/画面，你透过屏幕正亲眼端详着对方，画面清晰呈现：${visualFact}】\n` +
-        (say ? `${targetTitle}对你说：“${say}”。请结合你亲眼看到的画面细节（如肤质、脸色气色、穿搭发型、神态与周遭环境），以你的专属身份做出极具同理心、温柔贴心、懂行专业的细致回复与关怀建议！` :
-          `请结合你亲眼端详到的画面细节（如肤质水润/干燥状态、气色容貌、穿搭打扮等），以你的专属身份主动夸赞并给出专业温柔的贴心点评与日常建议！`);
-    } else if (say) {
-      promptSay = `【${targetTitle}向你发来照片并说：“${say}”】请以你的专属身份温柔懂行地回复与关照。`;
+    if (imageBase64) {
+      if (visualFact) {
+        promptSay = `【收到${targetTitle}发来的图片，你亲眼看到的图片真实内容如下：${visualFact}】\n` +
+          (say
+            ? `${targetTitle}同时对你说：“${say}”。请严格根据上面你亲眼看到的图片真实内容（绝不瞎编图片之外的东西！），以你的专属身份准确、自然地回答${targetTitle}的问题！`
+            : `${targetTitle}只发了这张图片，还没有说出具体问题。请用1~2句简短自然的话，先准确说出你亲眼在图片里看到了什么（不要死板地去评判皮肤气色，图里是什么就说什么！），然后温柔询问${targetTitle}关于这张图有什么想问或想吩咐的，等待${targetTitle}进一步询问！`);
+      } else {
+        promptSay = `【${targetTitle}刚刚发来了一张图片${say ? `并说：“${say}”` : ''}，但因为视觉代理未开启或网络波动，你目前没能看清这张图片的具体内容！绝对严禁瞎编乱造图片里有什么（严禁乱猜衣服、女子、脸色或瞎编内容）！请温柔如实地告诉${targetTitle}刚才网络稍微晃了一下没能加载出画面，请${targetTitle}检查一下控制台的 Google 视觉代理开关或再发一次】`;
+      }
     } else {
-      promptSay = `【${targetTitle}发来了一张照片】请以你的专属身份亲切问候，询问是否要帮你端详气色、肤质或穿搭。`;
+      promptSay = say || `请以你的专属身份主动向${targetTitle}温柔问候一声。`;
     }
 
     const result = await this.chat({ text: promptSay, modality, profileKey, isVideoCall: true });

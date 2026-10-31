@@ -91,11 +91,16 @@ export class VisionGeminiService {
     if (!this.isReady() || !imageBase64) return null;
 
     const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-    // 优先采用 Google 官方当前最稳最快的轻量模型 gemini-2.5-flash
-    const modelsToTry = Array.from(new Set(['gemini-2.5-flash', this.model, 'gemini-3.5-flash']));
+    const modelsToTry = Array.from(new Set([
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-flash-lite-latest',
+      this.model,
+      'gemini-3.5-flash',
+    ]));
 
     const promptText =
-      '这是视频通话中对方（相公）的一帧画面。请用1-2句话客观描述相公的面部神态（如是否微笑、眼神、表情）、发型穿搭（衣服颜色与款式）、当前动作或手中拿的物品，以及身后的房间环境。只输出简明真实事实，切勿添加客套话，供伴侣回应参考。';
+      '请仔细观察这张图片或视频画面，用2-3句话客观、准确、具体地描述画面中的真实内容：如果是人物，请描述人物的性别年龄、面部表情与气色、是否戴眼镜、发型与穿搭（衣服颜色与款式）、手部动作及身后环境；如果是物品、美食、风景、宠物或手机截图文字，请准确描述图中具体的物体名称、画面细节与文字内容。只输出客观真实的视觉事实，绝不臆造，切勿添加客套话。';
 
     const payload = JSON.stringify({
       contents: [
@@ -126,14 +131,14 @@ export class VisionGeminiService {
             targetHost: 'generativelanguage.googleapis.com',
             path: `/v1beta/models/${model}:generateContent`,
             body: payload,
-            timeoutMs: 2000,
+            timeoutMs: 6500,
           });
         } else {
           respData = await this._requestDirect({
             targetHost: 'generativelanguage.googleapis.com',
             path: `/v1beta/models/${model}:generateContent`,
             body: payload,
-            timeoutMs: 2000,
+            timeoutMs: 6500,
           });
         }
 
@@ -141,8 +146,7 @@ export class VisionGeminiService {
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (text) return text;
       } catch (err) {
-        // 单个模型或网络超时，快速切入下一个或降级，绝不阻塞用户通话
-        // console.warn(`[Vision] 模型 ${model} 感知尝试中断:`, err.message);
+        console.warn(`[Vision] 模型 ${model} 感知尝试中断:`, err.message);
       }
     }
 
