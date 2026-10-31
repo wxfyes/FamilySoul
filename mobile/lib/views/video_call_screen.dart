@@ -161,13 +161,28 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
       _speechAvailable = await _speech.initialize(
         onError: (val) {
           debugPrint('[VideoCall STT] 识别错误: $val');
-          if (mounted) setState(() => _isListening = false);
+          if (mounted) {
+            setState(() => _isListening = false);
+            Future.delayed(const Duration(milliseconds: 600), () {
+              if (mounted && !_isMuted && !_isSending && !_speech.isListening) {
+                _startListeningToUser();
+              }
+            });
+          }
         },
         onStatus: (status) {
           debugPrint('[VideoCall STT] 状态变更: $status');
           if (status == 'notListening' || status == 'done') {
-            if (mounted && !_isSending && _liveSpokenWords.trim().isNotEmpty) {
+            if (!mounted) return;
+            if (!_isSending && _liveSpokenWords.trim().isNotEmpty) {
               _sendSpokenMessage(_liveSpokenWords.trim());
+            } else {
+              setState(() => _isListening = false);
+              Future.delayed(const Duration(milliseconds: 350), () {
+                if (mounted && !_isMuted && !_isSending && !_speech.isListening) {
+                  _startListeningToUser();
+                }
+              });
             }
           }
         },
@@ -259,8 +274,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
       });
 
       await _speech.listen(
-        listenFor: const Duration(seconds: 60),
-        pauseFor: const Duration(seconds: 4),
         onResult: (result) {
           if (!mounted || _isSending) return;
           final words = result.recognizedWords.trim();
@@ -273,7 +286,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
             if (result.finalResult) {
               _sendSpokenMessage(words);
             } else {
-              _silenceTimer = Timer(const Duration(milliseconds: 2800), () {
+              _silenceTimer = Timer(const Duration(milliseconds: 2600), () {
                 if (mounted && _liveSpokenWords.isNotEmpty && !_isSending) {
                   _sendSpokenMessage(_liveSpokenWords);
                 }
