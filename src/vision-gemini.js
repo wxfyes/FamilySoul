@@ -58,9 +58,12 @@ export class VisionGeminiService {
 
   /** 测试指定代理是否能连通 Google Gemini */
   async testProxy(proxyUrl = '') {
-    const targetProxy = proxyUrl || this.proxy;
+    let targetProxy = String(proxyUrl || this.proxy || '').trim();
     if (!targetProxy) {
       return { ok: false, error: '未提供代理地址，例如: http://192.168.1.112:27890' };
+    }
+    if (!targetProxy.includes('://')) {
+      targetProxy = `http://${targetProxy}`;
     }
     const startTime = Date.now();
     try {
@@ -270,7 +273,9 @@ export class VisionGeminiService {
       let proxyPort = 7890;
       try {
         if (proxyUrl) {
-          const u = new URL(proxyUrl);
+          const raw = String(proxyUrl).trim();
+          const withScheme = raw.includes('://') ? raw : `http://${raw}`;
+          const u = new URL(withScheme);
           proxyHost = u.hostname || '127.0.0.1';
           proxyPort = Number(u.port) || 7890;
         }

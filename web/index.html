@@ -1338,7 +1338,11 @@
     async function saveGeminiConfig() {
       try {
         const useProxy = document.getElementById('settingUseProxy').checked;
-        const proxy = document.getElementById('settingProxyInput').value.trim();
+        let proxy = document.getElementById('settingProxyInput').value.trim();
+        if (proxy && !proxy.includes('://')) {
+          proxy = 'http://' + proxy;
+          document.getElementById('settingProxyInput').value = proxy;
+        }
         const model = document.getElementById('settingModelSelect').value;
         const enabled = document.getElementById('settingVisionEnabled').value === 'true';
         const apiKey = document.getElementById('settingApiKeyInput').value.trim();
@@ -1365,7 +1369,11 @@
     async function testProxyConnection() {
       const btn = document.getElementById('btnTestProxy');
       const resBox = document.getElementById('proxyTestResult');
-      const proxy = document.getElementById('settingProxyInput').value.trim();
+      let proxy = document.getElementById('settingProxyInput').value.trim();
+      if (proxy && !proxy.includes('://')) {
+        proxy = 'http://' + proxy;
+        document.getElementById('settingProxyInput').value = proxy;
+      }
 
       btn.disabled = true;
       btn.innerText = '⏳ 探测中...';
