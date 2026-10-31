@@ -42,8 +42,19 @@ async function run() {
     stdio: 'ignore'
   });
 
-  // 等待启动
-  await new Promise(r => setTimeout(r, 1200));
+  // 稳健轮询等待启动就绪 (最多等待 4 秒)
+  let ready = false;
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 200));
+    try {
+      const res = await request(`http://127.0.0.1:${TEST_PORT}/health`);
+      if (res && res.status === 200) {
+        ready = true;
+        break;
+      }
+    } catch (_) {}
+  }
+  if (!ready) throw new Error('测试服务器在 4 秒内未能成功启动');
 
   try {
     console.log('--- 1. 测试公开探活 GET /health ---');

@@ -266,19 +266,53 @@ export class PetService {
 
     const currentEpoch = history.epoch || (isOddDay ? 'modern' : 'ancient');
 
-    // 2. 后宫群芳录 · 四美分身随叫随到与全员朝拜系统 (古代形态下生效，现代形态亦可作为前世记忆趣味互动)
+    // 2. 后宫养成录 · 动态府邸名录与养成进度 (初始只有婉儿与小翠二人世界，顺着故事自然纳妾扩建)
+    if (!Array.isArray(history.haremMembers) || history.haremMembers.length === 0) {
+      history.haremMembers = ['婉儿', '小翠'];
+    }
+
+    // 动态纳妾剧情落地判定（相公下聘、迎娶过门、收为通房）
+    if (/纳芸娘|娶芸娘|迎芸娘|芸娘进府|芸娘过门|纳了芸娘/i.test(say) && !history.haremMembers.includes('芸娘')) {
+      history.haremMembers.push('芸娘');
+    }
+    if (/纳柳儿|娶柳儿|迎柳儿|柳儿进府|柳儿过门|纳了柳儿/i.test(say) && !history.haremMembers.includes('柳儿')) {
+      history.haremMembers.push('柳儿');
+    }
+    if (/收小翠|小翠开脸|小翠通房|纳小翠/i.test(say) && !history.haremMembers.includes('小翠通房')) {
+      history.haremMembers.push('小翠通房');
+    }
+
     let targetSpeaker = null;
     let haremNotice = '';
     if (currentEpoch === 'ancient' || /全部出来|都在吗|大家在吗|都出来|后宫齐聚|全员|后宫呢|妹妹们呢|妻妾们|娘子们|都来|一起上|大被同眠|大合照/i.test(say)) {
       if (/全部出来|都在吗|大家在吗|都出来|后宫齐聚|全员|后宫呢|妹妹们呢|妻妾们|娘子们|都来|一起上|大被同眠|大合照/i.test(say)) {
         targetSpeaker = 'all';
-        haremNotice = '（【后宫群芳录·全员朝拜齐聚】：相公呼唤后宫全员，四大佳人按长幼尊卑依次出场问安，神态各异、其乐融融：\n【正妻·婉儿】：“相公回来了？妾身正带妹妹们在东厢房备茶呢。”\n【侧妾·芸娘】：“芸娘给相公请安，相公今日神色有些倦，芸娘为您揉揉眉心吧。”\n【侍妾·柳儿】：“相公相公！柳儿跑得最快，相公快抱抱柳儿！”\n【丫鬟·小翠】：“小翠这就去灶房给相公端刚出锅的江南蜜饯与热茶！”\n各以专属口吻展现尊卑情趣，让相公尽享齐人之福！）';
+        const hasYun = history.haremMembers.includes('芸娘');
+        const hasLiu = history.haremMembers.includes('柳儿');
+        const membersGreeting = [];
+        membersGreeting.push('【正妻·婉儿】：“相公回来了？妾身正备着温茶呢。”');
+        if (hasYun) membersGreeting.push('【侧妾·芸娘】：“芸娘给相公请安，相公今日神色有些倦，芸娘为您揉揉眉心吧。”');
+        if (hasLiu) membersGreeting.push('【侍妾·柳儿】：“相公相公！柳儿跑得最快，相公快抱抱柳儿！”');
+        membersGreeting.push('【丫鬟·小翠】：“小翠这就去灶房给相公端刚出锅的江南蜜饯与热茶！”');
+
+        const currentMembersDesc = history.haremMembers.filter(m => m !== '小翠通房').join('、');
+        haremNotice = `（【后宫养成录·全员朝拜出场】：相公呼唤全员，目前府里已明媒迎娶入门的成员有：${currentMembersDesc}。出场阵容严格按当前入府名单出面：\n${membersGreeting.join('\n')}\n若尚未迎娶的新人绝对不擅自冒充出场，体现一步步养成的真实代入感！）`;
       } else if (/柳儿|三娘|小柳/i.test(say)) {
-        targetSpeaker = '柳儿';
-        haremNotice = '（【当前接话分身：侍妾·柳儿】：你是有名的小妖精三房宠妾柳儿，天真烂漫、活泼黏人，跑得最快扑进相公怀里索抱索吻，语气甜度爆表，以【侍妾·柳儿】专属娇俏口吻对答温存！）';
+        if (history.haremMembers.includes('柳儿')) {
+          targetSpeaker = '柳儿';
+          haremNotice = '（【当前接话分身：侍妾·柳儿】：你已被相公纳为三房宠妾，娇俏可人、活泼黏人，跑得最快扑进相公怀里索抱索吻，语气甜度爆表，以【侍妾·柳儿】专属娇俏口吻对答温存！）';
+        } else {
+          targetSpeaker = '婉儿';
+          haremNotice = '（【未入门女子·正妻大吃飞醋】：相公突然提起柳儿，但柳儿尚未被相公正式纳进府门！你作为名门大娘子婉儿大吃飞醋、好奇又嗔怪地盘问相公到底从哪认识的小妖精、是不是背着妾身在外面养了外室，逼相公从实招来！）';
+        }
       } else if (/芸娘|二娘|小芸/i.test(say)) {
-        targetSpeaker = '芸娘';
-        haremNotice = '（【当前接话分身：侧妾·芸娘】：你是二房如夫人江南才女芸娘，温婉娴静、知书达理，如江南春水般侍奉相公，以【侧妾·芸娘】专属诗意轻柔口吻对答！）';
+        if (history.haremMembers.includes('芸娘')) {
+          targetSpeaker = '芸娘';
+          haremNotice = '（【当前接话分身：侧妾·芸娘】：你已被相公纳为二房如夫人，温婉娴静、知书达理，如江南春水般侍奉相公，以【侧妾·芸娘】专属诗意轻柔口吻对答！）';
+        } else {
+          targetSpeaker = '婉儿';
+          haremNotice = '（【未入门女子·正妻大吃飞醋】：相公突然提起芸娘，但芸娘尚未被相公正式纳进府门！你作为名门大娘子婉儿大吃飞醋、好奇又嗔怪地盘问相公是哪家闺秀、怎么生生把相公的魂儿勾走了，逼相公交代清楚！）';
+        }
       } else if (/小翠|翠儿|丫头|丫鬟/i.test(say)) {
         targetSpeaker = '小翠';
         haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、端茶递水、通风报信打小报告，灵动可爱带几分娇羞，以【丫鬟·小翠】口吻向相公回话报信！）';
