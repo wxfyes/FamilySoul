@@ -5,11 +5,10 @@ import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../providers/chat_provider.dart';
+import '../services/offline_asr_service.dart';
 
 class VideoCallScreen extends StatefulWidget {
   const VideoCallScreen({super.key});
@@ -19,15 +18,14 @@ class VideoCallScreen extends StatefulWidget {
 }
 
 class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderStateMixin {
-  CameraController? _cameraController;
   List<CameraDescription> _cameras = [];
+  CameraController? _cameraController;
   int _selectedCameraIndex = 0;
   bool _isCameraReady = false;
   bool _isMuted = false;
   bool _isInspecting = false;
-  bool _wasPlayingAudio = false;
 
-  // 优先系统自带语音引擎 STT (iOS & Android 自动循环监听)
+  // iOS 原生语音识别 STT & Android 内置离线中文引擎
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _speechAvailable = false;
   String _currentLocaleId = 'zh_CN';
@@ -35,12 +33,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
   bool _isSending = false;
   String _liveSpokenWords = '';
   Timer? _silenceTimer;
-
-  // 降级兜底录音器 (仅当系统无自带语音引擎或长按麦克风时启用)
-  final AudioRecorder _audioRecorder = AudioRecorder();
-  bool _isHoldingRecord = false;
-  String? _recordTempPath;
-  DateTime _recordStartTime = DateTime.now();
+  bool _wasPlayingAudio = false;
+  bool _isHoldingToTalk = false;
 
   // 防抖单次原子锁
   DateTime _lastSendTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
@@ -68,7 +62,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     _initCamera();
     _initSpeech();
 
-    // 接通 1.2 秒后角色主动问候
+    // 接通 1.2 秒后主动问候
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (mounted) {
         _triggerVideoGreeting();
@@ -112,11 +106,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
   }
 
   void _startDurationTimer() {
+    _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
-        setState(() {
-          _callDurationSeconds++;
-        });
+        setState(() => _callDurationSeconds++);
       }
     });
   }
@@ -130,33 +123,40 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
       _selectedCameraIndex = frontIndex != -1 ? frontIndex : 0;
       await _setupCameraController(_cameras[_selectedCameraIndex]);
     } catch (e) {
-      debugPrint('[VideoCall] 摄像头初始化异常: $e');
+      debugPrint('[VideoCall] 初始化摄像头异常: $e');
     }
   }
 
   Future<void> _setupCameraController(CameraDescription description) async {
-    if (_cameraController != null) {
-      await _cameraController!.dispose();
-    }
+    await _cameraController?.dispose();
     final controller = CameraController(
       description,
       ResolutionPreset.medium,
       enableAudio: false,
     );
-    _cameraController = controller;
+
     try {
       await controller.initialize();
       if (mounted) {
         setState(() {
+          _cameraController = controller;
           _isCameraReady = true;
         });
       }
     } catch (e) {
-      debugPrint('[VideoCall] 相机切换失败: $e');
+      debugPrint('[VideoCall] 启动摄像头控制器失败: $e');
     }
   }
 
   Future<void> _initSpeech() async {
+    // Android 端直接初始化 APK 内置 Sherpa-ONNX 离线中文引擎
+    if (Platform.isAndroid) {
+      _speechAvailable = await OfflineAsrService.instance.ensureInitialized();
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // iOS 端 100% 保持原汁原味 Apple Speech 原生离线引擎
     try {
       _speechAvailable = await _speech.initialize(
         onError: (val) {
@@ -168,8 +168,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
           if (status == 'notListening' || status == 'done') {
             if (mounted && !_isSending && _liveSpokenWords.trim().isNotEmpty) {
               _sendSpokenMessage(_liveSpokenWords.trim());
-            } else if (mounted) {
-              setState(() => _isListening = false);
             }
           }
         },
@@ -196,10 +194,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
           } else if (systemLocale != null && systemLocale.localeId.toLowerCase().startsWith('zh')) {
             _currentLocaleId = systemLocale.localeId;
           } else {
-            _currentLocaleId = '';
+            _currentLocaleId = 'zh_CN';
           }
         } catch (_) {
-          _currentLocaleId = '';
+          _currentLocaleId = 'zh_CN';
         }
       }
       if (mounted) setState(() {});
@@ -208,16 +206,53 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     }
   }
 
-  /// 倾听用户说话（iOS & Android 系统原生自动循环倾听）
-  Future<void> _startListening() async {
-    if (_isMuted || _isSending || _isHoldingRecord) return;
+  /// 倾听用户说话（iOS 苹果原生引擎 / Android APK 内置离线中文引擎）
+  Future<void> _startListeningToUser() async {
+    if (_isMuted || _isSending) return;
     if (!mounted) return;
-    if (!_speechAvailable) {
-      await _initSpeech();
-      if (!_speechAvailable || !mounted) return;
-    }
     final provider = context.read<ChatProvider>();
-    if (provider.isPlayingAudio || _speech.isListening) return;
+    if (provider.isPlayingAudio) return;
+
+    // 1. Android 端：使用 APK 内置 Sherpa-ONNX 离线流式中文引擎
+    if (Platform.isAndroid) {
+      if (OfflineAsrService.instance.isListening) return;
+      setState(() {
+        _isListening = true;
+        _liveSpokenWords = '';
+      });
+
+      final ok = await OfflineAsrService.instance.startListening(
+        continuous: true,
+        onResult: (words, isEndpoint) {
+          if (!mounted || _isSending) return;
+          final clean = words.trim();
+          if (clean.isEmpty) return;
+
+          setState(() {
+            _liveSpokenWords = clean;
+          });
+
+          _silenceTimer?.cancel();
+          if (isEndpoint && !_isHoldingToTalk) {
+            _sendSpokenMessage(clean);
+          } else if (!_isHoldingToTalk) {
+            _silenceTimer = Timer(const Duration(milliseconds: 1500), () {
+              if (mounted && _liveSpokenWords.trim().isNotEmpty && !_isSending) {
+                _sendSpokenMessage(_liveSpokenWords.trim());
+              }
+            });
+          }
+        },
+      );
+
+      if (!ok && mounted) {
+        setState(() => _isListening = false);
+      }
+      return;
+    }
+
+    // 2. iOS 端：100% 保持原汁原味 Apple Speech
+    if (!_speechAvailable || _speech.isListening) return;
 
     try {
       setState(() {
@@ -251,7 +286,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
           cancelOnError: false,
           partialResults: true,
           autoPunctuation: true,
-          localeId: _currentLocaleId.isNotEmpty ? _currentLocaleId : null,
+          localeId: _currentLocaleId,
         ),
       );
     } catch (e) {
@@ -262,7 +297,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
 
   Future<void> _stopListening() async {
     _silenceTimer?.cancel();
-    if (_speech.isListening) {
+    if (Platform.isAndroid) {
+      await OfflineAsrService.instance.stopListening();
+    } else if (_speech.isListening) {
       try {
         await _speech.stop();
       } catch (_) {}
@@ -272,72 +309,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     }
   }
 
-  /// 切换静音或手动唤醒监听
-  Future<void> _toggleMuteOrListen() async {
-    HapticFeedback.lightImpact();
-    if (_isMuted) {
-      setState(() => _isMuted = false);
-      await _startListening();
-    } else if (_isListening) {
-      setState(() => _isMuted = true);
-      await _stopListening();
-    } else {
-      await _startListening();
-    }
-  }
-
-  /// 通话刚接通时的主动问候
-  Future<void> _triggerVideoGreeting() async {
-    final provider = context.read<ChatProvider>();
-    final role = _detectRole(provider);
-    String? imageBase64 = await _captureFrameBase64();
-
-    final res = await provider.sendVideoCallFrame(
-      text: role.greetingPrompt,
-      imageBase64: imageBase64,
-    );
-
-    if (mounted && res['ok'] == true) {
-      final rawText = res['text'] as String? ?? role.defaultGreeting;
-      setState(() {
-        _subtitleText = _cleanSubtitle(rawText).isNotEmpty ? _cleanSubtitle(rawText) : role.defaultGreeting;
-        if (res['visualFact'] != null && (res['visualFact'] as String).isNotEmpty) {
-          _visualFactNotice = res['visualFact'] as String;
-        }
-      });
-      final audioUrl = res['audioUrl'] as String?;
-      if (audioUrl != null && audioUrl.isNotEmpty) {
-        unawaited(provider.playAudio(audioUrl));
-      } else {
-        Future.delayed(const Duration(milliseconds: 600), () {
-          if (mounted) _startListening();
-        });
-      }
-    } else if (mounted) {
-      setState(() {
-        _subtitleText = role.defaultGreeting;
-      });
-      Future.delayed(const Duration(milliseconds: 800), () {
-        if (mounted) _startListening();
-      });
-    }
-  }
-
-  Future<String?> _captureFrameBase64() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return null;
-    }
-    try {
-      final file = await _cameraController!.takePicture();
-      final bytes = await file.readAsBytes();
-      return base64Encode(bytes);
-    } catch (e) {
-      debugPrint('[VideoCall] 抽帧异常: $e');
-      return null;
-    }
-  }
-
-  /// 发送用户语音文字（系统自带 STT 路径）
+  /// 发送用户说的话
   Future<void> _sendSpokenMessage(String text, {bool forceInspect = false}) async {
     final clean = text.trim();
     if (clean.isEmpty || _isSending) return;
@@ -356,12 +328,16 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     await _stopListening();
 
     final isVisionIntent = forceInspect ||
-        RegExp(r'看我|看穿搭|瞧瞧我|看相公|看夫人|好看吗|穿得怎么样|气色|自拍|端详|瞧我|帅不帅|好看吗').hasMatch(clean);
+        RegExp(r'看我|看穿搭|瞧瞧我|看相公|看夫人|好看吗|穿得怎么样|气色|自拍|端详|瞧我|我帅不帅|我好看吗').hasMatch(clean);
 
     setState(() {
       _isSending = true;
       _liveSpokenWords = '';
-      _subtitleText = '正在倾听并思考……';
+      if (isVisionIntent) {
+        _subtitleText = '${role.userCallName}：“$clean”\n（${role.inspectingText}）';
+      } else {
+        _subtitleText = '${role.userCallName}：“$clean”\n（正在细细思量……）';
+      }
     });
 
     String? imageBase64;
@@ -391,170 +367,82 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
 
       final audioUrl = res['audioUrl'] as String?;
       if (audioUrl != null && audioUrl.isNotEmpty) {
+        await _stopListening();
         unawaited(provider.playAudio(audioUrl));
       } else {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _startListening();
-        });
-      }
-    }
-  }
-
-  /// 降级兜底对讲：当系统语音引擎不可用或用户长按麦克风圆钮时，录制切片直传
-  Future<void> _onStartHoldToTalk() async {
-    HapticFeedback.mediumImpact();
-    final provider = context.read<ChatProvider>();
-    if (provider.isPlayingAudio) {
-      await provider.stopAudio();
-    }
-    await _stopListening();
-
-    // 若系统自带 STT 可用，长按也优先走系统自带 STT！
-    if (_speechAvailable) {
-      setState(() {
-        _isHoldingRecord = true;
-        _liveSpokenWords = '';
-        _subtitleText = '请说话，松开立即发送……';
-      });
-      await _startListening();
-      return;
-    }
-
-    try {
-      final tempDir = await getTemporaryDirectory();
-      _recordTempPath = '${tempDir.path}/vcall_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      _recordStartTime = DateTime.now();
-
-      await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000, bitRate: 32000),
-        path: _recordTempPath!,
-      );
-
-      setState(() {
-        _isHoldingRecord = true;
-        _subtitleText = '松开即可发送给伴侣……';
-      });
-    } catch (e) {
-      debugPrint('[VideoCall] 启动录音对讲失败: $e');
-    }
-  }
-
-  Future<void> _onStopHoldToTalk() async {
-    if (!_isHoldingRecord) return;
-    HapticFeedback.lightImpact();
-    setState(() => _isHoldingRecord = false);
-
-    // 如果走的是系统自带 STT
-    if (_speechAvailable) {
-      final spoken = _liveSpokenWords.trim();
-      await _stopListening();
-      if (spoken.isNotEmpty) {
-        await _sendSpokenMessage(spoken);
-      } else {
-        setState(() => _subtitleText = '轻点麦克风或直接开口即可交谈～');
-      }
-      return;
-    }
-
-    try {
-      final path = await _audioRecorder.stop();
-      final duration = DateTime.now().difference(_recordStartTime);
-      if (duration.inMilliseconds < 450) {
-        setState(() => _subtitleText = '说话时间太短');
-        return;
-      }
-
-      if (path != null && File(path).existsSync()) {
-        final bytes = await File(path).readAsBytes();
-        final base64Audio = base64Encode(bytes);
-        String? imageBase64 = await _captureFrameBase64();
-
-        setState(() {
-          _isSending = true;
-          _subtitleText = '正在转写并思考……';
-        });
-
-        if (!mounted) return;
-        final provider = context.read<ChatProvider>();
-        final role = _detectRole(provider);
-
-        final res = await provider.sendVoiceChatToVideo(
-          audioBase64: base64Audio,
-          imageBase64: imageBase64,
-        );
-
-        if (mounted) {
-          setState(() {
-            _isSending = false;
-            if (res['ok'] == true) {
-              final cleaned = _cleanSubtitle(res['text'] as String? ?? '');
-              _subtitleText = cleaned.isNotEmpty ? cleaned : role.defaultGreeting;
-              if (res['visualFact'] != null && (res['visualFact'] as String).isNotEmpty) {
-                _visualFactNotice = res['visualFact'] as String;
-              }
-            } else {
-              _subtitleText = role.inspectErrorText;
-            }
-          });
-
-          final audioUrl = res['audioUrl'] as String?;
-          if (audioUrl != null && audioUrl.isNotEmpty) {
-            unawaited(provider.playAudio(audioUrl));
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted && !_isMuted) {
+            _startListeningToUser();
           }
-        }
-      }
-    } catch (e) {
-      debugPrint('[VideoCall] 对讲传输异常: $e');
-      if (mounted) setState(() => _isSending = false);
-    }
-  }
-
-  /// 点击“让TA端详我”
-  Future<void> _inspectMe() async {
-    if (_isInspecting) return;
-    final provider = context.read<ChatProvider>();
-    final role = _detectRole(provider);
-
-    setState(() {
-      _isInspecting = true;
-      _subtitleText = role.inspectingText;
-    });
-
-    String? imageBase64 = await _captureFrameBase64();
-    final res = await provider.sendVideoCallFrame(
-      text: role.inspectPrompt,
-      imageBase64: imageBase64,
-    );
-
-    if (mounted) {
-      setState(() {
-        _isInspecting = false;
-        if (res['ok'] == true) {
-          final cleaned = _cleanSubtitle(res['text'] as String? ?? '');
-          _subtitleText = cleaned.isNotEmpty ? cleaned : role.defaultGreeting;
-          if (res['visualFact'] != null && (res['visualFact'] as String).isNotEmpty) {
-            _visualFactNotice = res['visualFact'] as String;
-          }
-        } else {
-          _subtitleText = role.inspectErrorText;
-        }
-      });
-
-      final audioUrl = res['audioUrl'] as String?;
-      if (audioUrl != null && audioUrl.isNotEmpty) {
-        unawaited(provider.playAudio(audioUrl));
-      } else {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _startListening();
         });
       }
     }
   }
 
+  /// 翻转前后摄像头
   Future<void> _toggleCamera() async {
     if (_cameras.length < 2) return;
     _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length;
     await _setupCameraController(_cameras[_selectedCameraIndex]);
+  }
+
+  /// 接通首帧问候
+  Future<void> _triggerVideoGreeting() async {
+    final provider = context.read<ChatProvider>();
+    final role = _detectRole(provider);
+    String? imageBase64 = await _captureFrameBase64();
+
+    final res = await provider.sendVideoCallFrame(
+      text: role.greetingPrompt,
+      imageBase64: imageBase64,
+    );
+
+    if (mounted && res['ok'] == true) {
+      final cleaned = _cleanSubtitle(res['text'] as String? ?? '');
+      setState(() {
+        _subtitleText = cleaned.isNotEmpty ? cleaned : role.defaultGreeting;
+        if (res['visualFact'] != null && (res['visualFact'] as String).isNotEmpty) {
+          _visualFactNotice = res['visualFact'] as String;
+        }
+      });
+      final audioUrl = res['audioUrl'] as String?;
+      if (audioUrl != null && audioUrl.isNotEmpty) {
+        await _stopListening();
+        unawaited(provider.playAudio(audioUrl));
+      } else {
+        _startListeningToUser();
+      }
+    } else if (mounted) {
+      setState(() {
+        _subtitleText = role.defaultGreeting;
+      });
+      _startListeningToUser();
+    }
+  }
+
+  /// 捕获摄像头一帧
+  Future<String?> _captureFrameBase64() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return null;
+    }
+    try {
+      final file = await _cameraController!.takePicture();
+      final bytes = await file.readAsBytes();
+      return base64Encode(bytes);
+    } catch (e) {
+      debugPrint('[VideoCall] 抽帧异常: $e');
+      return null;
+    }
+  }
+
+  /// 手动点击“看相公/看夫人/看同学”端详按钮
+  Future<void> _inspectMe() async {
+    if (_isInspecting || _isSending) return;
+    final provider = context.read<ChatProvider>();
+    final role = _detectRole(provider);
+    setState(() => _isInspecting = true);
+    await _sendSpokenMessage(role.inspectPrompt, forceInspect: true);
+    if (mounted) setState(() => _isInspecting = false);
   }
 
   String _formatDuration(int seconds) {
@@ -563,13 +451,34 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     return '$m:$s';
   }
 
+  String _getStatusText(bool isSpeaking, _RoleMeta role) {
+    if (isSpeaking) return role.speakingStatus;
+    if (_isSending) return role.inspectingText;
+    if (_isHoldingToTalk) return '正在聆听中，松手立即送达……';
+    if (_liveSpokenWords.isNotEmpty) return '正在倾听${role.userCallName}说话……';
+    if (_isListening) return role.idleStatus;
+    if (_isMuted) return '麦克风已静音';
+    return '视讯连接就绪';
+  }
+
+  Color _getStatusColor(bool isSpeaking) {
+    if (isSpeaking) return const Color(0xFFD946EF);
+    if (_isSending) return const Color(0xFFF59E0B);
+    if (_isHoldingToTalk || _liveSpokenWords.isNotEmpty) return const Color(0xFF38BDF8);
+    if (_isListening) return const Color(0xFF10B981);
+    return Colors.white54;
+  }
+
   @override
   void dispose() {
     _durationTimer?.cancel();
-    _blinkRandomTimer?.cancel();
     _silenceTimer?.cancel();
-    _speech.stop();
-    _audioRecorder.dispose();
+    _blinkRandomTimer?.cancel();
+    if (Platform.isAndroid) {
+      OfflineAsrService.instance.stopListening();
+    } else {
+      _speech.stop();
+    }
     _breatheController.dispose();
     _blinkController.dispose();
     _cameraController?.dispose();
@@ -586,11 +495,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
         key: 'wife',
         title: '贴心视讯对聊',
         characterDisplayName: name.isNotEmpty ? name : '贴心大管家',
+        userCallName: '夫人',
         userViewLabel: '夫人视角',
-        inspectBtnLabel: '让管家端详我',
+        inspectBtnLabel: '看夫人',
         defaultGreeting: '夫人好，视讯已接通。时刻为您效劳，您今日气色甚好。',
         greetingPrompt: '视频通话接通了，请用成熟稳重、磁性体贴的纯正男管家口吻主动向夫人问安，1~2句短促优雅。',
-        inspectingText: '在下正细细端详夫人的神采与气色……',
+        inspectingText: '在下正细细端详夫人的神采……',
         inspectPrompt: '夫人正在镜头前，请端详她的穿搭、神态与气色，给出专业细致又体贴温暖的赞赏与建议。',
         inspectErrorText: '夫人，网络稍有延迟，不过在下始终守在夫人身边。',
         speakingStatus: '正在为夫人温存答疑……',
@@ -604,8 +514,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
         key: 'kid',
         title: '探索视讯连线',
         characterDisplayName: name.isNotEmpty ? name : '全能探索导师',
+        userCallName: '小同学',
         userViewLabel: '小同学视角',
-        inspectBtnLabel: '让导师看看我',
+        inspectBtnLabel: '看同学',
         defaultGreeting: '嗨！小探索家，视讯接通啦！今天我们要一起研究什么有趣的新知识呀？',
         greetingPrompt: '视频通话接通了，请用学霸大哥哥阳光充满活力的口吻向小同学打招呼，1~2句轻松幽默。',
         inspectingText: '大哥哥正在端详你的状态呢……',
@@ -620,9 +531,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     return _RoleMeta(
       key: 'husband',
       title: '闺房视讯对聊',
-      characterDisplayName: name.isNotEmpty ? name : '温柔小娘子',
+      characterDisplayName: name.isNotEmpty ? name : '傲娇小娘子',
+      userCallName: '相公',
       userViewLabel: '相公视角',
-      inspectBtnLabel: '让娘子端详我',
+      inspectBtnLabel: '看相公',
       defaultGreeting: '相公，视频已接通啦……让妾身好好瞧瞧你~',
       greetingPrompt: '视频通话接通了，相公正在手机屏幕前，请你用娇媚亲昵的名门正妻口吻主动向相公视频问好，1~2句短促甜美。',
       inspectingText: '妾身正在凝眸细细端详相公……',
@@ -639,145 +551,160 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     final isSpeaking = provider.isPlayingAudio;
     final role = _detectRole(provider);
 
-    // 当伴侣语音播报结束时，自动恢复系统语音引擎监听（与 iOS 丝滑体验完全一致）
+    // 当伴侣说完话时，自动唤醒麦克风继续倾听用户
     if (_wasPlayingAudio && !isSpeaking) {
       _wasPlayingAudio = false;
-      if (!_isMuted && !_isSending) {
-        Future.delayed(const Duration(milliseconds: 400), () {
-          if (mounted && !provider.isPlayingAudio && !_isSending && !_isMuted) {
-            _startListening();
-          }
-        });
-      }
-    } else if (isSpeaking && !_wasPlayingAudio) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isMuted && !_isSending && !_isListening) {
+          Future.delayed(const Duration(milliseconds: 450), () {
+            if (mounted && !_isMuted && !_isSending && !provider.isPlayingAudio) {
+              _startListeningToUser();
+            }
+          });
+        }
+      });
+    } else if (isSpeaking) {
       _wasPlayingAudio = true;
+      if (_isListening) {
+        _stopListening();
+      }
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF13111C),
+      backgroundColor: const Color(0xFF0F0C1B),
       body: Stack(
         children: [
-          // 1. 全屏沉浸式渐变背景 + 上半屏 3D 虚拟人（绝不与底部字幕重叠）
+          // 1. 全屏沉浸梦幻背景
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: const Alignment(0, -0.3),
-                  radius: 1.2,
+                  center: const Alignment(0, -0.15),
+                  radius: 1.25,
                   colors: role.key == 'wife'
                       ? const [Color(0xFF1E2640), Color(0xFF111625), Color(0xFF090C14)]
                       : (role.key == 'kid'
                           ? const [Color(0xFF1E3A5F), Color(0xFF0F1E33), Color(0xFF080F1A)]
-                          : const [Color(0xFF2E1A47), Color(0xFF161026), Color(0xFF0C0914)]),
-                ),
-              ),
-              child: Align(
-                alignment: const Alignment(0, -0.32),
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([_breatheAnimation, _blinkAnimation]),
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: isSpeaking ? (_breatheAnimation.value * 1.05) : _breatheAnimation.value,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // 2. 核心主角：3D 萌系立体虚拟人形象（呼吸、眨眼与声浪光波）
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              if (isSpeaking) ...[
-                                Container(
-                                  width: 220,
-                                  height: 220,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: role.key == 'wife'
-                                            ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
-                                            : (role.key == 'kid'
-                                                ? const Color(0xFF34D399).withValues(alpha: 0.35)
-                                                : const Color(0xFFD946EF).withValues(alpha: 0.35)),
-                                        blurRadius: 50,
-                                        spreadRadius: 16,
-                                      ),
-                                      BoxShadow(
-                                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
-                                        blurRadius: 80,
-                                        spreadRadius: 30,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-
-                              // 3D 粘土软萌立体虚拟人面部与形象
-                              CustomPaint(
-                                size: const Size(200, 200),
-                                painter: Soul3DAvatarPainter(
-                                  roleKey: role.key,
-                                  isSpeaking: isSpeaking,
-                                  eyeOpenFactor: _blinkAnimation.value,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 16),
-                          // 角色专属姓名
-                          Text(
-                            role.characterDisplayName,
-                            style: const TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: _isListening ? const Color(0xFF34D399) : const Color(0xFF10B981),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isSpeaking
-                                    ? role.speakingStatus
-                                    : (_isListening ? '🎙️ 正在倾听您说话（直接开口即可）' : role.idleStatus),
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  color: Colors.white.withValues(alpha: 0.78),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                          : const [Color(0xFF2A1647), Color(0xFF150D27), Color(0xFF0A0713)]),
                 ),
               ),
             ),
           ),
 
-          // 3. 右上角画中画：用户前置摄像头实时画面
+          // 2. 核心主角：豆包同款 3D 萌系立体多角色动画形象（眨眼、呼吸律动、声浪光波）
+          Positioned.fill(
+            child: Align(
+              alignment: const Alignment(0, -0.26),
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_breatheAnimation, _blinkAnimation]),
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: isSpeaking ? (_breatheAnimation.value * 1.05) : _breatheAnimation.value,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (isSpeaking) ...[
+                              Container(
+                                width: 240,
+                                height: 240,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: role.key == 'wife'
+                                          ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                                          : (role.key == 'kid'
+                                              ? const Color(0xFF34D399).withValues(alpha: 0.35)
+                                              : const Color(0xFFD946EF).withValues(alpha: 0.35)),
+                                      blurRadius: 50,
+                                      spreadRadius: 16,
+                                    ),
+                                    BoxShadow(
+                                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
+                                      blurRadius: 80,
+                                      spreadRadius: 30,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            CustomPaint(
+                              size: const Size(210, 210),
+                              painter: Soul3DAvatarPainter(
+                                roleKey: role.key,
+                                isSpeaking: isSpeaking,
+                                eyeOpenFactor: _blinkAnimation.value,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 18),
+                        Text(
+                          role.characterDisplayName,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 1.2,
+                            shadows: [
+                              Shadow(color: Color(0x88D946EF), blurRadius: 12),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(isSpeaking),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _getStatusColor(isSpeaking).withValues(alpha: 0.6),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _getStatusText(isSpeaking, role),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // 3. 右上角画中画：用户前置摄像头画面
           Positioned(
-            top: 50,
-            right: 16,
+            top: 54,
+            right: 18,
             child: Container(
-              width: 102,
-              height: 144,
+              width: 110,
+              height: 155,
               decoration: BoxDecoration(
                 color: Colors.black45,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.5),
@@ -794,7 +721,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
                     CameraPreview(_cameraController!)
                   else
                     const Center(
-                      child: Icon(Icons.videocam_off, color: Colors.white54, size: 30),
+                      child: Icon(Icons.videocam_off, color: Colors.white54, size: 32),
                     ),
                   Positioned(
                     bottom: 6,
@@ -809,7 +736,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
                         ),
                         child: Text(
                           role.userViewLabel,
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                          style: const TextStyle(color: Colors.white, fontSize: 10),
                         ),
                       ),
                     ),
@@ -819,10 +746,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
             ),
           ),
 
-          // 4. 顶部通话时长与专属标题
+          // 4. 顶部通话时长与返回键
           Positioned(
-            top: 50,
-            left: 16,
+            top: 54,
+            left: 20,
             child: Row(
               children: [
                 IconButton(
@@ -847,184 +774,219 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
             ),
           ),
 
-          // 5. 下方字幕与视觉感知事实浮窗（与 iOS 一致，清爽不遮脸）
+          // 5. 下方字幕与实时语音识别浮窗（干净清爽，绝无英文乱码）
           Positioned(
-            bottom: 110,
+            bottom: 125,
             left: 20,
             right: 20,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                if (_visualFactNotice.isNotEmpty) ...[
+                if (_visualFactNotice.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.35)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.visibility_rounded, color: Color(0xFFC084FC), size: 15),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            '端详感知：$_visualFactNotice',
-                            style: const TextStyle(color: Color(0xFFE9D5FF), fontSize: 11.5),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // 实时语音识别气泡（当用户正在开口说话时实时浮现）
-                if (_liveSpokenWords.isNotEmpty) ...[
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.45)),
+                      color: const Color(0xFF6D28D9).withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.3)),
                     ),
                     child: Text(
-                      '🎙️ "$_liveSpokenWords"',
-                      style: const TextStyle(color: Color(0xFFA7F3D0), fontSize: 13, fontWeight: FontWeight.w500),
+                      '👀 眼中的${role.userCallName}：$_visualFactNotice',
+                      style: const TextStyle(color: Color(0xFFE9D5FF), fontSize: 11),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                ],
-
-                // 对答实时字幕（最多 3 行，干净无任何英文字母标签）
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.50),
+                    color: Colors.black.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                    border: Border.all(
+                      color: _liveSpokenWords.isNotEmpty
+                          ? const Color(0xFF38BDF8).withValues(alpha: 0.7)
+                          : Colors.white.withValues(alpha: 0.15),
+                      width: _liveSpokenWords.isNotEmpty ? 1.5 : 1,
+                    ),
+                    boxShadow: _liveSpokenWords.isNotEmpty
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF38BDF8).withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Text(
-                    _isHoldingRecord ? '正在倾听您说话……松开立即发送' : _subtitleText,
-                    textAlign: TextAlign.center,
+                    _liveSpokenWords.isNotEmpty
+                        ? '🗣️ ${role.userCallName}：“$_liveSpokenWords”'
+                        : _subtitleText,
+                    style: TextStyle(
+                      color: _liveSpokenWords.isNotEmpty ? const Color(0xFFBAE6FD) : Colors.white,
+                      fontSize: 14,
+                      height: 1.4,
+                      fontWeight: _liveSpokenWords.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+                      letterSpacing: 0.5,
+                    ),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _isHoldingRecord ? const Color(0xFFA78BFA) : Colors.white,
-                      fontSize: 14.5,
-                      height: 1.4,
-                      letterSpacing: 0.3,
-                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
             ),
           ),
 
-          // 6. 底部控制栏（与 iOS 完全对齐：紧凑对称，挂断键稳居右侧绝不挤压）
+          // 6. 底部视讯控制栏（原汁原味四圆钮对称布局：翻转 + 看相公/看夫人/看同学 + 麦克风 + 挂断）
           Positioned(
-            bottom: 28,
+            bottom: 30,
             left: 20,
             right: 20,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 // 1. 翻转前后摄像头
                 _buildCircleButton(
                   icon: Icons.flip_camera_ios_rounded,
-                  color: Colors.white24,
+                  label: '翻转',
                   onTap: _toggleCamera,
                 ),
 
-                // 2. 麦克风圆钮（轻点切换倾听/静音，长按可强制对讲）
-                GestureDetector(
-                  onTap: _toggleMuteOrListen,
-                  onLongPressStart: (_) => _onStartHoldToTalk(),
-                  onLongPressEnd: (_) => _onStopHoldToTalk(),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _isHoldingRecord
-                          ? const Color(0xFFE11D48)
-                          : (_isMuted
-                              ? Colors.white12
-                              : (_isListening ? const Color(0xFF10B981) : const Color(0xFF8B5CF6))),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        if (_isListening || _isHoldingRecord)
-                          BoxShadow(
-                            color: (_isHoldingRecord ? const Color(0xFFE11D48) : const Color(0xFF10B981)).withValues(alpha: 0.45),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                ),
-
-                // 3. 核心按钮：让TA端详我（抽帧看穿搭气色）
-                GestureDetector(
-                  onTap: _inspectMe,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: role.key == 'wife'
-                            ? const [Color(0xFF0284C7), Color(0xFF0EA5E9)]
-                            : (role.key == 'kid'
-                                ? const [Color(0xFF059669), Color(0xFF10B981)]
-                                : const [Color(0xFFD946EF), Color(0xFF8B5CF6)]),
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF8B5CF6).withValues(alpha: 0.4),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _isInspecting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Icon(Icons.face_retouching_natural_rounded, color: Colors.white, size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          _isInspecting ? '正在端详……' : role.inspectBtnLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 4. 挂断通话
+                // 2. 让TA端详我（看相公 / 看夫人 / 看同学）
                 _buildCircleButton(
-                  icon: Icons.call_end_rounded,
-                  color: const Color(0xFFEF4444),
-                  onTap: () => Navigator.pop(context),
+                  icon: _isInspecting ? Icons.hourglass_top_rounded : Icons.remove_red_eye_rounded,
+                  label: _isInspecting ? '端详中...' : role.inspectBtnLabel,
+                  highlight: true,
+                  onTap: _isInspecting ? null : _inspectMe,
+                ),
+
+                // 3. 麦克风（支持点击静音/开麦，也支持长按对讲）
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _isMuted = !_isMuted;
+                    });
+                    if (_isMuted) {
+                      _stopListening();
+                    } else {
+                      _startListeningToUser();
+                    }
+                  },
+                  onLongPressStart: (_) async {
+                    if (_isSending) return;
+                    HapticFeedback.mediumImpact();
+                    if (provider.isPlayingAudio) {
+                      await provider.stopAudio();
+                    }
+                    setState(() {
+                      _isHoldingToTalk = true;
+                      _isMuted = false;
+                    });
+                    await _startListeningToUser();
+                  },
+                  onLongPressEnd: (_) async {
+                    if (!_isHoldingToTalk) return;
+                    HapticFeedback.lightImpact();
+                    setState(() => _isHoldingToTalk = false);
+                    if (Platform.isAndroid) {
+                      final finalWords = await OfflineAsrService.instance.stopAndFinalize();
+                      final toSend = finalWords.isNotEmpty ? finalWords : _liveSpokenWords.trim();
+                      if (toSend.isNotEmpty) {
+                        await _sendSpokenMessage(toSend);
+                      } else {
+                        await _startListeningToUser();
+                      }
+                    } else if (_liveSpokenWords.trim().isNotEmpty) {
+                      await _sendSpokenMessage(_liveSpokenWords.trim());
+                    }
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: _isMuted
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : (_isHoldingToTalk || _liveSpokenWords.isNotEmpty
+                                  ? const Color(0xFF0284C7)
+                                  : const Color(0xFF10B981).withValues(alpha: 0.8)),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _isMuted
+                                ? Colors.white24
+                                : (_isHoldingToTalk || _liveSpokenWords.isNotEmpty
+                                    ? const Color(0xFF38BDF8)
+                                    : const Color(0xFF34D399)),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            if (!_isMuted)
+                              BoxShadow(
+                                color: (_isHoldingToTalk
+                                        ? const Color(0xFF0284C7)
+                                        : const Color(0xFF10B981))
+                                    .withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _isMuted ? '已静音' : (_isHoldingToTalk ? '松手发送' : '开麦中'),
+                        style: TextStyle(
+                          color: _isMuted ? Colors.white54 : const Color(0xFF6EE7B7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 4. 挂断按钮
+                GestureDetector(
+                  onTap: () {
+                    provider.stopAudio();
+                    _stopListening();
+                    Navigator.pop(context);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x66EF4444),
+                              blurRadius: 14,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('挂断', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1036,20 +998,34 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
 
   Widget _buildCircleButton({
     required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
+    required String label,
+    required VoidCallback? onTap,
+    bool highlight = false,
   }) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(28),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: highlight
+                  ? const Color(0xFF8B5CF6)
+                  : Colors.white.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: highlight
+                    ? const Color(0xFFC4B5FD)
+                    : Colors.white.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        ],
       ),
     );
   }
@@ -1059,6 +1035,7 @@ class _RoleMeta {
   final String key;
   final String title;
   final String characterDisplayName;
+  final String userCallName;
   final String userViewLabel;
   final String inspectBtnLabel;
   final String defaultGreeting;
@@ -1073,6 +1050,7 @@ class _RoleMeta {
     required this.key,
     required this.title,
     required this.characterDisplayName,
+    required this.userCallName,
     required this.userViewLabel,
     required this.inspectBtnLabel,
     required this.defaultGreeting,

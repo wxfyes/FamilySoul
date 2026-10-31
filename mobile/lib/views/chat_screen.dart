@@ -2,12 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../providers/chat_provider.dart';
+import '../services/offline_asr_service.dart';
 import '../widgets/message_bubble.dart';
 import 'settings_screen.dart';
 import 'video_call_screen.dart';
@@ -27,7 +27,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   String? _currentRecordPath;
   bool _speechAvailable = false;
-  bool _usingFallbackRecorder = false;
+  final bool _usingFallbackRecorder = false;
   String _currentLocaleId = 'zh_CN';
 
   // 豆包风格语音按住说话状态
@@ -41,7 +41,11 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _initSpeech();
+    if (Platform.isAndroid) {
+      OfflineAsrService.instance.ensureInitialized();
+    } else {
+      _initSpeech();
+    }
   }
 
   Future<void> _initSpeech() async {
@@ -154,53 +158,59 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!mounted) return;
 
-    // 优先使用系统自带语音引擎（iOS / Android 均优先本地/系统引擎），仅当系统无可用语音服务时降级云端转写
-    if (!_speechAvailable) {
-      await _initSpeech();
-    }
-    if (!_speechAvailable) {
-      _usingFallbackRecorder = true;
+    // Android 端：直接调用 APK 内置 Sherpa-ONNX 纯离线中文流式语音包（零网络、零代理、边说边出字）
+    if (Platform.isAndroid) {
       HapticFeedback.mediumImpact();
-      try {
-        final tempDir = await getTemporaryDirectory();
-        final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        _currentRecordPath = '${tempDir.path}/$fileName';
-        setState(() {
-          _isHoldingRecord = true;
-          _isSettling = false;
-          _isCanceling = false;
-          _liveWords = '松开发送，上滑取消';
-          _voiceStartTime = DateTime.now();
-        });
-        await _audioRecorder.start(
-          const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 16000),
-          path: _currentRecordPath!,
+      setState(() {
+        _isHoldingRecord = true;
+        _isSettling = false;
+        _isCanceling = false;
+        _liveWords = '';
+        _voiceStartTime = DateTime.now();
+      });
+
+      final started = await OfflineAsrService.instance.startListening(
+        continuous: false,
+        onResult: (text, _) {
+          if (!mounted) return;
+          if (_isHoldingRecord || _isSettling) {
+            setState(() {
+              _liveWords = text;
+            });
+          }
+        },
+      );
+
+      if (!started && mounted) {
+        setState(() => _isHoldingRecord = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('内置离线语音引擎正在初始化中，请稍候再按...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-      } catch (e) {
-        debugPrint('[Record] 启动录音失败: $e');
-        if (mounted) {
-          setState(() => _isHoldingRecord = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('录音启动异常: $e'), behavior: SnackBarBehavior.floating),
-          );
-        }
       }
       return;
     }
 
+    // iOS 端：100% 保持原汁原味 Apple Speech 原生离线引擎
     if (!_speechAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('语音服务未就绪，请在手机设置中检查是否授予麦克风权限...'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      _initSpeech();
+      await _initSpeech();
+    }
+    if (!_speechAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('语音服务未就绪，请在手机设置中检查是否授予麦克风与语音识别权限...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
       return;
     }
 
-    _usingFallbackRecorder = false;
     HapticFeedback.mediumImpact();
     setState(() {
       _isHoldingRecord = true;
@@ -214,7 +224,6 @@ class _ChatScreenState extends State<ChatScreen> {
       await _speech.listen(
         onResult: (result) {
           if (!mounted) return;
-          // 只要处于按住录音中或松手结算缓冲窗口内，都允许刷入最新识别文本
           if (_isHoldingRecord || _isSettling) {
             setState(() {
               _liveWords = result.recognizedWords;
@@ -222,7 +231,6 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         },
         listenOptions: stt.SpeechListenOptions(
-          // 使用 confirmation 模式，Android 兼容性远优于 dictation（避免因不支持连续听写直接报错闪退）
           listenMode: stt.ListenMode.confirmation,
           cancelOnError: false,
           partialResults: true,
@@ -237,13 +245,6 @@ class _ChatScreenState extends State<ChatScreen> {
           _isHoldingRecord = false;
           _isSettling = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('启动录音失败: $e (建议检查系统麦克风权限)'),
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
       }
     }
   }

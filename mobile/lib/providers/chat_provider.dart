@@ -149,9 +149,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await AudioPlayer.global.setAudioContext(AudioContext(
         iOS: AudioContextIOS(
-          category: AVAudioSessionCategory.playback,
+          category: AVAudioSessionCategory.playAndRecord,
           options: {
             AVAudioSessionOptions.defaultToSpeaker,
+            AVAudioSessionOptions.allowBluetooth,
+            AVAudioSessionOptions.allowBluetoothA2DP,
             AVAudioSessionOptions.mixWithOthers,
           },
         ),
@@ -415,13 +417,13 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         await _updateKeeperState();
         return;
       }
-      _currentPlayingUrl = url;
-      _isPlayingAudio = true;
-      notifyListeners();
       try {
         await _keeperPlayer.pause();
       } catch (_) {}
       await _audioPlayer.stop();
+      _currentPlayingUrl = url;
+      _isPlayingAudio = true;
+      notifyListeners();
       await _audioPlayer.play(UrlSource(url));
     } catch (e) {
       debugPrint('[Audio] 播放音频失败: $e');

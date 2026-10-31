@@ -41,3 +41,6 @@ mobile/android/gradle-app.setting.json
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Android 本地离线语音 ONNX 权重（仅打入本地编译的 APK，不推入 Git 避免拖慢 iOS 云端构建）
+mobile/assets/asr/*.onnx

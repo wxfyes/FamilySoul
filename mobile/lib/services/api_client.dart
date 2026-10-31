@@ -120,7 +120,7 @@ class SurfCoreApiClient {
         final audioKey = reply['audio']?['key'] as String?;
         String? audioUrl;
         if (audioKey != null && audioKey.isNotEmpty) {
-          audioUrl = '/audio/.wav?token=';
+          audioUrl = '${config.apiPrefix}/audio/$audioKey.wav?token=${Uri.encodeComponent(config.token.trim())}';
         }
         return {
           'ok': true,
@@ -132,7 +132,7 @@ class SurfCoreApiClient {
       }
       throw Exception(data['error'] ?? '视讯通话处理失败');
     }
-    throw Exception('视讯服务响应异常: ');
+    throw Exception('视讯服务响应异常: ${response.statusCode}');
   }
 
   /// 拉取历史消息
