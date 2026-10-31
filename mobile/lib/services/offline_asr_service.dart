@@ -43,9 +43,15 @@ class OfflineAsrService {
 
     _initCompleter = Completer<bool>();
     try {
-      debugPrint('[OfflineASR] 🚀 正在加载 APK 内置中文离线语音模型...');
+      debugPrint('[OfflineASR] 🚀 正在加载 APK 内置 2025 满血版中文离线语音模型...');
       final supportDir = await getApplicationSupportDirectory();
-      final modelDir = Directory('${supportDir.path}/sherpa_zh_v1');
+      final oldDir = Directory('${supportDir.path}/sherpa_zh_v1');
+      if (oldDir.existsSync()) {
+        try {
+          oldDir.deleteSync(recursive: true);
+        } catch (_) {}
+      }
+      final modelDir = Directory('${supportDir.path}/sherpa_zh_2025_v2');
       if (!modelDir.existsSync()) {
         modelDir.createSync(recursive: true);
       }

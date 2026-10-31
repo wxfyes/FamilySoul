@@ -36,24 +36,33 @@ export class VisionGeminiService {
     return Boolean(this.enabled && this.apiKey);
   }
 
-  async resolveEffectiveProxy() {
-    // 若用户显式开关代理
-    if (!this.useProxy) return '';
-    if (this.proxy) return this.proxy;
-    if (this.detectedProxy !== null) return this.detectedProxy;
-
-    // 软路由/本机常用科学上网本地代理端口自适应探测 (Clash: 7890, v2rayN: 27890/10809, Xray: 10808, PassWall: 1082)
-    const candidatePorts = [7890, 27890, 10808, 10809, 1082];
-    for (const port of candidatePorts) {
-      const open = await probePort('127.0.0.1', port, 200);
-      if (open) {
-        this.detectedProxy = `http://127.0.0.1:${port}`;
-        console.log(`[Vision] 🌐 自动探测到软路由本地代理服务就绪: ${this.detectedProxy}`);
-        return this.detectedProxy;
+  async resolveCandidateProxies() {
+    const candidates = [];
+    if (this.useProxy && this.proxy) {
+      const raw = String(this.proxy).trim();
+      candidates.push(raw.includes('://') ? raw : `http://${raw}`);
+    }
+    const lanAndLocalTargets = [
+      ['192.168.1.112', 27890],
+      ['192.168.1.213', 27890],
+      ['127.0.0.1', 7890],
+      ['127.0.0.1', 27890],
+      ['127.0.0.1', 10808],
+      ['127.0.0.1', 1082],
+    ];
+    for (const [host, port] of lanAndLocalTargets) {
+      const url = `http://${host}:${port}`;
+      if (!candidates.includes(url)) {
+        const open = await probePort(host, port, 180);
+        if (open) candidates.push(url);
       }
     }
-    this.detectedProxy = '';
-    return '';
+    return candidates;
+  }
+
+  async resolveEffectiveProxy() {
+    const list = await this.resolveCandidateProxies();
+    return list[0] || '';
   }
 
   /** 测试指定代理是否能连通 Google Gemini */
@@ -120,33 +129,36 @@ export class VisionGeminiService {
       ],
     });
 
-    const activeProxy = await this.resolveEffectiveProxy();
+    const candidateProxies = await this.resolveCandidateProxies();
+    const routes = candidateProxies.length > 0 ? [...candidateProxies, ''] : [''];
 
-    for (const model of modelsToTry) {
-      try {
-        let respData = '';
-        if (activeProxy) {
-          respData = await this._requestViaProxy({
-            proxyUrl: activeProxy,
-            targetHost: 'generativelanguage.googleapis.com',
-            path: `/v1beta/models/${model}:generateContent`,
-            body: payload,
-            timeoutMs: 6500,
-          });
-        } else {
-          respData = await this._requestDirect({
-            targetHost: 'generativelanguage.googleapis.com',
-            path: `/v1beta/models/${model}:generateContent`,
-            body: payload,
-            timeoutMs: 6500,
-          });
+    for (const proxy of routes) {
+      for (const model of modelsToTry) {
+        try {
+          let respData = '';
+          if (proxy) {
+            respData = await this._requestViaProxy({
+              proxyUrl: proxy,
+              targetHost: 'generativelanguage.googleapis.com',
+              path: `/v1beta/models/${model}:generateContent`,
+              body: payload,
+              timeoutMs: 5500,
+            });
+          } else {
+            respData = await this._requestDirect({
+              targetHost: 'generativelanguage.googleapis.com',
+              path: `/v1beta/models/${model}:generateContent`,
+              body: payload,
+              timeoutMs: 3500,
+            });
+          }
+
+          const data = JSON.parse(respData);
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (text) return text;
+        } catch (err) {
+          console.warn(`[Vision] 路由(${proxy || '直连'}) 模型 ${model} 感知尝试中断:`, err.message);
         }
-
-        const data = JSON.parse(respData);
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (text) return text;
-      } catch (err) {
-        console.warn(`[Vision] 模型 ${model} 感知尝试中断:`, err.message);
       }
     }
 
