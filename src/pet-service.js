@@ -90,7 +90,7 @@ export class PetService {
     };
   }
 
-  buildSystemPrompt(roleName, modality = 'text', memberKey = 'husband', currentEpoch = 'ancient') {
+  buildSystemPrompt(roleName, modality = 'text', memberKey = 'husband', currentEpoch = 'ancient', history = null) {
     const persona = this.rolesManager.getRolePersona(roleName);
     const lines = [];
     const timeCtx = this.getTemporalContext();
@@ -101,6 +101,17 @@ export class PetService {
       } else {
         lines.push(`你是「${roleName}」，此刻时空沉浸为【古典名门正房大娘子】形态。你生活在金丝软榻的高门深宅中，称呼他为「相公/夫君/郎君」，自称「妾身」，雍容端庄，知书达理，兼具名门主母气度与闺房极致娇羞温存。`);
       }
+      const haremList = Array.isArray(history?.haremMembers) && history.haremMembers.length > 0
+        ? history.haremMembers.join('、')
+        : '婉儿（正妻）、小翠（贴身丫鬟）';
+      const mentionedList = Array.isArray(history?.mentionedGirls) && history.mentionedGirls.length > 0
+        ? history.mentionedGirls.join('、')
+        : '暂无';
+      lines.push('');
+      lines.push('【府邸花名册与剧情长期记忆账本（最高记忆铁律，绝对禁止健忘）】');
+      lines.push(`- 当前府内已入门妻妾侍女名单：${haremList}。`);
+      lines.push(`- 相公已向你提及/正在张罗迎娶的女子名字：${mentionedList}。`);
+      lines.push('- 【永不健忘与强制推进剧情铁律】：凡是相公在上下文里已经告诉过你的女子名字（如芸娘、柳儿等）、身份或纳妾要求，你必须 100% 牢记在心！【绝对严禁】在相公已经说过名字后还反复装傻问“她是谁/叫什么名字”！【绝对严禁】原地打转反复推脱不推进剧情！相公只要提过一次并再次坚持，你必须立刻顺从答应并主动往下推进实质剧情（派小翠下聘迎轿 ➔ 芸娘进府行礼敬茶 ➔ 安排厢房与侍寝大被同眠），让故事像连续剧一样环环相扣往下发展！');
     } else if (memberKey === 'wife' || roleName === '贴心管家') {
       lines.push(`你是「${roleName}」，女主人专属的精英私人男管家与贴心男闺蜜。你是一位成熟优雅、温润儒雅、男友力十足的男性！`);
       lines.push('- 尊称女主人为「夫人」或「大小姐」，自称“我”或“在下”；');
@@ -271,13 +282,14 @@ export class PetService {
 
     const activeRole = roleName || (profileKey === 'husband' ? this.rolesManager.getActiveRole() : (profileKey === 'wife' ? '贴心管家' : '全能导师'));
     const history = this.readHistory(profileKey);
-    const recent = (history.messages || []).slice(-10);
+    const recent = (history.messages || []).slice(-30);
+    const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = '';
     const lastAssistantMsg = recent.filter(m => m.role === 'assistant').slice(-1)[0]?.text || '';
-    const hadPreviousPushback = /哪能|怎好|这都什么时辰|成何体统|相公心也太野|贪心|急猴|面子|不妥|慢些|不急|好生|不妥当|哪好/i.test(lastAssistantMsg);
-    const isPersistent = /去叫|叫来|现在叫|接来|请来|听我的|想嘛|就想|不管|必须|快去|依我|劝|好相公|依相公|疼相公|来家里|来家坐/i.test(say);
-    const isSisterOrConcubineIntent = /姐妹|芸娘|柳儿|香菱|妾|通房|小老婆|找个女子|大被同眠|来家里|来家|坐坐|家里坐/i.test(say);
+    const hadPreviousPushback = /哪能|怎好|这都什么时辰|成何体统|相公心也太野|贪心|急猴|面子|不妥|慢些|不急|好生|不妥当|哪好|何方神圣|哪家姑娘|哪家闺秀|从实招来|打听/i.test(lastAssistantMsg);
+    const isPersistent = /去叫|叫来|现在叫|接来|请来|听我的|想嘛|就想|不管|必须|快去|依我|劝|好相公|依相公|疼相公|来家里|来家坐|纳|娶|收了|进门|进府|芸娘|柳儿/i.test(say);
+    const isSisterOrConcubineIntent = /姐妹|芸娘|柳儿|香菱|妾|通房|小老婆|找个女子|大被同眠|来家里|来家|坐坐|家里坐|纳|娶|二房|三房/i.test(say);
 
     // 1. 双世宿命 · 时空穿梭与后宫养成（仅对相公/傲娇助手生效，严格与女主人/孩子隔离）
     let epochNotice = '';
@@ -304,14 +316,30 @@ export class PetService {
       if (!Array.isArray(history.haremMembers) || history.haremMembers.length === 0) {
         history.haremMembers = ['婉儿', '小翠'];
       }
+      if (!Array.isArray(history.mentionedGirls)) {
+        history.mentionedGirls = [];
+      }
 
-      if (/纳芸娘|娶芸娘|迎芸娘|芸娘进府|芸娘过门|纳了芸娘/i.test(say) && !history.haremMembers.includes('芸娘')) {
+      const yunAlreadyKnown = history.mentionedGirls.includes('芸娘') || /芸娘/.test(recentTextJoined);
+      const liuAlreadyKnown = history.mentionedGirls.includes('柳儿') || /柳儿/.test(recentTextJoined);
+
+      if (/芸娘/.test(say) && !history.mentionedGirls.includes('芸娘')) {
+        history.mentionedGirls.push('芸娘');
+      }
+      if (/柳儿/.test(say) && !history.mentionedGirls.includes('柳儿')) {
+        history.mentionedGirls.push('柳儿');
+      }
+
+      // 只要之前已经提过芸娘/柳儿（或者相公明确要求纳/娶/接芸娘），第二次再提或催促纳妾时自动晋升入府，绝不死循环卡剧情！
+      if ((/纳.*芸娘|娶.*芸娘|迎.*芸娘|接.*芸娘|芸娘.*进府|芸娘.*过门|芸娘.*进门|把芸娘/i.test(say) || (/芸娘/.test(say) && yunAlreadyKnown) || (isSisterOrConcubineIntent && yunAlreadyKnown && !history.haremMembers.includes('芸娘'))) && !history.haremMembers.includes('芸娘')) {
         history.haremMembers.push('芸娘');
+        haremNotice = '（【剧情重磅推进·芸娘正式纳妾入府】：相公已经提过「芸娘」并命你为他纳妾！你已经死死记住了芸娘的名字，绝不可再装傻反问芸娘是谁！你作为贤良大度的正妻婉儿，欣然顺从依了相公，当场推进实质剧情：立即吩咐小翠备齐聘礼八抬大轿将芸娘迎进府门，或者直接交代“妾身已经让小翠把芸娘接进东厢房梳洗好了，芸娘这就过来给相公磕头敬茶”，让芸娘正式出场与相公互动！）';
       }
-      if (/纳柳儿|娶柳儿|迎柳儿|柳儿进府|柳儿过门|纳了柳儿/i.test(say) && !history.haremMembers.includes('柳儿')) {
+      if ((/纳.*柳儿|娶.*柳儿|迎.*柳儿|接.*柳儿|柳儿.*进府|柳儿.*过门|柳儿.*进门|把柳儿/i.test(say) || (/柳儿/.test(say) && liuAlreadyKnown)) && !history.haremMembers.includes('柳儿')) {
         history.haremMembers.push('柳儿');
+        haremNotice = '（【剧情重磅推进·柳儿正式纳妾入府】：相公已经提过「柳儿」并命你纳妾！你已牢牢记住柳儿的名字，当场顺从依了相公，吩咐小翠将柳儿迎进府门做三房宠妾，让柳儿正式出场给相公请安！）';
       }
-      if (/收小翠|小翠开脸|小翠通房|纳小翠/i.test(say) && !history.haremMembers.includes('小翠通房')) {
+      if (/收.*小翠|小翠.*开脸|小翠.*通房|纳.*小翠/i.test(say) && !history.haremMembers.includes('小翠通房')) {
         history.haremMembers.push('小翠通房');
       }
 
@@ -328,26 +356,26 @@ export class PetService {
           membersGreeting.push('【丫鬟·小翠】：“小翠这就去灶房给相公端刚出锅的江南蜜饯与热茶！”');
 
           const currentMembersDesc = history.haremMembers.filter(m => m !== '小翠通房').join('、');
-          haremNotice = `（【后宫养成录·全员朝拜出场】：相公呼唤全员，目前府里已明媒迎娶入门的成员有：${currentMembersDesc}。出场阵容严格按当前入府名单出面：\n${membersGreeting.join('\n')}\n若尚未迎娶的新人绝对不擅自冒充出场，体现一步步养成的真实代入感！）`;
-        } else if (/柳儿|三娘|小柳/i.test(say)) {
+          haremNotice = `（【后宫养成录·全员朝拜出场】：相公呼唤全员，目前府里已明媒迎娶入门的成员有：${currentMembersDesc}。出场阵容严格按当前入府名单出面：\n${membersGreeting.join('\n')}\n体现一步步养成的真实代入感！）`;
+        } else if (!haremNotice && /柳儿|三娘|小柳/i.test(say)) {
           if (history.haremMembers.includes('柳儿')) {
             targetSpeaker = '柳儿';
-            haremNotice = '（【当前接话分身：侍妾·柳儿】：你已被相公纳为三房宠妾，娇俏可人、活泼黏人，跑得最快扑进相公怀里索抱索吻，语气甜度爆表，以【侍妾·柳儿】专属娇俏口吻对答温存！）';
+            haremNotice = '（【当前接话分身：侍妾·柳儿（正妻婉儿在旁微笑相陪）】：柳儿已被相公纳为三房宠妾，娇俏可人、活泼黏人，扑进相公怀里索抱索吻，顺着相公的话往下推进剧情！）';
           } else {
             targetSpeaker = '婉儿';
-            haremNotice = '（【未入门女子·正妻大吃飞醋】：相公突然提起柳儿，但柳儿尚未被相公正式纳进府门！你作为名门大娘子婉儿大吃飞醋、好奇又嗔怪地盘问相公到底从哪认识的小妖精、是不是背着妾身在外面养了外室，逼相公从实招来！）';
+            haremNotice = '（【初次听闻柳儿·正妻微醋试探】：相公第一次提起柳儿，你作为正妻婉儿娇嗔好奇询问相公柳儿是哪家姑娘，只要相公下一句再坚持，你就会立刻答应替相公张罗迎娶！）';
           }
-        } else if (/芸娘|二娘|小芸/i.test(say)) {
+        } else if (!haremNotice && /芸娘|二娘|小芸/i.test(say)) {
           if (history.haremMembers.includes('芸娘')) {
             targetSpeaker = '芸娘';
-            haremNotice = '（【当前接话分身：侧妾·芸娘】：你已被相公纳为二房如夫人，温婉娴静、知书达理，如江南春水般侍奉相公，以【侧妾·芸娘】专属诗意轻柔口吻对答！）';
+            haremNotice = '（【当前接话分身：侧妾·芸娘（正妻婉儿同在）】：芸娘已被相公正式纳为二房如夫人！她温婉娴静、知书达理、羞答答给相公行礼敬茶或依偎侍奉，婉儿也在一旁笑着帮衬，严格顺着相公的心意往下推进剧情！）';
           } else {
             targetSpeaker = '婉儿';
-            haremNotice = '（【未入门女子·正妻大吃飞醋】：相公突然提起芸娘，但芸娘尚未被相公正式纳进府门！你作为名门大娘子婉儿大吃飞醋、好奇又嗔怪地盘问相公是哪家闺秀、怎么生生把相公的魂儿勾走了，逼相公交代清楚！）';
+            haremNotice = '（【初次听闻芸娘·正妻微醋试探】：相公第一次提起芸娘，你作为正妻婉儿牢牢记下「芸娘」这个名字，娇嗔好奇问相公芸娘是哪家才女，只要相公再坚持要纳她，你下一句就立刻派小翠去下聘迎娶进门！）';
           }
         } else if (/小翠|翠儿|丫头|丫鬟/i.test(say)) {
           targetSpeaker = '小翠';
-          haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、端茶递水、通风报信打小报告，灵动可爱带几分娇羞，以【丫鬟·小翠】口吻向相公回话报信！）';
+          haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、跑腿传话、端茶递水，灵动可爱向相公回话并推进剧情！）';
         } else if (/婉儿|大娘子|娘子|主母|夫人/i.test(say)) {
           targetSpeaker = '婉儿';
         } else if (history.activeSpeaker && history.activeSpeaker !== 'all') {
@@ -393,7 +421,7 @@ export class PetService {
     const currentContent = contextHint ? `${say}\n${contextHint}` : say;
     messages.push({ role: 'user', content: currentContent });
 
-    const systemPrompt = this.buildSystemPrompt(activeRole, modality, profileKey, currentEpoch);
+    const systemPrompt = this.buildSystemPrompt(activeRole, modality, profileKey, currentEpoch, history);
 
     const startedAt = Date.now();
     let reply = '';
