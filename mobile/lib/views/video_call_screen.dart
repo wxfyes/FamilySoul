@@ -233,10 +233,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
           });
 
           _silenceTimer?.cancel();
-          if (isEndpoint && !_isHoldingToTalk) {
-            _sendSpokenMessage(clean);
-          } else if (!_isHoldingToTalk) {
-            _silenceTimer = Timer(const Duration(milliseconds: 1500), () {
+          if (!_isHoldingToTalk) {
+            _silenceTimer = Timer(Duration(milliseconds: isEndpoint ? 1400 : 2800), () {
               if (mounted && _liveSpokenWords.trim().isNotEmpty && !_isSending) {
                 _sendSpokenMessage(_liveSpokenWords.trim());
               }
@@ -261,6 +259,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
       });
 
       await _speech.listen(
+        listenFor: const Duration(seconds: 60),
+        pauseFor: const Duration(seconds: 4),
         onResult: (result) {
           if (!mounted || _isSending) return;
           final words = result.recognizedWords.trim();
@@ -269,11 +269,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
           });
 
           _silenceTimer?.cancel();
-          if (words.isNotEmpty && !_isSending) {
+          if (words.isNotEmpty && !_isSending && !_isHoldingToTalk) {
             if (result.finalResult) {
               _sendSpokenMessage(words);
             } else {
-              _silenceTimer = Timer(const Duration(milliseconds: 1600), () {
+              _silenceTimer = Timer(const Duration(milliseconds: 2800), () {
                 if (mounted && _liveSpokenWords.isNotEmpty && !_isSending) {
                   _sendSpokenMessage(_liveSpokenWords);
                 }

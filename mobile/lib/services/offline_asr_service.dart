@@ -21,6 +21,7 @@ class OfflineAsrService {
   bool _isListening = false;
   Completer<bool>? _initCompleter;
   String _currentText = '';
+  String _committedText = '';
   int? _leftoverByte;
 
   bool get isReady => _isReady;
@@ -82,9 +83,9 @@ class OfflineAsrService {
       final config = sherpa_onnx.OnlineRecognizerConfig(
         model: modelConfig,
         enableEndpoint: true,
-        rule1MinTrailingSilence: 2.2,
-        rule2MinTrailingSilence: 1.2,
-        rule3MinUtteranceLength: 20.0,
+        rule1MinTrailingSilence: 3.2,
+        rule2MinTrailingSilence: 2.2,
+        rule3MinUtteranceLength: 35.0,
       );
 
       _recognizer = sherpa_onnx.OnlineRecognizer(config);
@@ -116,6 +117,7 @@ class OfflineAsrService {
     try {
       _stream = _recognizer!.createStream();
       _currentText = '';
+      _committedText = '';
       _leftoverByte = null;
       _isListening = true;
 
@@ -146,15 +148,18 @@ class OfflineAsrService {
 
           if (text.isNotEmpty && text != _currentText) {
             _currentText = text;
-            onResult(_currentText, false);
+            final fullText = _committedText.isEmpty ? _currentText : '$_committedText，$_currentText';
+            onResult(fullText, false);
           }
 
           if (continuous && endpoint) {
-            final finalSentence = _currentText;
+            if (_currentText.isNotEmpty) {
+              _committedText = _committedText.isEmpty ? _currentText : '$_committedText，$_currentText';
+            }
             _recognizer!.reset(_stream!);
             _currentText = '';
-            if (finalSentence.isNotEmpty) {
-              onResult(finalSentence, true);
+            if (_committedText.isNotEmpty) {
+              onResult(_committedText, true);
             }
           }
         },
@@ -202,9 +207,12 @@ class OfflineAsrService {
       }
     }
 
-    final out = _currentText.trim();
+    final fullOut = _committedText.isEmpty
+        ? _currentText.trim()
+        : (_currentText.trim().isEmpty ? _committedText : '$_committedText，${_currentText.trim()}');
     _currentText = '';
-    return out;
+    _committedText = '';
+    return fullOut;
   }
 
   /// 直接停止监听并释放当前流
@@ -223,6 +231,7 @@ class OfflineAsrService {
     } catch (_) {}
     _stream = null;
     _currentText = '';
+    _committedText = '';
     _leftoverByte = null;
   }
 
