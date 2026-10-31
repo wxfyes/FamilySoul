@@ -93,12 +93,20 @@ class SurfCoreApiClient {
     }
   }
 
-  /// 发送视频视讯消息（携带摄像头截帧画面与语音文本）
-  Future<Map<String, dynamic>> sendVideoChat({String? text, String? imageBase64, String modality = 'voice'}) async {
+  /// 发送视频视讯消息（携带摄像头截帧画面，并支持语音录音直传或文字）
+  Future<Map<String, dynamic>> sendVideoChat({
+    String? text,
+    String? audioBase64,
+    String? mimeType,
+    String? imageBase64,
+    String modality = 'voice',
+  }) async {
     final response = await _dio.post(
       '/video-chat',
       data: {
         if (text != null && text.isNotEmpty) 'text': text,
+        if (audioBase64 != null && audioBase64.isNotEmpty) 'audioBase64': audioBase64,
+        if (mimeType != null && mimeType.isNotEmpty) 'mimeType': mimeType,
         if (imageBase64 != null && imageBase64.isNotEmpty) 'imageBase64': imageBase64,
         'modality': modality,
       },
@@ -112,18 +120,19 @@ class SurfCoreApiClient {
         final audioKey = reply['audio']?['key'] as String?;
         String? audioUrl;
         if (audioKey != null && audioKey.isNotEmpty) {
-          audioUrl = '${config.apiPrefix}/audio/$audioKey.wav?token=${Uri.encodeComponent(config.token.trim())}';
+          audioUrl = '/audio/.wav?token=';
         }
         return {
           'ok': true,
           'text': replyText,
+          'userText': data['userText'] ?? '',
           'audioUrl': audioUrl,
           'visualFact': data['visualFact'] ?? '',
         };
       }
       throw Exception(data['error'] ?? '视讯通话处理失败');
     }
-    throw Exception('视讯服务响应异常: ${response.statusCode}');
+    throw Exception('视讯服务响应异常: ');
   }
 
   /// 拉取历史消息

@@ -507,6 +507,65 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 视讯通话中的对讲录音发送（携带摄像头画面截帧与麦克风音频）
+  Future<Map<String, dynamic>> sendVoiceChatToVideo({
+    required String audioBase64,
+    String? imageBase64,
+  }) async {
+    try {
+      final res = await _apiClient.sendVideoChat(
+        audioBase64: audioBase64,
+        imageBase64: imageBase64,
+        modality: 'voice',
+      );
+
+      final replyText = res['text'] as String? ?? '';
+      final userText = res['userText'] as String? ?? '';
+      final audioUrl = res['audioUrl'] as String?;
+      final visualFact = res['visualFact'] as String? ?? '';
+
+      final now = DateTime.now();
+      if (userText.isNotEmpty) {
+        final userMsg = ChatMessage(
+          id: 'u_${now.millisecondsSinceEpoch}',
+          text: userText,
+          isUser: true,
+          timestamp: now,
+          modality: 'voice',
+        );
+        _messages.add(userMsg);
+      }
+
+      if (replyText.isNotEmpty) {
+        final aiMsg = ChatMessage(
+          id: 'v_${now.millisecondsSinceEpoch + 1}',
+          text: replyText,
+          isUser: false,
+          timestamp: now,
+          modality: 'voice',
+          audioUrl: audioUrl,
+        );
+        _messages.add(aiMsg);
+        _persistMessages();
+        notifyListeners();
+      }
+
+      return {
+        'ok': true,
+        'text': replyText,
+        'userText': userText,
+        'audioUrl': audioUrl,
+        'visualFact': visualFact,
+      };
+    } catch (e) {
+      debugPrint('[VideoCall] 对讲视讯传输异常: ' + e.toString());
+      return {
+        'ok': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
   /// 发送图片看脸/看肤质/看穿搭
   Future<void> sendImageMessage({required String filePath, String? text}) async {
     if (_isSending) return;

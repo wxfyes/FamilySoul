@@ -651,23 +651,45 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 13. 闺房视频通话 POST /dsh-surfcore/pet-api/video-chat
+  // 13. 视讯通话（支持文字、截帧与录音直传） POST /dsh-surfcore/pet-api/video-chat
   if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/video-chat') {
     try {
       const body = await parseJsonBody(req);
+      let spokenText = body.text ? body.text.trim() : '';
+
+      // 若移动端（如安卓）传了麦克风录音直传切片，先由中枢进行 ASR 转录
+      if (!spokenText && body.audioBase64) {
+        console.log(`[VideoChat] 🎙️ 收到成员 [${currentMember.memberKey}] 视讯对讲录音，启动 ASR 转写...`);
+        spokenText = await visionService.transcribeAudio({
+          audioBase64: body.audioBase64,
+          mimeType: body.mimeType || 'audio/aac',
+        });
+        console.log(`[VideoChat] ✅ 视讯 ASR 转写结果: "${spokenText || '（未听清）'}"`);
+      }
+
+      if (!spokenText && body.audioBase64) {
+        return sendJson(res, 200, {
+          ok: false,
+          error: '未听清您的声音，请靠近麦克风再试一次哦～',
+        });
+      }
+
       const hasImage = Boolean(body.imageBase64 && body.imageBase64.length > 50);
       const imageSizeKb = hasImage ? Math.round(body.imageBase64.length / 1024) : 0;
-      console.log(`[VideoChat] 📹 收到成员 [${currentMember.memberKey}] 视讯通话请求 (截帧大小: ${imageSizeKb}KB, 文字: "${body.text || ''}")`);
+      console.log(`[VideoChat] 📹 收到成员 [${currentMember.memberKey}] 视讯通话请求 (截帧大小: ${imageSizeKb}KB, 文字: "${spokenText}")`);
 
       const result = await petService.videoChat({
-        text: body.text,
+        text: spokenText,
         imageBase64: body.imageBase64,
         modality: body.modality || 'voice',
         profileKey: currentMember.memberKey,
       });
 
       console.log(`[VideoChat] ✅ 视讯通话处理完成 (耗时: ${result.latencyMs || 0}ms, 视觉: "${result.visualFact || '降级温存模式'}")`);
-      return sendJson(res, result.ok ? 200 : 500, result);
+      return sendJson(res, result.ok ? 200 : 500, {
+        ...result,
+        userText: spokenText,
+      });
     } catch (err) {
       console.error(`[VideoChat] ❌ 视讯通话处理异常:`, err.message);
       return sendJson(res, 500, { ok: false, error: err.message });
