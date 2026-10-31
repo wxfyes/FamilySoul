@@ -39,8 +39,8 @@ export class VisionGeminiService {
     if (this.proxy) return this.proxy;
     if (this.detectedProxy !== null) return this.detectedProxy;
 
-    // 软路由/本机常用科学上网本地代理端口自适应探测 (Clash: 7890, Xray: 10808, PassWall: 1082)
-    const candidatePorts = [7890, 10808, 1082];
+    // 软路由/本机常用科学上网本地代理端口自适应探测 (Clash: 7890, v2rayN: 27890/10809, Xray: 10808, PassWall: 1082)
+    const candidatePorts = [7890, 27890, 10808, 10809, 1082];
     for (const port of candidatePorts) {
       const open = await probePort('127.0.0.1', port, 200);
       if (open) {
