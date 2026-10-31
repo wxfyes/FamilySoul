@@ -763,7 +763,7 @@
           <span class="section-title">💬 闺房试炼对话 (实时检验调教效果)</span>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 13px; color: var(--text-muted);">当前测试身份:</span>
-            <select id="sandboxMemberSelect" class="input-field" style="padding: 4px 8px; font-size: 12px;" onchange="loadSandboxHistory()">
+            <select id="sandboxMemberSelect" class="input-field" style="padding: 4px 8px; font-size: 12px;" onchange="onSandboxMemberChange()">
               <option value="husband">相公 (测试温柔小娘子)</option>
               <option value="wife">老婆 (测试猛男贴心管家)</option>
               <option value="kid">孩子 (测试全能探索导师)</option>
@@ -1196,6 +1196,24 @@
       showToast('📋 Token 已复制到剪贴板');
     }
 
+    function getMemberDefaultGreeting(memberKey) {
+      if (memberKey === 'wife') {
+        return '夫人好，在下随时为您效劳。您今夜有什么吩咐或心事，我都在您身边陪伴。';
+      }
+      if (memberKey === 'kid') {
+        return '嗨！小探索家，今天我们一起研究什么有趣的新问题呀？';
+      }
+      return '相公万福！妾身在此守候相公。相公可以在这里直接跟妾身说话，或者输入暗号「12345」检验妾身的闺房调教成效哦~';
+    }
+
+    function onSandboxMemberChange() {
+      const memberKey = document.getElementById('sandboxMemberSelect').value;
+      const greeting = getMemberDefaultGreeting(memberKey);
+      document.getElementById('sandboxChatWindow').innerHTML = `
+        <div class="msg-bubble msg-ai">${greeting}</div>
+      `;
+    }
+
     // ── 私密试炼逻辑 ─────────────────────────────────────
     async function sendSandboxMessage() {
       const input = document.getElementById('sandboxInput');
@@ -1240,10 +1258,9 @@
         const data = await res.json();
         if (data.ok) {
           showToast('🧹 对话记忆已彻底清空重置！');
+          const greeting = getMemberDefaultGreeting(memberKey);
           document.getElementById('sandboxChatWindow').innerHTML = `
-            <div class="msg-bubble msg-ai">
-              相公万福！妾身在侧贴心伺候。对话记忆已重置如初，相公有什么想聊的尽管吩咐妾身~
-            </div>
+            <div class="msg-bubble msg-ai">${greeting}</div>
           `;
         } else {
           showToast('清空失败: ' + (data.error || '未知错误'));
