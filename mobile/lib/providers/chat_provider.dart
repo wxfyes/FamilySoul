@@ -10,6 +10,7 @@ import '../models/chat_message.dart';
 import '../models/pet_status.dart';
 import '../models/routine_config.dart';
 import '../services/api_client.dart';
+import '../services/local_vision_service.dart';
 
 class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   static const String _prefKeyConfig = 'surfcore_server_config';
@@ -475,15 +476,26 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 闺房视讯通话：发送当前帧图像及相公语音
   Future<Map<String, dynamic>> sendVideoCallFrame({String? text, String? imageBase64}) async {
     try {
+      String? effectiveText = text;
+      String localFact = '';
+      if (imageBase64 != null && imageBase64.isNotEmpty) {
+        localFact = await LocalVisionService.instance.analyzeImage(base64Image: imageBase64);
+        if (localFact.isNotEmpty) {
+          effectiveText = '${text ?? ''}\n【手机原生离线视觉感知画面实况：$localFact】'.trim();
+        }
+      }
+
       final res = await _apiClient.sendVideoChat(
-        text: text,
+        text: effectiveText,
         imageBase64: imageBase64,
         modality: 'voice',
       );
 
       final replyText = res['text'] as String? ?? '';
       final audioUrl = res['audioUrl'] as String?;
-      final visualFact = res['visualFact'] as String? ?? '';
+      final visualFact = (res['visualFact'] as String?)?.isNotEmpty == true
+          ? (res['visualFact'] as String)
+          : localFact;
 
       if (replyText.isNotEmpty) {
         final now = DateTime.now();
@@ -607,15 +619,32 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       final base64Image = base64Encode(bytes);
       final modality = _isVoiceReplyEnabled ? 'voice' : 'text';
 
+      // 优先调用手机端原生离线视觉引擎 (iOS Apple Vision / Android Native Vision)，0 代理 0 Gemini 离线识图与识字
+      final localFact = await LocalVisionService.instance.analyzeImage(
+        filePath: filePath,
+        base64Image: base64Image,
+      );
+
+      String effectivePrompt = userPrompt;
+      if (localFact.isNotEmpty) {
+        if (userPrompt.isNotEmpty) {
+          effectivePrompt = '【系统视觉已看清对方发来的图片内容：$localFact】\n对方同时问你：“$userPrompt”。请严格根据上面识别出的图片真实内容（特别是图中的文字或物体特征，绝不瞎编，不要扯自拍！）准确、温柔地回答对方的问题！';
+        } else {
+          effectivePrompt = '【系统视觉已看清对方发来的图片内容：$localFact】\n对方只发送了这张图片，还没有说出具体问题。请用1~2句简短自然的话，先准确告诉对方你在图里看到了什么（如实说出图里的文字或物体内容，不要死板去说皮肤气色，也不要发自拍！），然后温柔询问对方关于这张图有什么想问或想吩咐的，等待对方进一步询问！';
+        }
+      }
+
       final res = await _apiClient.sendVideoChat(
-        text: userPrompt,
+        text: effectivePrompt,
         imageBase64: base64Image,
         modality: modality,
       );
 
       _messages.removeWhere((m) => m.id == pendingId);
 
-      final replyText = res['text'] as String? ?? '';
+      // 彻底剥离任何误触发的 [image:...] 标签，防止对方发图时伴侣误发自拍图
+      final rawReply = res['text'] as String? ?? '';
+      final replyText = rawReply.replaceAll(RegExp(r'\[image:[^\]]*\]', caseSensitive: false), '').trim();
       final audioUrl = res['audioUrl'] as String?;
 
       final aiMsg = ChatMessage(

@@ -460,38 +460,42 @@ export class PetService {
   }
 
   async videoChat({ text = '', imageBase64 = null, modality = 'voice', profileKey = 'husband' } = {}) {
+    const say = String(text || '').trim();
+    const hasClientVision = say.includes('【系统视觉已看清') || say.includes('【手机原生离线视觉');
     let visualFact = '';
-    if (imageBase64) {
+
+    if (hasClientVision) {
+      console.log(`[Vision] 📱 收到成员 [${profileKey}] 手机端原生离线视觉识别结果，0代理直通 DeepSeek`);
+      visualFact = say;
+    } else if (imageBase64) {
       try {
-        console.log(`[Vision] 📸 收到成员 [${profileKey}] 画面，启动 Gemini 视觉感知...`);
+        console.log(`[Vision] 📸 收到成员 [${profileKey}] 画面，尝试视觉感知...`);
         const visionPromise = this.visionService.analyzeVisualFrame({ imageBase64 });
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 8500));
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 4000));
         visualFact = (await Promise.race([visionPromise, timeoutPromise])) || '';
-        if (visualFact) {
-          console.log(`[Vision] 👁️ 视觉感知成功识别: ${visualFact}`);
-        } else {
-          console.log('[Vision] ⚡ 视觉感知超时或网络受限，极速降级处理');
-        }
       } catch (err) {
-        console.warn('[Vision] 视觉感知跳过/降级：', err.message);
+        console.warn('[Vision] 视觉感知跳过：', err.message);
       }
     }
 
-    const say = String(text || '').trim();
     let promptSay = say;
 
     let targetTitle = '相公';
     if (profileKey === 'wife') targetTitle = '女主人/夫人';
     else if (profileKey === 'kid') targetTitle = '小朋友';
 
-    if (imageBase64) {
+    if (hasClientVision) {
+      promptSay = say;
+    } else if (imageBase64) {
       if (visualFact) {
         promptSay = `【收到${targetTitle}发来的图片，你亲眼看到的图片真实内容如下：${visualFact}】\n` +
           (say
             ? `${targetTitle}同时对你说：“${say}”。请严格根据上面你亲眼看到的图片真实内容（绝不瞎编图片之外的东西！），以你的专属身份准确、自然地回答${targetTitle}的问题！`
             : `${targetTitle}只发了这张图片，还没有说出具体问题。请用1~2句简短自然的话，先准确说出你亲眼在图片里看到了什么（不要死板地去评判皮肤气色，图里是什么就说什么！），然后温柔询问${targetTitle}关于这张图有什么想问或想吩咐的，等待${targetTitle}进一步询问！`);
       } else {
-        promptSay = `【${targetTitle}刚刚发来了一张图片${say ? `并说：“${say}”` : ''}，但因为视觉代理未开启或网络波动，你目前没能看清这张图片的具体内容！绝对严禁瞎编乱造图片里有什么（严禁乱猜衣服、女子、脸色或瞎编内容）！请温柔如实地告诉${targetTitle}刚才网络稍微晃了一下没能加载出画面，请${targetTitle}检查一下控制台的 Google 视觉代理开关或再发一次】`;
+        promptSay = say
+          ? `【${targetTitle}发来了一张图片并问你：“${say}”。请根据${targetTitle}的话语温柔回应，并询问${targetTitle}图中的关键细节（绝不要发自拍，也不要死板评判皮肤）】`
+          : `【${targetTitle}刚刚发来了一张图片，还没有附带文字说明。请用1~2句温柔自然的话告诉${targetTitle}你收到了图片，并询问${targetTitle}想让你看图里的什么内容或有什么吩咐（绝不要发自拍，也不要死板评判皮肤）】`;
       }
     } else {
       promptSay = say || `请以你的专属身份主动向${targetTitle}温柔问候一声。`;
