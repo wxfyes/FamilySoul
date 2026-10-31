@@ -378,23 +378,52 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 1.5 语音音频流拉取 /dsh-surfcore/pet-api/audio/:key.wav (32位MD5哈希寻址，免Token流式播放，让手机音频播放器无感直出)
-  const audioMatch = pathname.match(/^\/dsh-surfcore\/pet-api\/audio\/([a-zA-Z0-9_-]+)\.(wav|mp3)$/);
+  // 1.5 语音音频流拉取 /dsh-surfcore/pet-api/audio/:key.wav (支持哈希寻址、动态MIME识别与HTTP Range切片播放)
+  const audioMatch = pathname.match(/^\/dsh-surfcore\/pet-api\/audio\/([a-zA-Z0-9_-]+)(?:\.(wav|mp3))?$/i);
   if (audioMatch) {
     const key = audioMatch[1];
     const audioFile = ttsService.getAudioFile(key);
     if (!audioFile || !fs.existsSync(audioFile)) {
       return sendJson(res, 404, { ok: false, error: '音频文件不存在或已过期' });
     }
-    const stat = fs.statSync(audioFile);
-    res.writeHead(200, {
-      'Content-Type': 'audio/wav',
-      'Content-Length': stat.size,
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=86400',
-    });
-    fs.createReadStream(audioFile).pipe(res);
-    return;
+    try {
+      const bytes = fs.readFileSync(audioFile);
+      const isMp3 = bytes.length > 3 && (
+        (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) ||
+        (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33)
+      );
+      const contentType = isMp3 ? 'audio/mpeg' : 'audio/wav';
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : bytes.length - 1;
+        const chunk = bytes.subarray(start, end + 1);
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${bytes.length}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(chunk.length),
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=86400',
+        });
+        res.end(chunk);
+        return;
+      }
+
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Content-Length': String(bytes.length),
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      res.end(bytes);
+      return;
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: '读取音频文件失败' });
+    }
   }
 
   let currentMember = null;
