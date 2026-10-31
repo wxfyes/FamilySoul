@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -76,6 +77,8 @@ class MessageBubble extends StatelessWidget {
                                           : Theme.of(context).textTheme.bodyLarge?.color),
                                 ),
                               ),
+                            if (message.localImagePath != null && File(message.localImagePath!).existsSync())
+                              _buildLocalImageCard(context, message.localImagePath!),
                             if (message.audioUrl != null && message.audioUrl!.isNotEmpty)
                               _buildVoiceBar(context, message.audioUrl!),
                             if (message.detectedEmoji != null)
@@ -203,7 +206,7 @@ class MessageBubble extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                isPlaying ? '正在播放小娘子语音...' : '点击播放小娘子语音',
+                isPlaying ? '正在播放${characterName.isNotEmpty ? characterName : "伴侣"}语音...' : '点击播放${characterName.isNotEmpty ? characterName : "伴侣"}语音',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
@@ -286,6 +289,48 @@ class MessageBubble extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocalImageCard(BuildContext context, String localPath) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (ctx) => Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.all(12),
+                child: Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    InteractiveViewer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.file(File(localPath), fit: BoxFit.contain),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 240, maxHeight: 320),
+            child: Image.file(
+              File(localPath),
+              fit: BoxFit.cover,
             ),
           ),
         ),

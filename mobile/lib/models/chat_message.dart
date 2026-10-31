@@ -6,6 +6,7 @@ class ChatMessage {
   final String modality;
   final String? audioUrl;
   final String? emojiType;
+  final String? localImagePath;
   final bool isError;
   final bool isPending;
 
@@ -17,6 +18,7 @@ class ChatMessage {
     this.modality = 'text',
     this.audioUrl,
     this.emojiType,
+    this.localImagePath,
     this.isError = false,
     this.isPending = false,
   });

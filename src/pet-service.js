@@ -434,14 +434,14 @@ export class PetService {
     let visualFact = '';
     if (imageBase64) {
       try {
-        console.log('[Vision] 📸 收到视频通话截帧画面，启动视觉感知...');
+        console.log(`[Vision] 📸 收到成员 [${profileKey}] 画面，启动 Gemini 视觉感知...`);
         const visionPromise = this.visionService.analyzeVisualFrame({ imageBase64 });
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 2500));
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 6500));
         visualFact = (await Promise.race([visionPromise, timeoutPromise])) || '';
         if (visualFact) {
           console.log(`[Vision] 👁️ 视觉感知成功识别: ${visualFact}`);
         } else {
-          console.log('[Vision] ⚡ 视觉感知超时或网络受限，极速降级为温存视频通话模式');
+          console.log('[Vision] ⚡ 视觉感知超时或网络受限，极速降级处理');
         }
       } catch (err) {
         console.warn('[Vision] 视觉感知跳过/降级：', err.message);
@@ -450,12 +450,19 @@ export class PetService {
 
     const say = String(text || '').trim();
     let promptSay = say;
+
+    let targetTitle = '相公';
+    if (profileKey === 'wife') targetTitle = '女主人/夫人';
+    else if (profileKey === 'kid') targetTitle = '小朋友';
+
     if (visualFact) {
-      promptSay = `【当前视讯实时画面：你透过手机视频正亲眼端详着相公，画面清晰显示：${visualFact}】\n` + (say ? `相公对你说：${say}` : '相公正在视频镜头前深情凝视着你，请你主动娇羞夸奖他的穿搭气色、神态举止，像真打视频电话一样温存问候。');
+      promptSay = `【收到${targetTitle}发来的实时照片/画面，你透过屏幕正亲眼端详着对方，画面清晰呈现：${visualFact}】\n` +
+        (say ? `${targetTitle}对你说：“${say}”。请结合你亲眼看到的画面细节（如肤质、脸色气色、穿搭发型、神态与周遭环境），以你的专属身份做出极具同理心、温柔贴心、懂行专业的细致回复与关怀建议！` :
+          `请结合你亲眼端详到的画面细节（如肤质水润/干燥状态、气色容貌、穿搭打扮等），以你的专属身份主动夸赞并给出专业温柔的贴心点评与日常建议！`);
     } else if (say) {
-      promptSay = `【当前处于手机视频实时通话中，你透过屏幕正端详着相公】相公在视频那头对你说：“${say}”。请你如同正与相公面对面打视频通话一样，满眼柔情、娇羞知性（或名门主母）地与相公温存对答，1~2句短促亲昵。`;
+      promptSay = `【${targetTitle}向你发来照片并说：“${say}”】请以你的专属身份温柔懂行地回复与关照。`;
     } else {
-      promptSay = '（视频通话接通了，相公正在手机屏幕前看着你，请你用娇媚亲昵的口吻主动向相公视频问好，1~2句短促甜美）';
+      promptSay = `【${targetTitle}发来了一张照片】请以你的专属身份亲切问候，询问是否要帮你端详气色、肤质或穿搭。`;
     }
 
     const result = await this.chat({ text: promptSay, modality, profileKey });

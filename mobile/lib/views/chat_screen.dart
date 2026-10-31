@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../providers/chat_provider.dart';
@@ -18,6 +20,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final ImagePicker _imagePicker = ImagePicker();
   bool _speechAvailable = false;
   String _currentLocaleId = 'zh_CN';
 
@@ -40,7 +43,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _speechAvailable = await _speech.initialize(
         onError: (val) {
           debugPrint('[STT] 语音识别报错: ${val.errorMsg} (permanent: ${val.permanent})');
-          // 致命错误（如权限不足、无服务）才强制终止，非致命错误（如静音超时）不中断按住手势
           final isFatal = val.permanent ||
               val.errorMsg.contains('insufficient') ||
               val.errorMsg.contains('busy') ||
@@ -53,17 +55,26 @@ class _ChatScreenState extends State<ChatScreen> {
                 _isSettling = false;
               });
             }
-            // 将真实错误浮动提示给用户，排查透明化
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '语音提示: ${val.errorMsg}${val.permanent ? " (系统服务不可用)" : ""}',
+            if (val.errorMsg == 'error_permission') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('当前手机未内置可用语音转文字引擎，可点左侧切换键盘直接用输入法说哦～'),
+                  duration: Duration(seconds: 4),
+                  behavior: SnackBarBehavior.floating,
                 ),
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '语音提示: ${val.errorMsg}${val.permanent ? " (系统服务不可用)" : ""}',
+                  ),
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           }
         },
         onStatus: (val) {
@@ -111,6 +122,31 @@ class _ChatScreenState extends State<ChatScreen> {
   void _onVoiceStart() async {
     // 防重入：正在录音中或正在松手结算中直接忽略，杜绝 Android 原生 client error 5
     if (_isHoldingRecord || _isSettling) return;
+
+    // 主动检查并申请麦克风权限
+    try {
+      final micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) {
+        final req = await Permission.microphone.request();
+        if (!req.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('需要麦克风录音权限才能说话，请在设置中允许'),
+                action: SnackBarAction(
+                  label: '去设置',
+                  onPressed: () => openAppSettings(),
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
 
     if (!_speechAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -269,6 +305,116 @@ class _ChatScreenState extends State<ChatScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  /// 弹出拍照或选择照片看脸 BottomSheet
+  void _showPhotoSourceSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.face_retouching_natural_rounded, color: Color(0xFF8B5CF6), size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('上传照片看脸 · 肤质气色端详', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 2),
+                      Text('Gemini 视觉大脑为你专业分析面容、肤质与气色', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF8B5CF6)),
+                ),
+                title: const Text('拍照看脸 / 肤质 / 穿搭', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('即时自拍，伴侣实时端详为你量身建议'),
+                contentPadding: EdgeInsets.zero,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendImage(ImageSource.camera);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: Colors.blue),
+                ),
+                title: const Text('从手机相册选取', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('选择手机相册中的精修照片或特写'),
+                contentPadding: EdgeInsets.zero,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 拍照或选取并发送
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      if (!mounted) return;
+      final provider = context.read<ChatProvider>();
+      final promptText = _textController.text.trim();
+      _textController.clear();
+
+      await provider.sendImageMessage(
+        filePath: picked.path,
+        text: promptText.isNotEmpty ? promptText : '帮我仔细端详看看照片里的肤质、脸色和整体气色，给出建议',
+      );
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('[ImagePicker] 选取照片异常: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('选择照片失败: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
     }
   }
 
@@ -611,6 +757,16 @@ class _ChatScreenState extends State<ChatScreen> {
               size: 26,
             ),
             tooltip: _isVoiceMode ? '切换打字' : '切换按住说话',
+          ),
+          // 上传照片看脸 / 肤质 / 穿搭
+          IconButton(
+            onPressed: _showPhotoSourceSheet,
+            icon: const Icon(
+              Icons.camera_alt_outlined,
+              color: Color(0xFF8B5CF6),
+              size: 25,
+            ),
+            tooltip: '拍照看脸 / 肤质端详',
           ),
           const SizedBox(width: 4),
 

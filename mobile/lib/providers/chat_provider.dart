@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -503,6 +504,80 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         'ok': false,
         'error': e.toString(),
       };
+    }
+  }
+
+  /// 发送图片看脸/看肤质/看穿搭
+  Future<void> sendImageMessage({required String filePath, String? text}) async {
+    if (_isSending) return;
+    _isSending = true;
+    notifyListeners();
+
+    final userPrompt = (text != null && text.trim().isNotEmpty) ? text.trim() : '帮我看看照片里的肤质与气色，给出建议';
+    final userMsg = ChatMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      text: userPrompt,
+      isUser: true,
+      timestamp: DateTime.now(),
+      localImagePath: filePath,
+    );
+
+    final pendingId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+    final pendingMsg = ChatMessage(
+      id: pendingId,
+      text: '正在端详照片...',
+      isUser: false,
+      timestamp: DateTime.now(),
+      isPending: true,
+    );
+
+    _messages.add(userMsg);
+    _messages.add(pendingMsg);
+    notifyListeners();
+
+    try {
+      final bytes = await File(filePath).readAsBytes();
+      final base64Image = base64Encode(bytes);
+      final modality = _isVoiceReplyEnabled ? 'voice' : 'text';
+
+      final res = await _apiClient.sendVideoChat(
+        text: userPrompt,
+        imageBase64: base64Image,
+        modality: modality,
+      );
+
+      _messages.removeWhere((m) => m.id == pendingId);
+
+      final replyText = res['text'] as String? ?? '';
+      final audioUrl = res['audioUrl'] as String?;
+
+      final aiMsg = ChatMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        text: replyText.isNotEmpty ? replyText : '看清啦，整体状态很不错呢！',
+        isUser: false,
+        timestamp: DateTime.now(),
+        modality: modality,
+        audioUrl: audioUrl,
+      );
+
+      _messages.add(aiMsg);
+      _persistMessages();
+
+      if (audioUrl != null && audioUrl.isNotEmpty && _isVoiceReplyEnabled) {
+        unawaited(playAudio(audioUrl));
+      }
+    } catch (e) {
+      _messages.removeWhere((m) => m.id == pendingId);
+      _messages.add(ChatMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        text: '抱歉，端详照片时网络遇到了一点小波折，请稍候再试呢～',
+        isUser: false,
+        timestamp: DateTime.now(),
+        isError: true,
+      ));
+    } finally {
+      _isSending = false;
+      notifyListeners();
     }
   }
 
