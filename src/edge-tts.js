@@ -18,14 +18,16 @@ export class EdgeTtsService {
   }
 
   _detectBinary() {
-    const candidates = [
+    const isWindows = process.platform === 'win32';
+    const candidates = isWindows ? [
       path.resolve(process.cwd(), 'edge-tts/edge-tts.exe'),
+      path.resolve(process.cwd(), '../edge-tts/edge-tts.exe'),
+      path.resolve(process.cwd(), '../tools/dist/edge-tts/edge-tts.exe'),
+    ] : [
       '/usr/bin/edge-tts',
       '/usr/local/bin/edge-tts',
       '/opt/familysoul/edge-tts/edge-tts',
       '/opt/surfcore-server/edge-tts/edge-tts',
-      path.resolve(process.cwd(), '../edge-tts/edge-tts.exe'),
-      path.resolve(process.cwd(), '../tools/dist/edge-tts/edge-tts.exe'),
     ];
     for (const p of candidates) {
       if (fs.existsSync(p)) return { type: 'file', cmd: p };

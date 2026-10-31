@@ -108,6 +108,11 @@ async function run() {
     assert(Array.isArray(historyRes.body.history));
     console.log('✅ 历史记录接口响应成功');
 
+    console.log('--- 7. 测试音频流接口免鉴权拉取（绝不许报 401，播放器直拉）---');
+    const audioRes = await request(`http://127.0.0.1:${TEST_PORT}/dsh-surfcore/pet-api/audio/test1234567890abcdef.wav`);
+    assert.notStrictEqual(audioRes.status, 401, '音频拉取绝不可被 401 拦截');
+    console.log('✅ 音频流接口免鉴权直拉测试通过！');
+
     console.log('\n========================================================');
     console.log('  🎉 HTTP 接口与 Token 主权闭环全绿通过！稳妥无虞！     ');
     console.log('========================================================');

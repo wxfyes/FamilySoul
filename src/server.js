@@ -378,6 +378,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 1.5 语音音频流拉取 /dsh-surfcore/pet-api/audio/:key.wav (32位MD5哈希寻址，免Token流式播放，让手机音频播放器无感直出)
+  const audioMatch = pathname.match(/^\/dsh-surfcore\/pet-api\/audio\/([a-zA-Z0-9_-]+)\.(wav|mp3)$/);
+  if (audioMatch) {
+    const key = audioMatch[1];
+    const audioFile = ttsService.getAudioFile(key);
+    if (!audioFile || !fs.existsSync(audioFile)) {
+      return sendJson(res, 404, { ok: false, error: '音频文件不存在或已过期' });
+    }
+    const stat = fs.statSync(audioFile);
+    res.writeHead(200, {
+      'Content-Type': 'audio/wav',
+      'Content-Length': stat.size,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=86400',
+    });
+    fs.createReadStream(audioFile).pipe(res);
+    return;
+  }
+
   let currentMember = null;
   // 2. 主权通行证铁壁拦截：保护伴侣所有敏感接口，闲杂人等绝无可能访问
   if (pathname.startsWith('/dsh-surfcore/pet-api')) {
@@ -442,25 +461,6 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
     }
-  }
-
-  // 6. 音频拉取 /dsh-surfcore/pet-api/audio/:key.wav
-  const audioMatch = pathname.match(/^\/dsh-surfcore\/pet-api\/audio\/([a-zA-Z0-9_-]+)\.(wav|mp3)$/);
-  if (audioMatch) {
-    const key = audioMatch[1];
-    const audioFile = ttsService.getAudioFile(key);
-    if (!audioFile || !fs.existsSync(audioFile)) {
-      return sendJson(res, 404, { ok: false, error: '音频文件不存在或已过期' });
-    }
-    const stat = fs.statSync(audioFile);
-    res.writeHead(200, {
-      'Content-Type': 'audio/wav',
-      'Content-Length': stat.size,
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=86400',
-    });
-    fs.createReadStream(audioFile).pipe(res);
-    return;
   }
 
   // 7. 配置读取 GET /dsh-surfcore/pet-api/config
