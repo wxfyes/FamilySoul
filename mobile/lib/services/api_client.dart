@@ -201,4 +201,28 @@ class SurfCoreApiClient {
       return false;
     }
   }
+
+  /// 语音直传对话（豆包模式：手机录音直传，中枢智能转录）
+  Future<Map<String, dynamic>> sendVoiceChat({
+    required String audioBase64,
+    String modality = 'voice',
+    String mimeType = 'audio/aac',
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/voice-chat',
+        data: {
+          'audioBase64': audioBase64,
+          'modality': modality,
+          'mimeType': mimeType,
+        },
+      );
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return res.data as Map<String, dynamic>;
+      }
+      return {'ok': false, 'error': '服务端返回异常'};
+    } catch (e) {
+      return {'ok': false, 'error': e.toString()};
+    }
+  }
 }

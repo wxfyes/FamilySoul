@@ -115,6 +115,66 @@ export class VisionGeminiService {
     return null;
   }
 
+  async transcribeAudio({ audioBase64, mimeType = 'audio/aac' }) {
+    if (!this.isReady() || !audioBase64) return null;
+
+    const cleanBase64 = audioBase64.includes(',') ? audioBase64.split(',')[1] : audioBase64;
+    const modelsToTry = Array.from(new Set(['gemini-2.5-flash', 'gemini-1.5-flash', this.model]));
+
+    const promptText =
+      '请严格将这段语音内容直接转录为纯中文文字。要求：\n1. 仔细辨别语音中的语句，只输出听写的文字内容；\n2. 去除口吃、语气停顿；\n3. 严禁添加任何解释、旁白、问候或说明文字，只输出转录结果；\n4. 若完全未听到说话或仅为噪音，请只输出空。';
+
+    const payload = JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: cleanBase64.trim(),
+              },
+            },
+            {
+              text: promptText,
+            },
+          ],
+        },
+      ],
+    });
+
+    const activeProxy = await this.resolveEffectiveProxy();
+
+    for (const model of modelsToTry) {
+      try {
+        let respData = '';
+        if (activeProxy) {
+          respData = await this._requestViaProxy({
+            proxyUrl: activeProxy,
+            targetHost: 'generativelanguage.googleapis.com',
+            path: `/v1beta/models/${model}:generateContent`,
+            body: payload,
+            timeoutMs: 3500,
+          });
+        } else {
+          respData = await this._requestDirect({
+            targetHost: 'generativelanguage.googleapis.com',
+            path: `/v1beta/models/${model}:generateContent`,
+            body: payload,
+            timeoutMs: 3500,
+          });
+        }
+
+        const data = JSON.parse(respData);
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) return text;
+      } catch (err) {
+        // console.warn(`[ASR] 模型 ${model} 转录中断:`, err.message);
+      }
+    }
+
+    return null;
+  }
+
   _requestDirect({ targetHost, path: reqPath, body, timeoutMs = 2000 }) {
     return new Promise((resolve, reject) => {
       let finished = false;

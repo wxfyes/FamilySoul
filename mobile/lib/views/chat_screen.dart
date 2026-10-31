@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../providers/chat_provider.dart';
 import '../widgets/message_bubble.dart';
@@ -21,6 +24,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String? _currentRecordPath;
   bool _speechAvailable = false;
   String _currentLocaleId = 'zh_CN';
 
@@ -148,6 +153,36 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!mounted) return;
 
+    // Android 端：采用豆包同款「手机纯录音直传中枢」极速架构，彻底免疫任何手机系统引擎限制
+    if (!Platform.isIOS) {
+      HapticFeedback.mediumImpact();
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        _currentRecordPath = '${tempDir.path}/$fileName';
+        setState(() {
+          _isHoldingRecord = true;
+          _isSettling = false;
+          _isCanceling = false;
+          _liveWords = '松开发送，上滑取消';
+          _voiceStartTime = DateTime.now();
+        });
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 16000),
+          path: _currentRecordPath!,
+        );
+      } catch (e) {
+        debugPrint('[Record] 启动录音失败: $e');
+        if (mounted) {
+          setState(() => _isHoldingRecord = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('录音启动异常: $e'), behavior: SnackBarBehavior.floating),
+          );
+        }
+      }
+      return;
+    }
+
     if (!_speechAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -221,6 +256,26 @@ class _ChatScreenState extends State<ChatScreen> {
   /// 异常打断或取消手势
   void _onVoiceCancel() async {
     if (!_isHoldingRecord && !_isSettling) return;
+
+    if (!Platform.isIOS) {
+      try {
+        final path = await _audioRecorder.stop();
+        if (path != null) {
+          try {
+            File(path).deleteSync();
+          } catch (_) {}
+        }
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _isHoldingRecord = false;
+          _isCanceling = false;
+          _isSettling = false;
+        });
+      }
+      return;
+    }
+
     try {
       await _speech.stop();
     } catch (_) {}
@@ -242,7 +297,63 @@ class _ChatScreenState extends State<ChatScreen> {
 
     HapticFeedback.lightImpact();
 
-    // 关键优化：手指已松开，但开启结算窗口 _isSettling = true，确保 Android 底层异步吐出的最终分词不被拦截
+    // Android 端：直传中枢模式
+    if (!Platform.isIOS) {
+      String? recordPath;
+      try {
+        recordPath = await _audioRecorder.stop();
+      } catch (_) {}
+
+      setState(() {
+        _isHoldingRecord = false;
+        _isCanceling = false;
+        _isSettling = false;
+      });
+
+      if (!mounted) return;
+
+      if (wasCanceling) {
+        if (recordPath != null) {
+          try {
+            File(recordPath).deleteSync();
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('已取消发送'),
+            duration: Duration(milliseconds: 1000),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      if (duration.inMilliseconds < 500) {
+        if (recordPath != null) {
+          try {
+            File(recordPath).deleteSync();
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('说话时间太短'),
+            duration: Duration(milliseconds: 1000),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final targetFile = recordPath ?? _currentRecordPath;
+      if (targetFile != null && File(targetFile).existsSync()) {
+        final provider = context.read<ChatProvider>();
+        await provider.sendVoiceAudioMessage(targetFile);
+        _scrollToBottom();
+      }
+      return;
+    }
+
+    // iOS 端：保持原汁原味 Apple Speech 本地听写逻辑，绝对不改动！
     setState(() {
       _isHoldingRecord = false;
       _isCanceling = false;
@@ -421,6 +532,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _speech.stop();
+    _audioRecorder.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();

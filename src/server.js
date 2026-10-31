@@ -619,6 +619,44 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 14. 语音直传转写与对话（豆包同款：手机纯录音直传，中枢智能转录） POST /dsh-surfcore/pet-api/voice-chat
+  if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/voice-chat') {
+    try {
+      const body = await parseJsonBody(req);
+      const audioBase64 = body.audioBase64;
+      const mimeType = body.mimeType || 'audio/aac';
+      let recognizedText = '';
+
+      if (audioBase64) {
+        console.log(`[VoiceChat] 🎙️ 收到成员 [${currentMember.memberKey}] 录音直传，启动多模态 ASR 转写...`);
+        recognizedText = await visionService.transcribeAudio({ audioBase64, mimeType });
+        console.log(`[VoiceChat] ✅ ASR 转录结果: "${recognizedText || '（未听清）'}"`);
+      }
+
+      if (!recognizedText || !recognizedText.trim()) {
+        return sendJson(res, 200, {
+          ok: false,
+          error: '未听清语音内容，请靠近麦克风再试一次哦～',
+        });
+      }
+
+      const result = await petService.chat({
+        text: recognizedText.trim(),
+        modality: body.modality || 'voice',
+        profileKey: currentMember.memberKey,
+        roleName: currentMember.role,
+      });
+
+      return sendJson(res, result.ok ? 200 : 500, {
+        ...result,
+        userText: recognizedText.trim(),
+      });
+    } catch (err) {
+      console.error(`[VoiceChat] ❌ 语音直传处理异常:`, err.message);
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
   return sendJson(res, 404, { ok: false, error: `未找到对应接口: ${pathname}` });
 });
 

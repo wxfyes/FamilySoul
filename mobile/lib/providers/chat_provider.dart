@@ -581,6 +581,97 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 发送语音切片直传中枢（豆包同款：手机纯录音，中枢极速转录）
+  Future<void> sendVoiceAudioMessage(String audioFilePath) async {
+    if (_isSending) return;
+    _isSending = true;
+    notifyListeners();
+
+    final pendingId = 'voice_pending_${DateTime.now().millisecondsSinceEpoch}';
+    final pendingMsg = ChatMessage(
+      id: pendingId,
+      text: '正在倾听转写中...',
+      isUser: false,
+      timestamp: DateTime.now(),
+      isPending: true,
+    );
+
+    _messages.add(pendingMsg);
+    notifyListeners();
+
+    try {
+      final file = File(audioFilePath);
+      if (!file.existsSync()) throw Exception('音频文件不存在');
+      final bytes = await file.readAsBytes();
+      final base64Audio = base64Encode(bytes);
+      final modality = _isVoiceReplyEnabled ? 'voice' : 'text';
+
+      final res = await _apiClient.sendVoiceChat(
+        audioBase64: base64Audio,
+        modality: modality,
+        mimeType: 'audio/aac',
+      );
+
+      _messages.removeWhere((m) => m.id == pendingId);
+
+      if (res['ok'] != true) {
+        final err = res['error'] as String? ?? '未听清语音';
+        _messages.add(ChatMessage(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          text: err,
+          isUser: false,
+          timestamp: DateTime.now(),
+          isError: true,
+        ));
+        return;
+      }
+
+      final userTranscribed = res['userText'] as String? ?? '';
+      if (userTranscribed.isNotEmpty) {
+        _messages.add(ChatMessage(
+          id: 'u_${DateTime.now().millisecondsSinceEpoch}',
+          text: userTranscribed,
+          isUser: true,
+          timestamp: DateTime.now(),
+        ));
+      }
+
+      final replyData = res['reply'] as Map<String, dynamic>?;
+      final replyText = replyData?['text'] as String? ?? res['text'] as String? ?? '';
+      final audioUrl = replyData?['audio']?['url'] as String? ??
+          (replyData?['audioKey'] != null ? '/dsh-surfcore/pet-api/audio/${replyData!['audioKey']}.wav' : null);
+
+      if (replyText.isNotEmpty) {
+        final aiMsg = ChatMessage(
+          id: 'a_${DateTime.now().millisecondsSinceEpoch}',
+          text: replyText,
+          isUser: false,
+          timestamp: DateTime.now(),
+          modality: modality,
+          audioUrl: audioUrl,
+        );
+        _messages.add(aiMsg);
+        _persistMessages();
+
+        if (audioUrl != null && audioUrl.isNotEmpty && _isVoiceReplyEnabled) {
+          unawaited(playAudio(audioUrl));
+        }
+      }
+    } catch (e) {
+      _messages.removeWhere((m) => m.id == pendingId);
+      _messages.add(ChatMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        text: '语音传输中断，请重试～',
+        isUser: false,
+        timestamp: DateTime.now(),
+        isError: true,
+      ));
+    } finally {
+      _isSending = false;
+      notifyListeners();
+    }
+  }
+
   /// 发送一条消息
   Future<void> sendMessage(String text) async {
     final clean = text.trim();
