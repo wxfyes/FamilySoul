@@ -202,7 +202,7 @@ const petService = new PetService({
   dataDir: DATA_DIR,
 });
 
-function parseJsonBody(req, limitBytes = 3 * 1024 * 1024) {
+function parseJsonBody(req, limitBytes = 10 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let raw = '';
     let bytes = 0;
@@ -210,7 +210,7 @@ function parseJsonBody(req, limitBytes = 3 * 1024 * 1024) {
       bytes += chunk.length;
       if (bytes > limitBytes) {
         req.destroy();
-        return reject(new Error('请求体超出限制（最大 3MB）'));
+        return reject(new Error('请求体超出限制（最大 10MB）'));
       }
       raw += chunk;
     });
@@ -600,14 +600,21 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/video-chat') {
     try {
       const body = await parseJsonBody(req);
+      const hasImage = Boolean(body.imageBase64 && body.imageBase64.length > 50);
+      const imageSizeKb = hasImage ? Math.round(body.imageBase64.length / 1024) : 0;
+      console.log(`[VideoChat] 📹 收到成员 [${currentMember.memberKey}] 视讯通话请求 (截帧大小: ${imageSizeKb}KB, 文字: "${body.text || ''}")`);
+
       const result = await petService.videoChat({
         text: body.text,
         imageBase64: body.imageBase64,
         modality: body.modality || 'voice',
         profileKey: currentMember.memberKey,
       });
+
+      console.log(`[VideoChat] ✅ 视讯通话处理完成 (耗时: ${result.latencyMs || 0}ms, 视觉: "${result.visualFact || '降级温存模式'}")`);
       return sendJson(res, result.ok ? 200 : 500, result);
     } catch (err) {
+      console.error(`[VideoChat] ❌ 视讯通话处理异常:`, err.message);
       return sendJson(res, 500, { ok: false, error: err.message });
     }
   }

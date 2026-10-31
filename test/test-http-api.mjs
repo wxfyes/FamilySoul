@@ -116,6 +116,40 @@ async function run() {
     console.log('\n========================================================');
     console.log('  🎉 HTTP 接口与 Token 主权闭环全绿通过！稳妥无虞！     ');
     console.log('========================================================');
+    // 8. 测试闺房视讯通话接口 POST /dsh-surfcore/pet-api/video-chat
+    console.log('--- 8. 测试视讯通话 POST /dsh-surfcore/pet-api/video-chat (平铺字段与秒级熔断降级) ---');
+    const pixelBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const videoStart = Date.now();
+    const videoRes = await request(`http://127.0.0.1:${TEST_PORT}/dsh-surfcore/pet-api/video-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-pet-token': 'wxf_husband_exclusive_token_2026',
+      },
+      body: {
+        text: '',
+        imageBase64: pixelBase64,
+        modality: 'voice',
+      },
+    });
+    const videoCost = Date.now() - videoStart;
+    const isLlmReady = health.body && health.body.llmReady === true;
+    if (isLlmReady) {
+      assert.strictEqual(videoRes.status, 200, '视讯通话必须返回 200');
+      assert.strictEqual(videoRes.body.ok, true, '视讯通话 ok 必须为 true');
+      assert.ok(videoRes.body.text !== undefined, '视讯通话根节点必须平铺 text 字段');
+      assert.ok(videoRes.body.reply && videoRes.body.reply.text, '视讯通话必须保留 reply.text 结构');
+      assert.ok(videoRes.body.visualFact !== undefined, '视讯通话根节点必须平铺 visualFact');
+      console.log(`✅ 视讯通话测试成功通过 (耗时: ${videoCost}ms, 文本: "${videoRes.body.text.slice(0, 30)}...")`);
+    } else {
+      assert.strictEqual(videoRes.status, 500);
+      assert.ok(videoRes.body.error.includes('DeepSeek API Key'), '必须明确提示DeepSeek Key');
+      console.log(`✅ 视讯通话在无大模型Key环境下精准报错阻断 (耗时: ${videoCost}ms, 错误: "${videoRes.body.error}")`);
+    }
+
+    console.log('\n========================================================');
+    console.log('  🎉 HTTP 接口与 Token 主权闭环全绿通过！稳妥无虞！     ');
+    console.log('========================================================');
   } finally {
     proc.kill();
     try {

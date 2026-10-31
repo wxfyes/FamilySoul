@@ -1,23 +1,64 @@
 import http from 'node:http';
 import https from 'node:https';
+import net from 'node:net';
+
+function probePort(host, port, timeoutMs = 250) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(timeoutMs);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on('error', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.connect(port, host);
+  });
+}
 
 export class VisionGeminiService {
   constructor(config = {}) {
     this.apiKey = config.apiKey || '';
-    this.model = config.model || 'gemini-3.5-flash';
+    this.model = config.model || 'gemini-2.5-flash';
     this.proxy = config.proxy || '';
     this.enabled = config.enabled !== false;
+    this.detectedProxy = null;
   }
 
   isReady() {
     return Boolean(this.enabled && this.apiKey);
   }
 
+  async resolveEffectiveProxy() {
+    if (this.proxy) return this.proxy;
+    if (this.detectedProxy !== null) return this.detectedProxy;
+
+    // 软路由/本机常用科学上网本地代理端口自适应探测 (Clash: 7890, Xray: 10808, PassWall: 1082)
+    const candidatePorts = [7890, 10808, 1082];
+    for (const port of candidatePorts) {
+      const open = await probePort('127.0.0.1', port, 200);
+      if (open) {
+        this.detectedProxy = `http://127.0.0.1:${port}`;
+        console.log(`[Vision] 🌐 自动探测到软路由本地代理服务就绪: ${this.detectedProxy}`);
+        return this.detectedProxy;
+      }
+    }
+    this.detectedProxy = '';
+    return '';
+  }
+
   async analyzeVisualFrame({ imageBase64, mimeType = 'image/jpeg' }) {
     if (!this.isReady() || !imageBase64) return null;
 
     const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-    const modelsToTry = [this.model, 'gemini-3.6-flash', 'gemini-3.7-flash'];
+    // 优先采用 Google 官方当前最稳最快的轻量模型 gemini-2.5-flash
+    const modelsToTry = Array.from(new Set(['gemini-2.5-flash', this.model, 'gemini-3.5-flash']));
 
     const promptText =
       '这是视频通话中对方（相公）的一帧画面。请用1-2句话客观描述相公的面部神态（如是否微笑、眼神、表情）、发型穿搭（衣服颜色与款式）、当前动作或手中拿的物品，以及身后的房间环境。只输出简明真实事实，切勿添加客套话，供伴侣回应参考。';
@@ -40,37 +81,51 @@ export class VisionGeminiService {
       ],
     });
 
+    const activeProxy = await this.resolveEffectiveProxy();
+
     for (const model of modelsToTry) {
       try {
         let respData = '';
-        if (this.proxy) {
+        if (activeProxy) {
           respData = await this._requestViaProxy({
-            proxyUrl: this.proxy,
+            proxyUrl: activeProxy,
             targetHost: 'generativelanguage.googleapis.com',
             path: `/v1beta/models/${model}:generateContent`,
             body: payload,
+            timeoutMs: 2000,
           });
         } else {
           respData = await this._requestDirect({
             targetHost: 'generativelanguage.googleapis.com',
             path: `/v1beta/models/${model}:generateContent`,
             body: payload,
+            timeoutMs: 2000,
           });
         }
 
         const data = JSON.parse(respData);
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (text) return text;
-      } catch (_) {
-        // 尝试下一个模型
+      } catch (err) {
+        // 单个模型或网络超时，快速切入下一个或降级，绝不阻塞用户通话
+        // console.warn(`[Vision] 模型 ${model} 感知尝试中断:`, err.message);
       }
     }
 
     return null;
   }
 
-  _requestDirect({ targetHost, path: reqPath, body, timeoutMs = 8000 }) {
+  _requestDirect({ targetHost, path: reqPath, body, timeoutMs = 2000 }) {
     return new Promise((resolve, reject) => {
+      let finished = false;
+      const timer = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          req.destroy(new Error(`Direct request timeout (${timeoutMs}ms)`));
+          reject(new Error(`Direct request timeout (${timeoutMs}ms)`));
+        }
+      }, timeoutMs);
+
       const req = https.request(
         {
           host: targetHost,
@@ -87,19 +142,38 @@ export class VisionGeminiService {
           let respData = '';
           res.on('data', (c) => (respData += c));
           res.on('end', () => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
             if (res.statusCode === 200) resolve(respData);
             else reject(new Error(`Google API status: ${res.statusCode}`));
           });
         }
       );
 
-      req.on('error', reject);
+      req.on('timeout', () => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timer);
+          req.destroy(new Error(`Direct socket timeout (${timeoutMs}ms)`));
+          reject(new Error(`Direct socket timeout (${timeoutMs}ms)`));
+        }
+      });
+
+      req.on('error', (err) => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timer);
+          reject(err);
+        }
+      });
+
       req.write(body);
       req.end();
     });
   }
 
-  _requestViaProxy({ proxyUrl, targetHost, targetPort = 443, path: reqPath, body, timeoutMs = 8000 }) {
+  _requestViaProxy({ proxyUrl, targetHost, targetPort = 443, path: reqPath, body, timeoutMs = 2000 }) {
     return new Promise((resolve, reject) => {
       let proxyHost = '127.0.0.1';
       let proxyPort = 7890;
@@ -111,14 +185,6 @@ export class VisionGeminiService {
         }
       } catch (_) {}
 
-      const connectReq = http.request({
-        host: proxyHost,
-        port: proxyPort,
-        method: 'CONNECT',
-        path: `${targetHost}:${targetPort}`,
-        timeout: timeoutMs,
-      });
-
       let finished = false;
       const timer = setTimeout(() => {
         if (!finished) {
@@ -127,6 +193,23 @@ export class VisionGeminiService {
           reject(new Error(`Proxy CONNECT timeout (${timeoutMs}ms)`));
         }
       }, timeoutMs);
+
+      const connectReq = http.request({
+        host: proxyHost,
+        port: proxyPort,
+        method: 'CONNECT',
+        path: `${targetHost}:${targetPort}`,
+        timeout: timeoutMs,
+      });
+
+      connectReq.on('timeout', () => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timer);
+          connectReq.destroy();
+          reject(new Error(`Proxy connect socket timeout (${timeoutMs}ms)`));
+        }
+      });
 
       connectReq.on('connect', (res, socket) => {
         if (res.statusCode !== 200) {
@@ -153,6 +236,7 @@ export class VisionGeminiService {
             let respData = '';
             tlsRes.on('data', (c) => (respData += c));
             tlsRes.on('end', () => {
+              if (finished) return;
               finished = true;
               clearTimeout(timer);
               if (tlsRes.statusCode === 200) resolve(respData);
@@ -160,6 +244,15 @@ export class VisionGeminiService {
             });
           }
         );
+
+        tlsReq.on('timeout', () => {
+          if (!finished) {
+            finished = true;
+            clearTimeout(timer);
+            tlsReq.destroy();
+            reject(new Error(`TLS proxy socket timeout (${timeoutMs}ms)`));
+          }
+        });
 
         tlsReq.on('error', (err) => {
           if (!finished) {
@@ -185,3 +278,4 @@ export class VisionGeminiService {
     });
   }
 }
+

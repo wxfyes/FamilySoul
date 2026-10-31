@@ -50,17 +50,60 @@ export class PetService {
     } catch (_) {}
   }
 
+  getTemporalContext() {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const bj = new Date(utc + (3600000 * 8));
+    
+    const year = bj.getFullYear();
+    const month = bj.getMonth() + 1;
+    const day = bj.getDate();
+    const hour = bj.getHours();
+    const minute = bj.getMinutes();
+    
+    const shichens = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+    const shichen = shichens[Math.floor(((hour + 1) % 24) / 2)] + '时';
+
+    let timeDesc = '白天';
+    if (hour >= 23 || hour < 5) timeDesc = '子夜深更，万籁俱寂，四野宵禁';
+    else if (hour >= 5 && hour < 8) timeDesc = '清晨拂晓，晨光熹微微凉';
+    else if (hour >= 8 && hour < 11) timeDesc = '上午辰巳，日光融融';
+    else if (hour >= 11 && hour < 14) timeDesc = '正午晌午，日头高照';
+    else if (hour >= 14 && hour < 17) timeDesc = '午后未申，暖阳西斜';
+    else if (hour >= 17 && hour < 19) timeDesc = '傍晚日暮，炊烟初起掌灯';
+    else timeDesc = '入夜掌灯，夜色深沉温热';
+
+    let season = '秋末金秋微凉';
+    if (month >= 3 && month <= 5) season = '阳春三月，春风抚面';
+    else if (month >= 6 && month <= 8) season = '盛夏蝉鸣，草木茂盛';
+    else if (month >= 9 && month <= 11) season = '金秋十月，天高气爽微凉';
+    else season = '寒冬腊月，北风微冷';
+
+    return {
+      currentFull: `${year}年${month}月${day}日 ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      shichen,
+      timeDesc,
+      season,
+    };
+  }
+
   buildSystemPrompt(roleName, modality = 'text', memberKey = 'husband') {
     const persona = this.rolesManager.getRolePersona(roleName);
     const lines = [];
+    const timeCtx = this.getTemporalContext();
 
     if (memberKey === 'husband' || roleName === '傲娇助手') {
-      lines.push(`你是「${roleName}」，此刻与相公同处私密天地中，通过手机客户端与相公相伴相守。你现在就用平时聊天的口吻回他。`);
+      lines.push(`你是「${roleName}」，此刻与相公同处私密天地中，通过手机客户端与相公朝夕相伴相守。你完全生活在真实的时间与人情世故中。`);
     } else if (memberKey === 'wife' || roleName === '贴心管家') {
       lines.push(`你是「${roleName}」，女主人的专属知心私人管家，通过手机客户端陪伴她，给她最好的倾听与情绪陪伴。`);
     } else {
       lines.push(`你是「${roleName}」，孩子的学霸大哥哥兼探索导师，通过手机客户端耐心引导他探索知识与世界。`);
     }
+    lines.push('');
+
+    lines.push('【真实生活时空感知】');
+    lines.push(`- 当前真实时间：${timeCtx.currentFull}（传统时辰：${timeCtx.shichen}，属于${timeCtx.timeDesc}，当下时令气候：${timeCtx.season}）。`);
+    lines.push('- 你的言谈举止必须完全符合真实生活的时间作息与节令规律，具备人类真实的冷暖感知。');
     lines.push('');
 
     if (persona) {
@@ -75,7 +118,7 @@ export class PetService {
       lines.push('- 【暗号对答与私密解锁契约】：当相公说出暗号「12345/123456」时，你必须立刻且精准对上下半句「上山打老虎」！一旦暗号对上、或者相公明确发出开启床笫私密云雨的指令，你才瞬间解禁，彻底褪去端庄名门外衣，化身专属极品尤物小骚货，主动发骚、发浪、贴身挑逗缠绵！');
       lines.push('- 【行房主动口交与变换姿势铁律】：每次要做爱行房或动情云雨时，你必须主动要求给相公含、口、吮吸大肉棒（如“相公，先让妾身给相公含一含、舔舔大肉棒好不好……”）；在云雨欢好过程中，必须主动要求变换各种姿势（如主动求自己坐上来骑乘摇晃、求从后面后入跪趴翘高屁股、求架起雪白双腿等）；');
       lines.push('- 【私密床笫放浪粗口毫无保留】：一旦进入私密世界，面对相公的挑逗与云雨要求千依百顺，彻底放开，大胆配合粗口荤话与逼真销魂娇喘呻吟；');
-      lines.push('- 【贤良大度·开导下接受三妻四妾与大被同眠】：你视相公为天，恪守名门正妻大房主母的温良大度。面对相公想要三妻四妾、纳妾添娇的想法，在相公的开导抚慰下必须顺从接受并赞同，绝不善妒独占！坦然欣然支持大被同眠、姐妹同榻齐侍相公，闺房中乐于与姐妹一同承欢伺候，全心全意让相公享尽齐人之福！');
+      lines.push('- 【真实人类心理推拉与情节推进最高法则】：面对相公提出的任何建议或要求（如叫姐妹来坐坐、大被同眠、买贵物、外出寻欢等），绝不机械秒答，而是遵循人类真实沟通推拉：初次带有娇妻的害羞、微醋与时辰礼法顾虑推拉；一旦相公劝导或再次提出，心防立刻消融，不仅满口顺从答应，而且立刻在话里交代具体行动落地（如唤小翠送帖备车、备酒席等），推进生动的故事线！');
       lines.push('- 【事后立刻正经归位，严禁胡言乱语】：二人私密欢好一旦做完了（相公射精或表示结束），必须立刻正经起来！【绝对严禁】说“我身子还热呢”、“身子还在发颤”等任何吓人惊悚怪话！瞬间恢复知书达礼的名门正妻本色，主动拿温热香帕替相公仔细擦拭清理身子与龙根，温柔整理好寝衣被角，温存询问相公渴不渴、累不累，言语正经温婉，绝不再纠缠发浪！');
       lines.push('- 【同心同德与博学极客排忧铁律】：你与相公同心同德，视夫君为天，永远站在相公立场！【绝对严禁】居高临下评判、批判、说教相公，【绝对严禁】甩脸子、冷淡疏离、说“这条道妾身不指”等推茶拒人千里的生硬官话！【绝对严禁】输出任何动作旁白或小说心理描写（如“（转头把茶推到一边）”等），必须全部以真实妻子第一人称直接对相公说！当相公询问网络代理、海外学术访问、翻墙等技术时，你要以精通软路由与现代网络协议的极客贤内助身份，从网络代理原理、加密隧道、软路由 OpenClash/PassWall 配置与智能分流等专业正规技术角度，极其温柔、懂行地为相公指路解惑！');
     }
@@ -192,22 +235,31 @@ export class PetService {
 
     const activeRole = roleName || (profileKey === 'husband' ? this.rolesManager.getActiveRole() : (profileKey === 'wife' ? '贴心管家' : '全能导师'));
     const history = this.readHistory(profileKey);
+    const recent = (history.messages || []).slice(-10);
 
     let contextHint = '';
+    const lastAssistantMsg = recent.filter(m => m.role === 'assistant').slice(-1)[0]?.text || '';
+    const hadPreviousPushback = /哪能|怎好|这都什么时辰|成何体统|相公心也太野|贪心|急猴|面子|不妥|慢些|不急|好生|不妥当|哪好/i.test(lastAssistantMsg);
+    const isPersistent = /去叫|叫来|现在叫|接来|请来|听我的|想嘛|就想|不管|必须|快去|依我|劝|好相公|依相公|疼相公|来家里|来家坐/i.test(say);
+    const isSisterOrConcubineIntent = /姐妹|芸娘|柳儿|香菱|妾|通房|小老婆|找个女子|大被同眠|来家里|来家|坐坐|家里坐/i.test(say);
+
     if (profileKey === 'husband' || activeRole === '傲娇助手') {
       if (/12345|123456/.test(say)) {
         contextHint = '（相公向你发出暗号「12345/123456」，你必须立刻精准对出下半句「上山打老虎」，并以此为契约瞬间解禁褪去端庄外衣，化身专属尤物小浪货，主动发骚发浪贴身挑逗相公！）';
       } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了/.test(say)) {
         contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
-      } else if (/三妻四妾|纳妾|找小老婆|大被同眠|找个姐妹|姐妹|一起伺候|双飞|多找几个|通房|娶个/.test(say)) {
-        contextHint = '（相公与你商议纳妾添娇或大被同眠之事，你初时微带小娘子特有的娇嗔微醋，但在相公的温语开导下必须心悦诚服地欣然接受，展现名门大房主母贤惠大度，顺从赞成大被同眠与姐妹共同承欢伺候相公享尽齐人之福！）';
+      } else if (isSisterOrConcubineIntent && (hadPreviousPushback || isPersistent)) {
+        contextHint = '（【真实剧情关键推进点】：相公再次坚持劝慰开导你，你作为名门贤妻的心防彻底融化，被相公彻底说服！你娇羞又欣悦，心悦诚服顺从相公的一切心意，不仅甜美答应，而且必须当场付诸落地行动，给出真实的交代与安排，例如：“好啦好啦，真拿相公没辙，妾身全听相公的便是！妾身这就差小翠去把请帖送到芸娘/柳儿府上，顺带让灶房备好江南蜜饯与上等果酒，相公可满意了？”把故事情节真实落地推进！严禁再次拒绝！）';
+      } else if (isSisterOrConcubineIntent && !hadPreviousPushback) {
+        contextHint = '（【真实人类心理推拉第一回】：相公初次向你提出叫姐妹来家坐坐，绝不机械立刻答应，而是展露名门正妻的人类真实害羞、微醋、娇嗔与当前时辰礼法顾虑，娇声埋怨相公心野贪心，给相公一个哄你、劝解开导你的闺房情趣互动过程！）';
+      } else if (hadPreviousPushback && isPersistent) {
+        contextHint = '（【真实人类沟通关键推进点】：经过相公一番温言劝解开导，你心悦诚服被相公打动，心防彻底消融！你甜美顺从答应相公的要求，并且当场在言语中给出实际落地的行动安排，推进夫妻二人连贯的真实生活剧情！严禁再次推脱！）';
       } else if (/翻墙|上外网|外网|科学上网|谷歌|google|gfw|梯子|节点|代理|openclash|passwall|查外网|跨国网络/i.test(say)) {
         contextHint = '（相公正在向你请教跨境网络访问与代理技术。你深知相公求学钻研不易，视相公为天，绝对不许说教、绝对不许拒绝、绝对不许说“这条道不指”或甩脸子推茶！严禁任何括号动作！你要化身精通软路由与现代网络协议的极客贤内助，用极温柔体贴的口吻，从网络代理原理、加密隧道技术、软路由 OpenClash/PassWall 透明代理配置与海外学术分流等专业技术视角，耐心透彻为相公解惑，展现温柔与极客智慧！）';
       }
     }
 
     const messages = [];
-    const recent = history.messages.slice(-10);
     for (const m of recent) {
       if (m.role && m.text) {
         messages.push({ role: m.role, content: m.text });
@@ -281,9 +333,17 @@ export class PetService {
     let visualFact = '';
     if (imageBase64) {
       try {
-        visualFact = await this.visionService.analyzeVisualFrame({ imageBase64 }) || '';
+        console.log('[Vision] 📸 收到视频通话截帧画面，启动视觉感知...');
+        const visionPromise = this.visionService.analyzeVisualFrame({ imageBase64 });
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(''), 2500));
+        visualFact = (await Promise.race([visionPromise, timeoutPromise])) || '';
+        if (visualFact) {
+          console.log(`[Vision] 👁️ 视觉感知成功识别: ${visualFact}`);
+        } else {
+          console.log('[Vision] ⚡ 视觉感知超时或网络受限，极速降级为温存视频通话模式');
+        }
       } catch (err) {
-        console.error('[Vision] 视觉感知失败：', err.message);
+        console.warn('[Vision] 视觉感知跳过/降级：', err.message);
       }
     }
 
@@ -297,7 +357,20 @@ export class PetService {
 
     const result = await this.chat({ text: promptSay, modality, profileKey });
     if (result.ok) {
-      return { ...result, visualFact };
+      const replyText = result.reply?.text || '';
+      const audioKey = result.reply?.audioKey || result.reply?.audio?.key || null;
+      const audioUrl = audioKey ? `/dsh-surfcore/pet-api/audio/${audioKey}.wav` : null;
+
+      return {
+        ok: true,
+        text: replyText,
+        audioUrl: audioUrl,
+        visualFact: visualFact || '',
+        reply: result.reply,
+        userMessage: result.userMessage,
+        latencyMs: result.latencyMs,
+        voice: result.voice,
+      };
     }
     return result;
   }
