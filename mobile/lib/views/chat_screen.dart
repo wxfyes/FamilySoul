@@ -40,11 +40,30 @@ class _ChatScreenState extends State<ChatScreen> {
       _speechAvailable = await _speech.initialize(
         onError: (val) {
           debugPrint('[STT] 语音识别报错: ${val.errorMsg} (permanent: ${val.permanent})');
-          if (mounted && (_isHoldingRecord || _isSettling)) {
-            setState(() {
-              _isHoldingRecord = false;
-              _isSettling = false;
-            });
+          // 致命错误（如权限不足、无服务）才强制终止，非致命错误（如静音超时）不中断按住手势
+          final isFatal = val.permanent ||
+              val.errorMsg.contains('insufficient') ||
+              val.errorMsg.contains('busy') ||
+              val.errorMsg.contains('client');
+
+          if (mounted) {
+            if (isFatal && (_isHoldingRecord || _isSettling)) {
+              setState(() {
+                _isHoldingRecord = false;
+                _isSettling = false;
+              });
+            }
+            // 将真实错误浮动提示给用户，排查透明化
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '语音提示: ${val.errorMsg}${val.permanent ? " (系统服务不可用)" : ""}',
+                ),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
           }
         },
         onStatus: (val) {
@@ -55,7 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
         try {
           final systemLocale = await _speech.systemLocale();
           final locales = await _speech.locales();
-          // 优先寻找包含 zh 的中文普通话语言模型（如 zh_CN, zh-CN, zh-Hans 等）
+          // 优先寻找包含 zh 的中文普通话语言模型
           stt.LocaleName? targetLocale;
           for (final loc in locales) {
             final id = loc.localeId.toLowerCase().replaceAll('_', '-');
@@ -73,16 +92,17 @@ class _ChatScreenState extends State<ChatScreen> {
           } else if (systemLocale != null && systemLocale.localeId.toLowerCase().startsWith('zh')) {
             _currentLocaleId = systemLocale.localeId;
           } else {
-            _currentLocaleId = 'zh_CN';
+            _currentLocaleId = ''; // 留空则使用系统默认语音模型，兼容性最好
           }
-          debugPrint('[STT] 语音识别就绪，选定中文模型: $_currentLocaleId');
+          debugPrint('[STT] 语音识别就绪，选定模型: ${_currentLocaleId.isEmpty ? "系统默认" : _currentLocaleId}');
         } catch (e) {
-          debugPrint('[STT] 获取语言模型失败，保底 zh_CN: $e');
-          _currentLocaleId = 'zh_CN';
+          debugPrint('[STT] 获取语言模型失败，降级系统默认: $e');
+          _currentLocaleId = '';
         }
       }
       if (mounted) setState(() {});
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[STT] 初始化异常: $e');
       _speechAvailable = false;
     }
   }
@@ -95,8 +115,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!_speechAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('正在初始化语音识别引擎，请确保已授予录音权限...'),
+          content: Text('语音服务未就绪，请在手机设置中检查是否授予麦克风权限...'),
           duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
         ),
       );
       _initSpeech();
@@ -124,11 +145,12 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         },
         listenOptions: stt.SpeechListenOptions(
-          listenMode: stt.ListenMode.dictation,
+          // 使用 confirmation 模式，Android 兼容性远优于 dictation（避免因不支持连续听写直接报错闪退）
+          listenMode: stt.ListenMode.confirmation,
           cancelOnError: false,
           partialResults: true,
           autoPunctuation: true,
-          localeId: _currentLocaleId,
+          localeId: _currentLocaleId.isNotEmpty ? _currentLocaleId : null,
         ),
       );
     } catch (e) {
@@ -138,6 +160,13 @@ class _ChatScreenState extends State<ChatScreen> {
           _isHoldingRecord = false;
           _isSettling = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('启动录音失败: $e (建议检查系统麦克风权限)'),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
   }
@@ -588,11 +617,11 @@ class _ChatScreenState extends State<ChatScreen> {
           // 中间区域：按住说话大按钮 OR 文本输入框
           Expanded(
             child: _isVoiceMode
-                ? GestureDetector(
-                    onLongPressStart: (_) => _onVoiceStart(),
-                    onLongPressMoveUpdate: (d) => _onVoiceMove(d.localPosition),
-                    onLongPressEnd: (_) => _onVoiceEnd(),
-                    onLongPressCancel: () => _onVoiceCancel(),
+                ? Listener(
+                    onPointerDown: (_) => _onVoiceStart(),
+                    onPointerMove: (e) => _onVoiceMove(e.localPosition),
+                    onPointerUp: (_) => _onVoiceEnd(),
+                    onPointerCancel: (_) => _onVoiceCancel(),
                     behavior: HitTestBehavior.opaque,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
