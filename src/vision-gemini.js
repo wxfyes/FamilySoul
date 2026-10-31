@@ -25,8 +25,9 @@ function probePort(host, port, timeoutMs = 250) {
 export class VisionGeminiService {
   constructor(config = {}) {
     this.apiKey = config.apiKey || '';
-    this.model = config.model || 'gemini-2.5-flash';
+    this.model = config.model || 'gemini-3.5-flash';
     this.proxy = config.proxy || '';
+    this.useProxy = config.useProxy !== false && Boolean(config.proxy);
     this.enabled = config.enabled !== false;
     this.detectedProxy = null;
   }
@@ -36,6 +37,8 @@ export class VisionGeminiService {
   }
 
   async resolveEffectiveProxy() {
+    // 若用户显式开关代理
+    if (!this.useProxy) return '';
     if (this.proxy) return this.proxy;
     if (this.detectedProxy !== null) return this.detectedProxy;
 
@@ -51,6 +54,34 @@ export class VisionGeminiService {
     }
     this.detectedProxy = '';
     return '';
+  }
+
+  /** 测试指定代理是否能连通 Google Gemini */
+  async testProxy(proxyUrl = '') {
+    const targetProxy = proxyUrl || this.proxy;
+    if (!targetProxy) {
+      return { ok: false, error: '未提供代理地址，例如: http://192.168.1.112:27890' };
+    }
+    const startTime = Date.now();
+    try {
+      const respData = await this._requestViaProxy({
+        proxyUrl: targetProxy,
+        targetHost: 'generativelanguage.googleapis.com',
+        path: `/v1beta/models?key=${encodeURIComponent(this.apiKey)}`,
+        method: 'GET',
+        headers: {},
+        body: '',
+        timeoutMs: 5000,
+      });
+      const latencyMs = Date.now() - startTime;
+      const parsed = JSON.parse(respData);
+      if (parsed.models || parsed.name) {
+        return { ok: true, latencyMs, message: `代理握手成功！Google 官方响应延迟: ${latencyMs}ms` };
+      }
+      return { ok: false, error: parsed.error?.message || 'Google 接口响应异常' };
+    } catch (err) {
+      return { ok: false, error: `代理连接失败: ${err.message}。请检查局域网 IP 与端口，并确认代理软件已勾选【允许来自局域网的连接】。` };
+    }
   }
 
   async analyzeVisualFrame({ imageBase64, mimeType = 'image/jpeg' }) {
@@ -233,7 +264,7 @@ export class VisionGeminiService {
     });
   }
 
-  _requestViaProxy({ proxyUrl, targetHost, targetPort = 443, path: reqPath, body, timeoutMs = 2000 }) {
+  _requestViaProxy({ proxyUrl, targetHost, targetPort = 443, path: reqPath, method = 'POST', headers = {}, body = '', timeoutMs = 2000 }) {
     return new Promise((resolve, reject) => {
       let proxyHost = '127.0.0.1';
       let proxyPort = 7890;
@@ -279,17 +310,22 @@ export class VisionGeminiService {
           return reject(new Error(`Proxy CONNECT failed: ${res.statusCode}`));
         }
 
+        const reqHeaders = {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': this.apiKey,
+          ...headers,
+        };
+        if (body && Buffer.byteLength(body) > 0) {
+          reqHeaders['Content-Length'] = Buffer.byteLength(body);
+        }
+
         const tlsReq = https.request(
           {
             host: targetHost,
             path: reqPath,
-            method: 'POST',
+            method,
             socket,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-goog-api-key': this.apiKey,
-              'Content-Length': Buffer.byteLength(body),
-            },
+            headers: reqHeaders,
             timeout: timeoutMs,
           },
           (tlsRes) => {

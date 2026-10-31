@@ -198,6 +198,13 @@
       animation: fadeIn 0.25s ease-out forwards;
     }
 
+    /* Toggle Switch */
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.15); transition: .3s; border-radius: 26px; }
+    .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(22px); }
+
     .tab-panel.active {
       display: block;
     }
@@ -676,6 +683,7 @@
       <button class="tab-btn" onclick="switchTab('family')">🛡️ 家庭通行证</button>
       <button class="tab-btn" onclick="switchTab('sandbox')">💬 私密试炼</button>
       <button class="tab-btn" onclick="switchTab('logs')">📜 黑匣子日志</button>
+      <button class="tab-btn" onclick="switchTab('settings')">🌐 视觉与代理</button>
     </nav>
 
     <div class="header-actions">
@@ -790,6 +798,89 @@
         <div class="log-terminal" id="logTerminal">正在连接软路由拉取实时日志...</div>
       </div>
     </section>
+
+    <!-- 5. 视觉与网络代理设置 Tab -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="card" style="max-width: 860px; margin: 0 auto;">
+        <div class="sidebar-header" style="margin-bottom: 20px;">
+          <div>
+            <span class="section-title">🌐 Google Gemini 视觉与听写代理设置</span>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
+              🛡️ <strong style="color: #A78BFA;">只管谷歌，其他直连铁律</strong>：本代理设置<strong>仅对 Google Gemini</strong>（手机拍照看脸、肤质分析、麦克风录音直传转文字）生效！DeepSeek 大脑思考与微软 Edge-TTS 均走国内纯直连，绝对不受任何干扰与影响。
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- 代理总开关 -->
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+            <div>
+              <div style="font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+                <span>代理转发开关</span>
+                <span id="settingProxyBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3);">未启用</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">开启后，软路由发起 Google 视觉与听写请求时将通过指定局域网代理转发；关闭时直接直连。</div>
+            </div>
+            <label class="switch" style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
+              <input type="checkbox" id="settingUseProxy" onchange="updateProxyBadge(this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- 代理服务器地址 -->
+          <div>
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
+              代理服务器地址 (HTTP / SOCKS5 代理)
+            </label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="settingProxyInput" style="flex: 1; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 13px;" placeholder="例如: http://192.168.1.112:27890 或 http://192.168.1.213:7890">
+              <button class="btn btn-secondary" id="btnTestProxy" onclick="testProxyConnection()">⚡ 测试连通性</button>
+            </div>
+            <div id="proxyTestResult" style="font-size: 13px; margin-top: 8px; display: none; padding: 8px 12px; border-radius: var(--radius-sm);"></div>
+            <div style="font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.4;">
+              💡 <strong>局域网设置提示</strong>：若使用同一局域网下的电脑（如 192.168.1.112）或小主机（如 192.168.1.213）作为代理，请确保电脑上的代理软件（如 v2rayN / Clash / Surge）已勾选<strong>「允许来自局域网的连接 (Allow LAN)」</strong>。
+            </div>
+          </div>
+
+          <!-- 模型与视觉功能设置 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div>
+              <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
+                Gemini 模型版本
+              </label>
+              <select id="settingModelSelect" style="width: 100%; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-size: 13px;">
+                <option value="gemini-3.5-flash">gemini-3.5-flash (推荐 · 极速低延迟多模态)</option>
+                <option value="gemini-3.6-flash">gemini-3.6-flash (最新多模态版本)</option>
+                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (极致轻量)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
+                视觉端详与多模态总功能
+              </label>
+              <select id="settingVisionEnabled" style="width: 100%; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-size: 13px;">
+                <option value="true">开启 (启用拍照看脸与多模态听写)</option>
+                <option value="false">关闭 (禁用视觉与音频听写)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- API Key 配置 -->
+          <div>
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
+              Google Gemini API 密钥
+            </label>
+            <input type="password" id="settingApiKeyInput" style="width: 100%; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 13px;" placeholder="AIzaSy... 或官方授权密钥">
+          </div>
+
+          <!-- 保存按钮 -->
+          <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+            <button class="btn btn-primary" onclick="saveGeminiConfig()">💾 保存配置并即时热重载</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div class="toast" id="toastBox">提示信息</div>
@@ -826,6 +917,12 @@
       if (tabId === 'logs') {
         fetchLogs();
         if (!logAutoInterval) logAutoInterval = setInterval(fetchLogs, 3000);
+      } else if (tabId === 'settings') {
+        loadGeminiConfig();
+        if (logAutoInterval) {
+          clearInterval(logAutoInterval);
+          logAutoInterval = null;
+        }
       } else {
         if (logAutoInterval) {
           clearInterval(logAutoInterval);
@@ -1203,11 +1300,118 @@
       }
     }
 
+    // ── 视觉与代理设置逻辑 ──────────────────────────────
+    function updateProxyBadge(enabled) {
+      const badge = document.getElementById('settingProxyBadge');
+      if (!badge) return;
+      if (enabled) {
+        badge.innerText = '已启用';
+        badge.style.background = 'rgba(16, 185, 129, 0.15)';
+        badge.style.color = '#10B981';
+        badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+      } else {
+        badge.innerText = '未启用';
+        badge.style.background = 'rgba(239, 68, 68, 0.15)';
+        badge.style.color = '#EF4444';
+        badge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+      }
+    }
+
+    async function loadGeminiConfig() {
+      try {
+        const res = await fetch('/api/admin/config?token=' + encodeURIComponent(getStoredToken()));
+        const data = await res.json();
+        if (data.ok && data.gemini) {
+          const g = data.gemini;
+          document.getElementById('settingUseProxy').checked = Boolean(g.useProxy);
+          updateProxyBadge(Boolean(g.useProxy));
+          document.getElementById('settingProxyInput').value = g.proxy || '';
+          document.getElementById('settingModelSelect').value = g.model || 'gemini-3.5-flash';
+          document.getElementById('settingVisionEnabled').value = g.enabled !== false ? 'true' : 'false';
+          document.getElementById('settingApiKeyInput').value = g.apiKey || '';
+        }
+      } catch (err) {
+        console.warn('读取配置失败:', err);
+      }
+    }
+
+    async function saveGeminiConfig() {
+      try {
+        const useProxy = document.getElementById('settingUseProxy').checked;
+        const proxy = document.getElementById('settingProxyInput').value.trim();
+        const model = document.getElementById('settingModelSelect').value;
+        const enabled = document.getElementById('settingVisionEnabled').value === 'true';
+        const apiKey = document.getElementById('settingApiKeyInput').value.trim();
+
+        const res = await fetch('/api/admin/config/save?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gemini: { useProxy, proxy, model, enabled, apiKey }
+          })
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          showToast('💾 视觉与代理配置已更新并即时热重载！');
+        } else {
+          showToast('❌ 保存失败: ' + (data.error || '未知错误'));
+        }
+      } catch (err) {
+        showToast('❌ 保存异常: ' + err.message);
+      }
+    }
+
+    async function testProxyConnection() {
+      const btn = document.getElementById('btnTestProxy');
+      const resBox = document.getElementById('proxyTestResult');
+      const proxy = document.getElementById('settingProxyInput').value.trim();
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 探测中...';
+      resBox.style.display = 'block';
+      resBox.style.background = 'rgba(139, 92, 246, 0.1)';
+      resBox.style.color = '#A78BFA';
+      resBox.style.border = '1px solid rgba(139, 92, 246, 0.3)';
+      resBox.innerText = '正在通过代理向 Google 官方接口发送握手探测...';
+
+      try {
+        const res = await fetch('/api/admin/proxy/test?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proxy })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          resBox.style.background = 'rgba(16, 185, 129, 0.12)';
+          resBox.style.color = '#10B981';
+          resBox.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          resBox.innerText = `✅ 握手成功！${data.message || ''} (延迟: ${data.latencyMs || 0}ms)`;
+          showToast(`⚡ 代理连通正常 (${data.latencyMs || 0}ms)`);
+        } else {
+          resBox.style.background = 'rgba(239, 68, 68, 0.12)';
+          resBox.style.color = '#EF4444';
+          resBox.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          resBox.innerText = `❌ 连通失败: ${data.error || '未知网络错误'}`;
+        }
+      } catch (err) {
+        resBox.style.background = 'rgba(239, 68, 68, 0.12)';
+        resBox.style.color = '#EF4444';
+        resBox.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        resBox.innerText = `❌ 请求软路由异常: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+      }
+    }
+
     // 初始化
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('adminTokenInput').value = getStoredToken();
       loadRoles();
       loadFamily();
+      loadGeminiConfig();
     });
   </script>
 </body>

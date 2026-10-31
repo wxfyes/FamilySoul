@@ -376,6 +376,61 @@ const server = http.createServer(async (req, res) => {
       } catch (_) {}
       return sendJson(res, 200, { ok: true, logs: lines });
     }
+
+    // 7. 读取系统配置与视觉代理设置 GET /api/admin/config
+    if (req.method === 'GET' && pathname === '/api/admin/config') {
+      return sendJson(res, 200, {
+        ok: true,
+        gemini: {
+          enabled: config.gemini?.enabled !== false,
+          apiKey: config.gemini?.apiKey || '',
+          model: config.gemini?.model || 'gemini-3.5-flash',
+          proxy: config.gemini?.proxy || '',
+          useProxy: config.gemini?.useProxy !== false && Boolean(config.gemini?.proxy),
+        },
+      });
+    }
+
+    // 8. 保存系统配置与视觉代理设置 POST /api/admin/config/save
+    if (req.method === 'POST' && pathname === '/api/admin/config/save') {
+      try {
+        const body = await parseJsonBody(req);
+        if (!config.gemini) config.gemini = {};
+        if (body.gemini && typeof body.gemini === 'object') {
+          config.gemini.enabled = body.gemini.enabled !== false;
+          config.gemini.proxy = String(body.gemini.proxy || '').trim();
+          config.gemini.useProxy = Boolean(body.gemini.useProxy);
+          if (body.gemini.model) config.gemini.model = body.gemini.model;
+          if (body.gemini.apiKey) config.gemini.apiKey = body.gemini.apiKey;
+
+          // 动态热重载到正在运行的 visionService 实例
+          visionService.proxy = config.gemini.proxy;
+          visionService.useProxy = config.gemini.useProxy;
+          visionService.enabled = config.gemini.enabled;
+          visionService.model = config.gemini.model;
+          if (config.gemini.apiKey) visionService.apiKey = config.gemini.apiKey;
+          visionService.detectedProxy = null;
+
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+          console.log(`[Admin] 🌐 视觉与代理配置已更新: useProxy=${visionService.useProxy}, proxy="${visionService.proxy}", model="${visionService.model}"`);
+        }
+        return sendJson(res, 200, { ok: true, message: '配置已成功保存并即时热重载生效！' });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9. 测试代理连通性 POST /api/admin/proxy/test
+    if (req.method === 'POST' && pathname === '/api/admin/proxy/test') {
+      try {
+        const body = await parseJsonBody(req);
+        const testProxyUrl = String(body.proxy || config.gemini?.proxy || '').trim();
+        const result = await visionService.testProxy(testProxyUrl);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
   }
 
   // 1.5 语音音频流拉取 /dsh-surfcore/pet-api/audio/:key.wav (支持哈希寻址、动态MIME识别与HTTP Range切片播放)
