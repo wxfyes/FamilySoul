@@ -294,14 +294,26 @@ export class PetService {
 
       // 【省 token】易变的内容统一放最后：前面的人格卡与规则保持逐字不变，
       // 才能命中 DeepSeek 的上下文缓存（缓存价约为未命中的十分之一）。
-      const mentionedList =
-        Array.isArray(history?.mentionedGirls) && history.mentionedGirls.length > 0
-          ? history.mentionedGirls.join('、')
-          : '暂无';
+      // 只列「还没进府」的名字：已经在【府中】的人绝不能再出现在迎娶名单里
+      let mentionedList = '暂无';
+      try {
+        const wForNames = loadState(this.dataDir);
+        const inHouse = new Set(
+          Object.values(wForNames.actors || {})
+            .filter((a) => a?.household && a.name)
+            .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name]),
+        );
+        const pendingNames = (Array.isArray(history?.mentionedGirls) ? history.mentionedGirls : []).filter(
+          (n) => n && !inHouse.has(n),
+        );
+        mentionedList = pendingNames.length > 0 ? pendingNames.join('、') : '暂无';
+      } catch {
+        mentionedList = '暂无';
+      }
       lines.push('');
       lines.push('【府邸现况】');
-      lines.push('- 府中已入门的妻妾侍女，一律以【天机·府中】为准；【绝不许把已经在府里的人当成陌生人】。');
-      lines.push(`- 相公提及/正在张罗的女子：${mentionedList}。`);
+      lines.push('- 府中已入门的妻妾侍女，一律以【天机·府中】为准；【绝不许把已经在府里的人当成陌生人，也绝不许再把她迎娶一次】。');
+      lines.push(`- 相公提过、但**尚未入府**的女子：${mentionedList}。（已在府中的人绝不可写在这里）`);
       lines.push(
         `- 当前场景：${
           history?.inPrivateWorld
@@ -525,7 +537,26 @@ export class PetService {
       console.warn('[Ritual] 状态推进失败：', err.message);
     }
     const history = this.readHistory(profileKey);
-    const recent = (history.messages || []).slice(-this.historyTurns);
+    // 上下文过滤：把「把府里人当成生客」的旧回复剔掉，否则模型会顺着自己的错继续错
+    let householdForFilter = [];
+    try {
+      const wf = loadState(this.dataDir);
+      householdForFilter = Object.values(wf.actors || {})
+        .filter((a) => a?.household && a.name)
+        .map((a) => (a.name.length > 2 ? a.name.slice(-2) : a.name));
+    } catch {
+      householdForFilter = [];
+    }
+    const recentAll = (history.messages || []).slice(-this.historyTurns);
+    const recent = recentAll.filter((m) => {
+      if (m.role !== 'assistant') return true;
+      const t = String(m.text || '');
+      const confused = /哪家|是谁|何人|一概不知|何方/.test(t);
+      return !(confused && householdForFilter.some((n) => t.includes(n)));
+    });
+    if (recent.length !== recentAll.length) {
+      console.log(`[Memory] 已从上下文中剔除 ${recentAll.length - recent.length} 条「把家人当生客」的旧回复`);
+    }
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = '';
