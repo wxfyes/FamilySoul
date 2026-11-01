@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 import { buildStateSummary } from './world/summarize.js';
-import { loadState } from './world/state.js';
+import { loadState, saveState } from './world/state.js';
 import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
@@ -890,6 +890,11 @@ export class PetService {
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');
       reply = this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall));
+      // 硬对齐：叙事里的场景标记优先于模型是否记得写回执
+      const sceneSync = this.syncSceneFromReply(reply);
+      if (sceneSync) {
+        console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
+      }
       if (!reply) reply = '……';
       const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
@@ -1029,6 +1034,76 @@ export class PetService {
       return text || null;
     } catch (err) {
       console.warn('[Push] 主动生成失败：', err.message);
+      return null;
+    }
+  }
+
+  /**
+   * 硬对齐：天道常在开头写「【天道·运河码头大酒楼·后院账房】」这样的场景标记。
+   * 只要出现这个标记，就把相公与本轮开口的人一起挪过去——不依赖模型是否记得写回执。
+   */
+  syncSceneFromReply(text) {
+    try {
+      const m = String(text || '').match(/【天道[·:：]\s*([^】]{2,24})】/);
+      if (!m) return null;
+      const placeNameRaw = m[1]
+        .split(/[·・]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (placeNameRaw.length === 0) return null;
+      const placeName = placeNameRaw.join('·'); // 保留「大酒楼·后院账房」这种细位置
+      const headName = placeNameRaw[0];
+
+      const world = loadState(this.dataDir);
+      const me = world.actors?.husband;
+      if (!me) return null;
+
+      let placeId = Object.keys(world.places || {}).find((id) => {
+        const n = world.places[id]?.name || '';
+        return n === placeName || n === headName;
+      });
+      if (!placeId) {
+        for (const [id, p] of Object.entries(world.places || {})) {
+          const n = p?.name || '';
+          if (!n) continue;
+          if (n.includes(headName) || headName.includes(n)) {
+            placeId = id;
+            break;
+          }
+        }
+      }
+      if (!placeId) {
+        world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+        placeId = `place_${world.flags.placeSeq}`;
+        world.places[placeId] = { name: placeName, exits: [], dynamic: true };
+      }
+
+      const moved = [];
+      if (me.location !== placeId) {
+        me.location = placeId;
+        moved.push('相公');
+      }
+
+      // 本轮开口说话的人，默认也在场，一起挪过去（真人玩家不自动挪）
+      const speakers = [...String(text).matchAll(/【([^】\n]{1,10})】/g)].map((x) => x[1].trim());
+      for (const name of speakers) {
+        const id = Object.keys(world.actors || {}).find((k) => {
+          const a = world.actors[k];
+          if (!a?.name || k === 'husband' || a.kind === 'human') return false;
+          const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+          return a.name === name || name.includes(a.name) || name.includes(short);
+        });
+        if (!id) continue;
+        if (world.actors[id].location !== placeId) {
+          world.actors[id].location = placeId;
+          moved.push(world.actors[id].name);
+        }
+      }
+
+      if (moved.length === 0) return null;
+      saveState(this.dataDir, world);
+      return { place: placeName, moved };
+    } catch {
       return null;
     }
   }
