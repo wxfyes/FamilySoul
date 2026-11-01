@@ -142,7 +142,10 @@ export function createInitialState(dataDir) {
           husband: { trust: 63, desire: 66, fear: 4, grievance: 0 },
         },
         intimacy: { level: 2, tone: 0, lastAt: 0, ritual: 'solemn' },
-        schedule: [{ at: 8, do: '在前街学看柜', place: 'tea_house' }],
+        schedule: [
+          { at: 8, do: '在前街学看柜', place: 'tea_house' },
+          { at: 19, do: '回东厢房歇息', place: 'backyard' },
+        ],
       },
       xiaocui: {
         id: 'xiaocui',
@@ -152,6 +155,7 @@ export function createInitialState(dataDir) {
         location: 'backyard',
         goals: ['把差事办利索', '讨大娘子点头开脸'],
         relations: { husband: { trust: 60, desire: 40, fear: 1, grievance: 0 } },
+        schedule: [{ at: 20, do: '回后院伺候', place: 'backyard' }],
       },
       aji: {
         id: 'aji',
@@ -213,7 +217,10 @@ export function createInitialState(dataDir) {
           husband: { trust: 50, desire: 30, fear: 2, grievance: 8 },
         },
         intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
-        schedule: [{ at: 9, do: '来茶坊采办商茶', place: 'tea_house' }],
+        schedule: [
+          { at: 9, do: '来茶坊采办商茶', place: 'tea_house' },
+          { at: 11, do: '回货栈料理生意', place: 'street' },
+        ],
       },
       liuwenxia: {
         id: 'liuwenxia',
@@ -226,7 +233,10 @@ export function createInitialState(dataDir) {
           husband: { trust: 48, desire: 34, fear: 1, grievance: 10 },
         },
         intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
-        schedule: [{ at: 15, do: '来茶坊订茶包', place: 'tea_house' }],
+        schedule: [
+          { at: 15, do: '来茶坊订茶包', place: 'tea_house' },
+          { at: 17, do: '回酒肆看店', place: 'street' },
+        ],
       },
       zhanjing: {
         id: 'zhanjing',
@@ -239,7 +249,10 @@ export function createInitialState(dataDir) {
           husband: { trust: 42, desire: 26, fear: 3, grievance: 14 },
         },
         intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
-        schedule: [{ at: 6, do: '去慈云庵进香', place: 'yamen' }],
+        schedule: [
+          { at: 6, do: '去慈云庵进香', place: 'yamen' },
+          { at: 9, do: '回家理事', place: 'street' },
+        ],
       },
     },
 
