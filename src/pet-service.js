@@ -1064,6 +1064,19 @@ export class PetService {
     if (history.messages.length > 100) history.messages = history.messages.slice(-100);
     history.lastUserAt = now;
     history.lastAssistantAt = now;
+
+    // 每攒够 20 条，就把最老的一段压缩成长期记忆（不阻塞回复）
+    try {
+      const upTo = Number(history.compactedUpTo) || 0;
+      if (history.messages.length - upTo >= 20) {
+        const batch = history.messages.slice(upTo, upTo + 20);
+        history.compactedUpTo = upTo + 20;
+        this.compactMemories(batch).catch(() => {});
+      }
+    } catch {
+      /* 压缩失败不影响对话 */
+    }
+
     this.saveHistory(profileKey, history);
 
     return {
@@ -1219,6 +1232,40 @@ export class PetService {
       });
     } catch {
       return text;
+    }
+  }
+
+  /**
+   * 记忆压缩：把即将滑出窗口的旧对话，提炼成几条长期事实。
+   * 这样"大被同眠"这类经历不会因为 14 条窗口而消失。
+   */
+  async compactMemories(batch) {
+    try {
+      if (!this.llmClient.isReady()) return 0;
+      if (!Array.isArray(batch) || batch.length < 6) return 0;
+      const transcript = batch
+        .map((m) => `${m.role === 'user' ? '相公' : '她'}：${String(m.text || '').slice(0, 200)}`)
+        .join('\n');
+      const res = await this.llmClient.complete({
+        system: [
+          '你是记忆整理员。从下面这段旧对话里提炼 2~5 条**值得长久记住的事实**。',
+          '要记的是：谁做了什么、答应过什么、关系发生了什么变化、有什么只有他们知道的事。',
+          '每条一句话，不超过 30 字，用第三人称写。',
+          '只输出回执行，不要解释：[[world:remember text="一句话"]]',
+        ].join('\n'),
+        messages: [{ role: 'user', content: transcript }],
+        maxTokens: 320,
+        temperature: 0.3,
+      });
+      const { ops } = parseWorldTags(res.text);
+      const remembers = ops.filter((o) => o.kind === 'remember');
+      if (remembers.length === 0) return 0;
+      const applied = applyWorldTags(this.dataDir, remembers);
+      if (applied.length > 0) console.log(`[Memory] 自动压缩归档 ${applied.length} 条：${applied.join('、')}`);
+      return applied.length;
+    } catch (err) {
+      console.warn('[Memory] 压缩失败：', err.message);
+      return 0;
     }
   }
 
