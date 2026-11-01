@@ -958,7 +958,7 @@ export class PetService {
       // 天道回执：先摘除 [[world:...]] 标签，再把世界变更落账（绝不让标签进入正文/语音）
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');
-      reply = this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall));
+      reply = this.mergeSameSpeaker(this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall)));
       // 没写分角标记的回复，补上主角色花名，免得客户端回落成账号标题「温柔小娘子」
       try {
         const hasMarker = /【[^】\n]{1,12}】/.test(reply);
@@ -1210,6 +1210,34 @@ export class PetService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * 合并同一个人连续写的多个分角标记：
+   * 【侧妾·芸娘】：A / 【侧妾·芸娘】：B  →  【侧妾·芸娘】：A（换行）B
+   * 这样客户端只渲染一个气泡，不会看起来像"连发三条"。
+   */
+  mergeSameSpeaker(text) {
+    const lines = String(text || '').split('\n');
+    const out = [];
+    let lastSpeaker = null;
+    for (const line of lines) {
+      const m = line.match(/^\s*【([^】\n]{1,12})】\s*[:：]?\s*(.*)$/);
+      if (m) {
+        const speaker = m[1].trim();
+        const body = (m[2] || '').trim();
+        if (speaker === lastSpeaker) {
+          if (body) out.push(body);
+          continue;
+        }
+        lastSpeaker = speaker;
+        out.push(`【${speaker}】：${body}`);
+        continue;
+      }
+      if (line.trim() === '') lastSpeaker = null;
+      out.push(line);
+    }
+    return out.join('\n');
   }
 
   /**
