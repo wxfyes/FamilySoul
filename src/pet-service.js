@@ -7,6 +7,7 @@ import { loadState, saveState } from './world/state.js';
 import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
+import { applySummon } from './world/summon.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -517,6 +518,18 @@ export class PetService {
 
     const activeRole = roleName || (profileKey === 'husband' ? this.rolesManager.getActiveRole() : (profileKey === 'wife' ? '贴心管家' : '全能导师'));
 
+    // 召唤与走动：把「叫谁过来 / 我去谁那儿」落到账本上（只改位置，不写台词）
+    let summonedNames = [];
+    try {
+      const summonResult = applySummon(this.dataDir, say);
+      summonedNames = summonResult?.summoned || [];
+      if (summonResult?.moved?.length) {
+        console.log(`[Scene] 召唤/走动 → ${summonResult.moved.join('、')}`);
+      }
+    } catch (err) {
+      console.warn('[Scene] 召唤失败：', err.message);
+    }
+
     // 同场：确保这名成员在世界里有位置（偶遇的前提）
     try {
       ensurePresence(this.dataDir, selfId, { role: activeRole, title: roleName });
@@ -560,6 +573,9 @@ export class PetService {
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = '';
+    if (summonedNames.length > 0) {
+      contextHint += `（【已到场】：${summonedNames.join('、')} 现在就在相公面前。本轮必须由她亲自开口应声（按分角格式写她的台词），你不许替她回答，也不许说她不在。若相公直接对她说"过来"，她必须应声上前。）\n`;
+    }
     const lastAssistantMsg = recent.filter(m => m.role === 'assistant').slice(-1)[0]?.text || '';
 
     // 记忆纠偏：上一轮把府里已有的人当成生客问来历，本轮必须自然纠正
