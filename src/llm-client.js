@@ -14,11 +14,12 @@ export class LlmClient {
     return Boolean(this.apiKey && !this.apiKey.includes('your-deepseek-api-key'));
   }
 
-  async complete({ messages = [], system = '', temperature = this.temperature, maxTokens = this.maxTokens, timeoutMs = 30000 }) {
+  async complete({ messages = [], system = '', temperature = this.temperature, maxTokens = this.maxTokens, timeoutMs = 60000 }) {
     if (!this.isReady()) {
       throw new Error('未配置有效的 DeepSeek API Key（请在 config.json 或环境变量中配置）');
     }
 
+    const startedAt = Date.now();
     const fullMessages = [];
     if (system) {
       fullMessages.push({ role: 'system', content: String(system) });
@@ -62,6 +63,7 @@ export class LlmClient {
         text: content,
         model: data.model || this.model,
         usage: data.usage || null,
+        elapsedMs: Date.now() - startedAt,
       };
     } catch (err) {
       clearTimeout(timer);

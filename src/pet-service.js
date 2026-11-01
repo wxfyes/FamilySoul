@@ -867,6 +867,9 @@ export class PetService {
         system: systemPrompt,
         messages,
       });
+      console.log(
+        `[Chat] 用时 ${Date.now() - startedAt}ms（模型 ${completion.elapsedMs ?? '?'}ms，提示 ${systemPrompt.length} 字）`,
+      );
       // 天道回执：先摘除 [[world:...]] 标签，再把世界变更落账（绝不让标签进入正文/语音）
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');

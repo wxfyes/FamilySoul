@@ -22,8 +22,8 @@ class SurfCoreApiClient {
       BaseOptions(
         baseUrl: config.apiPrefix,
         // 一轮对话要跑两次大模型（正文 + 记账员），10 秒太短，会把正常回复判成超时
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 90),
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 120),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'x-pet-token': config.token.trim(),
