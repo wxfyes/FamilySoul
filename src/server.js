@@ -605,6 +605,7 @@ const server = http.createServer(async (req, res) => {
               }
             : null,
           era: world.era,
+          epoch: world.epoch || 'ancient',
           clock: { ...(world.clock || {}), shichen: shichenOf(world.clock?.hour ?? 0) },
           assets: world.assets,
           actors,
