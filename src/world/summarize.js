@@ -79,7 +79,7 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       );
       if (household.length > 0) {
         lines.push(
-          `【府中】以下都是已在府里的自己人，**绝不可当成生客、更不可说成"别人屋里的"**：${household
+          `【府中】你的家人，天天见面的自己人：${household
             .map((a) => {
               const where = world.places?.[a.location]?.name || a.location || '';
               return `${a.name}（${a.role}${where ? `，住${where}` : ''}）`;

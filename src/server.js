@@ -510,6 +510,25 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 9.9 提示词体检 GET /api/admin/prompt（看天道到底收到了什么）
+    if (req.method === 'GET' && pathname === '/api/admin/prompt') {
+      try {
+        const history = petService.readHistory('husband');
+        const sp = petService.buildSystemPrompt(config.activeRole, 'text', 'husband', 'ancient', history);
+        return sendJson(res, 200, {
+          ok: true,
+          length: sp.length,
+          hasHousehold: sp.includes('【府中】'),
+          hasTianji: sp.includes('【天机】'),
+          hasYunnia: sp.includes('芸娘'),
+          householdLine: (sp.split('\n').find((l) => l.startsWith('【府中】')) || ''),
+          tail: sp.slice(-900),
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 10. 世界状态速览 GET /api/admin/world（天道的幕后账本，只读）
     if (req.method === 'GET' && pathname === '/api/admin/world') {
       try {
