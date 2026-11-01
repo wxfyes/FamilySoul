@@ -510,6 +510,10 @@ const server = http.createServer(async (req, res) => {
           ? Math.round((recentReceipts.filter(Boolean).length / recentReceipts.length) * 100)
           : null;
 
+        // 成本：看缓存命中率，而不是只看字数
+        const usage = world.flags?.aiUsage || null;
+        const hitRate = usage && usage.prompt > 0 ? Math.round((usage.hit / usage.prompt) * 100) : null;
+
         return sendJson(res, 200, {
           ok: true,
           // 一行大白话：不用看懂 JSON 也能知道世界有没有在动
@@ -520,6 +524,22 @@ const server = http.createServer(async (req, res) => {
                 ? `正常：最近 ${recentReceipts.length} 轮对话里有 ${rate}% 真的改变了世界`
                 : `⚠ 偏低：最近 ${recentReceipts.length} 轮只有 ${rate}% 改变了世界，需要加强回执提示`,
           receiptRate: rate,
+          cost: usage
+            ? {
+                rounds: usage.rounds,
+                promptTokens: usage.prompt,
+                cacheHitTokens: usage.hit,
+                cacheMissTokens: usage.miss,
+                completionTokens: usage.completion,
+                cacheHitRate: hitRate,
+                note:
+                  hitRate === null
+                    ? '还没有数据'
+                    : hitRate >= 70
+                      ? `缓存命中 ${hitRate}%，很省钱（命中部分约按十分之一计费）`
+                      : `缓存命中只有 ${hitRate}%，说明前缀在变，可以继续优化`,
+              }
+            : null,
           era: world.era,
           clock: { ...(world.clock || {}), shichen: shichenOf(world.clock?.hour ?? 0) },
           assets: world.assets,

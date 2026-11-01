@@ -72,12 +72,24 @@ function resolvePlace(world, to) {
 }
 
 /** 记录一次回执（用于自检回执率，主人不用看 JSON 也能知道有没有在动）*/
-export function recordReceipt(dataDir, hadOps) {
+export function recordReceipt(dataDir, hadOps, usage = null) {
   try {
     const world = loadState(dataDir);
     world.flags.receiptRounds = (Number(world.flags.receiptRounds) || 0) + 1;
     world.flags.lastUserMessageAt = Date.now();
     if (hadOps) world.flags.receiptHits = (Number(world.flags.receiptHits) || 0) + 1;
+
+    // 成本计量：命中缓存的部分只按约十分之一计费，所以要看命中率而不是只看字数
+    if (usage && typeof usage === 'object') {
+      const acc = world.flags.aiUsage || { rounds: 0, prompt: 0, hit: 0, miss: 0, completion: 0 };
+      acc.rounds += 1;
+      acc.prompt += Number(usage.prompt_tokens) || 0;
+      acc.hit += Number(usage.prompt_cache_hit_tokens) || 0;
+      acc.miss += Number(usage.prompt_cache_miss_tokens) || 0;
+      acc.completion += Number(usage.completion_tokens) || 0;
+      world.flags.aiUsage = acc;
+    }
+
     const arr = Array.isArray(world.flags.recentReceipts) ? world.flags.recentReceipts : [];
     arr.push(hadOps ? 1 : 0);
     world.flags.recentReceipts = arr.slice(-20);
@@ -86,6 +98,7 @@ export function recordReceipt(dataDir, hadOps) {
       rounds: world.flags.receiptRounds,
       hits: world.flags.receiptHits,
       recent: world.flags.recentReceipts,
+      usage: world.flags.aiUsage || null,
     };
   } catch {
     return null;

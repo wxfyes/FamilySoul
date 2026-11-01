@@ -874,7 +874,13 @@ export class PetService {
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
 
       // 回执率自检：低于五成就自己报，不用主人去翻 JSON
-      const stat = recordReceipt(this.dataDir, applied.length > 0);
+      const stat = recordReceipt(this.dataDir, applied.length > 0, completion.usage);
+      if (completion.usage) {
+        const u = completion.usage;
+        console.log(
+          `[Cost] 输入 ${u.prompt_tokens ?? '?'}（缓存命中 ${u.prompt_cache_hit_tokens ?? 0} / 未命中 ${u.prompt_cache_miss_tokens ?? '?'}）输出 ${u.completion_tokens ?? '?'}`,
+        );
+      }
       if (stat && stat.rounds % 20 === 0) {
         const rate = Math.round((stat.recent.filter(Boolean).length / stat.recent.length) * 100);
         console.log(`[World] 回执率 ${rate}%（最近 ${stat.recent.length} 轮）${rate < 50 ? ' ⚠ 偏低：提示词该加强了' : ''}`);
