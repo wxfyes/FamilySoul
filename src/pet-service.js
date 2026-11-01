@@ -1129,12 +1129,21 @@ export class PetService {
         .map((s) => s.trim())
         .filter(Boolean);
       if (placeNameRaw.length === 0) return null;
-      const placeName = placeNameRaw.join('·'); // 保留「大酒楼·后院账房」这种细位置
-      const headName = placeNameRaw[0];
+      let placeName = placeNameRaw.join('·'); // 保留「大酒楼·后院账房」这种细位置
+      let headName = placeNameRaw[0];
 
       const world = loadState(this.dataDir);
       const me = world.actors?.husband;
       if (!me) return null;
+
+      // 「【天道·林芸娘】」这种是人名不是地点 → 换成她所在之处，别建出「林芸娘处」
+      const personHit = Object.values(world.actors || {}).find(
+        (a) => a?.name && (headName === a.name || headName === (a.name.length > 2 ? a.name.slice(-2) : a.name)),
+      );
+      if (personHit && world.places?.[personHit.location]) {
+        placeName = world.places[personHit.location].name;
+        headName = placeName;
+      }
 
       let placeId = Object.keys(world.places || {}).find((id) => {
         const n = world.places[id]?.name || '';
