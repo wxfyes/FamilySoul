@@ -78,7 +78,11 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         (a) => a && a.kind !== 'human' && a.household,
       );
       if (household.length > 0) {
-        lines.push(`【府中】${household.map((a) => `${a.name}（${a.role}）`).join('、')}`);
+        lines.push(
+          `【府中】以下都是已在府里的家人，是你熟悉的自己人，**绝不可当成生客询问来历**：${household
+            .map((a) => `${a.name}（${a.role}）`)
+            .join('、')}`,
+        );
       }
     } catch {
       /* 忽略 */

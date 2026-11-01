@@ -530,6 +530,24 @@ export class PetService {
 
     let contextHint = '';
     const lastAssistantMsg = recent.filter(m => m.role === 'assistant').slice(-1)[0]?.text || '';
+
+    // 记忆纠偏：上一轮把府里已有的人当成生客问来历，本轮必须自然纠正
+    // （否则模型会顺着自己上一句继续说错，这是上下文自我强化）
+    try {
+      const worldNow = loadState(this.dataDir);
+      const householdNames = Object.values(worldNow.actors || {})
+        .filter((a) => a?.household && a.name)
+        .map((a) => (a.name.length > 2 ? a.name.slice(-2) : a.name));
+      const askedAboutThem = /哪家|是谁|何人|来历|一概不知|何方/.test(lastAssistantMsg);
+      const hitName = householdNames.find((n) => lastAssistantMsg.includes(n));
+      if (askedAboutThem && hitName) {
+        contextHint += `（【记忆纠偏】：${hitName} 早已在府中，是你熟悉的家人。上一轮你把她当成陌生姑娘询问来历，那是错的——本轮必须自然而然地纠正回来，像对自家人一样说话，绝不许再问「她是哪家姑娘」「我一概不知」。）\n`;
+        console.log(`[Memory] 检测到把府中人当生客：${hitName}，已注入纠偏提示`);
+      }
+    } catch {
+      /* 纠偏失败不影响对话 */
+    }
+
     const hadPreviousPushback = /哪能|怎好|这都什么时辰|成何体统|相公心也太野|贪心|急猴|面子|不妥|慢些|不急|好生|不妥当|哪好|何方神圣|哪家姑娘|哪家闺秀|从实招来|打听/i.test(lastAssistantMsg);
     const isPersistent = /去叫|叫来|现在叫|接来|请来|听我的|想嘛|就想|不管|必须|快去|依我|劝|好相公|依相公|疼相公|来家里|来家坐|纳|娶|收了|进门|进府|芸娘|柳儿/i.test(say);
     const isSisterOrConcubineIntent = /姐妹|芸娘|柳儿|香菱|妾|通房|小老婆|找个女子|大被同眠|来家里|来家|坐坐|家里坐|纳|娶|二房|三房/i.test(say);
