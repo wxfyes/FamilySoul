@@ -250,6 +250,23 @@ async function fillProactiveTexts(world) {
         facts: item.facts || {},
       });
       item.text = String(text || item.fallback || '').slice(0, 300);
+
+      // 统一花名：推送也要显示「正妻·婉儿」，不能一会温柔小娘子一会婉儿
+      if (!item.speaker) {
+        try {
+          const latest = peek(DATA_DIR);
+          const main =
+            Object.values(latest.actors || {}).find((a) => a && a.role === config.activeRole) ||
+            latest.actors?.waner;
+          if (main) {
+            const short = main.name && main.name.length > 2 ? main.name.slice(-2) : main.name;
+            item.speaker = `${main.role}·${short}`;
+          }
+        } catch {
+          /* 拿不到就保持原样 */
+        }
+      }
+
       if (item.text) filled += 1;
     }
     if (filled > 0) {
