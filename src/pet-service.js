@@ -291,17 +291,13 @@ export class PetService {
 
       // 【省 token】易变的内容统一放最后：前面的人格卡与规则保持逐字不变，
       // 才能命中 DeepSeek 的上下文缓存（缓存价约为未命中的十分之一）。
-      const haremList =
-        Array.isArray(history?.haremMembers) && history.haremMembers.length > 0
-          ? history.haremMembers.join('、')
-          : '婉儿（正妻）、小翠（贴身丫鬟）';
       const mentionedList =
         Array.isArray(history?.mentionedGirls) && history.mentionedGirls.length > 0
           ? history.mentionedGirls.join('、')
           : '暂无';
       lines.push('');
       lines.push('【府邸现况】');
-      lines.push(`- 已入门妻妾侍女：${haremList}。`);
+      lines.push('- 府中已入门的妻妾侍女，一律以【天机·府中】为准；【绝不许把已经在府里的人当成陌生人】。');
       lines.push(`- 相公提及/正在张罗的女子：${mentionedList}。`);
       lines.push(
         `- 当前场景：${
@@ -310,6 +306,7 @@ export class PetService {
             : '【后院正堂·茶坊雅致厢房】'
         }。`,
       );
+      lines.push('- 【认人铁律】：相公提到府里任何一个人的名字（如芸娘、小翠、杨采华），你必须当场认出来并接话，【绝对严禁】反问「她是谁」「哪家才女」「怎让相公惦记」。');
 
       if (summary) {
         lines.push('');

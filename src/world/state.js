@@ -117,6 +117,7 @@ export function createInitialState(dataDir) {
         id: 'waner',
         name: '沈婉儿',
         role: '正妻',
+        household: true,
         location: 'tea_house',
         goals: ['保住王家体面', '把运河大酒楼盘活', '为相公张罗一房稳妥的侧室'],
         secret: '沈家旧案还有一份未烧尽的账册压在知府衙门的旧档里',
@@ -134,6 +135,7 @@ export function createInitialState(dataDir) {
         id: 'yunnia',
         name: '林芸娘',
         role: '二房如夫人',
+        household: true,
         location: 'backyard',
         goals: ['把柜台生意学精', '不给姐姐添乱'],
         relations: {
@@ -146,6 +148,7 @@ export function createInitialState(dataDir) {
         id: 'xiaocui',
         name: '小翠',
         role: '贴身丫鬟',
+        household: true,
         location: 'backyard',
         goals: ['把差事办利索', '讨大娘子点头开脸'],
         relations: { husband: { trust: 60, desire: 40, fear: 1, grievance: 0 } },

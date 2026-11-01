@@ -72,6 +72,18 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       /* 场景信息失败不影响摘要 */
     }
 
+    // 府中到底有谁：以世界账本为准（旧的花名册数组早就不准了）
+    try {
+      const household = Object.values(world.actors || {}).filter(
+        (a) => a && a.kind !== 'human' && a.household,
+      );
+      if (household.length > 0) {
+        lines.push(`【府中】${household.map((a) => `${a.name}（${a.role}）`).join('、')}`);
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     const present = Object.values(world.actors || {})
       .filter((a) => a && a.id !== 'husband' && a.location === here && MASTER_IDS.has(a.id))
       .map(relationLine)
