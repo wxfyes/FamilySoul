@@ -54,6 +54,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   PetStatus get petStatus => _petStatus;
   bool get isConnected => _isConnected;
   bool get isSending => _isSending;
+  /// 上一条失败的内容（用于「重试」）
+  String? _lastFailedText;
+  bool get canRetry => _lastFailedText != null && !_isSending;
   bool get isInitialized => _isInitialized;
   bool get isVoiceReplyEnabled => _isVoiceReplyEnabled;
   bool get isPlayingAudio => _isPlayingAudio;
@@ -850,6 +853,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       final reply = await _apiClient.sendMessage(clean, modality: modality);
       _applyReplyTo(pendingId, reply);
       _isConnected = true;
+      _lastFailedText = null;
 
       // 自动播放联动：小娘子唱曲与语音
       final musicUrl = reply.detectedMusicUrl;
@@ -876,6 +880,8 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
           timestamp: DateTime.now(),
           isError: true,
         );
+        // 记住这条内容，让用户可以一键重试，不用重新打字
+        _lastFailedText = clean;
       }
     } finally {
       _isSending = false;
@@ -918,6 +924,16 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         ),
       );
     }
+  }
+
+  /// 一键重试上一条失败的消息（不用重新打字）
+  Future<void> retryLastMessage() async {
+    final text = _lastFailedText;
+    if (text == null || text.isEmpty || _isSending) return;
+    _lastFailedText = null;
+    _messages.removeWhere((m) => m.isError);
+    notifyListeners();
+    await sendMessage(text);
   }
 
   /// 清空本地聊天历史记录

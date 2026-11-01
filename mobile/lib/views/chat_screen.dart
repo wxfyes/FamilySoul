@@ -21,6 +21,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
+  final FocusNode _inputFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
   final ImagePicker _imagePicker = ImagePicker();
@@ -541,19 +542,27 @@ class _ChatScreenState extends State<ChatScreen> {
     _speech.stop();
     _audioRecorder.dispose();
     _textController.dispose();
+    _inputFocus.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  /// 只有本来就贴着底部时才自动滚动，避免你翻历史时被强行拽下去
+  bool _isNearBottom() {
+    if (!_scrollController.hasClients) return true;
+    final pos = _scrollController.position;
+    return (pos.maxScrollExtent - pos.pixels) < 120;
+  }
+
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!_scrollController.hasClients) return;
+      if (!force && !_isNearBottom()) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     });
   }
 
@@ -562,9 +571,32 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty) return;
 
     final provider = context.read<ChatProvider>();
+    // 上一条还在发送中：保留输入内容，别把用户打好的字吞掉
+    if (provider.isSending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('上一条还在发送，稍等一下'), duration: Duration(seconds: 1)),
+      );
+      return;
+    }
+
     _textController.clear();
     provider.sendMessage(text);
-    _scrollToBottom();
+    _scrollToBottom(force: true);
+
+    // 发完立刻把焦点还给输入框：否则每次都要再点一下才能打字
+    _refocusInput();
+  }
+
+  /// 把焦点还给输入框（带下一帧重试，避免键盘收起后焦点丢失）
+  void _refocusInput() {
+    void tryFocus() {
+      if (!mounted) return;
+      if (!_inputFocus.hasFocus) _inputFocus.requestFocus();
+    }
+
+    tryFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) => tryFocus());
+    Future.delayed(const Duration(milliseconds: 120), tryFocus);
   }
 
   @override
@@ -953,6 +985,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     child: TextField(
                       controller: _textController,
+                      focusNode: _inputFocus,
                       minLines: 1,
                       maxLines: 4,
                       textInputAction: TextInputAction.send,

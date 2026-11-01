@@ -108,6 +108,21 @@ class MessageBubble extends StatelessWidget {
                                           : Theme.of(context).textTheme.bodyLarge?.color),
                                 ),
                               ),
+                            if (message.isError)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6.0),
+                                child: TextButton.icon(
+                                  onPressed: () => context.read<ChatProvider>().retryLastMessage(),
+                                  icon: const Icon(Icons.refresh, size: 16),
+                                  label: const Text('重试'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFFDC2626),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    minimumSize: const Size(56, 28),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ),
                             if (message.localImagePath != null && File(message.localImagePath!).existsSync())
                               _buildLocalImageCard(context, message.localImagePath!),
                             if (message.audioUrl != null && message.audioUrl!.isNotEmpty)
