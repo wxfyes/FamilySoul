@@ -14,6 +14,7 @@ import {
   shichenOf,
   round2,
 } from './state.js';
+import { runNPCInitiatives } from './actors.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
 export const DEFAULT_TICK_INTERVAL_MS = 2 * 60 * 1000; // 2 分钟心跳：世界推进更细，不用干等 10 分钟
@@ -190,6 +191,7 @@ function advanceHour(world, events, nowMs) {
   }
 
   runSchedules(world);
+  runNPCInitiatives(world, events);
   fireDue(world, events);
 }
 

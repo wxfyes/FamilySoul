@@ -4,6 +4,7 @@
  */
 import { loadState, readRecentEvents, seasonCN, shichenOf, round2 } from './state.js';
 import { describeScene } from './scene.js';
+import { recentActivities } from './actors.js';
 
 function money(assets) {
   const parts = [];
@@ -84,6 +85,16 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
     const milestones = Array.isArray(world.milestones) ? world.milestones.slice(-2) : [];
     if (milestones.length > 0) {
       lines.push(`【既定事实】${milestones.map((m) => String(m).slice(0, 80)).join(' / ')}`);
+    }
+
+    // NPC 自己的日子：只给事实（谁在忙什么），怎么演由天道裁定
+    try {
+      const acts = recentActivities(world, 2);
+      if (acts.length > 0) {
+        lines.push(`【近况】${acts.map((a) => `${a.name}在忙：${String(a.goal).slice(0, 24)}`).join('；')}`);
+      }
+    } catch {
+      /* 忽略 */
     }
 
     const recent = readRecentEvents(dataDir, 12)

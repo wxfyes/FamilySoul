@@ -454,9 +454,11 @@ export class PetService {
       .trim();
   }
 
-  async chat({ text = '', modality = 'text', profileKey = 'husband', roleName = null, isVideoCall = false } = {}) {
+  async chat({ text = '', modality = 'text', profileKey = 'husband', roleName = null, isVideoCall = false, actorId = null } = {}) {
     const say = String(text || '').trim();
     if (!say) return { ok: false, error: '输入内容为空' };
+    // 账号（memberKey）与世界实体（actor）可以不同：女主人账号可以绑定到「杨振华」这个 actor
+    const selfId = actorId || profileKey;
 
     console.log(`\n[Chat] 📨 收到成员 [${profileKey}] 消息 (模式: ${modality}): "${say.slice(0, 40)}"`);
 
@@ -464,7 +466,7 @@ export class PetService {
 
     // 同场：确保这名成员在世界里有位置（偶遇的前提）
     try {
-      ensurePresence(this.dataDir, profileKey, { role: activeRole });
+      ensurePresence(this.dataDir, selfId, { role: activeRole, title: roleName });
     } catch (err) {
       console.warn('[Scene] 位置登记失败：', err.message);
     }
@@ -472,7 +474,7 @@ export class PetService {
     // 暗号契约：先由引擎推进状态（只有引擎能解禁/归位），再让天道在已更新的状态下开口
     let ritualCtx = null;
     try {
-      ritualCtx = prepareRitual(this.dataDir, { text: say, roleName: activeRole, memberKey: profileKey });
+      ritualCtx = prepareRitual(this.dataDir, { text: say, roleName: activeRole, memberKey: selfId });
       if (ritualCtx?.refused) {
         console.log(`[Ritual] 暗号被拒（${ritualCtx.reason}），保持端庄`);
       } else if (ritualCtx) {
@@ -924,7 +926,7 @@ export class PetService {
     };
   }
 
-  async videoChat({ text = '', imageBase64 = null, modality = 'voice', profileKey = 'husband', roleName = null } = {}) {
+  async videoChat({ text = '', imageBase64 = null, modality = 'voice', profileKey = 'husband', roleName = null, actorId = null } = {}) {
     const say = String(text || '').trim();
     const hasClientVision = say.includes('【系统视觉已看清') || say.includes('【手机原生离线视觉');
     const visualFact = hasClientVision ? say : '';
@@ -945,7 +947,7 @@ export class PetService {
       promptSay = say || `请以你的专属身份主动向${targetTitle}温柔问候一声。`;
     }
 
-    const result = await this.chat({ text: promptSay, modality, profileKey, roleName, isVideoCall: true });
+    const result = await this.chat({ text: promptSay, modality, profileKey, roleName, isVideoCall: true, actorId });
     if (result.ok) {
       const replyText = result.reply?.text || '';
       const audioKey = result.reply?.audioKey || result.reply?.audio?.key || null;

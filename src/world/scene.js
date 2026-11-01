@@ -136,6 +136,6 @@ export function describeScene(world, placeId, selfKey) {
   }
   return {
     ...aud,
-    line: `${world.places?.[placeId]?.name || placeId}·${shichenOf(world.clock?.hour ?? 0)} · ${aud.isPublic ? '公开场合（有旁人在场）' : '只有你们二人（私密）'}${parts.length ? ` · ${parts.join(' · ')}` : ''}`,
+    line: `${world.places?.[placeId]?.name || placeId}·${shichenOf(world.clock?.hour ?? 0)} · ${aud.isPublic ? '公开场合（有旁人在场）' : '无其他真人在场（私密）'}${parts.length ? ` · ${parts.join(' · ')}` : ''}`,
   };
 }

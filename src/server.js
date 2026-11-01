@@ -857,6 +857,7 @@ const server = http.createServer(async (req, res) => {
         modality: body.modality || 'text',
         profileKey: currentMember.memberKey,
         roleName: currentMember.role,
+        actorId: currentMember.actor || null,
       });
       return sendJson(res, result.ok ? 200 : 500, result);
     } catch (err) {
@@ -897,6 +898,7 @@ const server = http.createServer(async (req, res) => {
         modality: body.modality || 'voice',
         profileKey: currentMember.memberKey,
         roleName: currentMember.role,
+        actorId: currentMember.actor || null,
       });
 
       console.log(`[VideoChat] ✅ 视讯通话处理完成 (耗时: ${result.latencyMs || 0}ms, 视觉: "${result.visualFact || '降级温存模式'}")`);
@@ -936,6 +938,7 @@ const server = http.createServer(async (req, res) => {
         modality: body.modality || 'voice',
         profileKey: currentMember.memberKey,
         roleName: currentMember.role,
+        actorId: currentMember.actor || null,
       });
 
       return sendJson(res, result.ok ? 200 : 500, {

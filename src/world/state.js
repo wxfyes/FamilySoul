@@ -168,6 +168,76 @@ export function createInitialState(dataDir) {
           husband: { trust: 10, desire: 0, fear: 0, grievance: 45 },
         },
       },
+
+      // ── 第二女主与她的侍卫（女主人真人账号可绑定到此 actor）──
+      yangzhenhua: {
+        id: 'yangzhenhua',
+        name: '杨振华',
+        role: '知府千金',
+        location: 'yang_mansion',
+        goals: ['游遍江南山水', '看看这城里有没有人入得了眼'],
+        secret: '父亲正在暗中翻查沈家旧案，她并不知情',
+        relations: {
+          husband: { trust: 35, desire: 18, fear: 0, grievance: 0 },
+        },
+        intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
+        schedule: [
+          { at: 10, do: '乘轿出门赏玉', place: 'street' },
+          { at: 16, do: '回府', place: 'yang_mansion' },
+        ],
+      },
+      luchen: {
+        id: 'luchen',
+        name: '陆沉',
+        role: '杨府侍卫统领',
+        location: 'yang_mansion',
+        goals: ['守好大小姐', '查清杨大人交办的那桩旧案'],
+        secret: '受杨大人密令，暗查沈家获罪的卷宗',
+        relations: {
+          husband: { trust: 45, desire: 0, fear: 0, grievance: 0 },
+        },
+      },
+
+      // ── 城中暗香 · 深宅怨妇（各自有明面家室，也有自己的日子）──
+      yangcaiyun: {
+        id: 'yangcaiyun',
+        name: '杨采云',
+        role: '翟家货栈老板娘',
+        location: 'street',
+        goals: ['撑住翟家货栈的门面', '等一个能说心里话的人'],
+        secret: '手里攥着翟家货栈的底价暗账',
+        relations: {
+          husband: { trust: 50, desire: 30, fear: 2, grievance: 8 },
+        },
+        intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
+        schedule: [{ at: 9, do: '来茶坊采办商茶', place: 'tea_house' }],
+      },
+      liuwenxia: {
+        id: 'liuwenxia',
+        name: '刘文霞',
+        role: '于家酒肆老板娘',
+        location: 'street',
+        goals: ['把酒肆的茶酒生意做起来', '不在人前露出半分委屈'],
+        secret: '丈夫于杰欠下画舫一笔账，她在悄悄填补',
+        relations: {
+          husband: { trust: 48, desire: 34, fear: 1, grievance: 10 },
+        },
+        intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
+        schedule: [{ at: 15, do: '来茶坊订茶包', place: 'tea_house' }],
+      },
+      zhanjing: {
+        id: 'zhanjing',
+        name: '战静',
+        role: '县衙书吏发妻',
+        location: 'street',
+        goals: ['守住自己的体面', '替娘家争一口气'],
+        secret: '抄录了一份县衙里说不清的税册',
+        relations: {
+          husband: { trust: 42, desire: 26, fear: 3, grievance: 14 },
+        },
+        intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
+        schedule: [{ at: 6, do: '去慈云庵进香', place: 'yamen' }],
+      },
     },
 
     pending: [
@@ -211,6 +281,11 @@ export function loadState(dataDir) {
 
   // 轻量补全：老文件缺字段时不报错，按初始值补齐（不做破坏性迁移）
   const base = createInitialState(dataDir);
+  // 人物逐个合并：新版本补进来的目标/秘密/日程要能生效，同时保留线上已有的位置与关系
+  const mergedActors = { ...base.actors };
+  for (const [id, actor] of Object.entries(raw.actors || {})) {
+    mergedActors[id] = { ...(base.actors?.[id] || {}), ...actor };
+  }
   return {
     ...base,
     ...raw,
@@ -221,7 +296,7 @@ export function loadState(dataDir) {
       properties: Array.isArray(raw.assets?.properties) ? raw.assets.properties : base.assets.properties,
     },
     places: { ...base.places, ...(raw.places || {}) },
-    actors: { ...base.actors, ...(raw.actors || {}) },
+    actors: mergedActors,
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
     proactive: Array.isArray(raw.proactive) ? raw.proactive : [],
