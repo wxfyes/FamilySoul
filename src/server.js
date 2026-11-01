@@ -510,6 +510,32 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 9.8 历史恢复 POST /api/admin/history/restore（把备份的对话写回去）
+    if (req.method === 'POST' && pathname === '/api/admin/history/restore') {
+      try {
+        const body = await parseJsonBody(req, 8 * 1024 * 1024);
+        const memberKey = String(body.member || 'husband');
+        const incoming = Array.isArray(body.messages) ? body.messages : [];
+        if (incoming.length === 0) return sendJson(res, 400, { ok: false, error: '没有消息' });
+        const cur = petService.readHistory(memberKey);
+        cur.messages = incoming.map((m) => ({
+          id: m.id || `r-${Math.random().toString(36).slice(2)}`,
+          role: m.role === 'user' ? 'user' : 'assistant',
+          text: String(m.text || ''),
+          at: Number(m.time || m.at) || Date.now(),
+          audioKey: m.audioKey || undefined,
+          modality: m.modality || 'text',
+        }));
+        cur.lastUserAt = Date.now();
+        cur.lastAssistantAt = Date.now();
+        petService.saveHistory(memberKey, cur);
+        console.log(`[History] 已从备份恢复 ${cur.messages.length} 条（成员 ${memberKey}）`);
+        return sendJson(res, 200, { ok: true, restored: cur.messages.length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.9 提示词体检 GET /api/admin/prompt（看天道到底收到了什么）
     if (req.method === 'GET' && pathname === '/api/admin/prompt') {
       try {
