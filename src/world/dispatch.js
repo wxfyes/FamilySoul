@@ -14,6 +14,8 @@
 import { loadState, saveState, appendEvents, nextEvent, round2 } from './state.js';
 import { queueProactive } from './clock.js';
 
+function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
+
 const TAG_RE = /\[\[\s*world\s*:\s*([a-zA-Z_]+)([^\]]*?)\]\]/gi;
 // 值可以是 "带引号的文本" 或 裸值（waner / +4 / 132）
 const ARG_RE = /([a-zA-Z_]+)\s*=\s*(?:"([^"]*)"|([^\s\]]+))/g;
@@ -239,6 +241,18 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'income') {
+        // 产业营收：天道可以直接改（酒楼开张、扩店面、涨价），不再受 3 两封顶限制
+        const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+        const p = props.find((x) => x.id === args.id) || props.find((x) => args.name && String(x.name || '').includes(args.name));
+        if (!p) continue;
+        const setV = Number(args.set);
+        const deltaV = Number(args.delta);
+        if (Number.isFinite(setV)) p.incomePerDay = Math.max(0, setV);
+        else if (Number.isFinite(deltaV)) p.incomePerDay = Math.max(0, (Number(p.incomePerDay) || 0) + deltaV);
+        if (args.status) p.status = String(args.status).slice(0, 20);
+        p.incomePerDay = Math.round((Number(p.incomePerDay) || 0) * 100) / 100;
+        applied.push(`产业:${p.name} 日入${p.incomePerDay}两${args.status ? `（${p.status}）` : ''}`);
       } else if (kind === 'event') {
         const text = String(args.text || '').trim();
         if (!text) continue;

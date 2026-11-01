@@ -346,6 +346,7 @@ export class PetService {
         lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
         lines.push('  [[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]');
         lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
+        lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
         lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
         lines.push('- 【凡发生了值得记一辈子的事（第一次、亲密、翻脸、重大决定），必须记 remember】，它会永久留存。');
         lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');

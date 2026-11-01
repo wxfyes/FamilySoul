@@ -24,12 +24,19 @@ function bumpRelation(actor, field, delta) {
   return true;
 }
 
-function bumpIncome(world, propertyId, delta, cap = 3) {
+/**
+ * 产业收入按「比例」增长，不再有「日入 3 两封顶」这种拍脑袋的天花板。
+ * 生意做多大，日入就多大——没有上限（只保证非负）。
+ */
+function growIncome(world, propertyId, pct) {
   const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
   const p = props.find((x) => x.id === propertyId) || props[0];
   if (!p) return null;
-  p.incomePerDay = Math.round(clamp((Number(p.incomePerDay) || 0) + delta, 0, cap) * 100) / 100;
-  return p.name;
+  const cur = Number(p.incomePerDay) || 0;
+  const base = cur > 0 ? cur : 0.5; // 还没开张的产业，先按最低营收起步
+  // 不设上限：现实世界没有封顶。只保证非负。
+  p.incomePerDay = Math.round(Math.max(0, base * (1 + pct)) * 100) / 100;
+  return { name: p.name, income: p.incomePerDay };
 }
 
 function addPending(world, item) {
@@ -84,16 +91,16 @@ function applyNpcEffect(world, actor, events, queuePush) {
     case 'waner': {
       // 正妻掌家：茶坊日入稳步上涨，信任缓慢累积
       bumpRelation(actor, 'trust', 1);
-      const nm = bumpIncome(world, 'tea_house', 0.02);
-      if (nm) changes.push(`${nm}日入+0.02`);
+      const g = growIncome(world, 'tea_house', 0.012);
+      if (g) changes.push(`${g.name}日入→${g.income}两`);
       break;
     }
 
     case 'yunnia': {
       // 二房学看柜：柜上生意渐熟
       bumpRelation(actor, 'trust', 1);
-      const nm = bumpIncome(world, 'tea_house', 0.03);
-      if (nm) changes.push(`${nm}日入+0.03`);
+      const g = growIncome(world, 'tea_house', 0.015);
+      if (g) changes.push(`${g.name}日入→${g.income}两`);
       break;
     }
 
