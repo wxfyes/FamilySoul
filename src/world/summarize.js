@@ -113,9 +113,22 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       /* 忽略 */
     }
 
+    // 账本消毒：府里已有的人，绝不可能再被"迎娶/纳聘"——这类记录是历史误记，一律不显示
+    const houseKeys = new Set(
+      Object.values(world.actors || {})
+        .filter((a) => a?.household && a.name)
+        .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name]),
+    );
+    const isBogusMarriage = (t) => {
+      const s = String(t || '');
+      if (!/(迎娶|迎纳|纳妾|聘礼|八抬|入府|进门|开脸|娶)/.test(s)) return false;
+      for (const n of houseKeys) if (s.includes(n)) return true;
+      return false;
+    };
     const recent = readRecentEvents(dataDir, 12)
       .map(describeEvent)
       .filter(Boolean)
+      .filter((line) => !isBogusMarriage(line))
       .slice(-3);
     if (recent.length > 0) lines.push(`【她记得】${recent.join('；')}`);
 
@@ -133,7 +146,8 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       );
     }
 
-    const promises = (world.promises || []).filter((p) => p && !p.done);
+
+    const promises = (world.promises || []).filter((p) => p && !p.done && !isBogusMarriage(p.text));
     if (promises.length > 0) {
       const items = promises
         .slice(0, 3)

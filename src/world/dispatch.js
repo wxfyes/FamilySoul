@@ -127,6 +127,12 @@ export function applyWorldTags(dataDir, ops) {
   if (!Array.isArray(ops) || ops.length === 0) return [];
   const world = loadState(dataDir);
   const events = [];
+  // 闸门：府里已有的人，不可能再被迎娶/纳聘 —— 这类承诺一律不记
+  const houseNames = Object.values(world.actors || {})
+    .filter((a) => a?.household && a.name)
+    .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name]);
+  const isMarriageTalk = (s) => /(迎娶|迎纳|纳妾|聘礼|八抬|入府|进门|开脸|娶)/.test(String(s || ''));
+
   const applied = [];
 
   for (const { kind, args } of ops) {
@@ -148,6 +154,10 @@ export function applyWorldTags(dataDir, ops) {
       } else if (kind === 'promise') {
         const text = String(args.text || '').trim();
         if (!text) continue;
+        if (isMarriageTalk(text) && houseNames.some((n) => text.includes(n))) {
+          applied.push(`已忽略:${text.slice(0, 12)}（府中人不可能再迎娶）`);
+          continue;
+        }
         const due = Number(args.due) || world.clock.day + 3;
         world.promises.push({ text: text.slice(0, 120), due, done: false, at: world.clock.day });
         applied.push(`承诺:${text.slice(0, 16)}（第${due}日）`);
