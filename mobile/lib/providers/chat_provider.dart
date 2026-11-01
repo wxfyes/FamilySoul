@@ -11,6 +11,7 @@ import '../models/pet_status.dart';
 import '../models/routine_config.dart';
 import '../services/api_client.dart';
 import '../services/local_vision_service.dart';
+import '../services/role_reply_parser.dart';
 
 class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   static const String _prefKeyConfig = 'surfcore_server_config';
@@ -579,7 +580,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         'visualFact': visualFact,
       };
     } catch (e) {
-      debugPrint('[VideoCall] 对讲视讯传输异常: ' + e.toString());
+      debugPrint('[VideoCall] 对讲视讯传输异常: $e');
       return {
         'ok': false,
         'error': e.toString(),
@@ -804,12 +805,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       // 核心控制：语音开关开启时才传 voice（触发火山TTS），关闭时传 text（完全不调用火山引擎，0耗额度）
       final modality = _isVoiceReplyEnabled ? 'voice' : 'text';
       final reply = await _apiClient.sendMessage(clean, modality: modality);
-      final idx = _messages.indexWhere((m) => m.id == pendingId);
-      if (idx != -1) {
-        _messages[idx] = reply;
-      } else {
-        _messages.add(reply);
-      }
+      _applyReplyTo(pendingId, reply);
       _isConnected = true;
 
       // 自动播放联动：小娘子唱曲与语音
@@ -842,6 +838,42 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       _isSending = false;
       _persistMessages();
       notifyListeners();
+    }
+  }
+
+  /// 把一条回复按「分角剧本」拆成多条气泡：每个角色独立名字、独立头像
+  void _applyReplyTo(String pendingId, ChatMessage reply) {
+    final segments = RoleReplyParser.parse(reply.text);
+    final idx = _messages.indexWhere((m) => m.id == pendingId);
+
+    if (segments.length <= 1) {
+      final single = reply.copyWith(
+        text: segments.isEmpty ? reply.text : segments.first.text,
+        speaker: segments.isEmpty ? null : segments.first.speaker,
+      );
+      if (idx != -1) {
+        _messages[idx] = single;
+      } else {
+        _messages.add(single);
+      }
+      return;
+    }
+
+    if (idx != -1) _messages.removeAt(idx);
+    for (var i = 0; i < segments.length; i += 1) {
+      final seg = segments[i];
+      _messages.add(
+        ChatMessage(
+          id: '${reply.id}_$i',
+          text: seg.text,
+          isUser: false,
+          timestamp: reply.timestamp.add(Duration(milliseconds: i * 40)),
+          modality: reply.modality,
+          audioUrl: i == segments.length - 1 ? reply.audioUrl : null,
+          speaker: seg.speaker,
+          isError: reply.isError,
+        ),
+      );
     }
   }
 

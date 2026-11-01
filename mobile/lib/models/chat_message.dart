@@ -10,6 +10,9 @@ class ChatMessage {
   final bool isError;
   final bool isPending;
 
+  /// 这一条是谁说的（分角剧本里的角色名）；null 表示主角色本人
+  final String? speaker;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -21,6 +24,7 @@ class ChatMessage {
     this.localImagePath,
     this.isError = false,
     this.isPending = false,
+    this.speaker,
   });
 
   /// 提取过滤掉 [emoji:xxx]、[compare:xxx]、[image:xxx]、[music:xxx] 后的干净文字
@@ -87,6 +91,7 @@ class ChatMessage {
         'audioUrl': audioUrl,
         'emojiType': emojiType ?? detectedEmoji,
         'isError': isError,
+        'speaker': speaker,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -100,6 +105,7 @@ class ChatMessage {
         audioUrl: json['audioUrl'] as String?,
         emojiType: json['emojiType'] as String?,
         isError: json['isError'] as bool? ?? false,
+        speaker: json['speaker'] as String?,
       );
 
   ChatMessage copyWith({
@@ -112,6 +118,7 @@ class ChatMessage {
     String? emojiType,
     bool? isError,
     bool? isPending,
+    String? speaker,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -123,6 +130,7 @@ class ChatMessage {
       emojiType: emojiType ?? this.emojiType,
       isError: isError ?? this.isError,
       isPending: isPending ?? this.isPending,
+      speaker: speaker ?? this.speaker,
     );
   }
 }

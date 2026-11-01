@@ -8,6 +8,10 @@ import { LlmClient } from './llm-client.js';
 import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
+import { startWorldClock, peek } from './world/clock.js';
+import { readRecentEvents, shichenOf } from './world/state.js';
+import { buildStateSummary } from './world/summarize.js';
+import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +45,11 @@ function loadConfig() {
       rate: '+0%',
       pitch: '+0Hz',
     },
+    world: {
+      enabled: true,
+      tickIntervalMs: 2 * 60 * 1000,
+      msPerWorldHour: 2.5 * 60 * 1000,
+    },
     activeRole: '傲娇助手',
   };
 
@@ -54,6 +63,7 @@ function loadConfig() {
         deepseek: { ...cfg.deepseek, ...(parsed.deepseek || {}) },
         gemini: { ...cfg.gemini, ...(parsed.gemini || {}) },
         tts: { ...cfg.tts, ...(parsed.tts || {}) },
+        world: { ...cfg.world, ...(parsed.world || {}) },
       };
     }
   } catch (err) {
@@ -123,11 +133,24 @@ function getFamilyProfiles() {
   };
 
   if (config.family && typeof config.family === 'object') {
-    return {
+    const result = {
       husband: { ...defaults.husband, ...(config.family.husband || {}) },
       wife: { ...defaults.wife, ...(config.family.wife || {}) },
       kid: { ...defaults.kid, ...(config.family.kid || {}) },
     };
+    for (const [k, v] of Object.entries(config.family)) {
+      if (!result[k] && v && typeof v === 'object') {
+        result[k] = {
+          key: k,
+          token: String(v.token || '').trim(),
+          role: v.role || '贴心管家',
+          title: v.title || k,
+          presence: v.presence || '随时在线陪伴',
+          description: v.description || '自定义受邀成员 / 知心挚友'
+        };
+      }
+    }
+    return result;
   }
   return defaults;
 }
@@ -287,7 +310,7 @@ const server = http.createServer(async (req, res) => {
     // 鉴权校验：只有相公专属通行证才可调度家庭后宫
     const clientToken = String(req.headers['x-pet-token'] || url.searchParams.get('token') || '').trim();
     const husbandToken = String(config.token || getLockedToken() || 'wxf_husband_exclusive_token_2026').trim();
-    if (clientToken && clientToken !== husbandToken) {
+    if (!clientToken || clientToken !== husbandToken) {
       return sendJson(res, 401, { ok: false, error: '权限不足：只有相公专属通行证才可管理闺房后宫！' });
     }
 
@@ -431,11 +454,61 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
     }
+
+    // 10. 世界状态速览 GET /api/admin/world（天道的幕后账本，只读）
+    if (req.method === 'GET' && pathname === '/api/admin/world') {
+      try {
+        const world = peek(DATA_DIR);
+        const actors = Object.entries(world.actors || {})
+          .filter(([key]) => key !== 'husband')
+          .map(([key, a]) => ({
+            id: key,
+            name: a.name,
+            role: a.role,
+            place: world.places?.[a.location]?.name || a.location || '',
+            relations: a.relations?.husband || null,
+            intimacy: a.intimacy || null,
+          }));
+        const recentReceipts = Array.isArray(world.flags?.recentReceipts) ? world.flags.recentReceipts : [];
+        const rate = recentReceipts.length
+          ? Math.round((recentReceipts.filter(Boolean).length / recentReceipts.length) * 100)
+          : null;
+
+        return sendJson(res, 200, {
+          ok: true,
+          // 一行大白话：不用看懂 JSON 也能知道世界有没有在动
+          health:
+            rate === null
+              ? '还没有数据（目前还没聊过）'
+              : rate >= 60
+                ? `正常：最近 ${recentReceipts.length} 轮对话里有 ${rate}% 真的改变了世界`
+                : `⚠ 偏低：最近 ${recentReceipts.length} 轮只有 ${rate}% 改变了世界，需要加强回执提示`,
+          receiptRate: rate,
+          era: world.era,
+          clock: { ...(world.clock || {}), shichen: shichenOf(world.clock?.hour ?? 0) },
+          assets: world.assets,
+          actors,
+          pending: world.pending || [],
+          promises: world.promises || [],
+          recentEvents: readRecentEvents(DATA_DIR, 12),
+          summary: buildStateSummary(DATA_DIR),
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
   }
 
   // 1.5 语音音频流拉取 /dsh-surfcore/pet-api/audio/:key.wav (支持哈希寻址、动态MIME识别与HTTP Range切片播放)
   const audioMatch = pathname.match(/^\/dsh-surfcore\/pet-api\/audio\/([a-zA-Z0-9_-]+)(?:\.(wav|mp3))?$/i);
   if (audioMatch) {
+    if (!resolveMember(req, url)) {
+      return sendJson(res, 401, {
+        ok: false,
+        code: 'AUTH_FORBIDDEN',
+        error: '通行令牌无效或未授权：禁止越权拉取语音文件！',
+      });
+    }
     const key = audioMatch[1];
     const audioFile = ttsService.getAudioFile(key);
     if (!audioFile || !fs.existsSync(audioFile)) {
@@ -502,6 +575,55 @@ const server = http.createServer(async (req, res) => {
       role: { name: currentMember.role },
       member: currentMember.memberKey,
     });
+  }
+
+  // 3.5 同场与偶遇：地点清单 GET /dsh-surfcore/pet-api/scene/places
+  if (req.method === 'GET' && pathname === '/dsh-surfcore/pet-api/scene/places') {
+    try {
+      const world = peek(DATA_DIR);
+      const places = Object.entries(world.places || {}).map(([id, p]) => {
+        const scene = describeScene(world, id, currentMember.memberKey);
+        return { id, name: p.name, humans: scene.otherHumans.length, npcs: scene.npcs.length };
+      });
+      return sendJson(res, 200, { ok: true, places });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  // 3.6 同场与偶遇：当前所在与同场者 GET /dsh-surfcore/pet-api/scene
+  if (req.method === 'GET' && pathname === '/dsh-surfcore/pet-api/scene') {
+    try {
+      const world = peek(DATA_DIR);
+      const me = world.actors?.[currentMember.memberKey];
+      const here = me?.location || 'tea_house';
+      const scene = describeScene(world, here, currentMember.memberKey);
+      return sendJson(res, 200, {
+        ok: true,
+        place: { id: here, name: scene.placeName },
+        isPublic: scene.isPublic,
+        humans: scene.otherHumans,
+        npcs: scene.npcs,
+        messages: readSceneMessages(DATA_DIR, here, 20),
+        serverTime: Date.now(),
+      });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  // 3.7 同场与偶遇：走动 POST /dsh-surfcore/pet-api/scene/move
+  if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/scene/move') {
+    try {
+      const body = await parseJsonBody(req);
+      const to = String(body.to || '').trim();
+      const moved = moveMember(DATA_DIR, currentMember.memberKey, to, currentMember);
+      if (!moved) return sendJson(res, 400, { ok: false, error: '没有这个地方' });
+      console.log(`[Scene] 成员 [${currentMember.memberKey}] 移动到「${moved.name}」`);
+      return sendJson(res, 200, { ok: true, place: moved });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
   }
 
   // 4. 客户端主状态接口 GET /dsh-surfcore/pet-api/status (用于一键测试连接与主界面实时状态)
@@ -748,4 +870,15 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  DeepSeek 就绪: ${llmClient.isReady() ? 'YES' : 'NO (待配Key)'}`);
   console.log(`  Gemini 视觉: ${visionService.isReady() ? 'YES' : 'NO'}`);
   console.log('========================================================');
+
+  // 世界引擎：启动天道时钟（离线补算 + 定时心跳）
+  try {
+    startWorldClock(DATA_DIR, {
+      enabled: config.world?.enabled !== false,
+      intervalMs: Number(config.world?.tickIntervalMs) || 2 * 60 * 1000,
+      msPerWorldHour: Number(config.world?.msPerWorldHour) || 2.5 * 60 * 1000,
+    });
+  } catch (err) {
+    console.warn('[World] 世界时钟启动失败：', err.message);
+  }
 });

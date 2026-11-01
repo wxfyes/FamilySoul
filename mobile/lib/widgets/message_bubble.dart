@@ -21,6 +21,10 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = message.isUser;
     final timeStr = DateFormat('HH:mm').format(message.timestamp);
+    // 谁说这句话就显示谁的名字：分角剧本里的角色优先，否则用当前主角色
+    final speakerName = (message.speaker != null && message.speaker!.isNotEmpty)
+        ? message.speaker!
+        : characterName;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
@@ -29,13 +33,39 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            _buildAvatar(isUser: false, name: characterName),
+            _buildAvatar(isUser: false, name: speakerName),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Column(
               crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
+                if (!isUser && speakerName.isNotEmpty && !message.isPending)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: _colorForName(speakerName),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          speakerName,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                   decoration: BoxDecoration(
@@ -115,23 +145,58 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  static const List<Color> _assistantPalette = [
+    Color(0xFF8B5CF6),
+    Color(0xFFEC4899),
+    Color(0xFF0EA5E9),
+    Color(0xFFF59E0B),
+    Color(0xFF10B981),
+    Color(0xFF6366F1),
+  ];
+
+  /// 同一个名字永远得到同一种颜色（不随运行变化）
+  Color _colorForName(String name) {
+    if (name.isEmpty) return _assistantPalette.first;
+    var h = 0;
+    for (final c in name.codeUnits) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    return _assistantPalette[h % _assistantPalette.length];
+  }
+
+  /// 「跑堂伙计·阿吉」取「阿」，「沈婉儿」取「沈」
+  String _initialOf(String name) {
+    final parts = name.split(RegExp(r'[·•.]'));
+    final last = parts.last.trim();
+    if (last.isNotEmpty) return last.characters.first;
+    return name.isNotEmpty ? name.characters.first : 'A';
+  }
+
   Widget _buildAvatar({required bool isUser, required String name}) {
+    final base = isUser ? const Color(0xFF3B82F6) : _colorForName(name);
     return Container(
-      width: 36,
-      height: 36,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
           colors: isUser
               ? [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)]
-              : [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
+              : [base, Color.lerp(base, Colors.black, 0.28)!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: base.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Center(
         child: Text(
-          isUser ? '我' : (name.isNotEmpty ? name.characters.first : 'A'),
+          isUser ? '我' : _initialOf(name),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
