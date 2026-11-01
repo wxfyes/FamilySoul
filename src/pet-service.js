@@ -939,6 +939,19 @@ export class PetService {
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');
       reply = this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall));
+      // 没写分角标记的回复，补上主角色花名，免得客户端回落成账号标题「温柔小娘子」
+      try {
+        const hasMarker = /【[^】\n]{1,12}】/.test(reply);
+        const isMainPersona = profileKey === 'husband' || activeRole === '傲娇助手';
+        if (!hasMarker && isMainPersona && reply.trim().length > 0) {
+          const w0 = loadState(this.dataDir);
+          const me = w0.actors?.waner;
+          const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : (me?.name || '婉儿');
+          reply = `【${me?.label || '正妻'}·${short}】：${reply}`;
+        }
+      } catch {
+        /* 花名补全失败不影响回复 */
+      }
       // 硬对齐：叙事里的场景标记优先于模型是否记得写回执
       const sceneSync = this.syncSceneFromReply(reply);
       if (sceneSync) {

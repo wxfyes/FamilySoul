@@ -79,8 +79,11 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       );
       if (household.length > 0) {
         lines.push(
-          `【府中】以下都是已在府里的家人，是你熟悉的自己人，**绝不可当成生客询问来历**：${household
-            .map((a) => `${a.name}（${a.role}）`)
+          `【府中】以下都是已在府里的自己人，**绝不可当成生客、更不可说成"别人屋里的"**：${household
+            .map((a) => {
+              const where = world.places?.[a.location]?.name || a.location || '';
+              return `${a.name}（${a.role}${where ? `，住${where}` : ''}）`;
+            })
             .join('、')}`,
         );
       }
