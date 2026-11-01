@@ -203,6 +203,22 @@ export function applyWorldTags(dataDir, ops) {
           force: true,
         });
         applied.push(`到场:${actor.name}（${minutes}分钟后）`);
+      } else if (kind === 'appointment') {
+        // 约定：约好某日某时见面 → 到点由时钟自动触发她上门
+        const id = resolveActor(world, args.who);
+        const actor = id ? world.actors[id] : null;
+        const day = Number(args.day) || world.clock.day;
+        const hour = Number(args.hour) || 12;
+        world.appointments = Array.isArray(world.appointments) ? world.appointments : [];
+        world.appointments.push({
+          actorId: id || null,
+          name: actor?.name || String(args.who || '').slice(0, 12),
+          day,
+          hour,
+          text: String(args.text || '').slice(0, 80),
+          madeAt: { day: world.clock.day, hour: world.clock.hour },
+        });
+        applied.push(`约定:${actor?.name || args.who} 第${day}日${hour}时`);
       } else if (kind === 'event') {
         const text = String(args.text || '').trim();
         if (!text) continue;

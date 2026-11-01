@@ -327,7 +327,9 @@ export class PetService {
         lines.push('  [[world:relation who=waner field=trust delta=+3]]  [[world:asset delta=-12.5 reason="买茶苗"]]');
         lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]  [[world:move who=qiantonghai to=dock]]');
         lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
+        lines.push('  [[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]');
         lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
+        lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
         lines.push('');
         lines.push('【多角色同场铁律（严禁吊着不收尾）】');
         lines.push('- 一旦你派了小翠、阿吉去请人或传话，【必须在同一轮里让被请的人到场开口】，写出她自己的台词；绝对不许出现"去了就没下文"这种断在半空的情形。');
@@ -1046,6 +1048,7 @@ export class PetService {
         '[[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]',
         '[[world:move who=qiantonghai to=dock]]',
         '[[world:arrive who=yunnia in=2]]',
+        '[[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]',
         '[[world:event text="一句话概括发生了什么"]]',
         '',
         world,

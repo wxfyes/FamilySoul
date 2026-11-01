@@ -137,6 +137,24 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       lines.push(`【待兑现】${items.join('；')}`);
     }
 
+    // 约定：约好某日某时见面，到点她会自己上门
+    try {
+      const nowHour = day * 24 + hour;
+      const aps = (world.appointments || [])
+        .filter((a) => a && Number(a.day) * 24 + Number(a.hour) >= nowHour)
+        .sort((a, b) => Number(a.day) * 24 + Number(a.hour) - (Number(b.day) * 24 + Number(b.hour)))
+        .slice(0, 3);
+      if (aps.length > 0) {
+        lines.push(
+          `【约定】${aps
+            .map((a) => `第${a.day}日${a.hour}时 ${a.name}${a.text ? `（${a.text}）` : ''}`)
+            .join('；')}`,
+        );
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     const pending = (world.pending || []).slice(0, 3);
     if (pending.length > 0) {
       const items = pending.map((p) => `第${p.due}日 ${String(p.desc || '').slice(0, 40)}`);

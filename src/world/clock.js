@@ -140,6 +140,60 @@ function runSchedules(world) {
   }
 }
 
+/** 清掉过期货：陈年风闻不该攒着一次全推给你 */
+function pruneProactive(world) {
+  if (!Array.isArray(world.proactive)) return;
+  const nowHour = world.clock.day * 24 + world.clock.hour;
+  world.proactive = world.proactive
+    .filter((p) => {
+      if (!p) return false;
+      if (p.reason === 'appointment') return true; // 约定必须送达
+      const h = (Number(p.day) || 1) * 24 + (Number(p.hour) || 0);
+      return nowHour - h <= 24;
+    })
+    .slice(-8);
+}
+
+/** 到点的约定：人要上门，还要主动告诉相公 */
+function fireAppointments(world, events) {
+  if (!Array.isArray(world.appointments) || world.appointments.length === 0) return;
+  const nowHour = world.clock.day * 24 + world.clock.hour;
+  const keep = [];
+
+  for (const ap of world.appointments) {
+    const dueHour = (Number(ap.day) || 0) * 24 + (Number(ap.hour) || 0);
+    if (dueHour > nowHour) {
+      keep.push(ap);
+      continue;
+    }
+
+    const actor =
+      (ap.actorId && world.actors?.[ap.actorId]) ||
+      Object.values(world.actors || {}).find((a) => a && a.name === ap.name);
+
+    // 人是真来的：把她的位置挪到相公所在处
+    if (actor) actor.location = world.actors?.husband?.location || actor.location;
+
+    events.push(
+      nextEvent(world, {
+        action: 'appointment_arrived',
+        actor: actor?.id || 'system',
+        payload: { who: ap.name, text: ap.text },
+        isPublic: true,
+      }),
+    );
+
+    queueProactive(world, {
+      reason: 'appointment',
+      facts: { who: ap.name, text: ap.text },
+      speaker: actor ? actor.name : ap.name,
+      force: true, // 约定就是约定，不受冷却限制
+    });
+  }
+
+  world.appointments = keep;
+}
+
 /** 到期的待发酵事件 */
 function fireDue(world, events) {
   if (!Array.isArray(world.pending) || world.pending.length === 0) return;
@@ -210,7 +264,9 @@ function advanceHour(world, events, nowMs) {
 
   runSchedules(world);
   runNPCInitiatives(world, events);
+  fireAppointments(world, events);
   fireDue(world, events);
+  pruneProactive(world);
 }
 
 /**
