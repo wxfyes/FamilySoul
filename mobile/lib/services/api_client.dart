@@ -21,8 +21,9 @@ class SurfCoreApiClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: config.apiPrefix,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 40),
+        // 一轮对话要跑两次大模型（正文 + 记账员），10 秒太短，会把正常回复判成超时
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 90),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'x-pet-token': config.token.trim(),

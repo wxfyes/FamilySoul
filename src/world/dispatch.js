@@ -71,6 +71,20 @@ function resolvePlace(world, to) {
   return null;
 }
 
+/** 记账员在后台补登成功时，把本轮的回执标记翻成「有变化」*/
+export function markReceiptHit(dataDir) {
+  try {
+    const world = loadState(dataDir);
+    world.flags.receiptHits = (Number(world.flags.receiptHits) || 0) + 1;
+    const arr = Array.isArray(world.flags.recentReceipts) ? world.flags.recentReceipts : [];
+    if (arr.length > 0) arr[arr.length - 1] = 1;
+    world.flags.recentReceipts = arr;
+    saveState(dataDir, world);
+  } catch {
+    /* 忽略 */
+  }
+}
+
 /** 记录一次回执（用于自检回执率，主人不用看 JSON 也能知道有没有在动）*/
 export function recordReceipt(dataDir, hadOps, usage = null) {
   try {

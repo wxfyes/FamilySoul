@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 import { buildStateSummary } from './world/summarize.js';
-import { parseWorldTags, applyWorldTags, recordReceipt } from './world/dispatch.js';
+import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
 
@@ -875,22 +875,24 @@ export class PetService {
       const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
 
-      // 主模型没写回执 → 让记账员补问一次（世界不会因为你聊过而毫无变化）
+      // 主模型没写回执 → 记账员在后台补记（不阻塞回复，否则容易拖到客户端超时）
       let changed = applied.length > 0;
       if (!changed) {
-        const extra = await this.extractReceipt({
+        this.extractReceipt({
           userText: say,
           replyText: reply,
           memberKey: selfId,
           roleName: activeRole,
-        });
-        if (extra.length > 0) {
-          const applied2 = applyWorldTags(this.dataDir, extra);
-          if (applied2.length > 0) {
-            changed = true;
-            console.log(`[World] 记账员补登 ${applied2.length} 条：${applied2.join('、')}`);
-          }
-        }
+        })
+          .then((extra) => {
+            if (!Array.isArray(extra) || extra.length === 0) return;
+            const applied2 = applyWorldTags(this.dataDir, extra);
+            if (applied2.length > 0) {
+              markReceiptHit(this.dataDir);
+              console.log(`[World] 记账员补登 ${applied2.length} 条：${applied2.join('、')}`);
+            }
+          })
+          .catch(() => {});
       }
 
       // 回执率自检：低于五成就自己报，不用主人去翻 JSON
