@@ -161,8 +161,14 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
     // 约定：约好某日某时见面，到点她会自己上门
     try {
       const nowHour = day * 24 + hour;
-      const aps = (world.appointments || [])
-        .filter((a) => a && Number(a.day) * 24 + Number(a.hour) >= nowHour)
+      // 同一人同一时刻只保留最新那条（后写的覆盖先写的），避免自相矛盾的约定堆在一起
+      const raw2 = (world.appointments || []).filter((a) => a && Number(a.day) * 24 + Number(a.hour) >= nowHour);
+      const latest = new Map();
+      for (const a of raw2) {
+        const key = `${a.day}-${a.hour}-${a.name}`;
+        latest.set(key, a); // 后出现的覆盖前面的
+      }
+      const aps = [...latest.values()]
         .sort((a, b) => Number(a.day) * 24 + Number(a.hour) - (Number(b.day) * 24 + Number(b.hour)))
         .slice(0, 3);
       if (aps.length > 0) {

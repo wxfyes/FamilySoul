@@ -295,6 +295,21 @@ export function createInitialState(dataDir) {
   };
 }
 
+/** 修正历史遗留的「林芸娘处 / 林芸娘廊下」这类怪地名 → 统一成后院暖阁·东厢 */
+function normalizePlaces(places, actorsRaw) {
+  const actors = { ...actorsRaw };
+  for (const p of Object.values(places || {})) {
+    const nm = String(p?.name || '');
+    const m = /^([\u4e00-\u9fa5]{2,4})(处|廊下|房里|屋|房)$/.exec(nm);
+    if (!m) continue;
+    const who = Object.values(actors || {}).find(
+      (a) => a?.name && (a.name === m[1] || a.name.endsWith(m[1])),
+    );
+    if (who) p.name = '后院暖阁·东厢';
+  }
+  return places;
+}
+
 export function loadState(dataDir) {
   const file = statePath(dataDir);
   const raw = readJson(file);
@@ -321,7 +336,7 @@ export function loadState(dataDir) {
       ...(raw.assets || {}),
       properties: Array.isArray(raw.assets?.properties) ? raw.assets.properties : base.assets.properties,
     },
-    places: { ...base.places, ...(raw.places || {}) },
+    places: normalizePlaces({ ...base.places, ...(raw.places || {}) }, raw.actors),
     actors: mergedActors,
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],

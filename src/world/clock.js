@@ -253,16 +253,13 @@ function advanceHour(world, events, nowMs) {
 
   // 未时（14 点）：手里没事、也没有约在身 → 世界主动递一件要你决断的事，免得无事可做
   if (world.clock.hour === 14) {
-    const noPending = (world.pending || []).length === 0;
-    const noAppointment = (world.appointments || []).length === 0;
-    if (noPending && noAppointment) {
-      queueProactive(world, {
-        reason: 'hook',
-        facts: { day: world.clock.day },
-        fallback: '相公，周掌柜那边派人来问，酒楼开张的日子到底定在哪天，人家等着回话呢。',
-        type: 'proactive',
-      });
-    }
+    // 每天未时固定递一件事（冷却机制会自动防刷屏，不再因为"手上有暗涌"就永不触发）
+    queueProactive(world, {
+      reason: 'hook',
+      facts: { day: world.clock.day },
+      fallback: '相公，周掌柜那边派人来问，酒楼开张的日子到底定在哪天，人家等着回话呢。',
+      type: 'proactive',
+    });
   }
 
   // 掌灯时分仍不见人 → 她先开口问一句（不用主人先说话）
