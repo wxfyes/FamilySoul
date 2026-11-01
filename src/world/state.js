@@ -304,8 +304,8 @@ export function createInitialState(dataDir) {
 }
 
 /** 修正历史遗留的「林芸娘处 / 林芸娘廊下」这类怪地名 → 统一成后院暖阁·东厢 */
-function normalizePlaces(places, actorsRaw) {
-  const actors = { ...actorsRaw };
+function normalizePlaces(places, actorsLive) {
+  const actors = actorsLive || {};
   for (const p of Object.values(places || {})) {
     const nm = String(p?.name || '');
     const m = /^([\u4e00-\u9fa5]{2,4})(处|廊下|房里|屋|房)$/.exec(nm);
@@ -314,6 +314,21 @@ function normalizePlaces(places, actorsRaw) {
       (a) => a?.name && (a.name === m[1] || a.name.endsWith(m[1])),
     );
     if (who) p.name = '后院暖阁·东厢';
+  }
+  // 归一之后可能出现重名 → 保留第一个，其余把人物迁过去并删掉
+  const byName = new Map();
+  for (const [id, p] of Object.entries(places || {})) {
+    const nm = String(p?.name || '');
+    if (!nm) continue;
+    if (!byName.has(nm)) {
+      byName.set(nm, id);
+      continue;
+    }
+    const keepId = byName.get(nm);
+    for (const a of Object.values(actors)) {
+      if (a && a.location === id) a.location = keepId;
+    }
+    delete places[id];
   }
   return places;
 }
@@ -344,7 +359,7 @@ export function loadState(dataDir) {
       ...(raw.assets || {}),
       properties: Array.isArray(raw.assets?.properties) ? raw.assets.properties : base.assets.properties,
     },
-    places: normalizePlaces({ ...base.places, ...(raw.places || {}) }, raw.actors),
+    places: normalizePlaces({ ...base.places, ...(raw.places || {}) }, mergedActors),
     actors: mergedActors,
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
