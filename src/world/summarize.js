@@ -178,7 +178,7 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
 
     // 长期记忆：不受 14 条对话窗口限制，一直跟着她
     try {
-      const mems = Array.isArray(world.memories) ? world.memories.slice(-6) : [];
+      const mems = Array.isArray(world.memories) ? world.memories.slice(-12) : [];
       if (mems.length > 0) {
         lines.push(`【旧事】${mems.map((m) => String(m.text || '').slice(0, 40)).join('；')}`);
       }
