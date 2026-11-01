@@ -1068,9 +1068,9 @@ export class PetService {
     // 每攒够 20 条，就把最老的一段压缩成长期记忆（不阻塞回复）
     try {
       const upTo = Number(history.compactedUpTo) || 0;
-      if (history.messages.length - upTo >= 20) {
-        const batch = history.messages.slice(upTo, upTo + 20);
-        history.compactedUpTo = upTo + 20;
+      if (history.messages.length - upTo >= 40) {
+        const batch = history.messages.slice(upTo, upTo + 40);
+        history.compactedUpTo = upTo + 40;
         this.compactMemories(batch).catch(() => {});
       }
     } catch {
@@ -1277,25 +1277,23 @@ export class PetService {
     try {
       if (!this.llmClient.isReady()) return [];
       if (!replyText || replyText.trim().length < 6) return [];
-      const world = buildStateSummary(this.dataDir, { roleName, memberKey });
+      // 【省 token】只给一行名册，不再附整段天机
+      let roster = '';
+      try {
+        const w0 = loadState(this.dataDir);
+        roster = Object.values(w0.actors || {})
+          .filter((a) => a?.name && a.kind !== 'human')
+          .map((a) => `${a.name}(${a.id})`)
+          .slice(0, 12)
+          .join('、');
+      } catch {
+        roster = '';
+      }
       const system = [
-        '你是这个世界账本的记账员。只做一件事：判断这一轮对话有没有真的改变世界。',
-        '可记的变化：关系数值、银钱进出、立下承诺、新人物登场、某人换地方、值得记入史册的事件。',
-        '凡是这一轮发生了值得长久记住的事（第一次、亲密、承诺被兑现、翻脸、重大决定），必须记 [[world:remember text="一句话"]]。',
-        '如果对话里人物换了地方（出门、上车、去了某处、回家、到了某地），必须记 [[world:move who=人物名 to=地点名]]；相公自己换地方也要记（who=husband）。地点可以是账本里还没有的新地方。',
-        '只输出回执行，不要解释、不要写台词。确实没有变化，就只输出 [[world:none]]。',
-        '可用格式：',
-        '[[world:relation who=waner field=trust delta=+3]]',
-        '[[world:asset delta=-12.5 reason="买茶苗"]]',
-        '[[world:promise due=132 text="三日内把酒楼开起来"]]',
-        '[[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]',
-        '[[world:move who=qiantonghai to=dock]]',
-        '[[world:arrive who=yunnia in=2]]',
-        '[[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]',
-        '[[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]',
-        '[[world:event text="一句话概括发生了什么"]]',
-        '',
-        world,
+        '你是世界账本记账员。判断这一轮有没有改变世界，只输出回执行，不要解释、不要写台词。',
+        `在场人物：${roster}`,
+        '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=132 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
+        '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
       ].join('\n');
 
       const res = await this.llmClient.complete({
