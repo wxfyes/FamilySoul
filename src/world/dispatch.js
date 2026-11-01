@@ -175,8 +175,16 @@ export function applyWorldTags(dataDir, ops) {
         applied.push(`新人物:${name}`);
       } else if (kind === 'move') {
         const id = resolveActor(world, args.who);
-        const place = resolvePlace(world, args.to);
-        if (!id || !place) continue;
+        if (!id) continue;
+        let place = resolvePlace(world, args.to);
+        if (!place && args.to) {
+          // 天道叙事里出现了账本没有的去处 → 就地建一个，
+          // 避免「故事在酒肆、账本还写着茶坊」的错位
+          world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+          place = `place_${world.flags.placeSeq}`;
+          world.places[place] = { name: String(args.to).slice(0, 20), exits: [], dynamic: true };
+        }
+        if (!place) continue;
         world.actors[id].location = place;
         applied.push(`移动:${world.actors[id].name}→${world.places[place]?.name || place}`);
       } else if (kind === 'arrive') {
