@@ -276,7 +276,7 @@ function advanceHour(world, events, nowMs) {
   }
 
   runSchedules(world);
-  runNPCInitiatives(world, events);
+  runNPCInitiatives(world, events, (opts) => queueProactive(world, { type: 'proactive', ...opts }));
   fireAppointments(world, events);
   fireDue(world, events);
   pruneProactive(world);
