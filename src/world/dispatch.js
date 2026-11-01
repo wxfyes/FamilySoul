@@ -159,8 +159,11 @@ export function applyWorldTags(dataDir, ops) {
         const actor = world.actors[id];
         const minutes = Math.max(0, Math.min(120, Number(args.in) || 2));
         queueProactive(world, {
-          text: args.text ? String(args.text) : `相公，${actor.name}来了，正在帘外候着呢。`,
-          speaker: null,
+          text: args.text ? String(args.text) : null,
+          reason: 'arrival',
+          facts: { who: actor.name },
+          speaker: actor.name,
+          fallback: `相公，${actor.name}来了，正在帘外候着呢。`,
           atMs: Date.now() + minutes * 60 * 1000,
           force: true,
         });

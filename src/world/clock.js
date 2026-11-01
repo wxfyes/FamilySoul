@@ -130,6 +130,7 @@ function runSchedules(world) {
           queueProactive(world, {
             reason: 'arrival',
             facts: { who: actor.name, where: world.places?.[actor.location]?.name || actor.location },
+            speaker: actor.name,
             fallback: `相公，${actor.name}来了，正在帘外候着呢。`,
             type: 'proactive',
           });

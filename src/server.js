@@ -46,6 +46,9 @@ function loadConfig() {
       rate: '+0%',
       pitch: '+0Hz',
     },
+    prompt: {
+      historyTurns: 14,
+    },
     world: {
       enabled: true,
       tickIntervalMs: 2 * 60 * 1000,
@@ -224,6 +227,7 @@ const petService = new PetService({
   ttsService,
   visionService,
   dataDir: DATA_DIR,
+  historyTurns: config.prompt?.historyTurns,
 });
 
 /**
@@ -241,6 +245,7 @@ async function fillProactiveTexts(world) {
       const text = await petService.generateProactive({
         memberKey: item.to || 'husband',
         roleName: config.activeRole,
+        asName: item.speaker || null,
         reason: item.reason || 'proactive',
         facts: item.facts || {},
       });

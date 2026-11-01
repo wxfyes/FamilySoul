@@ -24,13 +24,15 @@ const CLASSICAL_MUSIC_REGISTRY = {
 };
 
 export class PetService {
-  constructor({ rolesManager, llmClient, ttsService, visionService, dataDir } = {}) {
+  constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 14 } = {}) {
     this.rolesManager = rolesManager;
     this.llmClient = llmClient;
     this.ttsService = ttsService;
     this.visionService = visionService;
     this.dataDir = dataDir || path.resolve(process.cwd(), 'data');
     this.chatDir = path.join(this.dataDir, 'chat');
+    // 【省 token】进 prompt 的历史条数上限：世界状态已由天机摘要承载，不需要塞 30 条
+    this.historyTurns = Math.max(4, Math.min(40, Number(historyTurns) || 14));
     fs.mkdirSync(this.chatDir, { recursive: true });
   }
 
@@ -182,9 +184,6 @@ export class PetService {
       lines.push('- 【宿命反派谱与戏剧冲突】：大男主崛起路上必有反派磨刀石！市井恶霸茶商钱通海、贪婪巡检徐老虎、运河水匪翻江蛟、乃至当年害死沈父的权相裴炎党羽！天道大导演要敢于在合适时机让反派跳出来刁难设伏、制造尖锐矛盾与戏剧冲突，推着相公运筹帷幄、雷霆打脸、斩草除根！');
       lines.push('');
       lines.push('【府邸花名册与剧情长期记忆账本（最高记忆铁律，绝对禁止健忘）】');
-      lines.push(`- 当前府内已入门妻妾侍女名单：${haremList}。`);
-      lines.push(`- 相公已向你提及/正在张罗迎娶的女子名字：${mentionedList}。`);
-      lines.push(`- 当前场景与空间状态：${history?.inPrivateWorld ? `【相公与${history.inPrivateWorld}的厢房二人世界】（正妻婉儿已掩门回避退下）` : '【后院正堂·茶坊雅致厢房】'}。`);
       lines.push('- 【永不健忘与强制推进剧情铁律】：凡是相公在上下文里已经告诉过你的女子名字（如芸娘、柳儿等）、身份或纳妾要求，你必须 100% 牢记在心！【绝对严禁】在相公已经说过名字后还反复装傻问“她是谁/叫什么名字”！【绝对严禁】原地打转反复推脱不推进剧情！相公只要提过一次并再次坚持，你必须立刻顺从答应并主动往下推进实质剧情（派小翠下聘迎轿 ➔ 芸娘进府行礼敬茶 ➔ 安排厢房与侍寝大被同眠），让故事像连续剧一样环环相扣往下发展！');
 
       if (!history?.inPrivateWorld && currentEpoch === 'ancient') {
@@ -289,25 +288,42 @@ export class PetService {
     // 世界引擎：把当前世界状态压成一段「天机」摘要放到末尾（相公端专属，女主/孩子端不注入）
     if (memberKey === 'husband' || roleName === '傲娇助手') {
       const summary = buildStateSummary(this.dataDir, { roleName, memberKey });
+
+      // 【省 token】易变的内容统一放最后：前面的人格卡与规则保持逐字不变，
+      // 才能命中 DeepSeek 的上下文缓存（缓存价约为未命中的十分之一）。
+      const haremList =
+        Array.isArray(history?.haremMembers) && history.haremMembers.length > 0
+          ? history.haremMembers.join('、')
+          : '婉儿（正妻）、小翠（贴身丫鬟）';
+      const mentionedList =
+        Array.isArray(history?.mentionedGirls) && history.mentionedGirls.length > 0
+          ? history.mentionedGirls.join('、')
+          : '暂无';
+      lines.push('');
+      lines.push('【府邸现况】');
+      lines.push(`- 已入门妻妾侍女：${haremList}。`);
+      lines.push(`- 相公提及/正在张罗的女子：${mentionedList}。`);
+      lines.push(
+        `- 当前场景：${
+          history?.inPrivateWorld
+            ? `【相公与${history.inPrivateWorld}的厢房二人世界】（正妻婉儿已掩门回避退下）`
+            : '【后院正堂·茶坊雅致厢房】'
+        }。`,
+      );
+
       if (summary) {
         lines.push('');
         lines.push(summary);
         lines.push('- 【天机用法】：以上是幕后实况，只用来决定你的处境判断、说话时机与措辞分寸，严禁逐字复述给相公听。');
         lines.push('- 【发言身份绝对不变】：天机不改变谁在说话！本轮仍由你（人格卡里的角色本人，如沈婉儿）以第一人称直接开口。除非相公明确点名阿吉、小翠等他人，否则绝不许让配角、伙计、丫鬟代答或抢戏。');
         lines.push('');
-        lines.push('【天道回执（强制格式，只写给你自己看，系统自动摘除，相公永远看不到）】');
-        lines.push('- 每一条回复的最末尾，必须且只能有一行回执。缺回执视为格式错误。');
-        lines.push('- 本轮若改变了世界（立下承诺、花银、得罪或结交某人、新人物登场、某人换了地方），按下面格式写，可写多行：');
-        lines.push('  [[world:relation who=waner field=trust delta=+3]]');
-        lines.push('  [[world:asset delta=-12.5 reason="买茶苗"]]');
-        lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]');
-        lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟" secret="被钱通海的人盯着"]]');
-        lines.push('  [[world:move who=qiantonghai to=dock]]');
-        lines.push('  [[world:arrive who=yunnia in=2]]   ← 被派去请的人，几分钟后到场（到点系统会自动替她开口）');
-        lines.push('  [[world:event text="阿吉报说码头来了新茶商"]]');
-        lines.push('- 本轮什么都没变，就只写一行 [[world:none]]（这种情况很常见，写了不算错）。');
-        lines.push('- 关系字段只有 trust / desire / fear / grievance 四个，取值 0~100；who 可写 id 或姓名。');
-        lines.push('- 回执里严禁写台词、严禁复述天机、严禁伪造未发生的事。');
+        lines.push('【天道回执（强制格式，相公看不到，系统自动摘除）】');
+        lines.push('- 每轮回复末尾必须有一行回执；什么可变的事都没发生，就只写 [[world:none]]。');
+        lines.push('- 改变了世界才写，可多行：');
+        lines.push('  [[world:relation who=waner field=trust delta=+3]]  [[world:asset delta=-12.5 reason="买茶苗"]]');
+        lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]  [[world:move who=qiantonghai to=dock]]');
+        lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
+        lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
         lines.push('');
         lines.push('【多角色同场铁律（严禁吊着不收尾）】');
         lines.push('- 一旦你派了小翠、阿吉去请人或传话，【必须在同一轮里让被请的人到场开口】，写出她自己的台词；绝对不许出现"去了就没下文"这种断在半空的情形。');
@@ -484,7 +500,7 @@ export class PetService {
       console.warn('[Ritual] 状态推进失败：', err.message);
     }
     const history = this.readHistory(profileKey);
-    const recent = (history.messages || []).slice(-30);
+    const recent = (history.messages || []).slice(-this.historyTurns);
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = '';
@@ -930,13 +946,16 @@ export class PetService {
    * 天道主动开口：根据当前世界状态现写一句话。
    * 引擎只负责「该她说话了」这个事实，措辞由天道裁定（不套模板、不写死台词）。
    */
-  async generateProactive({ memberKey = 'husband', roleName = null, reason = 'proactive', facts = {} } = {}) {
+  async generateProactive({ memberKey = 'husband', roleName = null, asName = null, reason = 'proactive', facts = {} } = {}) {
     try {
       if (!this.llmClient.isReady()) return null;
       const activeRole = roleName || this.rolesManager.getActiveRole();
       const world = buildStateSummary(this.dataDir, { roleName: activeRole, memberKey });
+      const identity = asName
+        ? `你现在是「${asName}」本人，正站在相公面前。没有人跟你说话，是你主动开口。用「${asName}」自己的身份与口吻说话，不要用正妻的口吻。`
+        : `你现在是「${activeRole}」这个角色本人，正在家中。没有人跟你说话，是你主动开口找相公。`;
       const system = [
-        `你现在是「${activeRole}」这个角色本人，正在家中。没有人跟你说话，是你主动开口找相公。`,
+        identity,
         '要求：一到两句话，30~70 字，具体、有信息量、像真人在说话。可以报一件事、提一句提醒、或说一句心里话。',
         '禁止使用【角色名】这种分角格式；禁止括号动作与旁白；只输出你要说的那句话。',
         '',

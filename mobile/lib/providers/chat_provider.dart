@@ -359,6 +359,8 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
                 timestamp: DateTime.now(),
                 modality: e['modality'] as String? ?? 'text',
                 audioUrl: audioUrl,
+                // 主动消息也要显示真实说话人（比如芸娘自己冒出来说话）
+                speaker: e['speaker'] as String?,
               );
 
               // 避免重复追加
