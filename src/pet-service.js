@@ -25,7 +25,7 @@ const CLASSICAL_MUSIC_REGISTRY = {
 };
 
 export class PetService {
-  constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 14 } = {}) {
+  constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 14, promptMode = 'full' } = {}) {
     this.rolesManager = rolesManager;
     this.llmClient = llmClient;
     this.ttsService = ttsService;
@@ -34,6 +34,8 @@ export class PetService {
     this.chatDir = path.join(this.dataDir, 'chat');
     // 【省 token】进 prompt 的历史条数上限：世界状态已由天机摘要承载，不需要塞 30 条
     this.historyTurns = Math.max(4, Math.min(40, Number(historyTurns) || 14));
+    // lean：跳过 9000 字的世界设定规则段（闲聊用不到），省约四成 token；full：全量
+    this.promptMode = promptMode === 'lean' ? 'lean' : 'full';
     fs.mkdirSync(this.chatDir, { recursive: true });
   }
 
@@ -113,7 +115,7 @@ export class PetService {
     const lines = [];
     const timeCtx = this.getTemporalContext();
 
-    if (memberKey === 'husband' || roleName === '傲娇助手') {
+    if (this.promptMode !== 'lean' && (memberKey === 'husband' || roleName === '傲娇助手')) {
       if (history?.inPrivateWorld === '芸娘') {
         lines.push(`你是「侧妾·芸娘」（名门大宅知书达理的二房如夫人）。此刻正房大娘子婉儿已去灶房温羹，并替你们掩上了厢房门，房内仅有你与相公二人独处！`);
         lines.push(`- 称呼相公为「相公」或「夫君」，自称「芸娘」或「妾身」；`);

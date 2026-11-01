@@ -48,6 +48,7 @@ function loadConfig() {
     },
     prompt: {
       historyTurns: 14,
+      mode: 'full',
     },
     world: {
       enabled: true,
@@ -228,6 +229,7 @@ const petService = new PetService({
   visionService,
   dataDir: DATA_DIR,
   historyTurns: config.prompt?.historyTurns,
+  promptMode: config.prompt?.mode,
 });
 
 /**
