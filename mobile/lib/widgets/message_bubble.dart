@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/chat_message.dart';
@@ -33,7 +34,7 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            _buildAvatar(isUser: false, name: speakerName),
+            _buildAvatar(context, isUser: false, name: speakerName),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -138,7 +139,7 @@ class MessageBubble extends StatelessWidget {
           ),
           if (isUser) ...[
             const SizedBox(width: 8),
-            _buildAvatar(isUser: true, name: '我'),
+            _buildAvatar(context, isUser: true, name: '我'),
           ],
         ],
       ),
@@ -172,11 +173,26 @@ class MessageBubble extends StatelessWidget {
     return name.isNotEmpty ? name.characters.first : 'A';
   }
 
-  Widget _buildAvatar({required bool isUser, required String name}) {
+  Widget _buildAvatar(BuildContext context, {required bool isUser, required String name}) {
+    final provider = context.watch<ChatProvider>();
     final base = isUser ? const Color(0xFF3B82F6) : _colorForName(name);
-    return Container(
+    final remoteUrl = provider.avatarUrlFor(name);
+
+    final fallback = Center(
+      child: Text(
+        isUser ? '我' : _initialOf(name),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+
+    final avatar = Container(
       width: 38,
       height: 38,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -194,14 +210,59 @@ class MessageBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: Center(
-        child: Text(
-          isUser ? '我' : _initialOf(name),
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
+      child: remoteUrl == null || remoteUrl.isEmpty
+          ? fallback
+          : Image.network(
+              remoteUrl,
+              fit: BoxFit.cover,
+              width: 38,
+              height: 38,
+              errorBuilder: (_, __, ___) => fallback,
+              loadingBuilder: (c, child, progress) => progress == null ? child : fallback,
+            ),
+    );
+
+    // 长按头像 → 从相册换一张（上传到服务器，全家共享）
+    return GestureDetector(
+      onLongPress: () => _pickAvatar(context, name),
+      child: avatar,
+    );
+  }
+
+  Future<void> _pickAvatar(BuildContext context, String speaker) async {
+    final provider = context.read<ChatProvider>();
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text('给「$speaker」换头像'),
+              subtitle: const Text('从相册选一张，全家共享'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final picked = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                  maxWidth: 512,
+                  maxHeight: 512,
+                  imageQuality: 85,
+                );
+                if (picked == null) return;
+                final ok = await provider.setAvatarFromFile(speaker, picked.path);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? '「$speaker」头像已更新' : '上传失败，检查网络或服务端版本')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('取消'),
+              onTap: () => Navigator.pop(sheetContext),
+            ),
+          ],
         ),
       ),
     );

@@ -226,6 +226,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     await refreshStatus();
     _startPeriodicStatusCheck();
     _startEventPolling();
+    loadAvatars();
     _syncRoutineWithServer();
     _startLocalRoutineTimer();
     _updateKeeperState();
@@ -772,6 +773,46 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       _isSending = false;
       notifyListeners();
     }
+  }
+
+  /// 全家共享头像：角色名 → 图片地址
+  final Map<String, String> _avatarUrls = {};
+  Map<String, String> get avatarUrls => _avatarUrls;
+  String? avatarUrlFor(String name) => _avatarUrls[name];
+
+  Future<void> loadAvatars() async {
+    try {
+      final data = await _apiClient.fetchAvatars();
+      if (data == null || data['ok'] != true) return;
+      final table = data['avatars'];
+      if (table is! Map) return;
+      final base = _config.apiPrefix;
+      final token = Uri.encodeComponent(_config.token.trim());
+      _avatarUrls.clear();
+      table.forEach((key, value) {
+        if (value is Map && value['key'] != null) {
+          final ext = (value['ext'] ?? 'jpg').toString();
+          _avatarUrls[key.toString()] = '$base/avatar/${value['key']}.$ext?token=$token';
+        }
+      });
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// 从相册给某个角色换头像（上传到服务器，全家可见）
+  Future<bool> setAvatarFromFile(String speaker, String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return false;
+      final bytes = await file.readAsBytes();
+      final res = await _apiClient.uploadAvatar(speaker: speaker, imageBase64: base64Encode(bytes));
+      if (res != null && res['ok'] == true) {
+        await loadAvatars();
+        notifyListeners();
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// 发送一条消息

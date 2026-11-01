@@ -30,6 +30,7 @@ const EXCLUDE_PREFIXES = [
   'data/chat',               // 线上真实聊天记录（冲刷记忆）
   'data/world/state.json',   // 世界状态（服务首次启动会自动生成，不需要随包分发）
   'data/world/events.jsonl', // 世界事件流（同上）
+  'data/avatars',            // 用户自传头像（运行时资产，绝不能被包覆盖）
   'data/routine.json',       // 作息守护配置（各家自己调的时间）
   'data/husband-token',      // 令牌锁定文件（敏感，绝不外带）
 ];

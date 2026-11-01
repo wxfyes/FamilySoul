@@ -166,6 +166,38 @@ class SurfCoreApiClient {
     return [];
   }
 
+  /// 拉取全家共享的头像表
+  Future<Map<String, dynamic>?> fetchAvatars() async {
+    try {
+      final res = await _dio.get('/avatars');
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return res.data as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 上传某角色的头像（base64，全家共享）
+  Future<Map<String, dynamic>?> uploadAvatar({
+    required String speaker,
+    required String imageBase64,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/avatar',
+        data: {'speaker': speaker, 'imageBase64': imageBase64},
+        options: Options(
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+      );
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return res.data as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// 长轮询获取事件（AI 主动搭话、心情变化等）
   Future<Map<String, dynamic>?> pollEvents({int? since, int waitMs = 25000}) async {
     try {

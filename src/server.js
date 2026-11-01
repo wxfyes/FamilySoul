@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { RolesManager } from './roles-manager.js';
@@ -612,6 +613,65 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 3.8 头像：列表 / 上传 / 读取（全家共享，换一次所有设备都变）
+  const AVATAR_DIR = path.join(DATA_DIR, 'avatars');
+  const AVATAR_INDEX = path.join(AVATAR_DIR, 'index.json');
+
+  const readAvatarIndex = () => {
+    try {
+      return JSON.parse(fs.readFileSync(AVATAR_INDEX, 'utf8'));
+    } catch {
+      return {};
+    }
+  };
+  const writeAvatarIndex = (idx) => {
+    fs.mkdirSync(AVATAR_DIR, { recursive: true });
+    fs.writeFileSync(AVATAR_INDEX, JSON.stringify(idx, null, 2), 'utf8');
+  };
+  const avatarKey = (name) => crypto.createHash('md5').update(String(name)).digest('hex').slice(0, 16);
+
+  if (req.method === 'GET' && pathname === '/dsh-surfcore/pet-api/avatars') {
+    const idx = readAvatarIndex();
+    return sendJson(res, 200, { ok: true, avatars: idx });
+  }
+
+  const avatarFileMatch = pathname.match(/^\/dsh-surfcore\/pet-api\/avatar\/([a-zA-Z0-9_]+)\.(jpg|png)$/i);
+  if (req.method === 'GET' && avatarFileMatch) {
+    const file = path.join(AVATAR_DIR, `${avatarFileMatch[1]}.${avatarFileMatch[2].toLowerCase()}`);
+    if (!fs.existsSync(file)) return sendJson(res, 404, { ok: false, error: '头像不存在' });
+    const ext = avatarFileMatch[2].toLowerCase();
+    res.writeHead(200, {
+      'Content-Type': ext === 'png' ? 'image/png' : 'image/jpeg',
+      'Cache-Control': 'public, max-age=3600',
+      'Access-Control-Allow-Origin': '*',
+    });
+    return fs.createReadStream(file).pipe(res);
+  }
+
+  if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/avatar') {
+    try {
+      const body = await parseJsonBody(req, 6 * 1024 * 1024);
+      const speaker = String(body.speaker || '').trim();
+      const raw = String(body.imageBase64 || '');
+      if (!speaker || speaker.length > 24) return sendJson(res, 400, { ok: false, error: '角色名不合法' });
+      const base64 = raw.includes(',') ? raw.split(',')[1] : raw;
+      const buf = Buffer.from(base64, 'base64');
+      if (buf.length < 200) return sendJson(res, 400, { ok: false, error: '图片太小或为空' });
+      if (buf.length > 3 * 1024 * 1024) return sendJson(res, 400, { ok: false, error: '图片超过 3MB' });
+      const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e;
+      const ext = isPng ? 'png' : 'jpg';
+      fs.mkdirSync(AVATAR_DIR, { recursive: true });
+      const key = avatarKey(speaker);
+      fs.writeFileSync(path.join(AVATAR_DIR, `${key}.${ext}`), buf);
+      const idx = readAvatarIndex();
+      idx[speaker] = { key, ext, updatedAt: Date.now() };
+      writeAvatarIndex(idx);
+      console.log(`[Avatar] 「${speaker}」头像已更新（${Math.round(buf.length / 1024)}KB）`);
+      return sendJson(res, 200, { ok: true, speaker, key, ext });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
   // 3.7 同场与偶遇：走动 POST /dsh-surfcore/pet-api/scene/move
   if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/scene/move') {
     try {
