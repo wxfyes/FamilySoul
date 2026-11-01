@@ -873,8 +873,26 @@ export class PetService {
       const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
 
+      // 主模型没写回执 → 让记账员补问一次（世界不会因为你聊过而毫无变化）
+      let changed = applied.length > 0;
+      if (!changed) {
+        const extra = await this.extractReceipt({
+          userText: say,
+          replyText: reply,
+          memberKey: selfId,
+          roleName: activeRole,
+        });
+        if (extra.length > 0) {
+          const applied2 = applyWorldTags(this.dataDir, extra);
+          if (applied2.length > 0) {
+            changed = true;
+            console.log(`[World] 记账员补登 ${applied2.length} 条：${applied2.join('、')}`);
+          }
+        }
+      }
+
       // 回执率自检：低于五成就自己报，不用主人去翻 JSON
-      const stat = recordReceipt(this.dataDir, applied.length > 0, completion.usage);
+      const stat = recordReceipt(this.dataDir, changed, completion.usage);
       if (completion.usage) {
         const u = completion.usage;
         console.log(
@@ -984,6 +1002,45 @@ export class PetService {
     } catch (err) {
       console.warn('[Push] 主动生成失败：', err.message);
       return null;
+    }
+  }
+
+  /**
+   * 专职记账员：主对话模型老是忘记写回执，于是每轮单独问一次。
+   * 只输出回执行，不写台词；成本约每次几百 token。
+   */
+  async extractReceipt({ userText = '', replyText = '', memberKey = 'husband', roleName = null } = {}) {
+    try {
+      if (!this.llmClient.isReady()) return [];
+      if (!replyText || replyText.trim().length < 6) return [];
+      const world = buildStateSummary(this.dataDir, { roleName, memberKey });
+      const system = [
+        '你是这个世界账本的记账员。只做一件事：判断这一轮对话有没有真的改变世界。',
+        '可记的变化：关系数值、银钱进出、立下承诺、新人物登场、某人换地方、值得记入史册的事件。',
+        '只输出回执行，不要解释、不要写台词。确实没有变化，就只输出 [[world:none]]。',
+        '可用格式：',
+        '[[world:relation who=waner field=trust delta=+3]]',
+        '[[world:asset delta=-12.5 reason="买茶苗"]]',
+        '[[world:promise due=132 text="三日内把酒楼开起来"]]',
+        '[[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]',
+        '[[world:move who=qiantonghai to=dock]]',
+        '[[world:arrive who=yunnia in=2]]',
+        '[[world:event text="一句话概括发生了什么"]]',
+        '',
+        world,
+      ].join('\n');
+
+      const res = await this.llmClient.complete({
+        system,
+        messages: [{ role: 'user', content: `相公说：${userText}\n她回：${replyText}` }],
+        maxTokens: 150,
+        temperature: 0.2,
+      });
+      const { ops } = parseWorldTags(res.text);
+      return ops.filter((o) => o.kind !== 'none');
+    } catch (err) {
+      console.warn('[World] 记账员失败：', err.message);
+      return [];
     }
   }
 
