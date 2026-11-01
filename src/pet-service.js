@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 import { buildStateSummary } from './world/summarize.js';
+import { loadState } from './world/state.js';
 import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
@@ -888,7 +889,7 @@ export class PetService {
       // 天道回执：先摘除 [[world:...]] 标签，再把世界变更落账（绝不让标签进入正文/语音）
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');
-      reply = this.cleanReply(clean, say, isVideoCall);
+      reply = this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall));
       if (!reply) reply = '……';
       const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
@@ -1024,6 +1025,30 @@ export class PetService {
     } catch (err) {
       console.warn('[Push] 主动生成失败：', err.message);
       return null;
+    }
+  }
+
+  /**
+   * 统一说话人花名：模型写成「【沈婉儿】」「【婉儿】」都归一到「【正妻·婉儿】」，
+   * 免得同一个人一会儿只有名字、一会儿带身份，看着生分。
+   */
+  normalizeSpeakers(text) {
+    try {
+      const world = loadState(this.dataDir);
+      const map = new Map();
+      for (const a of Object.values(world.actors || {})) {
+        if (!a?.name) continue;
+        const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+        const label = a.label ? `${a.label}·${short}` : a.name;
+        map.set(a.name, label);
+        if (short !== a.name) map.set(short, label);
+      }
+      return String(text || '').replace(/【([^】\n]{1,10})】/g, (whole, name) => {
+        const hit = map.get(String(name).trim());
+        return hit ? `【${hit}】` : whole;
+      });
+    } catch {
+      return text;
     }
   }
 

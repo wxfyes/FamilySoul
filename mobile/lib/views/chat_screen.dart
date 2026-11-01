@@ -22,6 +22,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocus = FocusNode();
+  int _lastMessageCount = 0;
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
   final ImagePicker _imagePicker = ImagePicker();
@@ -554,10 +555,10 @@ class _ChatScreenState extends State<ChatScreen> {
     return (pos.maxScrollExtent - pos.pixels) < 120;
   }
 
+  /// 滚到底。是否该滚由调用方在「布局之前」判断，这里不再重复判断。
   void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      if (!force && !_isNearBottom()) return;
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
@@ -606,12 +607,15 @@ class _ChatScreenState extends State<ChatScreen> {
     final characterName = provider.petStatus.characterName;
     final statusText = isOnline ? provider.petStatus.presenceState : '离线中';
 
-    // 监听消息变化自动滚到底部
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (provider.messages.isNotEmpty) {
-        _scrollToBottom();
-      }
-    });
+    // 关键：必须在「新内容布局之前」判断当时是否贴在底部。
+    // 放进 postFrame 再判断就晚了——新消息已经把列表撑长，永远会被判成"不在底部"。
+    final wasAtBottom = _isNearBottom();
+    final messageCount = provider.messages.length;
+    if (messageCount != _lastMessageCount) {
+      final grew = messageCount > _lastMessageCount;
+      _lastMessageCount = messageCount;
+      if (wasAtBottom && grew) _scrollToBottom();
+    }
 
     return Scaffold(
       appBar: AppBar(
