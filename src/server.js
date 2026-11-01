@@ -13,6 +13,7 @@ import { startWorldClock, peek } from './world/clock.js';
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
+import { auditWorld } from './world/audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -612,6 +613,7 @@ const server = http.createServer(async (req, res) => {
                 ? `正常：最近 ${recentReceipts.length} 轮对话里有 ${rate}% 真的改变了世界`
                 : `⚠ 偏低：最近 ${recentReceipts.length} 轮只有 ${rate}% 改变了世界，需要加强回执提示`,
           receiptRate: rate,
+          audit: auditWorld(world),
           cost: usage
             ? {
                 rounds: usage.rounds,
@@ -1109,6 +1111,23 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  DeepSeek 就绪: ${llmClient.isReady() ? 'YES' : 'NO (待配Key)'}`);
   console.log(`  Gemini 视觉: ${visionService.isReady() ? 'YES' : 'NO'}`);
   console.log('========================================================');
+
+  // 账本体检：启动跑一次，之后每 24 小时一次（纯代码，零 token）
+  const runAudit = () => {
+    try {
+      const issues = auditWorld(peek(DATA_DIR));
+      if (issues.length === 0) {
+        console.log('[Audit] 账本体检通过（0 问题）');
+      } else {
+        console.warn(`[Audit] ⚠ 发现 ${issues.length} 个账本问题：`);
+        issues.slice(0, 10).forEach((s) => console.warn(`  - ${s}`));
+      }
+    } catch (err) {
+      console.warn('[Audit] 体检失败：', err.message);
+    }
+  };
+  runAudit();
+  { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
   // 世界引擎：启动天道时钟（离线补算 + 定时心跳）
   try {
