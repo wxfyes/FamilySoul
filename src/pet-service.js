@@ -303,10 +303,15 @@ export class PetService {
         lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]');
         lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟" secret="被钱通海的人盯着"]]');
         lines.push('  [[world:move who=qiantonghai to=dock]]');
+        lines.push('  [[world:arrive who=yunnia in=2]]   ← 被派去请的人，几分钟后到场（到点系统会自动替她开口）');
         lines.push('  [[world:event text="阿吉报说码头来了新茶商"]]');
         lines.push('- 本轮什么都没变，就只写一行 [[world:none]]（这种情况很常见，写了不算错）。');
         lines.push('- 关系字段只有 trust / desire / fear / grievance 四个，取值 0~100；who 可写 id 或姓名。');
         lines.push('- 回执里严禁写台词、严禁复述天机、严禁伪造未发生的事。');
+        lines.push('');
+        lines.push('【多角色同场铁律（严禁吊着不收尾）】');
+        lines.push('- 一旦你派了小翠、阿吉去请人或传话，【必须在同一轮里让被请的人到场开口】，写出她自己的台词；绝对不许出现"去了就没下文"这种断在半空的情形。');
+        lines.push('- 无人可请、或对方不在城里，就立刻交代原因（如"芸娘今日回茶园看父亲去了"），不许留白。');
 
         const dayTag = (summary.match(/第(\d+)日/) || [])[1] || '';
         if (dayTag && this._lastSummaryDay !== dayTag) {

@@ -12,6 +12,7 @@
  *   [[world:event text="阿吉报说码头来了新茶商"]]
  */
 import { loadState, saveState, appendEvents, nextEvent, round2 } from './state.js';
+import { queueProactive } from './clock.js';
 
 const TAG_RE = /\[\[\s*world\s*:\s*([a-zA-Z_]+)([^\]]*?)\]\]/gi;
 // 值可以是 "带引号的文本" 或 裸值（waner / +4 / 132）
@@ -75,6 +76,7 @@ export function recordReceipt(dataDir, hadOps) {
   try {
     const world = loadState(dataDir);
     world.flags.receiptRounds = (Number(world.flags.receiptRounds) || 0) + 1;
+    world.flags.lastUserMessageAt = Date.now();
     if (hadOps) world.flags.receiptHits = (Number(world.flags.receiptHits) || 0) + 1;
     const arr = Array.isArray(world.flags.recentReceipts) ? world.flags.recentReceipts : [];
     arr.push(hadOps ? 1 : 0);
@@ -150,6 +152,19 @@ export function applyWorldTags(dataDir, ops) {
         if (!id || !place) continue;
         world.actors[id].location = place;
         applied.push(`移动:${world.actors[id].name}→${world.places[place]?.name || place}`);
+      } else if (kind === 'arrive') {
+        // 被派去请的人到场：由天道点名，引擎只负责按时送达
+        const id = resolveActor(world, args.who);
+        if (!id) continue;
+        const actor = world.actors[id];
+        const minutes = Math.max(0, Math.min(120, Number(args.in) || 2));
+        queueProactive(world, {
+          text: args.text ? String(args.text) : `相公，${actor.name}来了，正在帘外候着呢。`,
+          speaker: null,
+          atMs: Date.now() + minutes * 60 * 1000,
+          force: true,
+        });
+        applied.push(`到场:${actor.name}（${minutes}分钟后）`);
       } else if (kind === 'event') {
         const text = String(args.text || '').trim();
         if (!text) continue;

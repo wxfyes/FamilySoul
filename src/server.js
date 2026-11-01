@@ -9,7 +9,7 @@ import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { startWorldClock, peek } from './world/clock.js';
-import { readRecentEvents, shichenOf } from './world/state.js';
+import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 
@@ -718,13 +718,44 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true, message: '历史记忆已成功重置' });
   }
 
-  // 9. 事件轮询 GET /dsh-surfcore/pet-api/events
+  // 9. 事件轮询 GET /dsh-surfcore/pet-api/events（长轮询：世界主动找人）
   if (req.method === 'GET' && pathname === '/dsh-surfcore/pet-api/events') {
-    return sendJson(res, 200, {
-      ok: true,
-      events: [],
-      cursor: 0,
-    });
+    const waitMs = Math.min(Math.max(Number(url.searchParams.get('wait')) || 20000, 0), 25000);
+    const deadline = Date.now() + waitMs;
+    try {
+      for (;;) {
+        const world = peek(DATA_DIR);
+        const queue = Array.isArray(world.proactive) ? world.proactive : [];
+        const now = Date.now();
+        const due = queue
+          .filter((item) => (Number(item.at) || 0) <= now)
+          .filter((item) => (item.to || 'husband') === currentMember.memberKey)
+          .slice(0, 3);
+        if (due.length > 0) {
+          world.proactive = queue.filter((item) => !due.includes(item));
+          saveState(DATA_DIR, world);
+          console.log(`[Push] 主动送达 ${due.length} 条 → 成员 [${currentMember.memberKey}]`);
+          return sendJson(res, 200, {
+            ok: true,
+            lastSeq: now,
+            cursor: now,
+            events: due.map((item, i) => ({
+              type: item.type || 'proactive',
+              text: item.text,
+              speaker: item.speaker || null,
+              messageId: `push_${now}_${i}`,
+              modality: 'text',
+            })),
+          });
+        }
+        if (now >= deadline || res.destroyed) {
+          return sendJson(res, 200, { ok: true, events: [], lastSeq: now, cursor: now });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
   }
 
   // 10. 角色列表 GET /dsh-surfcore/pet-api/characters

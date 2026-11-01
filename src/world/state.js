@@ -181,6 +181,8 @@ export function createInitialState(dataDir) {
     ],
 
     promises: [],
+    // 天道主动推送队列：不用主人开口，世界自己找上门
+    proactive: [],
     milestones: completed,
 
     flags: {
@@ -191,6 +193,8 @@ export function createInitialState(dataDir) {
       receiptRounds: 0,
       receiptHits: 0,
       recentReceipts: [],
+      lastProactiveAt: 0,
+      lastUserMessageAt: 0,
     },
   };
 }
@@ -220,6 +224,7 @@ export function loadState(dataDir) {
     actors: { ...base.actors, ...(raw.actors || {}) },
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
+    proactive: Array.isArray(raw.proactive) ? raw.proactive : [],
     milestones: Array.isArray(raw.milestones) ? raw.milestones : base.milestones,
     flags: { ...base.flags, ...(raw.flags || {}) },
   };

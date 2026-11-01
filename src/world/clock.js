@@ -35,6 +35,37 @@ function dailyGossip(day) {
   return DAILY_GOSSIP[Math.abs(day) % DAILY_GOSSIP.length];
 }
 
+const PROACTIVE_COOLDOWN_HOURS = 6; // 主动推送按「世界时辰」间隔，至少隔 6 个世界小时
+
+function worldHourStamp(world) {
+  return (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
+}
+
+/**
+ * 排队一条「世界主动找上门」的消息。
+ * 由天道安排的事（如某人到场）用 force 跳过冷却。
+ */
+export function queueProactive(world, { text, speaker = null, type = 'proactive', to = 'husband', atMs = Date.now(), force = false } = {}) {
+  if (!text) return false;
+  const stamp = worldHourStamp(world);
+  const last = Number(world.flags.lastProactiveStamp) || 0;
+  // 用世界时辰做冷却，否则同一秒内推进多天会把后面的消息全挤掉
+  if (!force && last > 0 && stamp - last < PROACTIVE_COOLDOWN_HOURS) return false;
+  world.flags.lastProactiveStamp = stamp;
+  world.proactive = Array.isArray(world.proactive) ? world.proactive : [];
+  world.proactive.push({
+    type,
+    to,
+    text: String(text).slice(0, 300),
+    speaker,
+    at: atMs,
+    day: world.clock.day,
+    hour: world.clock.hour,
+  });
+  if (world.proactive.length > 20) world.proactive = world.proactive.slice(-20);
+  return true;
+}
+
 function applyEffects(world, effects = []) {
   for (const eff of effects) {
     if (eff.type === 'relation') {
@@ -72,11 +103,25 @@ function onNewDay(world, events) {
 
 /** NPC 按日程移动（只改位置，不产生噪音事件）*/
 function runSchedules(world) {
+  const husbandPlace = world.actors?.husband?.location;
   for (const actor of Object.values(world.actors || {})) {
     if (!Array.isArray(actor.schedule)) continue;
     for (const slot of actor.schedule) {
       if (slot.at === world.clock.hour && slot.place && actor.location !== slot.place) {
         actor.location = slot.place;
+        // 主子（不含正妻本人）走到相公所在之处 → 主动来见
+        if (
+          husbandPlace &&
+          actor.location === husbandPlace &&
+          actor.id !== 'husband' &&
+          actor.id !== 'waner' &&
+          (actor.id === 'yunnia' || actor.id === 'yangzhenhua')
+        ) {
+          queueProactive(world, {
+            text: `相公，${actor.name}来了，正在帘外候着呢。`,
+            type: 'proactive',
+          });
+        }
       }
     }
   }
@@ -97,6 +142,11 @@ function fireDue(world, events) {
         }),
       );
       applyEffects(world, item.effects);
+      // 出事了，得让屋里人知道
+      queueProactive(world, {
+        text: `相公，外头出了事——${item.desc}。妾身已让阿吉去打听。`,
+        type: 'proactive',
+      });
     } else {
       stillPending.push(item);
     }
@@ -104,7 +154,7 @@ function fireDue(world, events) {
   world.pending = stillPending;
 }
 
-function advanceHour(world, events) {
+function advanceHour(world, events, nowMs) {
   world.clock.hour += 1;
   if (world.clock.hour >= 24) {
     world.clock.hour = 0;
@@ -122,6 +172,21 @@ function advanceHour(world, events) {
         isPublic: true,
       }),
     );
+    queueProactive(world, {
+      text: `相公，阿吉方才从外头回来，说：${dailyGossip(world.clock.day)}。`,
+      type: 'proactive',
+    });
+  }
+
+  // 掌灯时分仍不见人 → 她先开口问一句（不用主人先说话）
+  if (world.clock.hour === 20) {
+    const lastUser = Number(world.flags.lastUserMessageAt) || 0;
+    if (lastUser > 0 && nowMs - lastUser > 6 * 60 * 60 * 1000) {
+      queueProactive(world, {
+        text: '相公这时候还没回来，妾身把账目又核了一遍，厨房里温着汤。',
+        type: 'proactive',
+      });
+    }
   }
 
   runSchedules(world);
@@ -143,7 +208,7 @@ export function tick(dataDir, { now = Date.now(), msPerWorldHour = DEFAULT_MS_PE
   const steps = Math.min(Math.max(0, rawSteps), MAX_STEPS_PER_TICK);
 
   const events = [];
-  for (let i = 0; i < steps; i += 1) advanceHour(world, events);
+  for (let i = 0; i < steps; i += 1) advanceHour(world, events, now);
 
   if (steps > 0) {
     world.lastRealAt += steps * msPerWorldHour; // 只吃掉已结算的时间，剩余欠账留到下次
