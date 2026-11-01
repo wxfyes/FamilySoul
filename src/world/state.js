@@ -273,6 +273,14 @@ export function createInitialState(dataDir) {
     ],
 
     promises: [],
+    // 势力与声望：复仇、翻案、朝堂线都靠它记账
+    factions: {
+      yamen: { name: '临江府衙', relation: 0, power: 45 },
+      court: { name: '朝廷权贵', relation: -10, power: 90 },
+      canal: { name: '运河漕帮', relation: 0, power: 35 },
+    },
+    // 线索：翻案复仇要一条条攒
+    clues: [],
     // 长期记忆：值得她记一辈子的事（不受对话历史上限影响）
     memories: [],
     // 约定：约好某日某时要发生的事（如「后天晌午刘文霞来找相公」）
@@ -341,6 +349,8 @@ export function loadState(dataDir) {
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
     memories: Array.isArray(raw.memories) ? raw.memories : [],
+    factions: { ...base.factions, ...(raw.factions || {}) },
+    clues: Array.isArray(raw.clues) ? raw.clues : [],
     appointments: Array.isArray(raw.appointments) ? raw.appointments : [],
     proactive: Array.isArray(raw.proactive) ? raw.proactive : [],
     milestones: Array.isArray(raw.milestones) ? raw.milestones : base.milestones,

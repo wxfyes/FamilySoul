@@ -1323,6 +1323,7 @@ export class PetService {
         '你是世界账本记账员。判断这一轮有没有改变世界，只输出回执行，不要解释、不要写台词。',
         `在场人物：${roster}`,
         '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=132 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
+        '剧情线：[[world:clue text="沈家旧案的一页卷宗"]] [[world:faction id=yamen delta=+5]]',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
       ].join('\n');
 

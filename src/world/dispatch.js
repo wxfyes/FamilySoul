@@ -231,6 +231,30 @@ export function applyWorldTags(dataDir, ops) {
           madeAt: { day: world.clock.day, hour: world.clock.hour },
         });
         applied.push(`约定:${actor?.name || args.who} 第${day}日${hour}时`);
+      } else if (kind === 'faction') {
+        // 势力关系：跟官府、漕帮、朝堂的态度变化
+        const wantId = String(args.id || '').trim();
+        const wantName = String(args.name || '').trim();
+        const key = Object.keys(world.factions || {}).find((k) => {
+          if (wantId && k === wantId) return true;
+          if (!wantName) return false;
+          const n = world.factions[k]?.name || '';
+          return n.includes(wantName) || wantName.includes(n);
+        });
+        const f = key ? world.factions[key] : null;
+        const delta = Number(args.delta);
+        if (!f || !Number.isFinite(delta)) continue;
+        f.relation = clampNum((Number(f.relation) || 0) + delta, -100, 100);
+        applied.push(`势力:${f.name} 关系${f.relation}`);
+      } else if (kind === 'clue') {
+        // 线索：翻案复仇一条条攒
+        const text = String(args.text || '').trim();
+        if (!text) continue;
+        world.clues = Array.isArray(world.clues) ? world.clues : [];
+        if (world.clues.some((c) => c && String(c.text || '').slice(0, 10) === text.slice(0, 10))) continue;
+        world.clues.push({ text: text.slice(0, 80), day: world.clock.day, source: String(args.source || '').slice(0, 20) });
+        if (world.clues.length > 60) world.clues = world.clues.slice(-60);
+        applied.push(`线索:${text.slice(0, 14)}`);
       } else if (kind === 'remember') {
         // 长期记忆：一句话，永久保存，不受 14 条对话窗口限制
         const text = String(args.text || '').trim();

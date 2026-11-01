@@ -182,6 +182,20 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       /* 忽略 */
     }
 
+    // 势力与线索：复仇/翻案线的进度账本
+    try {
+      const fs2 = Object.values(world.factions || {});
+      if (fs2.length > 0) {
+        lines.push(`【势力】${fs2.map((f) => `${f.name} ${Number(f.relation) >= 0 ? '+' : ''}${Math.round(Number(f.relation) || 0)}`).join(' · ')}`);
+      }
+      const cls = (world.clues || []).slice(-4);
+      if (cls.length > 0) {
+        lines.push(`【线索】${cls.map((c) => String(c.text || '').slice(0, 30)).join('；')}`);
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     // 长期记忆：不受 14 条对话窗口限制，一直跟着她
     try {
       const mems = Array.isArray(world.memories) ? world.memories.slice(-12) : [];
