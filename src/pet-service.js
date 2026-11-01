@@ -26,7 +26,7 @@ const CLASSICAL_MUSIC_REGISTRY = {
 };
 
 export class PetService {
-  constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 14, promptMode = 'full' } = {}) {
+  constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 8, promptMode = 'full' } = {}) {
     this.rolesManager = rolesManager;
     this.llmClient = llmClient;
     this.ttsService = ttsService;
@@ -34,7 +34,8 @@ export class PetService {
     this.dataDir = dataDir || path.resolve(process.cwd(), 'data');
     this.chatDir = path.join(this.dataDir, 'chat');
     // 【省 token】进 prompt 的历史条数上限：世界状态已由天机摘要承载，不需要塞 30 条
-    this.historyTurns = Math.max(4, Math.min(40, Number(historyTurns) || 14));
+    // 历史窗口越小，未命中缓存的全价 token 越少（窗口每轮滑动，永远无法命中缓存）
+    this.historyTurns = Math.max(4, Math.min(40, Number(historyTurns) || 8));
     // lean：跳过 9000 字的世界设定规则段（闲聊用不到），省约四成 token；full：全量
     this.promptMode = promptMode === 'lean' ? 'lean' : 'full';
     fs.mkdirSync(this.chatDir, { recursive: true });

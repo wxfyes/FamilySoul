@@ -47,7 +47,7 @@ function loadConfig() {
       pitch: '+0Hz',
     },
     prompt: {
-      historyTurns: 14,
+      historyTurns: 8,
       mode: 'full',
     },
     world: {
