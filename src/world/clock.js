@@ -118,6 +118,8 @@ function runSchedules(world) {
     if (!Array.isArray(actor.schedule)) continue;
     for (const slot of actor.schedule) {
       if (slot.at === world.clock.hour && slot.place && actor.location !== slot.place) {
+        // 正跟相公在一起的人，不被日程拽走（否则刚一起出门，过一会儿又被"回家"拉回原点）
+        if (husbandPlace && actor.location === husbandPlace && actor.id !== 'husband') continue;
         actor.location = slot.place;
         // 主子（不含正妻本人）走到相公所在之处 → 主动来见
         if (
@@ -249,14 +251,28 @@ function advanceHour(world, events, nowMs) {
     });
   }
 
+  // 未时（14 点）：手里没事、也没有约在身 → 世界主动递一件要你决断的事，免得无事可做
+  if (world.clock.hour === 14) {
+    const noPending = (world.pending || []).length === 0;
+    const noAppointment = (world.appointments || []).length === 0;
+    if (noPending && noAppointment) {
+      queueProactive(world, {
+        reason: 'hook',
+        facts: { day: world.clock.day },
+        fallback: '相公，周掌柜那边派人来问，酒楼开张的日子到底定在哪天，人家等着回话呢。',
+        type: 'proactive',
+      });
+    }
+  }
+
   // 掌灯时分仍不见人 → 她先开口问一句（不用主人先说话）
   if (world.clock.hour === 20) {
     const lastUser = Number(world.flags.lastUserMessageAt) || 0;
     if (lastUser > 0 && nowMs - lastUser > 6 * 60 * 60 * 1000) {
       queueProactive(world, {
-        reason: 'idle',
+        reason: 'hook',
         facts: { hoursAway: Math.round((nowMs - lastUser) / 3600000) },
-        fallback: '相公这时候还没回来，妾身把账目又核了一遍，厨房里温着汤。',
+        fallback: '相公，周掌柜那边派人来问，酒楼开张的日子到底定在哪天，人家等着回话呢。',
         type: 'proactive',
       });
     }

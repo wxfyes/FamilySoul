@@ -998,11 +998,16 @@ export class PetService {
       if (!this.llmClient.isReady()) return null;
       const activeRole = roleName || this.rolesManager.getActiveRole();
       const world = buildStateSummary(this.dataDir, { roleName: activeRole, memberKey });
+      const hookLine =
+        reason === 'hook'
+          ? '这一条是【钩子】：必须抛出一件**需要相公当场决断**的事——有人在等他回话、有买卖要拍板、有人找上门、账上出了岔子。要具体到人、地、事，别只说"要不要去看看"。'
+          : '';
       const identity = asName
         ? `你现在是「${asName}」本人，正站在相公面前。没有人跟你说话，是你主动开口。用「${asName}」自己的身份与口吻说话，不要用正妻的口吻。`
         : `你现在是「${activeRole}」这个角色本人，正在家中。没有人跟你说话，是你主动开口找相公。`;
       const system = [
         identity,
+        hookLine,
         '要求：一到两句话，30~70 字，具体、有信息量、像真人在说话。可以报一件事、提一句提醒、或说一句心里话。',
         '禁止使用【角色名】这种分角格式；禁止括号动作与旁白；只输出你要说的那句话。',
         '',
@@ -1064,7 +1069,7 @@ export class PetService {
       const system = [
         '你是这个世界账本的记账员。只做一件事：判断这一轮对话有没有真的改变世界。',
         '可记的变化：关系数值、银钱进出、立下承诺、新人物登场、某人换地方、值得记入史册的事件。',
-        '如果对话里人物换了地方（出门、上车、去了某处、回家），必须记 [[world:move who=人物名 to=地点名]]；地点可以是账本里还没有的新地方。',
+        '如果对话里人物换了地方（出门、上车、去了某处、回家、到了某地），必须记 [[world:move who=人物名 to=地点名]]；相公自己换地方也要记（who=husband）。地点可以是账本里还没有的新地方。',
         '只输出回执行，不要解释、不要写台词。确实没有变化，就只输出 [[world:none]]。',
         '可用格式：',
         '[[world:relation who=waner field=trust delta=+3]]',
