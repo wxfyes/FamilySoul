@@ -510,6 +510,30 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 9.7 直接写入长期记忆 POST /api/admin/remember（一句话，永久保存）
+    if (req.method === 'POST' && pathname === '/api/admin/remember') {
+      try {
+        const body = await parseJsonBody(req, 1024 * 1024);
+        const items = Array.isArray(body.items) ? body.items : [{ text: body.text }];
+        const world = peek(DATA_DIR);
+        world.memories = Array.isArray(world.memories) ? world.memories : [];
+        let added = 0;
+        for (const it of items) {
+          const text = String(it?.text || '').trim();
+          if (!text) continue;
+          if (world.memories.some((m) => m && m.text && m.text.slice(0, 12) === text.slice(0, 12))) continue;
+          world.memories.push({ text: text.slice(0, 100), day: Number(it.day) || world.clock.day, at: Date.now() });
+          added += 1;
+        }
+        if (world.memories.length > 120) world.memories = world.memories.slice(-120);
+        saveState(DATA_DIR, world);
+        console.log(`[Memory] 已写入 ${added} 条长期记忆，共 ${world.memories.length} 条`);
+        return sendJson(res, 200, { ok: true, added, total: world.memories.length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.8 历史恢复 POST /api/admin/history/restore（把备份的对话写回去）
     if (req.method === 'POST' && pathname === '/api/admin/history/restore') {
       try {
