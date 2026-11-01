@@ -43,21 +43,30 @@ function worldHourStamp(world) {
 }
 
 /**
- * 排队一条「世界主动找上门」的消息。
- * 由天道安排的事（如某人到场）用 force 跳过冷却。
+ * 排队一条「世界主动找上门」的请求。
+ *
+ * 注意：这里**不写台词**——只登记「该她开口了」这个事实（reason + 事实材料），
+ * 真正的措辞由天道（大模型）在发送前现写，见 pet-service.generateProactive()。
+ * fallback 仅在大模型不可用时兜底，绝不作日常文案。
  */
-export function queueProactive(world, { text, speaker = null, type = 'proactive', to = 'husband', atMs = Date.now(), force = false } = {}) {
-  if (!text) return false;
+export function queueProactive(
+  world,
+  { text = null, reason = 'proactive', facts = {}, fallback = null, speaker = null, type = 'proactive', to = 'husband', atMs = Date.now(), force = false } = {},
+) {
+  if (!text && !fallback && !reason) return false;
   const stamp = worldHourStamp(world);
   const last = Number(world.flags.lastProactiveStamp) || 0;
-  // 用世界时辰做冷却，否则同一秒内推进多天会把后面的消息全挤掉
   if (!force && last > 0 && stamp - last < PROACTIVE_COOLDOWN_HOURS) return false;
   world.flags.lastProactiveStamp = stamp;
   world.proactive = Array.isArray(world.proactive) ? world.proactive : [];
   world.proactive.push({
+    id: `p_${stamp}_${world.proactive.length}_${Math.floor(Math.random() * 1000)}`,
     type,
     to,
-    text: String(text).slice(0, 300),
+    reason,
+    facts,
+    text,
+    fallback,
     speaker,
     at: atMs,
     day: world.clock.day,
@@ -119,7 +128,9 @@ function runSchedules(world) {
           (actor.id === 'yunnia' || actor.id === 'yangzhenhua')
         ) {
           queueProactive(world, {
-            text: `相公，${actor.name}来了，正在帘外候着呢。`,
+            reason: 'arrival',
+            facts: { who: actor.name, where: world.places?.[actor.location]?.name || actor.location },
+            fallback: `相公，${actor.name}来了，正在帘外候着呢。`,
             type: 'proactive',
           });
         }
@@ -145,7 +156,9 @@ function fireDue(world, events) {
       applyEffects(world, item.effects);
       // 出事了，得让屋里人知道
       queueProactive(world, {
-        text: `相公，外头出了事——${item.desc}。妾身已让阿吉去打听。`,
+        reason: 'event',
+        facts: { desc: item.desc, severity: item.severity || 1 },
+        fallback: `相公，外头出了事——${item.desc}。`,
         type: 'proactive',
       });
     } else {
@@ -174,7 +187,9 @@ function advanceHour(world, events, nowMs) {
       }),
     );
     queueProactive(world, {
-      text: `相公，阿吉方才从外头回来，说：${dailyGossip(world.clock.day)}。`,
+      reason: 'gossip',
+      facts: { gossip: dailyGossip(world.clock.day) },
+      fallback: `相公，阿吉方才从外头回来，说：${dailyGossip(world.clock.day)}。`,
       type: 'proactive',
     });
   }
@@ -184,7 +199,9 @@ function advanceHour(world, events, nowMs) {
     const lastUser = Number(world.flags.lastUserMessageAt) || 0;
     if (lastUser > 0 && nowMs - lastUser > 6 * 60 * 60 * 1000) {
       queueProactive(world, {
-        text: '相公这时候还没回来，妾身把账目又核了一遍，厨房里温着汤。',
+        reason: 'idle',
+        facts: { hoursAway: Math.round((nowMs - lastUser) / 3600000) },
+        fallback: '相公这时候还没回来，妾身把账目又核了一遍，厨房里温着汤。',
         type: 'proactive',
       });
     }
@@ -238,13 +255,14 @@ export function startWorldClock(dataDir, opts = {}) {
     intervalMs = DEFAULT_TICK_INTERVAL_MS,
     msPerWorldHour = DEFAULT_MS_PER_WORLD_HOUR,
     enabled = true,
+    onAfterTick = null,
   } = opts;
   if (!enabled) {
     console.log('[World] 世界时钟已禁用（config.world.enabled = false）');
     return () => {};
   }
 
-  const run = () => {
+  const run = async () => {
     try {
       const { world, events, steps } = tick(dataDir, { msPerWorldHour });
       if (steps > 0) {
@@ -252,6 +270,8 @@ export function startWorldClock(dataDir, opts = {}) {
           `[World] 补算 ${steps} 世界小时 → 第${world.clock.day}日 ${shichenOf(world.clock.hour)}，产生 ${events.length} 条事件`,
         );
       }
+      // 排队了「该她开口」的请求 → 交给天道现写台词
+      if (typeof onAfterTick === 'function') await onAfterTick(world);
     } catch (err) {
       console.warn('[World] tick 失败：', err.message);
     }

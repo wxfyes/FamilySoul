@@ -926,6 +926,42 @@ export class PetService {
     };
   }
 
+  /**
+   * 天道主动开口：根据当前世界状态现写一句话。
+   * 引擎只负责「该她说话了」这个事实，措辞由天道裁定（不套模板、不写死台词）。
+   */
+  async generateProactive({ memberKey = 'husband', roleName = null, reason = 'proactive', facts = {} } = {}) {
+    try {
+      if (!this.llmClient.isReady()) return null;
+      const activeRole = roleName || this.rolesManager.getActiveRole();
+      const world = buildStateSummary(this.dataDir, { roleName: activeRole, memberKey });
+      const system = [
+        `你现在是「${activeRole}」这个角色本人，正在家中。没有人跟你说话，是你主动开口找相公。`,
+        '要求：一到两句话，30~70 字，具体、有信息量、像真人在说话。可以报一件事、提一句提醒、或说一句心里话。',
+        '禁止使用【角色名】这种分角格式；禁止括号动作与旁白；只输出你要说的那句话。',
+        '',
+        world,
+      ].join('\n');
+
+      const res = await this.llmClient.complete({
+        system,
+        messages: [
+          {
+            role: 'user',
+            content: `主动开口。触发原因：${reason}；已知事实：${JSON.stringify(facts)}`,
+          },
+        ],
+        maxTokens: 220,
+        temperature: 0.95,
+      });
+      const text = this.cleanReply(res.text, '', false);
+      return text || null;
+    } catch (err) {
+      console.warn('[Push] 主动生成失败：', err.message);
+      return null;
+    }
+  }
+
   async videoChat({ text = '', imageBase64 = null, modality = 'voice', profileKey = 'husband', roleName = null, actorId = null } = {}) {
     const say = String(text || '').trim();
     const hasClientVision = say.includes('【系统视觉已看清') || say.includes('【手机原生离线视觉');

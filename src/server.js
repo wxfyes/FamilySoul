@@ -226,6 +226,36 @@ const petService = new PetService({
   dataDir: DATA_DIR,
 });
 
+/**
+ * 引擎只排队「该她说话了」这个事实，台词由天道（大模型）现写；
+ * 只有大模型不可用时才退回兜底文案。
+ */
+async function fillProactiveTexts(world) {
+  try {
+    const queue = Array.isArray(world?.proactive) ? world.proactive : [];
+    const pending = queue.filter((p) => !p.text);
+    if (pending.length === 0) return;
+
+    let filled = 0;
+    for (const item of pending.slice(0, 2)) {
+      const text = await petService.generateProactive({
+        memberKey: item.to || 'husband',
+        roleName: config.activeRole,
+        reason: item.reason || 'proactive',
+        facts: item.facts || {},
+      });
+      item.text = String(text || item.fallback || '').slice(0, 300);
+      if (item.text) filled += 1;
+    }
+    if (filled > 0) {
+      saveState(DATA_DIR, world);
+      console.log(`[Push] 天道已现写 ${filled} 条主动消息`);
+    }
+  } catch (err) {
+    console.warn('[Push] 主动消息生成失败：', err.message);
+  }
+}
+
 function parseJsonBody(req, limitBytes = 10 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let raw = '';
@@ -788,6 +818,7 @@ const server = http.createServer(async (req, res) => {
         const queue = Array.isArray(world.proactive) ? world.proactive : [];
         const now = Date.now();
         const due = queue
+          .filter((item) => item.text && String(item.text).trim().length > 0)
           .filter((item) => (Number(item.at) || 0) <= now)
           .filter((item) => (item.to || 'husband') === currentMember.memberKey)
           .slice(0, 3);
@@ -971,6 +1002,7 @@ server.listen(PORT, '0.0.0.0', () => {
       enabled: config.world?.enabled !== false,
       intervalMs: Number(config.world?.tickIntervalMs) || 2 * 60 * 1000,
       msPerWorldHour: Number(config.world?.msPerWorldHour) || 2.5 * 60 * 1000,
+      onAfterTick: fillProactiveTexts,
     });
   } catch (err) {
     console.warn('[World] 世界时钟启动失败：', err.message);
