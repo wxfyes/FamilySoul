@@ -229,6 +229,16 @@ export function applyWorldTags(dataDir, ops) {
           madeAt: { day: world.clock.day, hour: world.clock.hour },
         });
         applied.push(`约定:${actor?.name || args.who} 第${day}日${hour}时`);
+      } else if (kind === 'remember') {
+        // 长期记忆：一句话，永久保存，不受 14 条对话窗口限制
+        const text = String(args.text || '').trim();
+        if (!text) continue;
+        world.memories = Array.isArray(world.memories) ? world.memories : [];
+        const dup = world.memories.some((m) => m && m.text && m.text.slice(0, 12) === text.slice(0, 12));
+        if (dup) continue;
+        world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
+        if (world.memories.length > 120) world.memories = world.memories.slice(-120);
+        applied.push(`记忆:${text.slice(0, 14)}`);
       } else if (kind === 'event') {
         const text = String(args.text || '').trim();
         if (!text) continue;

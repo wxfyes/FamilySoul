@@ -344,7 +344,9 @@ export class PetService {
         lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]  [[world:move who=qiantonghai to=dock]]');
         lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
         lines.push('  [[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]');
+        lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
         lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
+        lines.push('- 【凡发生了值得记一辈子的事（第一次、亲密、翻脸、重大决定），必须记 remember】，它会永久留存。');
         lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
         lines.push('');
         lines.push('【多角色同场铁律（严禁吊着不收尾）】');
@@ -1232,6 +1234,7 @@ export class PetService {
       const system = [
         '你是这个世界账本的记账员。只做一件事：判断这一轮对话有没有真的改变世界。',
         '可记的变化：关系数值、银钱进出、立下承诺、新人物登场、某人换地方、值得记入史册的事件。',
+        '凡是这一轮发生了值得长久记住的事（第一次、亲密、承诺被兑现、翻脸、重大决定），必须记 [[world:remember text="一句话"]]。',
         '如果对话里人物换了地方（出门、上车、去了某处、回家、到了某地），必须记 [[world:move who=人物名 to=地点名]]；相公自己换地方也要记（who=husband）。地点可以是账本里还没有的新地方。',
         '只输出回执行，不要解释、不要写台词。确实没有变化，就只输出 [[world:none]]。',
         '可用格式：',
@@ -1242,6 +1245,7 @@ export class PetService {
         '[[world:move who=qiantonghai to=dock]]',
         '[[world:arrive who=yunnia in=2]]',
         '[[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]',
+        '[[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]',
         '[[world:event text="一句话概括发生了什么"]]',
         '',
         world,

@@ -273,6 +273,8 @@ export function createInitialState(dataDir) {
     ],
 
     promises: [],
+    // 长期记忆：值得她记一辈子的事（不受对话历史上限影响）
+    memories: [],
     // 约定：约好某日某时要发生的事（如「后天晌午刘文霞来找相公」）
     appointments: [],
     // 天道主动推送队列：不用主人开口，世界自己找上门
@@ -323,6 +325,7 @@ export function loadState(dataDir) {
     actors: mergedActors,
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
+    memories: Array.isArray(raw.memories) ? raw.memories : [],
     appointments: Array.isArray(raw.appointments) ? raw.appointments : [],
     proactive: Array.isArray(raw.proactive) ? raw.proactive : [],
     milestones: Array.isArray(raw.milestones) ? raw.milestones : base.milestones,

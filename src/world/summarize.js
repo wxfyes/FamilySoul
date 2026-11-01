@@ -176,6 +176,16 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       /* 忽略 */
     }
 
+    // 长期记忆：不受 14 条对话窗口限制，一直跟着她
+    try {
+      const mems = Array.isArray(world.memories) ? world.memories.slice(-6) : [];
+      if (mems.length > 0) {
+        lines.push(`【旧事】${mems.map((m) => String(m.text || '').slice(0, 40)).join('；')}`);
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     const pending = (world.pending || []).slice(0, 3);
     if (pending.length > 0) {
       const items = pending.map((p) => `第${p.due}日 ${String(p.desc || '').slice(0, 40)}`);
