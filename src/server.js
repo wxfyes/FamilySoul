@@ -388,7 +388,7 @@ const STARTED_AT = Date.now();
   }
 
   // ── 个人世界看板（每个账号只看自己的）────────────────────────
-  if (req.method === 'GET' && pathname === '/api/me') {
+  if (req.method === 'GET' && (pathname === '/api/me' || pathname === '/dsh-surfcore/pet-api/api/me' || pathname === '/dsh-surfcore/pet-api/me')) {
     try {
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '无效令牌' });
