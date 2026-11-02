@@ -2104,23 +2104,27 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
-  // 天下不止一座城：走到哪座城，天道就把那条街补出来（每城一次）
+  // 天下不止一座城：走到哪座城，天道就把那条街补出来（分批长到 12 家）
   async function generateCityShops() {
     try {
       const w = peek(DATA_DIR);
       const city = String(w.flags?.pendingCityShop || '');
       if (!city) return;
-      const regions = Object.keys(w.cities || {});
+      const existing = Object.values(w.places || {})
+        .filter((p) => p && String(p.name || '').includes(city))
+        .map((p) => String(p.name).replace(`${city}·`, ''));
+      const have = existing.join('、') || '（还没有）';
       const prompt = [
         `你是天道，正在铺设${city}的街市。`,
-        '给这座城写 4 家铺子，各配一个当家的。只输出 JSON 数组：',
-        '[{"shop":"铺名","kind":"行当","who":"掌柜名","role":"掌柜身份"}]',
-        '铺子要符合这座城的脾性（有的临水多船行，有的近山多山货），不要四家都是茶馆。',
+        `已有铺子：${have}。`,
+        '再补 4 家这条街还没有的铺子，要覆盖柴米油盐、瓜果梨枣、糕点甜食、酒肉鱼虾、布帛针线、香烛纸马、书坊笔墨、木作砖瓦这类营生。',
+        '只输出 JSON 数组：[{"shop":"铺名","kind":"行当","who":"掌柜名","role":"掌柜身份"}]',
+        '不要和已有铺子重复，不要四家都是同一种生意。',
       ].join('\n');
       const res = await petService.llmClient.complete({
         system: '只输出 JSON 数组，不要解释。',
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 260,
+        maxTokens: 280,
         temperature: 0.95,
       });
       const raw = String(res?.text || '');
@@ -2131,7 +2135,8 @@ server.listen(PORT, '0.0.0.0', () => {
       w2.flags = w2.flags || {};
       w2.flags.pendingCityShop = '';
       w2.cityShops = w2.cityShops || {};
-      w2.cityShops[city] = true;
+      const rec = w2.cityShops[city];
+      let count = typeof rec === 'number' ? rec : (rec && rec.count) || 0;
       w2.places = w2.places || {};
       let made = 0;
       for (const item of Array.isArray(list) ? list.slice(0, 4) : []) {
@@ -2140,10 +2145,12 @@ server.listen(PORT, '0.0.0.0', () => {
         const kind = String(item?.kind || '铺子').slice(0, 8);
         const role = String(item?.role || kind).slice(0, 12);
         if (!shop || !who) continue;
+        const fullName = `${city}·${shop}`.slice(0, 20);
+        if (Object.values(w2.places).some((p) => p && p.name === fullName)) continue;
         if (Object.values(w2.actors).some((a) => a?.name === who)) continue;
         w2.flags.placeSeq = (Number(w2.flags.placeSeq) || 0) + 1;
         const pid = `place_${w2.flags.placeSeq}`;
-        w2.places[pid] = { name: `${city}·${shop}`.slice(0, 20), exits: ['street'], dynamic: true, city };
+        w2.places[pid] = { name: fullName, exits: ['street'], dynamic: true, city, shopKind: kind };
         w2.flags.npcSeq = (Number(w2.flags.npcSeq) || 0) + 1;
         const nid = `npc_${w2.flags.npcSeq}`;
         w2.actors[nid] = {
@@ -2154,8 +2161,10 @@ server.listen(PORT, '0.0.0.0', () => {
         };
         made += 1;
       }
+      count += made;
+      w2.cityShops[city] = { count, done: count >= 12 };
       saveState(DATA_DIR, w2);
-      console.log(`[City] ${city} 补出 ${made} 家铺子`);
+      console.log(`[City] ${city} 补出 ${made} 家铺子（累计 ${count}/12）`);
     } catch (err) {
       console.warn('[City] 补街市失败：', err.message);
     }

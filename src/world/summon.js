@@ -118,9 +118,14 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
         // 到了从没去过的城 → 让天道把这条街补出来
         try {
           const cityName = Object.keys(world.cities || {}).find((c) => String(p.name || '').includes(c) || String(c).includes(String(p.name || '')));
-          if (cityName && !(world.cityShops || {})[cityName]) {
-            world.flags = world.flags || {};
-            world.flags.pendingCityShop = cityName;
+          if (cityName) {
+            world.cityShops = world.cityShops || {};
+            const rec = world.cityShops[cityName];
+            const count = typeof rec === 'number' ? rec : (rec && rec.count) || 0;
+            if (count < 12) {
+              world.flags = world.flags || {};
+              world.flags.pendingCityShop = cityName;
+            }
           }
         } catch { /* 忽略 */ }
         saveState(dataDir, world);
