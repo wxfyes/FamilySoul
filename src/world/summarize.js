@@ -23,7 +23,8 @@ function propsLine(assets) {
 
 // 只列「主子级」在场者。仆役（阿吉/小翠）一律不列：
 // 一旦把仆人写进【在场】，模型遇到"回家/看茶"这类场景就会让仆人抢答，把主母的戏抢走。
-const MASTER_IDS = new Set(['waner', 'yunnia', 'yangzhenhua']);
+// 只把「仆人」排除在【在场】之外（他们抢话），其余在场的人一律给出态度，好人坏人都有阻力
+const SERVANT_IDS = new Set(['xiaocui', 'aji']);
 
 /**
  * 把关系数值翻译成「她此刻的态度」。
@@ -108,7 +109,7 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
     }
 
     const present = Object.values(world.actors || {})
-      .filter((a) => a && a.id !== 'husband' && a.location === here && MASTER_IDS.has(a.id))
+      .filter((a) => a && a.id !== 'husband' && a.kind !== 'human' && a.location === here && !SERVANT_IDS.has(a.id))
       .map(relationLine)
       .filter(Boolean);
     if (present.length > 0) lines.push(`【在场】${present.join('、')}`);
