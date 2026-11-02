@@ -1352,10 +1352,15 @@ export class PetService {
             const myId = this._viewerActorId;
             const hisMem = (wPost.memories || [])
               .filter((m) => {
+                const text = String(m?.text || '');
                 const about = Array.isArray(m?.about) ? m.about : [];
                 if (m?.visible === 'public') return true;
-                if (about.length === 0) return false; // 没写主人的，默认不给外人看
-                return about.includes(myId) || about.includes('husband') || about.includes('紫嫣');
+                if (about.includes(myId) || about.includes('husband') || about.includes('紫嫣') || about.includes('刘文霞')) return true;
+                // 老记忆没有主人：提到她、或提到相公的，都算他们之间的事
+                if (about.length === 0) {
+                  return /(紫嫣|文霞|相公|雅阁|相好)/.test(text);
+                }
+                return false;
               })
               .map((m) => String(m?.text || ''))
               .slice(-12);
@@ -1369,6 +1374,13 @@ export class PetService {
               const who = String(ap?.name || ap?.actorId || '');
               if (!who || who === herName || who === 'liuwenxia' || /王甯/.test(who)) {
                 if (ap?.text || ap?.desc) facts.push(`第${ap.day}日${ap.hour ?? ''}时 ${ap.text || ap.desc}`);
+              }
+            }
+            for (const pr of wPost.promises || []) {
+              const t = String(pr?.text || '');
+              if (!t) continue;
+              if ((herName && t.includes(herName)) || t.includes('紫嫣') || t.includes('文霞')) {
+                facts.push(`他曾许下：${t}`);
               }
             }
             try {
