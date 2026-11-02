@@ -730,6 +730,18 @@ function runStudy(world, events) {
   const day = Number(world.clock?.day) || 1;
   const hasAcademy = Boolean(world.places?.academy);
   if (!hasAcademy) return;
+  // 每天有几个年轻人去书院：不然永远没人读书，科举就是空的
+  const youths = Object.values(world.actors || {}).filter(
+    (a) => a && !a.dead && a.id !== 'husband' && !a.playerControlled && !a.jailed
+      && !/(知府|知县|尚书|宰相|天子|巡抚|统领|老鸨|帮主)/.test(String(a.role || ''))
+      && (Number(a.study) || 0) < 95,
+  );
+  if (youths.length) {
+    const go = youths.slice(0, 3);
+    for (const a of go) {
+      if (a.location !== 'academy') a.location = 'academy';
+    }
+  }
   // 在书院的人，学识每天长一点
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead || a.id === 'husband') continue;
