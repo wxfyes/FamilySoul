@@ -320,6 +320,20 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         const toId = resolveActor(world, args.to || args.who);
         const amount = round2(Number(args.amount) || 0);
         if (!toId || amount <= 0) continue;
+        // 借给自己 → 直接拒绝（记账员偶尔会写 to=husband）
+        if (String(toId) === String(fromId)) {
+          applied.push('借款无效:借方与贷方相同');
+          continue;
+        }
+        // 同一天、同一对、同一数目只记一次，避免重复借贷
+        const dup = (world.promises || []).find(
+          (pr) => pr && pr.loan && !pr.done && pr.loan.from === fromId && pr.loan.to === toId
+            && Math.abs(Number(pr.loan.amount) - amount) < 0.01 && Number(pr.at) === Number(world.clock.day),
+        );
+        if (dup) {
+          applied.push('借款已记过，未重复落账');
+          continue;
+        }
         world.wallets = world.wallets || {};
         const payerIsHusband = fromId === 'husband';
         const payerBalance = payerIsHusband ? (Number(world.assets.silver) || 0) : (Number(world.wallets[fromId]) || 0);
