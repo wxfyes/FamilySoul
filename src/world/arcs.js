@@ -274,6 +274,17 @@ export function npcArcPrompt(world, actorId) {
     `你是天道。人物：${a.name}（${a.role || ''}），第${day}日，此刻在${here}。`,
     `他手头的事：${a.activity?.text || '按部就班'}。`,
     `他对相公：信任${rel.trust ?? 30}、怨怼${rel.grievance ?? 0}。`,
+    (() => {
+      const mine = world.bonds?.[actorId] || {};
+      const close = Object.entries(mine).filter(([, b]) => b && b.score >= 25)
+        .map(([id, b]) => `${world.actors?.[id]?.name}（${b.type}）`).slice(0, 3);
+      const foes = Object.entries(mine).filter(([, b]) => b && b.score <= -10)
+        .map(([id, b]) => `${world.actors?.[id]?.name}（${b.type}）`).slice(0, 2);
+      const parts = [];
+      if (close.length) parts.push(`亲近的人：${close.join('、')}`);
+      if (foes.length) parts.push(`不对付的人：${foes.join('、')}`);
+      return parts.length ? `${parts.join('；')}。他的事可以跟这些人有关。` : '';
+    })(),
     prev,
     '写一句他眼下自己遇到的麻烦或机会（20~40字），只写处境，不写结局。只输出这一句。',
   ].filter(Boolean).join('\n');
