@@ -2291,7 +2291,14 @@ server.listen(PORT, '0.0.0.0', () => {
       w2.flags.caseSeq = (Number(w2.flags.caseSeq) || 0) + 1;
       w2.cases.push({
         id: `case_${w2.flags.caseSeq}`,
-        day: w2.clock.day, hour: w2.clock.hour, city: pend.city,
+        day: w2.clock.day, hour: w2.clock.hour,
+        // 地点跟被告实际所在城走，别张冠李戴
+        city: (() => {
+          const pl = w2.places?.[culprit.location]?.name || '';
+          const parts = String(pl).split('·');
+          const hit = parts.find((p) => /府|州|县/.test(p));
+          return hit || pend.city;
+        })(),
         place: culprit.location || null,
         who: victim.name, whoId: victim.id,
         against: culprit.name, againstId: culprit.id,
@@ -2398,6 +2405,16 @@ server.listen(PORT, '0.0.0.0', () => {
           tone: cc.verdict === 'guilty' ? -1 : 1,
           weight: 4,
         });
+      } catch { /* 忽略 */ }
+
+      // 退堂：没下狱的人各回各家，别一直杵在衙门
+      try {
+        for (const pid of [cc.whoId, cc.againstId]) {
+          const a = w3.actors?.[pid];
+          if (!a || pid === 'husband') continue;
+          if (a.jailed) continue;
+          if (a.location === 'yamen') a.location = a.home || 'street';
+        }
       } catch { /* 忽略 */ }
 
       saveState(DATA_DIR, w3);
