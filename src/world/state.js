@@ -573,6 +573,16 @@ function cityOfficialName(cityName) {
   return surnames[h % surnames.length] + given[Math.floor(h / 7) % given.length];
 }
 
+/** 给某座城建一个府衙地点，返回 placeId */
+function ensureGovPlace(world, cityName) {
+  world.places = world.places || {};
+  const pid = `gov_${cityName}`;
+  if (!world.places[pid]) {
+    world.places[pid] = { name: `${cityName}府衙`, exits: ['street'], owner: 'court', dynamic: false };
+  }
+  return pid;
+}
+
 export function ensureCourt(world) {
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};
@@ -606,6 +616,12 @@ export function ensureCourt(world) {
         schedule: [],
       };
     }
+    const govPlace = ensureGovPlace(world, cityName);
+    const offActor = world.actors[id];
+    if (offActor && (!offActor.location || offActor.location === 'yamen')) {
+      offActor.location = govPlace;
+      offActor.home = govPlace;
+    }
     world.court.offices[post] = { title: `${cityName}知府`, holder: id, vacant: false, city: cityName };
   }
 
@@ -635,6 +651,18 @@ export function ensureCourt(world) {
     const off = world.court.offices[post];
     if (!off) world.court.offices[post] = { title: role, holder: id, vacant: false };
   }
+  // 老存档迁移：已经存在的各府官员，别都挤在临江县衙
+  for (const [post, off] of Object.entries(world.court.offices || {})) {
+    if (!post.startsWith('city:') || !off?.holder) continue;
+    const cityName = post.slice(5);
+    const govPlace = ensureGovPlace(world, cityName);
+    const actor = world.actors?.[off.holder];
+    if (actor && actor.location === 'yamen') {
+      actor.location = govPlace;
+      actor.home = govPlace;
+    }
+  }
+
   return world.court;
 }
 
