@@ -369,6 +369,8 @@ const STARTED_AT = Date.now();
   if (pathname === '/health' || pathname === '/') {
     return sendJson(res, 200, {
       ok: true,
+      // 功能标记：部署后一眼看出装的是哪一版
+      features: ['quotes', 'bound-persona', 'label-wn', 'presence-top', 'hard-presence', 'pregnancy'],
       service: 'familysoul',
       version: '1.0.0',
       name: 'FamilySoul - 家庭数字灵魂伴侣中枢',
