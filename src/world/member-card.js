@@ -36,7 +36,7 @@ function arcLine(world, actorId) {
   const arc = world.arcs?.[actorId];
   if (!arc) return null;
   if (arc.done) return `【你的难关】${arc.title}——已了结：${arc.outcome || ''}`;
-  const step = arcStepText(actorId, arc);
+  const step = arc.lastStep || arcStepText(actorId, arc);
   const left = arc.atEdge
     ? 3 - ((Number(world.clock?.day) || 1) - Math.max(Number(arc.atEdgeDay) || 0, Number(arc.lastActiveDay) || 0))
     : null;

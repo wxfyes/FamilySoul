@@ -156,9 +156,10 @@ export function advanceArcs(world, events, queuePush, nextEvent) {
     arc.pressure = 0;
     arc.stage = Math.min((Number(arc.stage) || 0) + 1, seed.steps.length - 1);
 
-    const stepText = seed.steps[arc.stage];
+    // 不写死下一步：标记由天道现生成（pet-service 在她在场时调模型）
+    arc.pendingStep = true;
     arc.log = Array.isArray(arc.log) ? arc.log : [];
-    arc.log.push({ day, text: stepText });
+    const stepText = arc.lastStep || '（事态在往前走）';
     if (arc.log.length > 20) arc.log = arc.log.slice(-20);
 
     // 世界事件（公开给天道，但不写她的心理）
@@ -184,10 +185,9 @@ export function advanceArcs(world, events, queuePush, nextEvent) {
       force: true,
     });
 
-    if (arc.stage >= seed.steps.length - 1) {
-      if (!arc.atEdge) arc.atEdgeDay = day;
-      arc.atEdge = true;
-    }
+    // 世界没有终局：不设"最后一步"，只累积压力
+    arc.atEdge = (Number(arc.stage) || 0) >= 3; // 仅用于提示"到了要紧关头"
+
   }
 }
 
@@ -208,4 +208,22 @@ export function arcStepText(actorId, arc) {
   if (logs.length) return String(logs[logs.length - 1]?.text || '');
   const stage = Math.min(Number(arc?.stage) || 0, seed.steps.length - 1);
   return seed.steps[stage] || seed.steps[0] || '';
+}
+
+/** 给天道的一句话提示：根据她现在的处境，说出下一步 */
+export function arcStepPrompt(world, actorId) {
+  const arc = world.arcs?.[actorId];
+  const seed = ARC_SEEDS[actorId];
+  if (!arc || !seed) return null;
+  const me = world.actors?.[actorId];
+  const day = world.clock?.day || 1;
+  const rel = me?.relations?.husband || {};
+  const recent = (arc.log || []).slice(-2).map((l) => l.text).filter(Boolean).join('；');
+  return [
+    `你是天道。人物：${me?.name || ''}（${me?.role || ''}）。`,
+    `她的难关：${seed.title}——${seed.hook}。`,
+    `第${day}日，她对相公：信任${rel.trust ?? 50}、怨怼${rel.grievance ?? 0}。`,
+    recent ? `前情：${recent}。` : '',
+    '请写一句"眼下正在逼到她眼前的事"（20~40字，只写处境，不写她怎么反应，不写结局）。只输出这一句。',
+  ].filter(Boolean).join('\n');
 }

@@ -10,6 +10,7 @@ import { ensurePresence } from './world/scene.js';
 import { applySummon, applyNpcDeparture } from './world/summon.js';
 import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
+import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
 import { buildProxyPrompt, wrapProxyLine } from './world/proxy-actor.js';
@@ -1538,6 +1539,39 @@ export class PetService {
       }
     } catch (err) {
       console.warn('[Scene] 同场投递失败：', err.message);
+    }
+
+    // 天道定下一步：她被推进了新的处境，就现生成那句（不写死）
+    try {
+      if (this._viewerActorId) {
+        const wArc = loadState(this.dataDir);
+        const arc = wArc.arcs?.[this._viewerActorId];
+        if (arc && arc.pendingStep) {
+          const prompt = arcStepPrompt(wArc, this._viewerActorId);
+          if (prompt) {
+            const gen = await this.llmClient.complete({
+              system: '你是天道，只输出一句处境描写，不写人物反应，不写结局。',
+              messages: [{ role: 'user', content: prompt }],
+              maxTokens: 120,
+              temperature: 0.9,
+            });
+            const line = String(gen?.text || '').trim().split('\n')[0].slice(0, 60);
+            const w2 = loadState(this.dataDir);
+            if (line && w2.arcs?.[this._viewerActorId]) {
+              const a2 = w2.arcs[this._viewerActorId];
+              a2.lastStep = line;
+              a2.pendingStep = false;
+              a2.log = Array.isArray(a2.log) ? a2.log : [];
+              a2.log.push({ day: w2.clock.day, text: line });
+              if (a2.log.length > 20) a2.log = a2.log.slice(-20);
+              saveState(this.dataDir, w2);
+              console.log('[Arc] 天道生成下一步：' + line);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Arc] 生成下一步失败：', err.message);
     }
 
     // 她一开口就算"在行动"，主线不会因为躺平被世界替她定夺

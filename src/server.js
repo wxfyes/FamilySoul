@@ -458,7 +458,7 @@ const STARTED_AT = Date.now();
               hint: ARC_HINT,
               step: (() => {
                 try {
-                  return arcStepText(actorId, arc);
+                  return arc.lastStep || arcStepText(actorId, arc);
                 } catch {
                   return '';
                 }
