@@ -2052,13 +2052,52 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
+  // NPC 自己的命：每次心跳最多补两个（省 token）
+  async function generateNpcArcs() {
+    try {
+      for (let round = 0; round < 2; round += 1) {
+        const world = peek(DATA_DIR);
+        const pending = Object.entries(world.npcArcs || {}).find(([, a]) => a && a.pendingStep);
+        if (!pending) return;
+        const [actorId] = pending;
+        const { npcArcPrompt } = await import('./world/arcs.js');
+        const prompt = npcArcPrompt(world, actorId);
+        if (!prompt) {
+          pending[1].pendingStep = false;
+          continue;
+        }
+        const res = await petService.llmClient.complete({
+          system: '你是天道，只输出一句处境描写，不写人物反应，不写结局。',
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 120,
+          temperature: 0.95,
+        });
+        const line = String(res?.text || '').trim().split('\n')[0].slice(0, 60);
+        const w2 = peek(DATA_DIR);
+        const arc = (w2.npcArcs || {})[actorId];
+        if (arc) {
+          arc.lastStep = line || arc.lastStep || '（他在自己的事里打转）';
+          arc.pendingStep = false;
+          arc.day = w2.clock?.day || 1;
+          saveState(DATA_DIR, w2);
+          console.log(`[NpcArc] ${w2.actors?.[actorId]?.name || actorId}：${arc.lastStep.slice(0, 30)}`);
+        }
+      }
+    } catch (err) {
+      console.warn('[NpcArc] 生成失败：', err.message);
+    }
+  }
+
   // 世界引擎：启动天道时钟（离线补算 + 定时心跳）
   try {
     startWorldClock(DATA_DIR, {
       enabled: config.world?.enabled !== false,
       intervalMs: Number(config.world?.tickIntervalMs) || 2 * 60 * 1000,
       msPerWorldHour: Number(config.world?.msPerWorldHour) || 60 * 60 * 1000,
-      onAfterTick: fillProactiveTexts,
+      onAfterTick: async () => {
+        await fillProactiveTexts();
+        await generateNpcArcs();
+      },
     });
   } catch (err) {
     console.warn('[World] 世界时钟启动失败：', err.message);

@@ -396,6 +396,23 @@ function onNewDay(world, events) {
 }
 
 /** NPC 按日程移动（只改位置，不产生噪音事件）*/
+function markNpcArcs(world) {
+  const day = Number(world.clock?.day) || 1;
+  if (day % 3 !== 0) return;
+  world.npcArcs = world.npcArcs || {};
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.id === 'husband') continue;
+    const rel = a.relations?.husband || {};
+    const inPlay = (Number(rel.trust) || 0) >= 25 || (Number(rel.grievance) || 0) >= 10;
+    if (!inPlay) continue;
+    const arc = world.npcArcs[a.id] || {};
+    if (arc.pendingStep) continue;
+    arc.stage = (Number(arc.stage) || 0) + 1;
+    arc.pendingStep = true;
+    world.npcArcs[a.id] = arc;
+  }
+}
+
 function runSchedules(world) {
   const husbandPlace = world.actors?.husband?.location;
   for (const actor of Object.values(world.actors || {})) {
@@ -690,6 +707,11 @@ function advanceHour(world, events, nowMs) {
   }
 
   runSchedules(world);
+  try {
+    markNpcArcs(world);
+  } catch (err) {
+    console.warn('[NpcArc] 标记失败：', err.message);
+  }
   runNPCInitiatives(world, events, (opts) => queueProactive(world, { type: 'proactive', ...opts }));
   fireAppointments(world, events);
   fireDue(world, events);

@@ -260,3 +260,21 @@ export function arcStepPrompt(world, actorId) {
     '只写处境，不写她怎么反应，不写结局。只输出这一句。',
   ].filter(Boolean).join('\n');
 }
+
+/** NPC 也有自己的命：给他写一句眼下在逼他的事 */
+export function npcArcPrompt(world, actorId) {
+  const a = world?.actors?.[actorId];
+  if (!a) return null;
+  const day = world.clock?.day || 1;
+  const rel = a.relations?.husband || {};
+  const here = String(world.places?.[a.location]?.name || '');
+  const arc = (world.npcArcs || {})[actorId] || {};
+  const prev = arc.lastStep ? `前情：${arc.lastStep}。` : '';
+  return [
+    `你是天道。人物：${a.name}（${a.role || ''}），第${day}日，此刻在${here}。`,
+    `他手头的事：${a.activity?.text || '按部就班'}。`,
+    `他对相公：信任${rel.trust ?? 30}、怨怼${rel.grievance ?? 0}。`,
+    prev,
+    '写一句他眼下自己遇到的麻烦或机会（20~40字），只写处境，不写结局。只输出这一句。',
+  ].filter(Boolean).join('\n');
+}
