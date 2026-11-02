@@ -171,6 +171,7 @@
 
   <section class="card full">
     <h2>朝中（官职）</h2>
+    <div id="decrees" class="muted" style="margin:6px 0 10px">—</div>
     <div id="court">—</div>
   </section>
 
@@ -566,6 +567,7 @@ function render(w){
       <span>${r.when}${(r.kind==='承诺'||r.kind==='暗涌')?` <span class="todo-del" data-kind="${r.kind==='暗涌'?'pending':'promise'}" data-text="${String(r.title||'').replace(/"/g,'&quot;')}">✕</span>`:''}</span>
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
+  try { renderDecrees(w.court); } catch (e) {}
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   $('actors').innerHTML = list.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};
@@ -611,7 +613,16 @@ function foldRegion(el, r) {
   });
 }
 
-async function whoSearch() {
+async function renderDecrees(court) {
+  const el = $('decrees');
+  if (!el) return;
+  const ds = (court?.decisions || []).slice(-3).reverse();
+  el.innerHTML = ds.length
+    ? '最近旨意：' + ds.map((d) => `<span style="color:#d8c48a">第${d.day}日「${d.text}」</span>`).join('　')
+    : '最近旨意：暂无';
+}
+
+function whoSearch() {
   const tk = token();
   const q = ($('whoQ')?.value || '').trim();
   if (!tk) return;

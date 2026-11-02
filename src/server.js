@@ -448,6 +448,7 @@ const STARTED_AT = Date.now();
           })
           .slice(-8)
           .map((c) => ({ text: c.text, day: c.day })),
+        decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         arc: arc
           ? {
               title: arc.title,

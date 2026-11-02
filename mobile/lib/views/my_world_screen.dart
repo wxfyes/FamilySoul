@@ -318,7 +318,35 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
 
       // 世界新闻
       if (news.isNotEmpty) ...[
-        _sectionTitle('世界动静'),
+        if ((d['decrees'] as List?)?.isNotEmpty == true) ...[
+        _sectionTitle('朝廷旨意'),
+        _cardShell(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final dec in (d['decrees'] as List))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('第${dec['day']}日', style: const TextStyle(color: _muted, fontSize: 11.5)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '「${dec['text'] ?? ''}」',
+                          style: const TextStyle(color: Color(0xFFE7D9A8), fontSize: 12.5, height: 1.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+
+      _sectionTitle('世界动静'),
         _cardShell(
           child: Column(
             children: [
