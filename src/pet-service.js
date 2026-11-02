@@ -12,6 +12,7 @@ import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
 import { normalizeMemberReply } from './world/member-reply.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
+import { buildProxyPrompt, wrapProxyLine } from './world/proxy-actor.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -1338,6 +1339,33 @@ export class PetService {
           placeName: String(wPost.places?.[locPost]?.name || '这里'),
           askedHusband: /(王甯|王掌柜|少掌柜|相公)/.test(String(say || '')),
         });
+
+        // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
+        if (husHere && /(王甯|王掌柜|少掌柜|相公)/.test(String(say || '')) && !/【[^】]*王甯/.test(String(reply))) {
+          try {
+            const hisMem = (wPost.memories || []).map((m) => String(m?.text || '')).filter((t) => t.includes('王甯') || t.includes(husPost?.name || ''));
+            const pp = buildProxyPrompt({
+              actor: husPost,
+              memories: hisMem,
+              hearerName: mePost?.name || '',
+              hearerPlace: String(wPost.places?.[locPost]?.name || ''),
+              said: String(say || '').slice(0, 200),
+            });
+            const r = await this.llmClient.complete({
+              system: pp.system,
+              messages: [{ role: 'user', content: pp.user }],
+              maxTokens: pp.maxTokens,
+              temperature: 0.8,
+            });
+            const line = wrapProxyLine(husPost?.name || '王甯', r?.text);
+            if (line) {
+              reply = `${line}\n${reply}`;
+              console.log('[Proxy] 代演王甯：' + line.slice(0, 40));
+            }
+          } catch (err) {
+            console.warn('[Proxy] 代演失败：', err.message);
+          }
+        }
       } catch (err) {
         console.warn('[Member] 回复规范化失败：', err.message);
       }

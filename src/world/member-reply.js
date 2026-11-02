@@ -58,12 +58,6 @@ export function normalizeMemberReply(reply, ctx) {
   }
 
   // 全部被丢：用账本事实兜底，不写任何人台词
-  // 他明明在场、玩家又点名找他，模型却没写他 → 至少用旁白点明他在
-  if (ctx?.husbandPresent && ctx?.askedHusband) {
-    const spoken = kept.some((x) => /王甯|相公|王掌柜|少掌柜/.test(String(x.speaker || '')));
-    if (!spoken) kept.push({ speaker: placeLabel, text: '（王甯就在这屋里，只是没急着开口。）' });
-  }
-
   if (kept.length === 0) {
     if (ctx?.askedHusband && ctx?.husbandPlace) {
       return `【${placeLabel}】：他此刻在「${ctx.husbandPlace}」，眼下不在这屋里。`;
