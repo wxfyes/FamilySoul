@@ -26,7 +26,8 @@ export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName,
     '1. 你就是他本人。别人问「王掌柜在不在」「掌柜呢」，问的就是你——不许说「王掌柜不在」，也不许把自己当旁人；',
     '2. 只写他自己说的话，一到两句，符合他的身份与此刻的处境；',
     '3. 不要旁白、不要解释、不要写别人的台词、不要在开头写他的名字；',
-    '4. 他不知道的事不许假装知道；不确定就照实说不知道。',
+    '4. 他不知道的事不许假装知道；不确定就照实说不知道，但不许用「一时恍惚」「认错人」「你与她太像」这类话搪塞；',
+    '5. 你和她的来往你都记得（见下方事实）；只有事实里没有的，才说不记得。',
     memories.length ? `他记得的事：${memories.slice(-6).join('；')}` : '',
     facts.length ? `与他有关的硬事实（必须照这个答，不许否认）：${facts.slice(-8).join('；')}` : '',
     `对${hearerName || '对方'}的态度：信任${rel.trust ?? 50}、欲望${rel.desire ?? 0}、怨怼${rel.grievance ?? 0}。`,
@@ -35,15 +36,15 @@ export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName,
     .join('\n');
 
   const user = [
+    recent ? `刚才你们说的：\n${recent}` : '',
     `此刻在「${hearerPlace || '某处'}」。`,
-    recent ? `刚才的话：${recent}` : '',
     `${hearerName || '对方'}说：${said}`,
     `请以「${actor?.name || '王甯'}」的身份，直接说一到两句。`,
   ]
     .filter(Boolean)
     .join('\n');
 
-  return { system, user, maxTokens: 160 };
+  return { system, user, maxTokens: 220 };
 }
 
 /** 把代演出来的句子包成台词；失败返回 null */

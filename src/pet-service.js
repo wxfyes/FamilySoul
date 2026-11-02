@@ -1349,7 +1349,14 @@ export class PetService {
           try {
             const herName = mePost?.name || '';
             const hisMem = (wPost.memories || []).map((m) => String(m?.text || ''))
-              .filter((t) => t.includes('王甯') || t.includes(husPost?.name || '') || (herName && t.includes(herName)));
+              .filter((t) => t.includes('王甯') || t.includes(husPost?.name || '') || (herName && t.includes(herName))
+                || /(相公|雅阁|相好|留门|答应了)/.test(t))
+              .slice(-12);
+            const recentLines = [...(this.readHistory(profileKey).messages || [])]
+              .slice(-4)
+              .map((m) => `${m.role === 'user' ? (herName || '她') : ''}${String(m.text || '').slice(0, 60)}`)
+              .filter(Boolean)
+              .join('\n');
             const facts = [];
             for (const ap of wPost.appointments || []) {
               const who = String(ap?.name || ap?.actorId || '');
@@ -1379,6 +1386,7 @@ export class PetService {
               hearerName: mePost?.name || '',
               hearerPlace: String(wPost.places?.[locPost]?.name || ''),
               said: String(say || '').slice(0, 200),
+              recent: recentLines,
             });
             const r = await this.llmClient.complete({
               system: pp.system,
