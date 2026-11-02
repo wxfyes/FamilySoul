@@ -293,6 +293,13 @@ export function createInitialState(dataDir) {
         { name: '河东道', cities: ['大同府', '平阳府', '蒲州府'] },
         { name: '关内道', cities: ['长安府', '凤翔府', '延安府'] },
         { name: '荆湖道', cities: ['江陵府', '潭州府', '襄阳府'] },
+        { name: '河南道', cities: ['开封府', '南阳府', '归德府'] },
+        { name: '辽东道', cities: ['辽阳府', '金州府', '开原府'] },
+        { name: '陇右道', cities: ['兰州府', '凉州府', '秦州府'] },
+        { name: '云贵道', cities: ['昆明府', '大理府', '贵阳府'] },
+        { name: '闽浙道', cities: ['福州府', '泉州府', '温州府', '宁波府'] },
+        { name: '江西道', cities: ['洪州府', '赣州府', '吉安府'] },
+        { name: '淮北道', cities: ['徐州府', '宿州府'] },
       ],
     },
     // 名声与通缉：士绅口碑 / 官府悬赏
@@ -439,6 +446,12 @@ export function worldDate(world) {
   return { iso, month: anchor.getMonth() + 1, day: anchor.getDate(), year: anchor.getFullYear(), lunar };
 }
 
+const REGION_WEALTH = {
+  江南道: 70, 京畿道: 65, 淮南道: 55, 河北道: 40, 岭南道: 45, 剑南道: 60,
+  山东道: 55, 河东道: 45, 关内道: 50, 荆湖道: 50, 河南道: 55, 辽东道: 25,
+  陇右道: 30, 云贵道: 25, 闽浙道: 65, 江西道: 45, 淮北道: 40,
+};
+
 const CITY_GOODS = {
   临江府: ['茶', '米'],
   苏州府: ['丝', '绣'],
@@ -475,6 +488,27 @@ const CITY_GOODS = {
   江陵府: ['米', '鱼'],
   潭州府: ['茶', '木'],
   襄阳府: ['粮', '铁'],
+  开封府: ['粮', '纸'],
+  南阳府: ['铁', '药'],
+  归德府: ['粮', '棉'],
+  辽阳府: ['马', '皮'],
+  金州府: ['鱼', '盐'],
+  开原府: ['马', '木'],
+  兰州府: ['皮', '盐'],
+  凉州府: ['马', '铁'],
+  秦州府: ['铁', '木'],
+  昆明府: ['铜', '茶'],
+  大理府: ['马', '药'],
+  贵阳府: ['木', '药'],
+  福州府: ['茶', '瓷'],
+  泉州府: ['香料', '瓷'],
+  温州府: ['漆', '木'],
+  宁波府: ['鱼', '布'],
+  洪州府: ['瓷', '粮'],
+  赣州府: ['木', '纸'],
+  吉安府: ['粮', '纸'],
+  徐州府: ['铁', '粮'],
+  宿州府: ['粮', '布'],
 };
 
 /** 按疆域把每座城建出来（只在缺的时候建，不覆盖已有归属）*/
@@ -488,7 +522,7 @@ export function ensureCities(world) {
         region: r.name,
         owner: 'court',
         defense: 15 + Math.floor(Math.random() * 15),
-        wealth: 30 + Math.floor(Math.random() * 40),
+        wealth: Math.max(10, Math.round(((REGION_WEALTH[r.name] || 45) + (Math.random() * 20 - 10)) * 10) / 10),
         unrest: 5 + Math.floor(Math.random() * 15),
         goods: CITY_GOODS[name] || [],
         price: 100,   // 物价指数，100 为常价
