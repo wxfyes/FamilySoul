@@ -1341,7 +1341,11 @@ export class PetService {
         });
 
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
-        if (husHere && /(王甯|王掌柜|少掌柜|相公)/.test(String(say || '')) && !/【[^】]*王甯/.test(String(reply))) {
+        const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
+        const askedHim = /(王甯|王掌柜|少掌柜|相公)/.test(String(say || ''))
+          || /(王甯|王掌柜|少掌柜)/.test(lastTurns)
+          || /(那你|你是谁|谁啊|在吗)/.test(String(say || ''));
+        if (husHere && askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const hisMem = (wPost.memories || []).map((m) => String(m?.text || '')).filter((t) => t.includes('王甯') || t.includes(husPost?.name || ''));
             const pp = buildProxyPrompt({
