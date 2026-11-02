@@ -266,7 +266,8 @@ function advanceHour(world, events, nowMs) {
   if (world.clock.hour >= 24) {
     world.clock.hour = 0;
     world.clock.day += 1;
-    // 世界日翻篇时自愈一次：账本坏了它自己修，不靠人管
+
+  // 世界日翻篇时自愈一次：账本坏了它自己修，不靠人管
     try {
       const fixes = healWorld(world);
       if (fixes.length > 0) {
@@ -277,6 +278,29 @@ function advanceHour(world, events, nowMs) {
       console.warn('[Heal] 自愈失败：', err.message);
     }
     onNewDay(world, events);
+  }
+
+  // 亥时各回各家：客人不会永远赖在别人家里（正陪在相公身边的除外）
+  if (world.clock.hour === 21) {
+    const here = world.actors?.husband?.location;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.kind === 'human' || a.id === 'husband') continue;
+      const home = a.home && world.places?.[a.home] ? a.home : null;
+      if (!home) continue;
+      if (a.location === home) continue;
+      // 哪怕就在相公跟前，天黑了也要回自己家；只有正在私会时例外
+      if (a.intimacy?.ritual === 'unlocked') continue; // 正在私会，别打断
+      a.location = home;
+      events.push(
+        nextEvent(world, {
+          action: 'npc_home',
+          actor: a.id,
+          place: home,
+          payload: { text: `${a.name}回了${world.places[home]?.name || '家'}` },
+          isPublic: false,
+        }),
+      );
+    }
   }
 
   // 每日辰时开市：阿吉报送市井风闻（世界不必等午夜才有动静）

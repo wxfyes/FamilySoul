@@ -114,7 +114,7 @@ export function createInitialState(dataDir) {
         intimacy: {},
       },
       waner: {
-        id: 'waner', gender: 'female',
+        id: 'waner', gender: 'female', home: 'backyard',
         name: '沈婉儿',
         role: '正妻',
         label: '正妻',
@@ -133,7 +133,7 @@ export function createInitialState(dataDir) {
         ],
       },
       yunnia: {
-        id: 'yunnia', gender: 'female',
+        id: 'yunnia', gender: 'female', home: 'backyard',
         name: '林芸娘',
         role: '二房如夫人',
         label: '侧妾',
@@ -150,7 +150,7 @@ export function createInitialState(dataDir) {
         ],
       },
       xiaocui: {
-        id: 'xiaocui', gender: 'female',
+        id: 'xiaocui', gender: 'female', home: 'backyard',
         name: '小翠',
         role: '贴身丫鬟',
         label: '丫鬟',
@@ -161,7 +161,7 @@ export function createInitialState(dataDir) {
         schedule: [{ at: 20, do: '回后院伺候', place: 'backyard' }],
       },
       aji: {
-        id: 'aji', gender: 'male',
+        id: 'aji', gender: 'male', home: 'tea_house',
         name: '阿吉',
         role: '跑堂伙计',
         label: '跑堂伙计',
@@ -169,7 +169,7 @@ export function createInitialState(dataDir) {
         goals: ['把跑堂差事做出名堂'],
       },
       qiantonghai: {
-        id: 'qiantonghai', gender: 'male',
+        id: 'qiantonghai', gender: 'male', home: 'street',
         name: '钱通海',
         role: '临江茶行行长',
         location: 'street',
@@ -182,7 +182,7 @@ export function createInitialState(dataDir) {
 
       // ── 第二女主与她的侍卫（女主人真人账号可绑定到此 actor）──
       yangzhenhua: {
-        id: 'yangzhenhua', gender: 'female',
+        id: 'yangzhenhua', gender: 'female', home: 'yang_mansion',
         name: '杨振华',
         role: '知府千金',
         label: '杨大小姐',
@@ -199,7 +199,7 @@ export function createInitialState(dataDir) {
         ],
       },
       luchen: {
-        id: 'luchen', gender: 'male',
+        id: 'luchen', gender: 'male', home: 'yang_mansion',
         name: '陆沉',
         role: '杨府侍卫统领',
         label: '陆统领',
@@ -213,7 +213,7 @@ export function createInitialState(dataDir) {
 
       // ── 城中暗香 · 深宅怨妇（各自有明面家室，也有自己的日子）──
       yangcaiyun: {
-        id: 'yangcaiyun', gender: 'female',
+        id: 'yangcaiyun', gender: 'female', home: 'street',
         name: '杨采云',
         role: '翟家货栈老板娘',
         location: 'street',
@@ -229,7 +229,7 @@ export function createInitialState(dataDir) {
         ],
       },
       liuwenxia: {
-        id: 'liuwenxia', gender: 'female',
+        id: 'liuwenxia', gender: 'female', home: 'street',
         name: '刘文霞',
         role: '于家酒肆老板娘',
         location: 'street',
@@ -245,7 +245,7 @@ export function createInitialState(dataDir) {
         ],
       },
       zhanjing: {
-        id: 'zhanjing', gender: 'female',
+        id: 'zhanjing', gender: 'female', home: 'yamen',
         name: '战静',
         role: '县衙书吏发妻',
         location: 'street',

@@ -555,6 +555,7 @@ const STARTED_AT = Date.now();
             origin: String(it.origin || 'spawned'),
             gender: String(it.gender || 'female'),
             household: Boolean(it.household),
+            home: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
             location: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
             goals: String(it.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
             secret: String(it.secret || ''),
