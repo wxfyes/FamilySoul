@@ -523,8 +523,24 @@ const STARTED_AT = Date.now();
     if (req.method === 'POST' && pathname === '/api/admin/spawn') {
       try {
         const body = await parseJsonBody(req, 256 * 1024);
-        const list = Array.isArray(body.items) ? body.items : [body];
         const world = peek(DATA_DIR);
+        // 删除：{ remove: '名字' } 或 { remove: ['A','B'] }
+        if (body.remove) {
+          const names = Array.isArray(body.remove) ? body.remove : [body.remove];
+          const removed = [];
+          for (const nm of names) {
+            for (const [id, a] of Object.entries(world.actors || {})) {
+              if (a?.name !== String(nm).trim()) continue;
+              if (a.kind === 'human' || id === 'husband') continue;
+              delete world.actors[id];
+              removed.push(a.name);
+            }
+          }
+          saveState(DATA_DIR, world);
+          console.log(`[World] 移除人物：${removed.join('、') || '（无匹配）'}`);
+          return sendJson(res, 200, { ok: true, removed });
+        }
+        const list = Array.isArray(body.items) ? body.items : [body];
         let added = 0;
         for (const it of list) {
           const name = String(it?.name || '').trim();
