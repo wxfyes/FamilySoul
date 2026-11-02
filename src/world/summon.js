@@ -58,7 +58,8 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
       saveState(dataDir, world);
       return { moved: ['相公'], summoned: [], visited: null, left: true };
     }
-    return { moved: [], summoned: [], visited: null, left: false };
+    // 人已经在家（比如刚回完茶坊又说一声「嗯」），也要让本轮发生转场，不能继续原地道别
+    return { moved: [], summoned: [], visited: null, left: false, alreadyHome: true };
   }
 
   if (mentioned.length === 0) return null;

@@ -527,11 +527,13 @@ export class PetService {
     let summonedNames = [];
     let contextHintEarly = '';
     let engineMovedHusband = false; // 引擎这轮已经决定过相公去哪，模型无权再改
+    let leftScene = false;          // 这一轮相公是『离场』
     try {
       const lastBotSaid = [...(history.messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
       const summonResult = applySummon(this.dataDir, say, lastBotSaid);
       summonedNames = summonResult?.summoned || [];
       if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
+      leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);
       if (summonResult?.left) {
         contextHintEarly += '（【已离场】：相公已经离开刚才那个地方，回到茶坊了。本轮必须先写出转场（【天道·地点·临江茶坊】），**不许再写道别、不许让原处的人继续说"相公慢走"**。）\n';
       }
@@ -963,7 +965,12 @@ export class PetService {
       }
     }
 
-    const currentContent = contextHint ? `${say}\n${contextHint}` : say;
+    // 离场时把动作写进用户这一句 —— 模型对最后一条 user 消息最敏感，
+    // 只放在 system 末尾会被忽略，导致她还在原地反复道别。
+    const sceneAction = leftScene
+      ? '\n（相公已起身离开，回到临江茶坊。请先写出转场，再由临江茶坊这边的人开口；刚才那位已经不在场，不能再说话。）'
+      : '';
+    const currentContent = contextHint ? `${say}${sceneAction}\n${contextHint}` : `${say}${sceneAction}`;
     messages.push({ role: 'user', content: currentContent });
 
     const systemPrompt = this.buildSystemPrompt(activeRole, modality, profileKey, currentEpoch, history);
