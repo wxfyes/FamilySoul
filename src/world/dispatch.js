@@ -125,7 +125,7 @@ export function recordReceipt(dataDir, hadOps, usage = null) {
  * 应用回执。全部失败静默跳过——绝不允许因一条畸形回执打断对话。
  * @returns {string[]} 实际生效的操作描述（用于日志）
  */
-export function applyWorldTags(dataDir, ops) {
+export function applyWorldTags(dataDir, ops, opts = {}) {
   if (!Array.isArray(ops) || ops.length === 0) return [];
   const world = loadState(dataDir);
   const events = [];
@@ -137,7 +137,12 @@ export function applyWorldTags(dataDir, ops) {
 
   const applied = [];
 
+  const selfId = String(opts?.selfId || 'husband');
   for (const { kind, args } of ops) {
+    // 真人玩家下的军令，默认算她自己的
+    if ((kind === 'troops' || kind === 'siege') && args && !args.who && !args.by) {
+      args.who = selfId;
+    }
     try {
       if (kind === 'relation') {
         const id = resolveActor(world, args.who);
