@@ -11,7 +11,7 @@
  *   [[world:move who=qiantonghai to=dock]]
  *   [[world:event text="阿吉报说码头来了新茶商"]]
  */
-import { loadState, saveState, appendEvents, nextEvent, round2 } from './state.js';
+import { loadState, saveState, appendEvents, nextEvent, round2, forceOf } from './state.js';
 import { queueProactive } from './clock.js';
 
 function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
@@ -326,9 +326,15 @@ export function applyWorldTags(dataDir, ops) {
         world.cities = world.cities || {};
         const ct = world.cities[cityName];
         if (!ct) continue;
-        if (ct.owner === 'wangjia') continue;
-        const mil = world.military || {};
+        const who = String(args.by || args.who || 'husband');
+        const mil = forceOf(world, who);
         const infra = world.infra || {};
+        const ownerId = who === 'husband' ? 'wangjia' : `actor_${who}`;
+        if (ct.owner === ownerId) continue;
+        if (who !== 'husband' && !world.powers[ownerId]) {
+          const an = world.actors?.[who]?.name || who;
+          world.powers[ownerId] = { name: `${an}的部曲`, kind: '私兵', power: 3, relation: 0, troops: 0, note: '' };
+        }
         const ours =
           (Number(mil.army) || 0) +
           (Number(mil.militia) || 0) * 0.6 +
@@ -346,7 +352,7 @@ export function applyWorldTags(dataDir, ops) {
         const roll = 0.85 + Math.random() * 0.3;
         const win = oursPower * roll > theirPower;
         if (win) {
-          ct.owner = 'wangjia';
+          ct.owner = ownerId;
           ct.defense = Math.max(1, Math.round((Number(ct.defense) || 10) / 2));
           ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 20);
           applied.push(`攻城:${cityName} 已下`);
@@ -419,9 +425,10 @@ export function applyWorldTags(dataDir, ops) {
         if (!['guards', 'militia', 'army'].includes(field)) continue;
         const delta = Number(args.delta);
         if (!Number.isFinite(delta) || delta === 0) continue;
-        world.military = world.military || {};
-        world.military[field] = Math.max(0, (Number(world.military[field]) || 0) + delta);
-        applied.push(`${field}${delta >= 0 ? '+' : ''}${delta}→${world.military[field]}`);
+        const who = String(args.who || 'husband');
+        const f = forceOf(world, who);
+        f[field] = Math.max(0, (Number(f[field]) || 0) + delta);
+        applied.push(`${field}${delta >= 0 ? '+' : ''}${delta}→${f[field]}`);
       } else if (kind === 'infra') {
         // 基建：修路、建仓、办学…
         const key = String(args.name || '').trim();

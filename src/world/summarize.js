@@ -2,7 +2,7 @@
  * 状态摘要 —— 把世界状态压成一段给叙述层看的「天机」文字
  * 纯规则生成，不调用大模型；目标 ≤ 800 token。
  */
-import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2, ensureCities, standingOf } from './state.js';
+import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2, ensureCities, standingOf, forceOf } from './state.js';
 import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
@@ -174,6 +174,21 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       // 只有与她有关的旧事
       const myMem = (world.memories || []).filter((m) => m && String(m.text || '').includes(meV.name));
       if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
+      // 她自己的兵（如果有）
+      try {
+        const myF = world.forces?.[viewer];
+        if (myF) {
+          const total = (Number(myF.guards) || 0) + (Number(myF.militia) || 0) + (Number(myF.army) || 0);
+          if (total > 0) {
+            lines.push(`【你的人马】护院${myF.guards || 0} 乡勇${myF.militia || 0} 兵马${myF.army || 0} · 训练${myF.quality || 0} 士气${myF.morale || 0} 粮草${myF.supplies || 0}日`);
+          }
+        }
+        const mineCities = Object.entries(world.cities || {}).filter(([, c]) => c.owner === `actor_${viewer}`);
+        if (mineCities.length) lines.push(`【你的城】${mineCities.map(([n]) => n).join('、')}`);
+      } catch {
+        /* 忽略 */
+      }
+
       // 她自己的主线（难关），只有她自己看得见
       try {
         const arc = arcViewFor(world, viewer);

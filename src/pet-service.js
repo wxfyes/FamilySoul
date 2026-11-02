@@ -1297,7 +1297,7 @@ export class PetService {
         console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
       }
       if (!reply) reply = '……';
-      const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps) : [];
+    const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps, { selfId: this._viewerActorId }) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
 
       // 主模型没写回执 → 记账员在后台补记（不阻塞回复，否则容易拖到客户端超时）
@@ -1311,7 +1311,7 @@ export class PetService {
         })
           .then((extra) => {
             if (!Array.isArray(extra) || extra.length === 0) return;
-            const applied2 = applyWorldTags(this.dataDir, extra);
+      const applied2 = applyWorldTags(this.dataDir, extra, { selfId: this._viewerActorId });
             if (applied2.length > 0) {
               markReceiptHit(this.dataDir);
               console.log(`[World] 记账员补登 ${applied2.length} 条：${applied2.join('、')}`);

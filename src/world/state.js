@@ -312,6 +312,8 @@ export function createInitialState(dataDir) {
     },
     // 城池：谁占着、守备多少、富不富、民心稳不稳
     cities: {},
+    // 各人的兵力（真人各自起兵，互不隶属）；丈夫用 military 这一份
+    forces: {},
     // 兵力：私兵→乡勇→起义军，一步一步
     military: {
       guards: 0,       // 护院家丁
@@ -563,6 +565,16 @@ export function standingOf(world) {
   return { score: Math.round(score), level: cur.name, note: cur.note, next: next ? { name: next.name, at: next.at } : null };
 }
 
+/** 取某个人的兵力账（丈夫用 military，其余人用 forces[id]）*/
+export function forceOf(world, who = 'husband') {
+  if (!who || who === 'husband') return (world.military = world.military || { guards: 0, militia: 0, army: 0, quality: 20, morale: 50, supplies: 0 });
+  world.forces = world.forces || {};
+  if (!world.forces[who]) {
+    world.forces[who] = { guards: 0, militia: 0, army: 0, quality: 20, morale: 50, supplies: 0 };
+  }
+  return world.forces[who];
+}
+
 export function loadState(dataDir) {
   const file = statePath(dataDir);
   const raw = readJson(file);
@@ -629,6 +641,7 @@ export function loadState(dataDir) {
     powers: { ...base.powers, ...(raw.powers || {}) },
     cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
+    forces: { ...base.forces, ...(raw.forces || {}) },
     reputation: Number.isFinite(Number(raw.reputation)) ? Number(raw.reputation) : 50,
     wanted: Number.isFinite(Number(raw.wanted)) ? Number(raw.wanted) : 0,
     infra: { ...base.infra, ...(raw.infra || {}) },
