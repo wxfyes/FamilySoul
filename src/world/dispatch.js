@@ -314,13 +314,35 @@ export function applyWorldTags(dataDir, ops) {
       } else if (kind === 'office') {
         // 顶缺：空出来的官位，谁有本事谁坐
         const post = String(args.post || '').trim();
-        const id = resolveActor(world, args.who || args.name);
+        let id = resolveActor(world, args.who || args.name);
         const off = world.court?.offices?.[post];
-        if (!off || !world.actors?.[id]) continue;
+        if (!off) continue;
         if (!off.vacant) continue;
+        // 想任一个还不存在的人：就地给他一个身份
+        if (!id && (args.name || args.who)) {
+          const nm = String(args.name || args.who).trim().slice(0, 8);
+          id = `npc_${Object.keys(world.actors || {}).length}`;
+          world.actors[id] = {
+            id,
+            name: nm,
+            role: off.title,
+            gender: 'male',
+            kind: 'official',
+            office: post,
+            household: false,
+            home: 'yamen',
+            location: 'yamen',
+            relations: { husband: { trust: 40, desire: 0, fear: 0, grievance: 0 } },
+            goals: ['坐稳这位子', '报答提拔之恩'],
+            secret: '原是相公门下的人',
+            schedule: [],
+          };
+        }
+        if (!id || !world.actors[id]) continue;
         off.holder = id;
         off.vacant = false;
         world.actors[id].office = post;
+        world.actors[id].role = off.title;
         world.reputation = Math.min(100, (Number(world.reputation) || 50) + 10);
         applied.push(`${world.actors[id].name} 接任${off.title}`);
       } else if (kind === 'tax') {
@@ -388,6 +410,19 @@ export function applyWorldTags(dataDir, ops) {
         const win = oursPower * roll > theirPower;
         if (win) {
           ct.owner = ownerId;
+          // 城破：原来的父母官倒了，位子空出来等人接
+          const offKey = `city:${cityName}`;
+          const off = world.court?.offices?.[offKey];
+          if (off && off.holder) {
+            const oldOff = world.actors?.[off.holder];
+            if (oldOff) {
+              oldOff.dead = true;
+              oldOff.deadDay = world.clock.day;
+            }
+            off.holder = null;
+            off.vacant = true;
+            applied.push(`${cityName}知府已除（位子空着）`);
+          }
           ct.defense = Math.max(1, Math.round((Number(ct.defense) || 10) / 2));
           ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 20);
           applied.push(`攻城:${cityName} 已下`);

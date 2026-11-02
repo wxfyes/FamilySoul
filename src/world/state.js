@@ -532,6 +532,15 @@ const CITY_GOODS = {
 
 /** 按疆域把每座城建出来（只在缺的时候建，不覆盖已有归属）*/
 /** 朝中大员：没有就补上，死了不复活（位置空着等人顶上）*/
+/** 给每个府的父母官起个像人的名字（同一座城名字固定）*/
+function cityOfficialName(cityName) {
+  const surnames = ['周', '吴', '郑', '王', '李', '赵', '孙', '钱', '冯', '陈', '韩', '朱', '秦', '许', '何', '吕', '施', '张', '孔', '曹'];
+  const given = ['文远', '守正', '承先', '敬之', '伯安', '仲平', '子敬', '元朗', '季常', '叔达', '汝霖', '子昂', '公度', '伯远'];
+  let h = 0;
+  for (const ch of String(cityName)) h = (h * 31 + ch.charCodeAt(0)) % 100000;
+  return surnames[h % surnames.length] + given[Math.floor(h / 7) % given.length];
+}
+
 export function ensureCourt(world) {
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};
@@ -542,6 +551,31 @@ export function ensureCourt(world) {
     ['zhenghuaian', '郑怀安', '江南巡抚', 'governor', '苏州府'],
     ['yangshenzhi', '杨慎之', '临江知府', 'prefect', '临江府'],
   ];
+  // 每个府都要有父母官，不然攻城就是打空城
+  for (const cityName of Object.keys(world.cities || {})) {
+    const post = `city:${cityName}`;
+    if (world.court.offices[post]) continue;
+    const id = `off_${cityName}`;
+    if (!world.actors[id]) {
+      world.actors[id] = {
+        id,
+        name: cityOfficialName(cityName),
+        role: `${cityName}知府`,
+        gender: 'male',
+        kind: 'official',
+        office: post,
+        household: false,
+        home: 'yamen',
+        location: 'yamen',
+        relations: { husband: { trust: 15, desire: 0, fear: 0, grievance: 0 } },
+        goals: [`守住${cityName}`, '别让上头挑出错处'],
+        secret: '任上收过几笔常例',
+        schedule: [],
+      };
+    }
+    world.court.offices[post] = { title: `${cityName}知府`, holder: id, vacant: false, city: cityName };
+  }
+
   for (const [id, name, role, post, city] of seed) {
     if (!world.actors) world.actors = {};
     if (!world.actors[id]) {
