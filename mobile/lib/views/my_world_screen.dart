@@ -194,8 +194,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       _cardShell(
         child: Column(
           children: [
-            if (self['isHusband'] == true)
-              _kv('现银', '${_num(assets['silver'], digits: 2)} 两'),
+            _kv('现银', '${_num(assets['silver'], digits: 2)} 两'),
             _kv('日入', '${_num(assets['daily'], digits: 2)} 两/日'),
             if (props.isEmpty)
               const Padding(

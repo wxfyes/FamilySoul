@@ -19,7 +19,7 @@ import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
 import { ensureCities, ensureCourt, ensureTerrain } from './world/state.js';
 import { auditAll } from './world/audit.js';
-import { ARC_HINT } from './world/arcs.js';
+import { ARC_HINT, arcStepText } from './world/arcs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -455,8 +455,7 @@ const STARTED_AT = Date.now();
               hint: ARC_HINT,
               step: (() => {
                 try {
-                  const steps = (arc.log || []).map((l) => l.text);
-                  return steps.length ? steps[steps.length - 1] : '';
+                  return arcStepText(actorId, arc);
                 } catch {
                   return '';
                 }
