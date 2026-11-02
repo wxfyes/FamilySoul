@@ -83,6 +83,25 @@
   </section>
 
   <section class="card">
+    <h2>清空记忆（危险 · 需二次确认）</h2>
+    <div class="row"><span>选择人物</span>
+      <select id="resetWho" style="background:#1e222b;color:#e8eaee;border:1px solid #2a2f3a;border-radius:8px;padding:4px 8px"></select>
+    </div>
+    <div class="row"><span>清什么</span>
+      <span>
+        <label class="muted"><input type="checkbox" id="rsHistory" checked> 聊天历史</label>
+        <label class="muted"><input type="checkbox" id="rsWorld" checked> 关系/身孕</label>
+        <label class="muted"><input type="checkbox" id="rsMem" checked> 她的记忆</label>
+      </span>
+    </div>
+    <div class="row"><span>确认</span><span>
+      <input id="resetConfirm" placeholder="输入她的名字以确认" style="width:150px">
+      <button onclick="doReset()">执行清空</button>
+    </span></div>
+    <div class="muted" id="resetMsg" style="margin-top:6px"></div>
+  </section>
+
+  <section class="card">
     <h2>真人（谁在用手机登着）</h2>
     <div id="humans">—</div>
   </section>
@@ -223,6 +242,16 @@ function render(w){
   $('a-props').innerHTML = props.map(p =>
     `<div class="row"><span>${p.name}</span><span>${(+p.incomePerDay||0).toFixed(2)} 两 · ${p.status||''}</span></div>`).join('') || '<div class="muted">无产业</div>';
 
+  // 清空面板：填充下拉
+  const sel = $('resetWho');
+  if (sel && sel.options.length === 0) {
+    (w.actors || []).filter(a => a.id !== 'husband').forEach(a => {
+      const o = document.createElement('option');
+      o.value = a.id; o.textContent = a.name;
+      sel.appendChild(o);
+    });
+  }
+
   // 真人上线状态
   const members = w.members || [];
   $('humans').innerHTML = members.map(m => {
@@ -303,6 +332,43 @@ function render(w){
     const txt = p.text||p.desc||p.goal||p.name||'';
     return `<div class="ev"><b>第${e.day}日${e.hour}时</b> [${e.action}] ${txt}</div>`;
   }).join('') || '<div class="muted">暂无</div>';
+}
+
+async function doReset() {
+  const tk = token();
+  const id = $('resetWho').value;
+  const name = $('resetWho').selectedOptions[0]?.textContent || '';
+  const typed = ($('resetConfirm').value || '').trim();
+  const msg = $('resetMsg');
+  if (!tk) { msg.textContent = '先保存令牌'; return; }
+  if (!id) { msg.textContent = '先选一个人物'; return; }
+  if (typed !== name) { msg.textContent = '确认名字不一致，未执行'; return; }
+  if (!confirm(`确定要清空「${name}」吗？此操作不可撤销。`)) return;
+  msg.textContent = '执行中…';
+  const done = [];
+  try {
+    if ($('rsHistory').checked) {
+      const r = await fetch(`/api/admin/history/clear?token=${encodeURIComponent(tk)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member: id }),
+      });
+      const j = await r.json();
+      done.push('聊天历史 -' + (j.cleared ?? 0) + ' 条');
+    }
+    if ($('rsWorld').checked || $('rsMem').checked) {
+      const r = await fetch(`/api/admin/actor/reset?token=${encodeURIComponent(tk)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, relations: $('rsWorld').checked, clearPregnancy: $('rsWorld').checked, clearMemories: $('rsMem').checked }),
+      });
+      const j = await r.json();
+      done.push('世界线：' + (j.done || []).join('、'));
+    }
+    msg.textContent = '✓ ' + done.join('；');
+    $('resetConfirm').value = '';
+    load();
+  } catch (e) {
+    msg.textContent = '✗ ' + e.message;
+  }
 }
 
 $('token').value = token();

@@ -1246,9 +1246,42 @@
       }
     }
 
+    // 局域网 http 下 navigator.clipboard 会被浏览器禁用，必须降级到 execCommand
+    function fallbackCopy(txt) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
     function copyText(txt) {
-      navigator.clipboard.writeText(txt);
-      showToast('📋 Token 已复制到剪贴板');
+      const text = String(txt || '');
+      if (!text) {
+        showToast('⚠️ 没有内容可复制');
+        return;
+      }
+      const done = () => showToast('📋 已复制到剪贴板');
+      const fail = () => showToast('❌ 复制失败，请长按手动选择');
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(() => {
+          fallbackCopy(text) ? done() : fail();
+        });
+      } else {
+        fallbackCopy(text) ? done() : fail();
+      }
     }
 
     function getMemberDefaultGreeting(memberKey) {

@@ -570,6 +570,25 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.31 清空某个成员的聊天历史 POST /api/admin/history/clear {member}
+    if (req.method === 'POST' && pathname === '/api/admin/history/clear') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const member = String(body.member || '').trim();
+        if (!member) return sendJson(res, 400, { ok: false, error: '缺少 member' });
+        const cur = petService.readHistory(member);
+        const before = (cur.messages || []).length;
+        cur.messages = [];
+        cur.lastUserAt = 0;
+        cur.lastAssistantAt = 0;
+        petService.saveHistory(member, cur);
+        console.log(`[Reset] 已清空 ${member} 的聊天历史（原 ${before} 条）`);
+        return sendJson(res, 200, { ok: true, member, cleared: before });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.32 重置某个世界人物的线 POST /api/admin/actor/reset（清空关系/身孕/与她有关的记忆）
     if (req.method === 'POST' && pathname === '/api/admin/actor/reset') {
       try {
