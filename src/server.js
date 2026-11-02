@@ -532,8 +532,9 @@ const STARTED_AT = Date.now();
       const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
       const cfg = getFamilyProfiles();
       const humanActors = new Set(Object.values(cfg || {}).map((x) => x?.actor).filter(Boolean));
+      humanActors.add('husband');
       const rows = Object.values(world.actors || {})
-        .filter((a) => a && !a.dead && a.id !== actorId && a.id !== 'husband')
+        .filter((a) => a && !a.dead && a.id !== actorId)
         .filter((a) => {
           if (q) return String(a.name || '').includes(q) || String(a.role || '').includes(q);
           if (all) return true;
