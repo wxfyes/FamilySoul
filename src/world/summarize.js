@@ -182,7 +182,10 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       for (const n of houseKeys) if (s.includes(n)) return true;
       return false;
     };
-    const recent = readRecentEvents(dataDir, 12)
+    // 只取「已经发生」的：时钟回拨后，旧账里会有晚于当前时刻的记录，不能当成已经发生的事
+    const nowH = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
+    const recent = readRecentEvents(dataDir, 16)
+      .filter((e) => (Number(e?.day) || 0) * 24 + (Number(e?.hour) || 0) <= nowH)
       .map(describeEvent)
       .filter(Boolean)
       .filter((line) => !isBogusMarriage(line))

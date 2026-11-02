@@ -853,7 +853,13 @@ const STARTED_AT = Date.now();
           actors,
           pending: world.pending || [],
           promises: world.promises || [],
-          recentEvents: readRecentEvents(DATA_DIR, 12),
+          recentEvents: (() => {
+            // 只显示已经发生的事（时钟回拨后旧账里会有"未来事件"）
+            const nowH = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
+            return readRecentEvents(DATA_DIR, 20).filter(
+              (e) => (Number(e?.day) || 0) * 24 + (Number(e?.hour) || 0) <= nowH,
+            ).slice(-12);
+          })(),
           summary: buildStateSummary(DATA_DIR),
         });
       } catch (err) {
