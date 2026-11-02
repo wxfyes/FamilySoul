@@ -149,7 +149,22 @@ function advancePregnancies(world, events) {
   }
 }
 
+function consumeSupplies(world) {
+  const mil = world.military;
+  if (!mil) return;
+  const need = Math.ceil(((Number(mil.army) || 0) + (Number(mil.militia) || 0) * 0.5) / 100);
+  if (need <= 0) return;
+  const have = Number(mil.supplies) || 0;
+  if (have >= need) {
+    mil.supplies = have - need;
+  } else {
+    mil.supplies = 0;
+    mil.morale = Math.max(0, (Number(mil.morale) || 0) - 5);
+  }
+}
+
 function onNewDay(world, events) {
+  consumeSupplies(world);
   // 气是会消的：每天自动消退 1 点（被人一再冷落才会积住）
   for (const a of Object.values(world.actors || {})) {
     const g = a?.relations?.husband?.grievance;

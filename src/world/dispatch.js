@@ -288,6 +288,63 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'siege') {
+        // 攻城：兵力 vs 守备，结果由算式 + 少量随机决定
+        const cityName = String(args.city || args.name || '').trim();
+        world.cities = world.cities || {};
+        const ct = world.cities[cityName];
+        if (!ct) continue;
+        if (ct.owner === 'wangjia') continue;
+        const mil = world.military || {};
+        const infra = world.infra || {};
+        const ours =
+          (Number(mil.army) || 0) +
+          (Number(mil.militia) || 0) * 0.6 +
+          (Number(mil.guards) || 0) * 0.3;
+        if (ours <= 0) {
+          applied.push('攻城:无兵可战');
+          continue;
+        }
+        const oursPower =
+          ours *
+          (1 + (Number(mil.quality) || 0) / 200) *
+          (1 + (Number(mil.morale) || 0) / 200) *
+          (1 + (Number(infra.workshop) || 0) / 20);
+        const theirPower = (Number(ct.defense) || 10) * (1 + (Number(ct.unrest) || 0) / 200);
+        const roll = 0.85 + Math.random() * 0.3;
+        const win = oursPower * roll > theirPower;
+        if (win) {
+          ct.owner = 'wangjia';
+          ct.defense = Math.max(1, Math.round((Number(ct.defense) || 10) / 2));
+          ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 20);
+          applied.push(`攻城:${cityName} 已下`);
+          events.push(
+            nextEvent(world, {
+              action: 'siege_win',
+              actor: 'husband',
+              place: ct.region || null,
+              payload: { text: `攻下${cityName}` },
+              isPublic: true,
+            }),
+          );
+        } else {
+          const loss = Math.max(1, Math.round(ours * 0.25));
+          const takeArmy = Math.min(Number(mil.army) || 0, Math.round(loss * 0.5));
+          mil.army = Math.max(0, (Number(mil.army) || 0) - takeArmy);
+          const rest = Math.max(0, loss - takeArmy);
+          mil.militia = Math.max(0, (Number(mil.militia) || 0) - rest);
+          mil.morale = Math.max(0, (Number(mil.morale) || 0) - 15);
+          applied.push(`攻城:${cityName} 未下（折损${loss}，士气-15）`);
+          events.push(
+            nextEvent(world, {
+              action: 'siege_lose',
+              actor: 'husband',
+              place: ct.region || null,
+              payload: { text: `攻打${cityName}受挫` },
+              isPublic: true,
+            }),
+          );
+        }
       } else if (kind === 'power') {
         // 新势力：立旗号、拉队伍
         const name = String(args.name || '').trim().slice(0, 20);
