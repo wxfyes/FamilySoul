@@ -556,7 +556,7 @@ export function ensureCourt(world) {
         home: world.places?.['yamen'] ? 'yamen' : 'street',
         location: 'yamen',
         relations: { husband: { trust: 20, desire: 0, fear: 0, grievance: 0 } },
-        goals: id === 'yangshenzhi' ? ['给采儿定一门体面的亲事', '坐稳临江知府这位子'] : [坐稳${'$'}{post}这位子, '看清朝中风向'],
+        goals: id === 'yangshenzhi' ? ['给采儿定一门体面的亲事', '坐稳临江知府这位子'] : [`坐稳${post}这位子`, '看清朝中风向'],
         secret: id === 'yangshenzhi' ? '拿女儿的亲事换官场上的路' : '府里上下都收过银子',
         schedule: [],
       };
