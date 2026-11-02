@@ -2060,6 +2060,20 @@ export class PetService {
       /* 压缩失败不影响对话 */
     }
 
+    // 问"我在哪"：引擎直接答，别让模型猜
+    try {
+      if (/(我(在|到了)?哪|这是哪|到哪儿了|在什么地方)/.test(String(say || ''))) {
+        const wHere2 = loadState(this.dataDir);
+        const locSelf = this._viewerActorId ? wHere2.actors?.[this._viewerActorId]?.location : wHere2.actors?.husband?.location;
+        const pName = String(wHere2.places?.[locSelf]?.name || '');
+        if (pName) {
+          assistantMsg.text = `【${pName}】：（你在${pName}。）`;
+          assistantMsg.audioKey = null;
+          console.log('[Where] 直接答位置：' + pName);
+        }
+      }
+    } catch { /* 忽略 */ }
+
     this.saveHistory(profileKey, history);
 
     return {
