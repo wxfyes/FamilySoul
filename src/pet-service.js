@@ -1189,19 +1189,26 @@ export class PetService {
         moved.push('相公');
       }
 
-      // 本轮开口说话的人，默认也在场，一起挪过去（真人玩家不自动挪）
-      const speakers = [...String(text).matchAll(/【([^】\n]{1,10})】/g)].map((x) => x[1].trim());
-      for (const name of speakers) {
-        const id = Object.keys(world.actors || {}).find((k) => {
-          const a = world.actors[k];
-          if (!a?.name || k === 'husband' || a.kind === 'human') return false;
-          const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
-          return a.name === name || name.includes(a.name) || name.includes(short);
-        });
-        if (!id) continue;
-        if (world.actors[id].location !== placeId) {
-          world.actors[id].location = placeId;
-          moved.push(world.actors[id].name);
+      // 只有「实景地点」才把说话的人一起带过去；
+      // 马车、路上、船上这类过场地点只挪相公，否则几轮下来所有人都会挤进马车。
+      const isTransient = /(马车|车上|马上|路上|途中|轿|船|码头边|街口|门口)/.test(placeName);
+      if (!isTransient) {
+        const speakers = [...String(text).matchAll(/【([^】\n]{1,10})】/g)].map((x) => x[1].trim());
+        let carried = 0;
+        for (const name of speakers) {
+          if (carried >= 2) break; // 一轮最多带两人，避免整府搬家
+          const id = Object.keys(world.actors || {}).find((k) => {
+            const a = world.actors[k];
+            if (!a?.name || k === 'husband' || a.kind === 'human') return false;
+            const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+            return a.name === name || name.includes(a.name) || name.includes(short);
+          });
+          if (!id) continue;
+          if (world.actors[id].location !== placeId) {
+            world.actors[id].location = placeId;
+            moved.push(world.actors[id].name);
+            carried += 1;
+          }
         }
       }
 
