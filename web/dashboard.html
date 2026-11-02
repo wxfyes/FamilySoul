@@ -538,7 +538,7 @@ function render(w){
   (w.promises||[]).forEach(p => rows.push({
     t: Number(p.due)*24,
     kind: '承诺', cls: Number(p.due) < w.clock.day ? 'bad' : 'warn',
-    title: String(p.text||''), detail: '', extra: '',
+    title: String(p.text||''), detail: '', extra: '', raw: String(p.text||''), kindKey: 'promise',
     when: dayText(p.due),
   }));
   (w.pending||[]).forEach(e => rows.push({
@@ -551,7 +551,7 @@ function render(w){
   $('todo').innerHTML = rows.length ? rows.map(r => `
     <div class="row">
       <span><span class="tag ${r.cls}">${r.kind}</span> <b>${r.title}</b> ${r.detail?`<span class="muted">${r.detail}</span>`:''} ${r.extra?`<span class="muted">（${r.extra}）</span>`:''}</span>
-      <span>${r.when}</span>
+      <span>${r.when}${r.kind==='承诺'||r.kind==='暗涌'?` <a href="javascript:void(0)" onclick="todoRemove('${r.kind==='暗涌'?'pending':'promise'}, this)" data-text="${String(r.title||'').replace(/"/g,'&quot;')}" style="color:#e05a5a;margin-left:10px;text-decoration:none">✕</a>`:''}</span>
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
@@ -597,6 +597,21 @@ function foldRegion(el, r) {
       e.style.display = e.style.display === 'none' ? '' : 'none';
     }
   });
+}
+
+async function todoRemove(kind, el) {
+  const tk = token();
+  const text = el?.dataset?.text || '';
+  if (!tk || !text) return;
+  if (!confirm('删除这条待办？')) return;
+  try {
+    const r = await fetch(`/api/admin/todo/remove?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, text }),
+    });
+    const j = await r.json();
+    if (j.ok) load(); else alert('删除失败：' + (j.error || ''));
+  } catch (e) { alert('删除失败：' + e.message); }
 }
 
 async function doBind(memberKey) {

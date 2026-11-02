@@ -167,7 +167,13 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         }
         const rawDue = Number(args.due);
         const due = rawDue >= world.clock.day && rawDue <= world.clock.day + 30 ? rawDue : world.clock.day + 3;
-        world.promises.push({ text: text.slice(0, 120), due, done: false, at: world.clock.day });
+        world.promises.push({
+          text: String(args.text || '').slice(0, 80),
+          due: due,
+          at: world.clock.day,
+          done: false,
+          about: String(args.who || args.about || '').split(/[,，、]/).map((x) => x.trim()).filter(Boolean),
+        });
         applied.push(`承诺:${text.slice(0, 16)}（第${due}日）`);
       } else if (kind === 'spawn') {
         const name = String(args.name || '').trim();

@@ -704,6 +704,32 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26b 删除单条承诺/暗涌 POST /api/admin/todo/remove {kind, text}
+    if (req.method === 'POST' && pathname === '/api/admin/todo/remove') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const kind = String(body.kind || 'promise');
+        const text = String(body.text || '').slice(0, 80);
+        if (!text) return sendJson(res, 400, { ok: false, error: '缺少 text' });
+        let removed = 0;
+        if (kind === 'pending') {
+          const before = (world.pending || []).length;
+          world.pending = (world.pending || []).filter((x) => String(x?.desc || '') !== text);
+          removed = before - world.pending.length;
+        } else {
+          const before = (world.promises || []).length;
+          world.promises = (world.promises || []).filter((x) => String(x?.text || '') !== text);
+          removed = before - world.promises.length;
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Todo] 删除${kind} ${removed} 条：${text.slice(0, 20)}`);
+        return sendJson(res, 200, { ok: true, removed });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
@@ -943,6 +969,8 @@ const STARTED_AT = Date.now();
             const nameShort = a.name && a.name.length > 2 ? a.name.slice(-2) : a.name;
             world.promises = (world.promises || []).filter((pr) => {
               const t = String(pr?.text || '');
+              const about = Array.isArray(pr?.about) ? pr.about : [];
+              if (about.includes(id)) return false;
               return !(t.includes(a.name) || (nameShort && t.includes(nameShort)));
             });
             const pdBefore = (world.pending || []).length;
