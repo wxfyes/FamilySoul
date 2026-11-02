@@ -1617,6 +1617,24 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('========================================================');
 
   // 账本体检：启动跑一次，之后每 24 小时一次（纯代码，零 token）
+  // 1:1 同步：把「整点基准」对齐到现实整点，世界时间才会与现实整点一致
+  try {
+    const wC = peek(DATA_DIR);
+    const nowMs = Date.now();
+    const realHour = new Date(nowMs).getHours();
+    if (Number(config.world?.msPerWorldHour || 3600000) >= 60 * 60 * 1000) {
+      wC.clock.hour = realHour;
+      wC.lastRealAt = nowMs - (nowMs % (60 * 60 * 1000)); // 基准落在整点
+      wC.flags = wC.flags || {};
+      const d = new Date(nowMs);
+      wC.flags.realDateMark = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      saveState(DATA_DIR, wC);
+      console.log(`[World] 时钟对齐现实整点：第${wC.clock.day}日 ${realHour}时`);
+    }
+  } catch (err) {
+    console.warn('[World] 时钟对齐失败：', err.message);
+  }
+
   // 开机就把各自的主线播种好，不用等到午夜翻篇
   try {
     const wA = peek(DATA_DIR);

@@ -326,6 +326,25 @@ function fireDue(world, events) {
   world.pending = stillPending;
 }
 
+/**
+ * 1:1 同步模式：世界时间直接取现实时钟，不靠累加（累加会因锚点分钟数产生最多 59 分钟偏差）
+ */
+function syncToRealClock(world, nowMs) {
+  const d = new Date(nowMs);
+  const realHour = d.getHours();
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const lastIso = world.flags?.realDateMark || iso;
+  if (lastIso !== iso) {
+    world.clock.day = (Number(world.clock.day) || 1) + 1;
+    world.flags = world.flags || {};
+    world.flags.realDateMark = iso;
+  } else if (!world.flags?.realDateMark) {
+    world.flags = world.flags || {};
+    world.flags.realDateMark = iso;
+  }
+  if (world.clock.hour !== realHour) world.clock.hour = realHour;
+}
+
 function advanceHour(world, events, nowMs) {
   world.clock.hour += 1;
   if (world.clock.hour >= 24) {
