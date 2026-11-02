@@ -686,6 +686,22 @@ export class PetService {
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = contextHintEarly;
+    // 锁定本轮对话对象：上一轮 AI 是谁，就继续由谁接话（除非相公明确点了别人）
+    try {
+      const wL = loadState(this.dataDir);
+      const locked = wL.flags?.partner?.[profileKey];
+      if (locked && summonedNames.length === 0) {
+        const mentionedOther = Object.values(wL.actors || {})
+          .filter((a) => a?.name && a.name !== locked)
+          .some((a) => say.includes(a.name) || (a.name.length > 2 && say.includes(a.name.slice(-2))));
+        if (!mentionedOther) {
+          contextHint += `（【继续对话】：本轮仍由「${locked}」接话，其他人一律不许插话、不许出场。）\n`;
+        }
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     if (summonedNames.length > 0) {
       contextHint += `（【已到场】：${summonedNames.join('、')} 现在就在相公面前。本轮必须由她亲自开口应声（按分角格式写她的台词），你不许替她回答，也不许说她不在。若相公直接对她说"过来"，她必须应声上前。）\n`;
     }
@@ -1199,6 +1215,23 @@ export class PetService {
       } catch {
         /* 忽略 */
       }
+    }
+
+    // 记住本轮是谁在跟你说话，下一轮锁定她，避免模型自己换人
+    try {
+      const firstSpk = String(reply).match(/^【([^】\n]{1,12})】/);
+      if (firstSpk) {
+        const nm = firstSpk[1].trim();
+        const wS = loadState(this.dataDir);
+        wS.flags = wS.flags || {};
+        wS.flags.partner = wS.flags.partner || {};
+        if (nm !== "旁白" && nm !== "王甯") {
+          wS.flags.partner[profileKey] = nm;
+          saveState(this.dataDir, wS);
+        }
+      }
+    } catch {
+      /* 忽略 */
     }
 
     // 她说要走了，就真的走（否则人会永远钉在原地）
