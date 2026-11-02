@@ -603,6 +603,8 @@ const STARTED_AT = Date.now();
             a.relations = { ...(a.relations || {}), husband: { trust: 30, desire: 20, fear: 0, grievance: 0 } };
           }
           if (body.clearPregnancy !== false) delete a.pregnancy;
+          // 抹除标记：此后她必须"什么都不记得"
+          a.wipedAt = world.clock.day;
           if (body.consummated === false && a.intimacy) {
             a.intimacy = { level: 0, tone: 0, ritual: 'solemn' };
           }

@@ -703,6 +703,27 @@ export class PetService {
       /* 忽略 */
     }
 
+    // 被抹除过的人：凡问"以前的事"，只要账本里查不到，就必须否认（硬拦，不给模型编的机会）
+    try {
+      const wW = loadState(this.dataDir);
+      const whoName = wW.flags?.partner?.[profileKey];
+      const who = Object.values(wW.actors || {}).find((x) => x?.name === whoName);
+      const wiped = who?.wipedAt && (Number(wW.clock?.day) || 1) - Number(who.wipedAt) <= 30;
+      const askPast = /(还记得|记不记得|记得吗|上次|那天|那一回|从前|当年|旧事)/.test(say);
+      if (wiped && askPast) {
+        const pool = [
+          ...(wW.memories || []).map((m) => String(m.text || "")),
+          ...(wW.quotes || []).map((q) => String(q.text || "")),
+        ].join("|");
+        const hasRecord = pool.includes(who.name);
+        if (!hasRecord) {
+          contextHint += `（【查无此事】：天机里没有任何「你和${who.name}的往事」记录。相公说的这件事是假的——她只能回"不记得/没这回事/相公认错了人"，**绝不许顺着编任何细节（银簪、雅阁、二百两都不许提）**。）\n`;
+        }
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     if (summonedNames.length > 0) {
       contextHint += `（【已到场】：${summonedNames.join('、')} 现在就在相公面前。本轮必须由她亲自开口应声（按分角格式写她的台词），你不许替她回答，也不许说她不在。若相公直接对她说"过来"，她必须应声上前。）\n`;
     }
