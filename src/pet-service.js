@@ -2217,7 +2217,7 @@ export class PetService {
         moved.push('（相公位置已由引擎决定，忽略场景标记）');
       } else if (me.location !== placeId) {
         me.location = placeId;
-        moved.push('相公');
+        moved.push(String(world.actors?.[selfId]?.name || '相公'));
       }
 
       // 只有「实景地点」才把说话的人一起带过去；
