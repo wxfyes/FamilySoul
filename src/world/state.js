@@ -96,6 +96,8 @@ export function createInitialState(dataDir) {
     places: {
       tea_house: { name: '临江茶坊', exits: ['street', 'backyard'] },
       backyard: { name: '后院暖阁', exits: ['tea_house'] },
+      wine_shop: { name: '于家酒肆', exits: ['street'], dynamic: false },
+      goods_shop: { name: '翟家货栈', exits: ['street'], dynamic: false },
       street: { name: '青石板长街', exits: ['tea_house', 'yamen'] },
       dock: { name: '运河码头', exits: ['street', 'canal_restaurant'] },
       canal_restaurant: { name: '运河码头大酒楼', exits: ['dock'] },
@@ -161,7 +163,7 @@ export function createInitialState(dataDir) {
         schedule: [{ at: 20, do: '回后院伺候', place: 'backyard' }],
       },
       aji: {
-        id: 'aji', gender: 'male', home: 'tea_house',
+        id: 'aji', gender: 'male', home: 'tea_house', schedule: [{ at: 6, do: '开门生火、擦桌摆盏', place: 'tea_house' }, { at: 12, do: '往前街送茶点', place: 'street' }, { at: 18, do: '回茶坊收档', place: 'tea_house' }],
         name: '阿吉',
         role: '跑堂伙计',
         label: '跑堂伙计',
@@ -169,7 +171,7 @@ export function createInitialState(dataDir) {
         goals: ['把跑堂差事做出名堂'],
       },
       qiantonghai: {
-        id: 'qiantonghai', gender: 'male', home: 'street',
+        id: 'qiantonghai', gender: 'male', home: 'street', schedule: [{ at: 8, do: '在茶行坐馆收货', place: 'street' }, { at: 12, do: '聚贤楼请漕帮吃酒', place: 'dock' }, { at: 17, do: '回茶行盘账', place: 'street' }],
         name: '钱通海',
         role: '临江茶行行长',
         location: 'street',
@@ -199,7 +201,7 @@ export function createInitialState(dataDir) {
         ],
       },
       luchen: {
-        id: 'luchen', gender: 'male', home: 'yang_mansion',
+        id: 'luchen', gender: 'male', home: 'yang_mansion', schedule: [{ at: 7, do: '在杨府值守', place: 'yang_mansion' }, { at: 15, do: '跟着大小姐巡街', place: 'street' }, { at: 20, do: '回杨府换班', place: 'yang_mansion' }],
         name: '陆沉',
         role: '杨府侍卫统领',
         label: '陆统领',
@@ -213,7 +215,7 @@ export function createInitialState(dataDir) {
 
       // ── 城中暗香 · 深宅怨妇（各自有明面家室，也有自己的日子）──
       yangcaiyun: {
-        id: 'yangcaiyun', gender: 'female', home: 'street',
+        id: 'yangcaiyun', gender: 'female', home: 'goods_shop',
         name: '杨采云',
         role: '翟家货栈老板娘',
         location: 'street',
@@ -229,7 +231,7 @@ export function createInitialState(dataDir) {
         ],
       },
       liuwenxia: {
-        id: 'liuwenxia', gender: 'female', home: 'street',
+        id: 'liuwenxia', gender: 'female', home: 'wine_shop',
         name: '刘文霞',
         role: '于家酒肆老板娘',
         location: 'street',
@@ -273,6 +275,8 @@ export function createInitialState(dataDir) {
     ],
 
     promises: [],
+    // 账本结构版本：升版本时把预设人物的日程/住处刷成最新设计（不影响用户自己造的 npc_*）
+    stateVersion: 2,
     // 势力与声望：复仇、翻案、朝堂线都靠它记账
     factions: {
       yamen: { name: '临江府衙', relation: 0, power: 45 },
@@ -353,9 +357,23 @@ export function loadState(dataDir) {
   for (const [id, actor] of Object.entries(raw.actors || {})) {
     mergedActors[id] = { ...(base.actors?.[id] || {}), ...actor };
   }
+  // 版本迁移：预设人物的日程/住处以代码为准（用户自己造的 npc_* 不动）
+  if (Number(raw.stateVersion || 1) !== Number(base.stateVersion)) {
+    for (const [id, baseActor] of Object.entries(base.actors || {})) {
+      const live = mergedActors[id];
+      if (!live) continue;
+      if (Array.isArray(baseActor.schedule)) live.schedule = baseActor.schedule.map((s) => ({ ...s }));
+      if (baseActor.home) live.home = baseActor.home;
+      if (baseActor.gender) live.gender = baseActor.gender;
+      if (typeof baseActor.household === 'boolean') live.household = baseActor.household;
+    }
+    console.log(`[State] 账本升级到 v${base.stateVersion}：已刷新 ${Object.keys(base.actors || {}).length} 位预设人物的日程与住处`);
+  }
+
   return {
     ...base,
     ...raw,
+    stateVersion: base.stateVersion,
     clock: { ...base.clock, ...(raw.clock || {}) },
     assets: {
       ...base.assets,
@@ -364,6 +382,7 @@ export function loadState(dataDir) {
     },
     places: normalizePlaces({ ...base.places, ...(raw.places || {}) }, mergedActors),
     actors: mergedActors,
+
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
     memories: Array.isArray(raw.memories) ? raw.memories : [],

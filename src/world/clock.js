@@ -119,8 +119,8 @@ function runSchedules(world) {
     if (!Array.isArray(actor.schedule)) continue;
     for (const slot of actor.schedule) {
       if (slot.at === world.clock.hour && slot.place && actor.location !== slot.place) {
-        // 正跟相公在一起的人，不被日程拽走（否则刚一起出门，过一会儿又被"回家"拉回原点）
-        if (husbandPlace && actor.location === husbandPlace && actor.id !== 'husband') continue;
+        // 正在私会的人不打断；其余照日程走（人不能因为站在你跟前就钉死不动）
+        if (actor.intimacy?.ritual === 'unlocked') continue;
         actor.location = slot.place;
         // 主子（不含正妻本人）走到相公所在之处 → 主动来见
         if (

@@ -556,6 +556,12 @@ const STARTED_AT = Date.now();
             gender: String(it.gender || 'female'),
             household: Boolean(it.household),
             home: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
+            // 天道造出来的人也要过日子：早上在家，晌午去街上，晚间回家
+            schedule: [
+              { at: 7, do: `${String(it.goals || '').split(';')[0] || '营生'}`, place: world.places?.[it.place] ? it.place : 'street' },
+              { at: 12, do: '出门走动', place: 'street' },
+              { at: 20, do: '回家歇息', place: world.places?.[it.place] ? it.place : 'street' },
+            ],
             location: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
             goals: String(it.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
             secret: String(it.secret || ''),
