@@ -149,6 +149,65 @@ function advancePregnancies(world, events) {
   }
 }
 
+/**
+ * 地方经济与税收：物价浮动、天灾、抽税、民心
+ * 税高→民心散→民变；税低→民心归→但收入少。这就是"王朝好坏"的根。
+ */
+function runLocalEconomy(world, events) {
+  const day = world.clock?.day ?? 1;
+  const season = world.clock?.season || 'spring';
+  for (const [name, ct] of Object.entries(world.cities || {})) {
+    if (!ct) continue;
+    // 物价向常价回归，再叠加季节与灾荒
+    const drift = Math.round((100 - (Number(ct.price) || 100)) * 0.2);
+    ct.price = Math.max(50, Math.min(300, Math.round((Number(ct.price) || 100) + drift)));
+
+    // 天灾：小概率
+    if (Math.random() < 0.04) {
+      const kind = ['旱', '涝', '蝗', '雪灾'][Math.floor(Math.random() * 4)];
+      ct.price = Math.min(300, Math.round((Number(ct.price) || 100) * 1.25));
+      ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 6);
+      events.push(
+        nextEvent(world, {
+          action: 'disaster',
+          actor: 'system',
+          place: ct.region || null,
+          payload: { text: `${name}遭${kind}，粮价上涨` },
+          isPublic: true,
+        }),
+      );
+    }
+
+    // 税：占城者收，朝廷的城不归你
+    const tax = Math.max(0, Math.min(50, Number(ct.tax) || 0));
+    if (ct.owner === 'wangjia') {
+      const gain = Math.round(((Number(ct.wealth) || 30) * tax) / 100 / 5 * 100) / 100;
+      if (gain > 0) {
+        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + gain) * 100) / 100;
+      }
+      // 税越高，民心越散
+      ct.unrest = Math.max(0, Math.min(100, (Number(ct.unrest) || 0) + Math.round(tax / 8)));
+    } else {
+      ct.unrest = Math.max(0, Math.min(100, (Number(ct.unrest) || 0) + (tax >= 20 ? 1 : -1)));
+    }
+
+    // 民心涣散到极点 → 民变
+    if ((Number(ct.unrest) || 0) >= 85 && Math.random() < 0.15) {
+      ct.owner = 'court';
+      ct.unrest = 60;
+      events.push(
+        nextEvent(world, {
+          action: 'revolt',
+          actor: 'system',
+          place: ct.region || null,
+          payload: { text: `${name}民变，城池易手` },
+          isPublic: true,
+        }),
+      );
+    }
+  }
+}
+
 function consumeSupplies(world) {
   const mil = world.military;
   if (!mil) return;
@@ -165,6 +224,11 @@ function consumeSupplies(world) {
 
 function onNewDay(world, events) {
   consumeSupplies(world);
+  try {
+    runLocalEconomy(world, events);
+  } catch (err) {
+    console.warn('[Econ] 地方经济结算失败：', err.message);
+  }
   // 气是会消的：每天自动消退 1 点（被人一再冷落才会积住）
   for (const a of Object.values(world.actors || {})) {
     const g = a?.relations?.husband?.grievance;

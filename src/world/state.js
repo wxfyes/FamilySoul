@@ -291,6 +291,9 @@ export function createInitialState(dataDir) {
         { name: '剑南道', cities: ['成都府', '绵州府', '嘉州府'] },
       ],
     },
+    // 名声与通缉：士绅口碑 / 官府悬赏
+    reputation: 50,
+    wanted: 0,
     // 天下势力：朝廷、藩镇、义军、商帮、山匪
     powers: {
       court: { name: '大乾朝廷', kind: '朝廷', power: 90, relation: 0, troops: 200000, note: '名义上统御天下' },
@@ -432,6 +435,30 @@ export function worldDate(world) {
   return { iso, month: anchor.getMonth() + 1, day: anchor.getDate(), year: anchor.getFullYear(), lunar };
 }
 
+const CITY_GOODS = {
+  临江府: ['茶', '米'],
+  苏州府: ['丝', '绣'],
+  杭州府: ['绸', '茶'],
+  扬州府: ['盐', '布'],
+  松江府: ['棉', '布'],
+  京城: ['官盐', '铁器'],
+  洛阳府: ['粮', '马'],
+  汴梁府: ['粮', '纸'],
+  太原府: ['铁', '煤'],
+  淮安府: ['盐', '漕粮'],
+  庐州府: ['米', '木'],
+  泰州府: ['盐', '鱼'],
+  幽州府: ['马', '铁'],
+  冀州府: ['粮', '绢'],
+  沧州府: ['盐', '铁'],
+  广州府: ['香料', '糖'],
+  潮州府: ['瓷', '茶'],
+  桂州府: ['药', '木'],
+  成都府: ['锦', '茶'],
+  绵州府: ['粮', '漆'],
+  嘉州府: ['竹', '纸'],
+};
+
 /** 按疆域把每座城建出来（只在缺的时候建，不覆盖已有归属）*/
 export function ensureCities(world) {
   world.cities = world.cities && typeof world.cities === 'object' ? world.cities : {};
@@ -445,6 +472,9 @@ export function ensureCities(world) {
         defense: 15 + Math.floor(Math.random() * 15),
         wealth: 30 + Math.floor(Math.random() * 40),
         unrest: 5 + Math.floor(Math.random() * 15),
+        goods: CITY_GOODS[name] || [],
+        price: 100,   // 物价指数，100 为常价
+        tax: 10,      // 税率 %
       };
     }
   }
@@ -503,6 +533,8 @@ export function loadState(dataDir) {
     powers: { ...base.powers, ...(raw.powers || {}) },
     cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
+    reputation: Number.isFinite(Number(raw.reputation)) ? Number(raw.reputation) : 50,
+    wanted: Number.isFinite(Number(raw.wanted)) ? Number(raw.wanted) : 0,
     infra: { ...base.infra, ...(raw.infra || {}) },
     factions: { ...base.factions, ...(raw.factions || {}) },
     clues: Array.isArray(raw.clues) ? raw.clues : [],

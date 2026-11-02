@@ -284,6 +284,16 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         .slice(0, 4)
         .map((p) => `${p.name}(${p.kind},兵${p.troops})`);
       if (powers.length) lines.push(`【天下】${powers.join('、')}`);
+      // 地方：物产、物价、税率、民心
+      const own = Object.entries(world.cities || {}).filter(([, c]) => c.owner === 'wangjia').slice(0, 3);
+      if (own.length) {
+        lines.push(
+          `【你的地方】${own
+            .map(([n, c]) => `${n}（${(c.goods || []).join('/') || '无特别物产'}，物价${c.price}，税${c.tax}%，民心${c.unrest}）`)
+            .join('；')}`,
+        );
+      }
+      lines.push(`【名声】士绅口碑${world.reputation ?? 50} · 官府通缉${world.wanted ?? 0}`);
       if (mine.length) {
         lines.push(`【你的城】${mine.map(([n]) => n).join('、')}`);
       }

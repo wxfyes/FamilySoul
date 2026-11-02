@@ -288,6 +288,38 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'tax') {
+        // 定税率：税高民心散，税低民心归
+        const cityName = String(args.city || args.name || '').trim();
+        world.cities = world.cities || {};
+        const ct = world.cities[cityName];
+        if (!ct) continue;
+        const rate = Math.max(0, Math.min(50, Number(args.rate ?? args.value) || 0));
+        ct.tax = rate;
+        applied.push(`税率:${cityName} ${rate}%`);
+      } else if (kind === 'reputation') {
+        const delta = Number(args.delta);
+        if (!Number.isFinite(delta)) continue;
+        world.reputation = Math.max(0, Math.min(100, (Number(world.reputation) || 50) + delta));
+        applied.push(`名声${delta >= 0 ? '+' : ''}${delta}→${world.reputation}`);
+      } else if (kind === 'wanted') {
+        const delta = Number(args.delta);
+        if (!Number.isFinite(delta)) continue;
+        world.wanted = Math.max(0, Math.min(100, (Number(world.wanted) || 0) + delta));
+        applied.push(`通缉${delta >= 0 ? '+' : ''}${delta}→${world.wanted}`);
+      } else if (kind === 'venue') {
+        // 场所：给地点加上"这是干什么的"
+        const placeName = String(args.place || '').trim();
+        const kindName = String(args.kind || '').trim().slice(0, 8);
+        if (!placeName || !kindName) continue;
+        world.places = world.places || {};
+        const pid = Object.keys(world.places).find((id) => {
+          const n = String(world.places[id]?.name || '');
+          return n === placeName || n.includes(placeName);
+        }) || null;
+        if (!pid) continue;
+        world.places[pid].kind = kindName;
+        applied.push(`场所:${world.places[pid].name}=${kindName}`);
       } else if (kind === 'siege') {
         // 攻城：兵力 vs 守备，结果由算式 + 少量随机决定
         const cityName = String(args.city || args.name || '').trim();
