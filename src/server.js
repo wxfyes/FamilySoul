@@ -917,6 +917,40 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26h 人物志 GET /api/admin/actor/detail?id=xxx
+    if (req.method === 'GET' && pathname === '/api/admin/actor/detail') {
+      try {
+        const id = String(url.searchParams.get('id') || '');
+        const world = peek(DATA_DIR);
+        const a = world.actors?.[id];
+        if (!a) return sendJson(res, 404, { ok: false, error: '没有这个人' });
+        const bonds = Object.entries(world.bonds?.[id] || {})
+          .map(([oid, b]) => ({ name: world.actors?.[oid]?.name || oid, type: b.type, score: b.score }))
+          .sort((x, y) => Math.abs(y.score) - Math.abs(x.score))
+          .slice(0, 8);
+        const arc = (world.npcArcs || {})[id] || (world.arcs || {})[id] || null;
+        const cases = (world.cases || []).filter((c) => c && (c.whoId === id || c.againstId === id)).slice(-5)
+          .map((c) => ({ claim: c.claim, status: c.status, verdict: c.verdict || '', reason: c.reason || '', day: c.day, role: c.whoId === id ? '原告' : '被告' }));
+        const props = (world.assets?.properties || []).filter((x) => x && (x.owner === id || x.keeper === id))
+          .map((x) => ({ name: x.name, income: x.incomePerDay, staff: x.staff || 0, role: x.owner === id ? '东家' : '掌柜' }));
+        const knows = (world.rumors || []).filter((r) => (r.heardBy || []).includes(id)).slice(-4).map((r) => r.text);
+        return sendJson(res, 200, {
+          ok: true,
+          actor: {
+            id: a.id, name: a.name, role: a.role, gender: a.gender, place: world.places?.[a.location]?.name || '',
+            origin: a.origin || 'preset', age: a.age || null, rank: a.rank || '', study: a.study || 0,
+            goals: a.goals || [], secret: a.secret || '',
+            rel: a.relations?.husband || null, activity: a.activity?.text || '',
+            jailed: a.jailed || null, dead: Boolean(a.dead),
+          },
+          bonds, arc, cases, props, knows,
+          money: id === 'husband' ? (Number(world.assets?.silver) || 0) : (Number(world.wallets?.[id]) || 0),
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {

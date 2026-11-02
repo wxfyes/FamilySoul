@@ -602,7 +602,7 @@ function render(w){
     const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
     if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
       <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>
       <td class="num">${r.desire??'—'} ${bar(r.desire||0)}</td>
@@ -651,6 +651,39 @@ async function renderNpcArcs(list) {
     ? rows.map((x) => `<div class="row"><span><b>${x.name}</b></span><span class="muted" style="max-width:70%;text-align:right">${x.text}</span></div>`).join('')
     : '暂时还没有动静（每 3 天各人自有一桩事）';
 }
+
+async function openActor(id) {
+  const tk = token();
+  if (!tk || !id) return;
+  try {
+    const r = await fetch(`/api/admin/actor/detail?token=${encodeURIComponent(tk)}&id=${encodeURIComponent(id)}`);
+    const j = await r.json();
+    if (!j.ok) return;
+    const a = j.actor || {};
+    $('amName').textContent = `${a.name}　${a.role || ''}`;
+    const rel = a.rel || {};
+    const bonds = (j.bonds || []).map((b) => `${b.name}（${b.type}·${b.score > 0 ? '亲' : '疏'}）`).join('　') || '—';
+    const cases = (j.cases || []).map((c) => `${c.role}·${c.claim}（${c.status}${c.reason ? '·' + c.reason : ''}）`).join('<br>') || '无案底';
+    const props = (j.props || []).map((p) => `${p.name}（${p.role}·日入${Number(p.income).toFixed(2)}·${p.staff}人）`).join('<br>') || '—';
+    const knows = (j.knows || []).join('<br>') || '—';
+    const arc = j.arc ? (j.arc.lastStep || (j.arc.log && j.arc.log.length ? j.arc.log[j.arc.log.length - 1].text : '') || '') : '';
+    $('amBody').innerHTML = `
+      <div>${a.origin === 'spawned' ? '天道衍生' : '预设'}　${a.gender === 'male' ? '男' : '女'}　在「${a.place || '不知去向'}」${a.activity ? '，' + a.activity : ''}</div>
+      ${a.dead ? '<div style="color:#e05a5a">已故</div>' : ''}
+      ${a.jailed ? `<div style="color:#e0a05a">在押（第${a.jailed.untilDay}日出狱）</div>` : ''}
+      ${rel && rel.trust != null ? `<div>对相公：信任 ${rel.trust}　欲望 ${rel.desire || 0}　怨怼 ${rel.grievance || 0}</div>` : ''}
+      <div>身上：${Number(j.money || 0).toFixed(2)} 两${a.rank ? '　功名：' + a.rank : ''}${a.study ? '　学识：' + a.study : ''}</div>
+      <div style="margin-top:6px"><b>关系</b><br>${bonds}</div>
+      ${a.goals && a.goals.length ? `<div style="margin-top:6px"><b>想做的事</b><br>${a.goals.join('；')}</div>` : ''}
+      ${a.secret ? `<div style="margin-top:6px"><b>秘密</b><br>${a.secret}</div>` : ''}
+      ${arc ? `<div style="margin-top:6px"><b>眼下</b><br>${arc}</div>` : ''}
+      <div style="margin-top:6px"><b>案底</b><br>${cases}</div>
+      <div style="margin-top:6px"><b>产业</b><br>${props}</div>
+      <div style="margin-top:6px"><b>听过的风评</b><br>${knows}</div>`;
+    $('actorModal').style.display = 'block';
+  } catch (e) { /* 忽略 */ }
+}
+function closeActor() { $('actorModal').style.display = 'none'; }
 
 function renderWorldExtras(w) {
   const rum = $('rumors');
@@ -841,5 +874,14 @@ $('token').value = token();
 load();
 setInterval(load, 30000);
 </script>
+<div id="actorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99" onclick="if(event.target===this)closeActor()">
+  <div style="max-width:560px;margin:6vh auto;background:#161a21;border:1px solid #2a2f3a;border-radius:12px;padding:18px;max-height:82vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b id="amName" style="font-size:16px"></b>
+      <a href="javascript:void(0)" onclick="closeActor()" style="color:#888">关闭</a>
+    </div>
+    <div id="amBody" style="font-size:13px;line-height:1.7"></div>
+  </div>
+</div>
 </body>
 </html>
