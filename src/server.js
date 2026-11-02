@@ -511,6 +511,37 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 9.4 直接校正人物关系 POST /api/admin/relations（数值没跟上事实时用）
+    if (req.method === 'POST' && pathname === '/api/admin/relations') {
+      try {
+        const body = await parseJsonBody(req, 256 * 1024);
+        const world = peek(DATA_DIR);
+        const items = Array.isArray(body.items) ? body.items : [body];
+        const done = [];
+        for (const it of items) {
+          const id = String(it?.id || '').trim();
+          const a = world.actors?.[id];
+          if (!a) continue;
+          const rel = (a.relations = a.relations || {});
+          const h = (rel.husband = rel.husband || { trust: 30, desire: 20, fear: 5, grievance: 0 });
+          for (const f of ['trust', 'desire', 'fear', 'grievance']) {
+            if (Number.isFinite(Number(it[f]))) h[f] = Math.max(0, Math.min(100, Number(it[f])));
+          }
+          if (typeof it.consummated === 'boolean') {
+            a.intimacy = a.intimacy || { level: 0, tone: 0, ritual: 'solemn' };
+            a.intimacy.consummated = it.consummated;
+            if (it.consummated && !(a.intimacy.level > 0)) a.intimacy.level = 1;
+          }
+          done.push(`${a.name}(信${h.trust}/欲${h.desire}/怨${h.grievance}${a.intimacy?.consummated ? '·相好' : ''})`);
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Relations] 已校正：${done.join('、')}`);
+        return sendJson(res, 200, { ok: true, done });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.5 把人物挪回该在的地方 POST /api/admin/relocate（清理位置污染用）
     if (req.method === 'POST' && pathname === '/api/admin/relocate') {
       try {

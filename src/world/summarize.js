@@ -45,6 +45,11 @@ function attitudeOf(actor) {
 
   // 外人 / 有夫之妇：这里才是真阻力
   if (g >= 60) return '心里有怨，轻易不松口';
+  // 已经成过事的相好：嘴上还要端着，身子早应了——不会再"到此为止"
+  if (actor?.intimacy?.consummated) {
+    if (d >= 50) return '已是你的相好，嘴上推拒两句，身子早应了';
+    return '已是你的相好，只是脸皮薄，要你先把话递过去';
+  }
   if (d >= 70 && t >= 55) return '心里已有你，半推半就';
   if (d >= 45) return '有点意动，但要给足由头与体面';
   if (t >= 45) return '当你是可信的人，但到此为止';
