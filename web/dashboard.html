@@ -87,7 +87,7 @@
   <section class="card full">
     <h2>人物（数值 + 她此刻的态度）</h2>
     <table>
-      <thead><tr><th>名字</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
+      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
       <tbody id="actors"></tbody>
     </table>
   </section>
@@ -196,7 +196,7 @@ function render(w){
     const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     const intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
     return `<tr>
-      <td><b>${a.name}</b></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
+      <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
       <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>
       <td class="num">${r.desire??'—'} ${bar(r.desire||0)}</td>
       <td class="num">${r.grievance??0} ${bar(r.grievance||0)}</td>

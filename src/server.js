@@ -519,6 +519,41 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.35 手动让一个人入世 POST /api/admin/spawn（测试或补录用）
+    if (req.method === 'POST' && pathname === '/api/admin/spawn') {
+      try {
+        const body = await parseJsonBody(req, 256 * 1024);
+        const list = Array.isArray(body.items) ? body.items : [body];
+        const world = peek(DATA_DIR);
+        let added = 0;
+        for (const it of list) {
+          const name = String(it?.name || '').trim();
+          if (!name) continue;
+          if (Object.values(world.actors || {}).some((a) => a?.name === name)) continue;
+          world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
+          const id = `npc_${world.flags.npcSeq}`;
+          world.actors[id] = {
+            id,
+            name,
+            role: String(it.role || '城中人'),
+            origin: 'spawned',
+            household: false,
+            location: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
+            goals: String(it.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
+            secret: String(it.secret || ''),
+            relations: { husband: { trust: Number(it.trust) || 20, desire: Number(it.desire) || 10, fear: 0, grievance: 0 } },
+            schedule: [],
+          };
+          added += 1;
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[World] 手动造人 ${added} 位`);
+        return sendJson(res, 200, { ok: true, added });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.4 直接校正人物关系 POST /api/admin/relations（数值没跟上事实时用）
     if (req.method === 'POST' && pathname === '/api/admin/relations') {
       try {
@@ -692,6 +727,7 @@ const STARTED_AT = Date.now();
             relations: a.relations?.husband || null,
             intimacy: a.intimacy || null,
             household: Boolean(a.household),
+            origin: a.origin || 'preset',
             goals: Array.isArray(a.goals) ? a.goals : [],
           }));
         const recentReceipts = Array.isArray(world.flags?.recentReceipts) ? world.flags.recentReceipts : [];

@@ -173,6 +173,7 @@ export function applyWorldTags(dataDir, ops) {
         world.actors[id] = {
           id,
           name,
+          origin: 'spawned', // 标记：天道自己长出来的人
           role: String(args.role || '城中人'),
           location: resolvePlace(world, args.place) || 'street',
           goals: String(args.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
