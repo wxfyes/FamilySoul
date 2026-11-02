@@ -414,9 +414,12 @@ const STARTED_AT = Date.now();
       }
       for (const pr of world.promises || []) {
         if (pr.done) continue;
-        // 承诺是"相公许下的"，不属于她的待办；她的号一条都不看
-        if (!isHusband) continue;
-        todos.push({ kind: "承诺", text: pr.text || "", day: pr.due });
+        // 她的号：只看"关于她"的承诺（借款、她许下的事）
+        if (!isHusband) {
+          const about = Array.isArray(pr.about) ? pr.about : [];
+          if (!about.includes(actorId)) continue;
+        }
+        todos.push({ kind: pr.loan ? '借款' : '承诺', text: pr.text || '', day: pr.due });
       }
       const props = (world.assets?.properties || []).filter((p) => (isHusband ? true : p.keeper === actorId));
       const arc = actorId ? world.arcs?.[actorId] : null;
@@ -795,6 +798,36 @@ const STARTED_AT = Date.now();
           silver: actor === 'husband' ? world.assets.silver : world.wallets[actor],
           husbandSilver: world.assets.silver,
         });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.26d 记一笔借款但不转账 POST /api/admin/loan/record {from,to,amount,due}
+    if (req.method === 'POST' && pathname === '/api/admin/loan/record') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const from = String(body.from || 'husband');
+        const to = String(body.to || '');
+        const amount = Math.round((Number(body.amount) || 0) * 100) / 100;
+        if (!to || amount <= 0) return sendJson(res, 400, { ok: false, error: '参数不全' });
+        const day = Number(world.clock?.day) || 1;
+        const due = Number(body.due) > 0 ? Number(body.due) : day + 30;
+        const fromName = world.actors?.[from]?.name || from;
+        const toName = world.actors?.[to]?.name || to;
+        world.promises = Array.isArray(world.promises) ? world.promises : [];
+        world.promises.push({
+          text: `${fromName}借给${toName}${amount}两（${toName}欠${fromName}），第${due}日还清`,
+          due,
+          at: day,
+          done: false,
+          about: [to],
+          loan: { from, to, amount },
+        });
+        saveState(DATA_DIR, world);
+        console.log(`[Loan] 补记借款 ${fromName}→${toName} ${amount}两 第${due}日`);
+        return sendJson(res, 200, { ok: true, text: world.promises[world.promises.length - 1].text });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
