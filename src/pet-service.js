@@ -529,7 +529,9 @@ export class PetService {
     let engineMovedHusband = false; // 引擎这轮已经决定过相公去哪，模型无权再改
     let leftScene = false;          // 这一轮相公是『离场』
     try {
-      const lastBotSaid = [...(history.messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
+      // 注意：这里 history 还没加载，直接读一次历史文件取她上一句（本地 JSON，开销极小）
+      const lastBotSaid =
+        [...(this.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
       const summonResult = applySummon(this.dataDir, say, lastBotSaid);
       summonedNames = summonResult?.summoned || [];
       if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
