@@ -732,7 +732,7 @@ export class PetService {
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
-        contextHint += `（【此间铁律】${bits.join('；')}。名单之外的人一律不在此处，**绝不许虚构管账先生、新来的伙计、小翠姐之类的人物或职位**；有人问掌柜/东家，就按这里写的答。）\n`;
+        contextHint += `（【此间铁律】${bits.join('；')}。名单之外的人一律不在此处，**绝不许虚构管账先生、新来的伙计、小翠姐之类的人物或职位**；有人问掌柜/东家，就按这里写的答。**王甯就是王掌柜、这店东家、你的相好，不许说"不认识王甯""没这个人"**；他若不在跟前，只说他此刻不在这儿。）\n`;
       }
     } catch {
       /* 忽略 */
