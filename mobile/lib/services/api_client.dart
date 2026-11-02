@@ -37,12 +37,16 @@ class SurfCoreApiClient {
 
   /// 检查服务连通性与健康状态
   Future<bool> checkHealth() async {
-    try {
-      final res = await _dio.get('/health', queryParameters: {'token': config.token.trim()});
-      return res.statusCode == 200 && res.data != null && res.data['ok'] == true;
-    } catch (_) {
-      return false;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final res = await _dio.get('/health', queryParameters: {'token': config.token.trim()});
+        if (res.statusCode == 200 && res.data != null && res.data['ok'] == true) return true;
+      } catch (_) {
+        /* 再试一次 */
+      }
+      if (attempt == 0) await Future.delayed(const Duration(milliseconds: 500));
     }
+    return false;
   }
 
   /// 获取实时角色人设与当前作息状态

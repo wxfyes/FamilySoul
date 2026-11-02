@@ -300,16 +300,25 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
+  /// 连续失败几次才判定离线：网络抖一下不该立刻显示"离线中"
+  int _healthFailStreak = 0;
+
   Future<bool> refreshStatus() async {
     final ok = await _apiClient.checkHealth();
-    _isConnected = ok;
     if (ok) {
+      _healthFailStreak = 0;
+      _isConnected = true;
       _petStatus = await _apiClient.fetchStatus();
     } else {
-      _petStatus = PetStatus(online: false);
+      _healthFailStreak++;
+      if (_healthFailStreak >= 2) {
+        _isConnected = false;
+        _petStatus = PetStatus(online: false);
+      }
+      // 只失败一次：保持在线状态，等下一轮再判
     }
     notifyListeners();
-    return ok;
+    return _isConnected;
   }
 
   void _startPeriodicStatusCheck() {
