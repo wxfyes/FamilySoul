@@ -77,11 +77,14 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
     (leaveWords.test(say) || (ackWords.test(say) && farewell.test(String(lastBotSaid || ''))));
 
   if (leaving) {
-    // 相公说"走了" = 离开这里上街；她自己说"回家" = 回自己家
     const isHusband = !selfId || selfId === 'husband';
     const exits = world.places?.[me.location]?.exits || [];
+    const goingHome = /(回家|回去|回房|回屋|回后院)/.test(say);
+    // 相公"回家" = 回正房；"走了/出门" = 上街
     const home = isHusband
-      ? (exits.includes('street') ? 'street' : exits[0] || 'street')
+      ? (goingHome
+        ? (world.places?.husband_room ? 'husband_room' : (world.places?.backyard ? 'backyard' : (world.places?.tea_house ? 'tea_house' : 'street')))
+        : (exits.includes('street') ? 'street' : (world.places?.husband_room ? 'husband_room' : exits[0] || 'street')))
       : ((me.home && world.places?.[me.home] ? me.home : null) || (world.places?.tea_house ? 'tea_house' : 'street'));
     if (me.location !== home) {
       me.location = home;
@@ -105,7 +108,7 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
   // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
   if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
     // "回我房间/去正房"这类说法：先按别名认
-    const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
+    const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 回房: 'husband_room', 回屋: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
     const aliasKey = Object.keys(roomAlias).find((k) => String(say).includes(k));
     if (aliasKey && world.places?.[roomAlias[aliasKey]]) {
       const pid = roomAlias[aliasKey];
