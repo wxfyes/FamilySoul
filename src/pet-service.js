@@ -1659,12 +1659,20 @@ export class PetService {
     try {
       const say = String(userText || "");
       const m = say.match(/(?:日入|每天|每日|一天|日进)[^0-9一二三四五六七八九十百千]{0,16}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/);
+      if (!m) return [];
       const value = /^[0-9]/.test(String(m[1])) ? Number(m[1]) : cnNum(m[1]);
       const world = loadState(this.dataDir);
       const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
       if (props.length === 0) return [];
       const opened = /开张|营业|开业/.test(say);
-      const named = props.find((p) => p.name && (say.includes(String(p.name)) || say.includes(String(p.name).slice(0, 4))));
+      // 必须同时满足：① 有生意类词（日入/营收/开张…） ② 说到了具体产业，或明确说"开张/营业"
+      const bizWord = /(日入|日进|营收|流水|进项|开张|营业|开业|每天|每日|一天)/.test(say);
+      if (!bizWord) return [];
+      const named = props.find((p) => p.name && (say.includes(String(p.name)) || say.includes(String(p.name).slice(0, 4)) || say.includes(String(p.name).slice(0, 2))));
+      const openedWord = /开张|营业|开业/.test(say);
+      if (!named && !openedWord) return []; // 光说个数字，不记账
+      const expense = /(花|用掉|喝|吃|买|付给|欠|还了|赏|赌|输)/.test(say);
+      if (expense && !openedWord) return []; // 花销类的话，不改成营收
       const target = named || props.find((p) => !(Number(p.incomePerDay) > 0)) || props[0];
       if (!target) return [];
       const before = Number(target.incomePerDay) || 0;
