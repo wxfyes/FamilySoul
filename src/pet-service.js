@@ -1685,6 +1685,7 @@ export class PetService {
         '剧情线：[[world:clue text="沈家旧案的一页卷宗"]] [[world:faction id=yamen delta=+5]]',
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
         '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算）',
+        '产业：[[world:income id=canal_restaurant set=18 status="已开张"]] —— **凡是"开张/日入多少/生意变好变差"，一律用这个改产业营收，绝不许拿 [[world:asset]] 加一笔银子代替。**',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
         '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',

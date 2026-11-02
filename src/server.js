@@ -571,6 +571,39 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.28 直接改产业营收 POST /api/admin/income {id, set, status, silverDelta}
+    if (req.method === 'POST' && pathname === '/api/admin/income') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+        const p = props.find((x) => x.id === body.id) || props.find((x) => String(x.name || '').includes(String(body.name || '')));
+        if (!p) return sendJson(res, 404, { ok: false, error: '没有这个产业' });
+        if (Number.isFinite(Number(body.set))) p.incomePerDay = Math.max(0, Number(body.set));
+        if (body.status) p.status = String(body.status).slice(0, 20);
+        if (Number.isFinite(Number(body.silverDelta))) {
+          world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + Number(body.silverDelta)) * 100) / 100;
+        }
+        if (String(p.status || '').match(/开张|营业|开业/)) {
+          for (const pr of world.promises || []) {
+            if (!pr.done && /开张|开业/.test(String(pr.text || ''))) {
+              pr.done = true;
+              pr.doneDay = world.clock.day;
+            }
+          }
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Income] ${p.name} 日入 ${p.incomePerDay} 两 · ${p.status || ''}`);
+        return sendJson(res, 200, {
+          ok: true,
+          property: { name: p.name, incomePerDay: p.incomePerDay, status: p.status },
+          silver: world.assets.silver,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.29 全库替换旧名 POST /api/admin/text/replace {from, to}（改名漏网时用）
     if (req.method === 'POST' && pathname === '/api/admin/text/replace') {
       try {
