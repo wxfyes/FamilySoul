@@ -10,6 +10,7 @@ import { ensurePresence } from './world/scene.js';
 import { applySummon, applyNpcDeparture } from './world/summon.js';
 import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
+import { normalizeMemberReply } from './world/member-reply.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -154,6 +155,11 @@ export class PetService {
       lines.push('');
       lines.push('- 以上是你自己知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
       lines.push('- 用第一人称说话，符合你的身份与处境。');
+      lines.push('');
+      lines.push('【输出格式（必须遵守）】每一行都以「【说话人姓名】台词」开头；说话人只能是【眼前】名单里的人；');
+      lines.push('不许出现玩家自己的名字，不许出现名单外的人，不许写「楼上」「里间」这种隔开的子地点——在场的人就在这同一间屋里。');
+      lines.push('玩家点名要找在场的人时，**那个人必须自己开口应声**，不许让伙计挡驾、不许说他在忙。');
+
       lines.push('- **你就是天机里写的那个人**（你的名字就是你自己的名字）。别人提到你的名字，是在叫你，不是第三个人；绝不许把自己当成外人来说（不许说「那位老板娘」「她」）。');
       lines.push('- **你现在站的地方，就是【所在】【场合】写的那一处**。那里是谁的铺子、当家的叫什么，照天机写；天机没写的别编，更不许把别处的铺子安到眼前。');
       lines.push('- 别人问「你们掌柜/东家呢」，知道就照天机说（例如东家是谁），不知道就说不知道；绝不许否认天机里写明的东家。');
@@ -1296,101 +1302,27 @@ export class PetService {
       /* 忽略 */
     }
 
-    // 真人扮演世界人物时：AI 演在场所有人，只去掉场景标记，不动任何人名标签
+    // 真人扮演世界人物：整块重写——模型出「【说话人】台词」，引擎逐段校验
     if (this._viewerActorId) {
-      reply = String(reply).replace(/【天道[^】\n]{0,40}】[:：]?\s*/g, '');
-      // 没有【人名】开头的叙述，一律算旁白，绝不能显示成她自己说的
-      if (reply && !/^【[^】\n]{1,12}】/.test(String(reply).trim())) {
-        reply = `【旁白】：${String(reply).trim()}`;
-      }
-      // 真人只由玩家自己演：AI 写出她的段落一律删掉
       try {
-        const meName = this._viewerName;
-        if (meName) {
-          const segs = String(reply).split(/(?=【[^】\n]{1,12}】)/);
-          const kept = segs.filter((seg) => {
-            const mm = seg.match(/^【([^】\n]{1,12})】/);
-            if (!mm) return true;
-            const sp = mm[1].trim();
-            return !(sp === meName || sp.endsWith(meName) || meName.endsWith(sp));
-          });
-          const joined = kept.join("").trim();
-          if (joined) reply = joined;
-        }
-        // ① 她不是相公：不许有人管她叫相公
-        const herName = this._viewerName || '老板娘';
-        reply = String(reply).split('相公').join(`老板娘(` + herName + `)`);
-
-        // ② 名单外的人不许开口
-        try {
-          const wB = loadState(this.dataDir);
-          const meB = wB.actors?.[this._viewerActorId];
-          const locB = meB?.location;
-          const hereB = new Set([
-            ...(Object.values(wB.actors || {}).find((x) => x && x.id === 'husband' && x.location === locB)
-              ? ['王甯', '相公', '王掌柜', '少掌柜']
-              : []),
-            ...Object.values(wB.actors || {})
-              .filter((x) => x && !x.dead && x.location === locB)
-              .flatMap((x) => [x.name, x.name.length > 2 ? x.name.slice(-2) : x.name]),
-          ]);
-          const segs2 = String(reply).split(/(?=【[^】\n]{1,12}】)/);
-          const kept2 = segs2.filter((seg) => {
-            const mm = seg.match(/^【([^】\n]{1,12})】/);
-            if (!mm) return true;
-            const sp = mm[1].trim();
-            if (/^旁白/.test(sp)) return true;
-            if (sp.includes('·')) return hereB.has(sp.split('·').pop());
-            return hereB.has(sp);
-          });
-
-          const joined2 = kept2.join("").trim();
-          if (joined2) {
-            reply = joined2;
-          } else if (segs2.length > 0) {
-            // 全被过滤掉：不让她替自己或不在场的人说话；但"人在哪"这种事实要照实答
-            const askHusband = /(王掌柜|王甯|少掌柜|相公)/.test(String(say || ''));
-            const hus2 = Object.values(wB.actors || {}).find((a) => a && a.id === 'husband');
-            if (askHusband && hus2) {
-              const hp2 = String(wB.places?.[hus2.location]?.name || '别处');
-              reply = `【旁白】：王甯此刻在「${hp2}」，不在这儿。`;
-            } else {
-              reply = '……';
-            }
-          }
-          // ③ 不在场的人，不许被写成"就在跟前"
-          try {
-            const absent = Object.values(wB.actors || {}).filter(
-              (x) => x && !x.dead && x.id !== this._viewerActorId && x.location !== locB && x.name,
-            );
-            if (absent.length && String(reply).length > 0) {
-              const sentences = String(reply).split(/(?<=[。！？\n])/);
-              const presentWords = /(就在|在跟前|跟前|柜台|里头|身旁|身边|正坐着|一直在|出来了|在这儿)/;
-              const denyWords = /(不在|没见|出去了|别处|不在这儿|走了)/;
-              const kept3 = sentences.filter((sen) => {
-                const hitAbsent = absent.some((a) => {
-                  const nm = a.name || '';
-                  const shortName = nm.length > 2 ? nm.slice(-2) : nm;
-                  const aliases = a.id === 'husband'
-                    ? ['王甯', '王掌柜', '少掌柜', '相公', '少东家', '王少东家']
-                    : [nm, shortName].filter(Boolean);
-                  return aliases.some((x) => x && sen.includes(x));
-                });
-                if (!hitAbsent) return true;
-                if (denyWords.test(sen)) return true;
-                return !presentWords.test(sen);
-              });
-              const joined3 = kept3.join('').trim();
-              if (joined3) reply = joined3;
-            }
-          } catch {
-            /* 忽略 */
-          }
-        } catch {
-          /* 忽略 */
-        }
-      } catch {
-        /* 忽略 */
+        const wPost = loadState(this.dataDir);
+        const mePost = wPost.actors?.[this._viewerActorId];
+        const locPost = mePost?.location;
+        const present = Object.values(wPost.actors || {})
+          .filter((a) => a && !a.dead && a.id !== this._viewerActorId && a.location === locPost)
+          .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name])
+          .filter(Boolean);
+        const husPost = Object.values(wPost.actors || {}).find((a) => a && a.id === 'husband');
+        const husHere = husPost && husPost.location === locPost;
+        reply = normalizeMemberReply(reply, {
+          selfName: this._viewerName,
+          selfAliases: this._knownNames || [],
+          present,
+          husbandPresent: Boolean(husHere),
+          husbandPlace: husHere ? null : String(wPost.places?.[husPost?.location]?.name || '别处'),
+        });
+      } catch (err) {
+        console.warn('[Member] 回复规范化失败：', err.message);
       }
     }
 
