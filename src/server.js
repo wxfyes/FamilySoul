@@ -16,6 +16,7 @@ import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld } from './world/audit.js';
 import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
+import { ensureArcs } from './world/arcs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1499,6 +1500,16 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('========================================================');
 
   // 账本体检：启动跑一次，之后每 24 小时一次（纯代码，零 token）
+  // 开机就把各自的主线播种好，不用等到午夜翻篇
+  try {
+    const wA = peek(DATA_DIR);
+    ensureArcs(wA);
+    saveState(DATA_DIR, wA);
+    console.log(`[Arc] 已播种 ${Object.keys(wA.arcs || {}).length} 条个人主线`);
+  } catch (err) {
+    console.warn('[Arc] 主线播种失败：', err.message);
+  }
+
   // 启动时先自愈一次（上次崩溃/断电留下的脏账，开机就修好）
   try {
     const w0 = peek(DATA_DIR);
