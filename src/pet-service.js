@@ -777,6 +777,14 @@ export class PetService {
           .map((a) => `${a.name}正在${a.activity.text}`)
           .slice(0, 4);
         if (acts.length) bits.push(`他们手头的事：${acts.join('；')}（他们说自己的话时，要跟他们正在做的事对得上）`);
+        const own = Object.values(wHere.actors || {})
+          .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId)
+          .map((a) => ({ name: a.name, step: (wHere.npcArcs || {})[a.id]?.lastStep }))
+          .filter((x) => x.step)
+          .slice(0, 4);
+        if (own.length) {
+          bits.push(`他们各自正碰上：${own.map((x) => `${x.name}——${x.step}`).join('；')}（他们说话时会带着这桩心事，别装作没事）`);
+        }
         if (hereNames.length) bits.push('玩家点了谁的名字，就必须由那个人开口应声，不许沉默、不许换别人答');
         try {
           const rootDir2 = path.dirname(this.dataDir);
@@ -1562,6 +1570,9 @@ export class PetService {
               actor: npc,
               memories: npcMem,
               facts: npcFacts.concat([
+                (wPost.npcArcs || {})[npc.id]?.lastStep
+                  ? `你眼下自己碰上的事：${wPost.npcArcs[npc.id].lastStep}（说话要带出来）`
+                  : '',
                 npc.home && mePost?.home && npc.home === mePost.home && npc.gender === 'male'
                   ? `你是${mePost?.name || '她'}的丈夫，说话要像当家的：亲近但实在，不许说「偷来的半日闲」这种外人才说的话`
                   : `你和${mePost?.name || '她'}的关系：${npc.role || '相识'}`,
