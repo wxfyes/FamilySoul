@@ -394,7 +394,7 @@ const STARTED_AT = Date.now();
       if (!member) return sendJson(res, 401, { ok: false, error: '无效令牌' });
       const world = peek(DATA_DIR);
       const actorId = member.actor || null;
-      console.log([Me] 请求者= actor=);
+      console.log(`[Me] 请求者=${member.memberKey || '-'} actor=${actorId || 'husband'}`);
       const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
       const isHusband = !actorId;
       const place = me?.location ? world.places?.[me.location] : null;
