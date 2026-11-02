@@ -25,12 +25,28 @@ function propsLine(assets) {
 // 一旦把仆人写进【在场】，模型遇到"回家/看茶"这类场景就会让仆人抢答，把主母的戏抢走。
 const MASTER_IDS = new Set(['waner', 'yunnia', 'yangzhenhua']);
 
+/**
+ * 把关系数值翻译成「她此刻的态度」。
+ * 只给阻力（好不好接近、会不会答应），**不给结局**——成不成由天道演。
+ */
+function attitudeOf(actor) {
+  const d = Number(actor?.relations?.husband?.desire ?? 0);
+  const t = Number(actor?.relations?.husband?.trust ?? 0);
+  const g = Number(actor?.relations?.husband?.grievance ?? 0);
+  if (g >= 60) return '心里有怨，轻易不松口';
+  if (d >= 70 && t >= 55) return '心里已有你，半推半就';
+  if (d >= 45) return '有点意动，但要给足由头与体面';
+  if (t >= 45) return '当你是可信的人，但到此为止';
+  if (d <= 20 && t <= 30) return '只是相识，提防着——第一次必拒，硬来会翻脸';
+  return '有意无意地打量着，不肯先开口';
+}
+
 function relationLine(actor) {
   const r = actor?.relations?.husband;
   if (!r) return actor?.name || '';
   const bits = [`信任${Math.round(r.trust ?? 0)}`, `欲望${Math.round(r.desire ?? 0)}`];
   if (Number(r.grievance) > 0) bits.push(`怨怼${Math.round(r.grievance)}`);
-  return `${actor.name}（${bits.join(' ')}）`;
+  return `${actor.name}（${bits.join(' ')}｜${attitudeOf(actor)}）`;
 }
 
 function describeEvent(e) {
