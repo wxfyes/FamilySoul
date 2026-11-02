@@ -1373,12 +1373,15 @@ export class PetService {
         const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
         const said = String(say || '');
         // 她在跟别的在场者说话时，王甯不许插嘴
+        // 她上次在跟谁说话：接着那个人说，别让旁人插嘴
+        const partnerId = String((wPost.chatPartners || {})[this._viewerActorId] || '');
+        const partnerIsHusband = partnerId === 'husband';
         const talkingToOther = Object.values(wPost.actors || {}).some(
           (a) => a && !a.dead && a.id !== 'husband' && a.id !== this._viewerActorId
             && a.location === locPost && a.name && said.includes(a.name),
         );
         const namedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said);
-        const askedHim = namedHim || (!talkingToOther && /(你|您)/.test(said));
+        const askedHim = namedHim || (!talkingToOther && (partnerIsHusband || !partnerId) && /(你|您)/.test(said));
         if (askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';
@@ -1506,6 +1509,12 @@ export class PetService {
                 .replace(/\n{2,}/g, '\n')
                 .trim();
               console.log('[Proxy] 代演王甯：' + line.slice(0, 40));
+              try {
+                const wp = loadState(this.dataDir);
+                wp.chatPartners = wp.chatPartners || {};
+                wp.chatPartners[this._viewerActorId] = 'husband';
+                saveState(this.dataDir, wp);
+              } catch { /* 忽略 */ }
             }
           } catch (err) {
             console.warn('[Proxy] 代演失败：', err.message);
@@ -1515,12 +1524,18 @@ export class PetService {
 
         // 任何被点名的在场者，若主模型不肯写他，就单独代演一句
         try {
+          const partnerActor = !partnerId || partnerId === 'husband'
+            ? null
+            : (wPost.actors || {})[partnerId];
+          const partnerHere = partnerActor && !partnerActor.dead && partnerActor.location === locPost && partnerActor.name && !String(say || '').includes(partnerActor.name)
+            ? [partnerActor]
+            : [];
           const namedPresent = Object.values(wPost.actors || {}).filter(
             (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband'
               && a.location === locPost && a.name && String(say || '').includes(a.name),
           );
           console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
-          for (const npc of namedPresent.slice(0, 2)) {
+          for (const npc of (namedPresent.length ? namedPresent : partnerHere).slice(0, 2)) {
             const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
             if (already) continue;
             const npcMem = (wPost.memories || [])
@@ -1554,6 +1569,12 @@ export class PetService {
             if (npLine) {
               reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声|没人接话/.test(x)).join('\n')}`.trim();
               console.log('[Proxy] 代演' + npc.name + '：' + npLine.slice(0, 40));
+              try {
+                const wp2 = loadState(this.dataDir);
+                wp2.chatPartners = wp2.chatPartners || {};
+                wp2.chatPartners[this._viewerActorId] = npc.id;
+                saveState(this.dataDir, wp2);
+              } catch { /* 忽略 */ }
             }
           }
         } catch (err) {
@@ -1563,6 +1584,14 @@ export class PetService {
         console.warn('[Member] 回复规范化失败：', err.message);
       }
     }
+
+    // 有人应过声，就别再留"没人接话"
+    try {
+      if (reply && /【[^】]+】/.test(reply)) {
+        const kept = String(reply).split('\n').filter((x) => !/没人应声|没人接话/.test(x));
+        if (kept.length) reply = kept.join('\n').trim();
+      }
+    } catch { /* 忽略 */ }
 
     // 真人同场：她说的这句话，同地点的别人也听得见
     try {
