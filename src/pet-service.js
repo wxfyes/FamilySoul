@@ -1416,10 +1416,17 @@ export class PetService {
             reply = [head, ...rest].join('\n').trim();
           }
         }
-        if (/没人应声/.test(String(reply))) {
+        // 空场别写"没人接话"：照实说这里有谁、在忙什么
+        if (/没人应声|没人接话/.test(String(reply))) {
           const placeNow = String(wPost.places?.[locPost]?.name || '');
-          if (movedNow && placeNow) reply = `【${placeNow}】：（你到了${placeNow}。）`;
-          else reply = `【${placeNow || '这里'}】：（没人接话。）`;
+          const hereNow = Object.values(wPost.actors || {})
+            .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId && a.id !== 'husband')
+            .slice(0, 4);
+          const hereText = hereNow.map((a) => `${a.name}${a.activity?.text ? '正' + a.activity.text : ''}`).join('，');
+          const lead = movedNow ? `你到了${placeNow}` : `就站在${placeNow}`;
+          reply = hereText
+            ? `【${placeNow || '这里'}】：${lead}——${hereText}。`
+            : `【${placeNow || '这里'}】：${lead}，四下冷清，没什么人。`;
         }
 
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
