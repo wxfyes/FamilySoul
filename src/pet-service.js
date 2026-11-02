@@ -1710,6 +1710,8 @@ export class PetService {
           if (!m3) return true;
           const who = m3[1].trim();
           if (presentNames.has(who)) return true;
+          // 王甯在别处也能捎话，不许掐；其余不在场的照掐
+          if (/(王甯|王掌柜)/.test(who)) return true;
           if (/(天道|旁白|众人)/.test(who)) return true;
           const knownActor = Object.values(wLoc.actors || {}).find((a) => a && a.name === who);
           if (knownActor && knownActor.location !== locId2) {
