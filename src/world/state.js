@@ -84,6 +84,8 @@ export function createInitialState(dataDir) {
       copper: 6,
       properties: [
         { id: 'tea_house', name: '临江茶坊老店', status: '正常营业', incomePerDay: 1.2 },
+        // 于家酒肆：紫嫣（刘文霞）自己的铺子，归在她名下
+        { id: 'wine_shop', name: '于家酒肆', status: '正常营业', incomePerDay: 1.1, keeper: 'liuwenxia', city: '临江府' },
         {
           id: 'canal_restaurant',
           name: '运河码头三层大酒楼',
@@ -776,7 +778,15 @@ export function loadState(dataDir) {
     powers: { ...base.powers, ...(raw.powers || {}) },
     cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
-    forces: { ...base.forces, ...(raw.forces || {}) },
+    // 老存档补建：于家酒肆（紫嫣的铺子）
+    assets: (() => {
+      const a = { ...base.assets, ...(raw.assets || {}) };
+      a.properties = Array.isArray(a.properties) ? [...a.properties] : [];
+      if (!a.properties.some((x) => x && (x.id === 'wine_shop' || x.name === '于家酒肆'))) {
+        a.properties.push({ id: 'wine_shop', name: '于家酒肆', status: '正常营业', incomePerDay: 1.1, keeper: 'liuwenxia', city: '临江府' });
+      }
+      return a;
+    })(),    forces: { ...base.forces, ...(raw.forces || {}) },
     allies: { ...base.allies, ...(raw.allies || {}) },
     terrain: Array.isArray(raw.terrain) && raw.terrain.length ? raw.terrain : base.terrain,
     court: (() => {
