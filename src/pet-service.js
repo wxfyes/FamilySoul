@@ -1679,6 +1679,36 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 不在场的人不许说话：与地点不符的段落一律掐掉
+    try {
+      if (reply) {
+        const wLoc = loadState(this.dataDir);
+        const locId2 = this._viewerActorId ? wLoc.actors?.[this._viewerActorId]?.location : wLoc.actors?.husband?.location;
+        const presentNames = new Set(
+          Object.values(wLoc.actors || {})
+            .filter((a) => a && !a.dead && a.location === locId2)
+            .map((a) => String(a.name || ''))
+            .concat([String(wLoc.places?.[locId2]?.name || '')]),
+        );
+        const segs3 = String(reply).split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+        const kept3 = segs3.filter((seg) => {
+          const m3 = seg.match(/^【([^】\n]{1,12})】/);
+          if (!m3) return true;
+          const who = m3[1].trim();
+          if (presentNames.has(who)) return true;
+          if (/(天道|旁白|众人)/.test(who)) return true;
+          const knownActor = Object.values(wLoc.actors || {}).find((a) => a && a.name === who);
+          if (knownActor && knownActor.location !== locId2) {
+            console.log(`[Scene] 掐掉不在场的人：${who}`);
+            return false;
+          }
+          return true;
+        });
+        const joined3 = kept3.join('').trim();
+        reply = joined3 || '';
+      }
+    } catch { /* 忽略 */ }
+
     // 回执标签绝不能出现在回复里
     try {
       if (reply) reply = String(reply).replace(/\[\[world:[\s\S]*?\]\]/g, '').replace(/\n{2,}/g, '\n').trim();
