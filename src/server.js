@@ -414,11 +414,8 @@ const STARTED_AT = Date.now();
       }
       for (const pr of world.promises || []) {
         if (pr.done) continue;
-        // 她的账号只看与她有关的承诺（否则会看到相公的全部家事）
-        if (!isHusband) {
-          const t = String(pr.text || "");
-          if (!myName || (!t.includes(myName) && !(myShort && t.includes(myShort)))) continue;
-        }
+        // 承诺是"相公许下的"，不属于她的待办；她的号一条都不看
+        if (!isHusband) continue;
         todos.push({ kind: "承诺", text: pr.text || "", day: pr.due });
       }
       const props = (world.assets?.properties || []).filter((p) => (isHusband ? true : p.keeper === actorId));
