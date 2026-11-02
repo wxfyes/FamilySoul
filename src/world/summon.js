@@ -62,6 +62,26 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
     return { moved: [], summoned: [], visited: null, left: false, alreadyHome: true };
   }
 
+  // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
+  if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
+    const placeHit = Object.entries(world.places || {}).find(([, p]) => {
+      const nm = String(p?.name || '');
+      if (nm.length < 2) return false;
+      if (say.includes(nm)) return true;
+      const short = nm.length > 2 ? nm.slice(-2) : nm;
+      return short.length >= 2 && say.includes(short);
+    });
+    if (placeHit) {
+      const [pid, p] = placeHit;
+      if (me.location !== pid) {
+        me.location = pid;
+        saveState(dataDir, world);
+        return { moved: ['相公'], summoned: [], visited: null, wentTo: p.name };
+      }
+      return { moved: [], summoned: [], visited: null, wentTo: p.name, alreadyThere: true };
+    }
+  }
+
   if (mentioned.length === 0) return null;
 
   const hasSummonVerb = SUMMON_VERBS.test(say) && COME_WORDS.test(say);
