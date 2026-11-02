@@ -70,7 +70,8 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
     const rel = actor.relations?.husband || {};
     const trust = Number(rel.trust ?? 30);
     const grievance = Number(rel.grievance ?? 0);
-    if (trust < 55 || grievance >= 30) {
+    // 三档：很生分才拒绝；中间是半推半就；很亲近才完全放开
+    if (trust < 25 || grievance >= 40) {
       rel.grievance = Math.min(100, grievance + 3);
       actor.relations = actor.relations || {};
       actor.relations.husband = rel;
@@ -82,14 +83,17 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
         finish: false,
         refused: true,
         actorId,
-        reason: `${actor.name}不愿意（信任 ${Math.round(trust)}，怨怼 ${Math.round(grievance)}）`,
+        reason: `${actor.name}不愿意（信任 ${Math.round(trust)}，怨怼 ${Math.round(grievance)}）——太生分了`,
       };
     }
   }
 
   if (hit.unlock) {
+    const relU = actor.relations?.husband || {};
+    const tU = Number(relU.trust ?? 30);
     actor.intimacy.ritual = 'unlocked';
-    actor.intimacy.tone = 3;
+    actor.intimacy.tone = tU >= 70 ? 3 : tU >= 45 ? 2 : 1; // 越亲近越放得开
+    actor.intimacy.willing = tU >= 70 ? 'eager' : tU >= 45 ? 'half' : 'reluctant';
     actor.intimacy.level = 4;
     actor.intimacy.since = `${world.clock.day}:${world.clock.hour}`;
     events.push(nextEvent(world, { actor: 'husband', action: 'ritual_unlock', payload: { actorId }, isPublic: false }));
