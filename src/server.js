@@ -2052,6 +2052,51 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
+  // 朝议：每 5 天由天道下一道旨（加税/赈灾/征役…），进而推动民心
+  async function generateDecree() {
+    try {
+      const world = peek(DATA_DIR);
+      if (!world.court?.pendingDecree) return;
+      const day = world.clock?.day || 1;
+      const cities = Object.values(world.cities || {}).filter(Boolean);
+      const unrest = cities.length
+        ? Math.round(cities.reduce((s, c) => s + (Number(c.unrest) || 0), 0) / cities.length)
+        : 0;
+      const tax = cities.length
+        ? Math.round(cities.reduce((s, c) => s + (Number(c.tax) || 0), 0) / cities.length)
+        : 10;
+      const prompt = [
+        `你是天道，扮演大乾朝廷。第${day}日朝议。`,
+        `天下平均民心不安度 ${unrest}/100，平均税率 ${tax}%。`,
+        '请下一道旨：要么加税、减税、征役、赈灾、严打、大赦之一。',
+        '只输出 JSON：{"decree":"一句旨意(20字内)","action":"raise_tax|lower_tax|corvee|relief|crackdown|amnesty","amount":10}',
+      ].join('\n');
+      const res = await petService.llmClient.complete({
+        system: '你只输出一行 JSON，不要解释。',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 120,
+        temperature: 0.9,
+      });
+      const raw = String(res?.text || '');
+      const m = raw.match(/\{[\s\S]*\}/);
+      let d = { decree: '朝廷下旨', action: 'raise_tax', amount: 10 };
+      if (m) {
+        try {
+          d = { ...d, ...JSON.parse(m[0]) };
+        } catch { /* 用默认 */ }
+      }
+      const { applyDecree } = await import('./world/clock.js');
+      const w2 = peek(DATA_DIR);
+      const events = [];
+      applyDecree(w2, events, d);
+      w2.court.pendingDecree = false;
+      saveState(DATA_DIR, w2);
+      console.log(`[Court] 第${day}日朝议：${String(d.decree).slice(0, 30)}（${d.action} ${d.amount}）`);
+    } catch (err) {
+      console.warn('[Court] 朝议生成失败：', err.message);
+    }
+  }
+
   // NPC 自己的命：每次心跳最多补两个（省 token）
   async function generateNpcArcs() {
     try {
@@ -2097,6 +2142,7 @@ server.listen(PORT, '0.0.0.0', () => {
       onAfterTick: async () => {
         await fillProactiveTexts();
         await generateNpcArcs();
+        await generateDecree();
       },
     });
   } catch (err) {

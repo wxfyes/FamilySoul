@@ -213,6 +213,50 @@ function runLocalEconomy(world, events) {
  * 朝廷不会坐着看：通缉高、占城多 → 压力上升 → 派兵围剿
  * 只算"阻力与代价"，不写台词。
  */
+/** 每 5 天开一次朝议：朝廷要自己下旨，不是只会围剿 */
+function markCourtDecree(world) {
+  const day = Number(world.clock?.day) || 1;
+  if (day % 5 !== 0) return;
+  world.court = world.court || {};
+  if (world.court.pendingDecree) return;
+  world.court.pendingDecree = true;
+}
+
+/** 把一道旨意落到天下：加税/减税/征役/赈灾/严打/大赦 */
+export function applyDecree(world, events, d) {
+  const kind = String(d?.action || 'raise_tax');
+  const amount = Math.max(0, Math.min(60, Number(d?.amount) || 10));
+  const cities = Object.values(world.cities || {}).filter(Boolean);
+  const eff = (fn) => cities.forEach(fn);
+  if (kind === 'raise_tax') {
+    eff((c) => { c.tax = Math.min(50, (Number(c.tax) || 10) + Math.round(amount / 2)); c.unrest = Math.min(100, (Number(c.unrest) || 0) + 4); });
+  } else if (kind === 'lower_tax') {
+    eff((c) => { c.tax = Math.max(0, (Number(c.tax) || 10) - Math.round(amount / 2)); c.unrest = Math.max(0, (Number(c.unrest) || 0) - 3); });
+  } else if (kind === 'corvee') {
+    eff((c) => { c.unrest = Math.min(100, (Number(c.unrest) || 0) + 7); c.price = Math.min(300, Math.round((Number(c.price) || 100) * 1.05)); });
+  } else if (kind === 'relief') {
+    eff((c) => { c.unrest = Math.max(0, (Number(c.unrest) || 0) - 8); c.price = Math.max(50, Math.round((Number(c.price) || 100) * 0.9)); });
+  } else if (kind === 'crackdown') {
+    eff((c) => { c.unrest = Math.min(100, (Number(c.unrest) || 0) + 3); });
+  } else if (kind === 'amnesty') {
+    eff((c) => { c.unrest = Math.max(0, (Number(c.unrest) || 0) - 5); });
+  }
+  world.court = world.court || {};
+  world.court.decisions = Array.isArray(world.court.decisions) ? world.court.decisions : [];
+  world.court.decisions.push({ day: world.clock?.day || 1, text: String(d?.decree || ''), action: kind, amount });
+  if (world.court.decisions.length > 30) world.court.decisions = world.court.decisions.slice(-30);
+  if (Array.isArray(events)) {
+    events.push(nextEvent(world, {
+      action: 'decree',
+      actor: 'court',
+      place: null,
+      payload: { text: String(d?.decree || '朝廷下旨') },
+      isPublic: true,
+    }));
+  }
+  return kind;
+}
+
 function runCourtReaction(world, events, queuePush) {
   const day = world.clock?.day ?? 1;
   world.flags = world.flags || {};
@@ -358,6 +402,11 @@ function onNewDay(world, events) {
   try {
     runLocalEconomy(world, events);
     runCourtReaction(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
+  try {
+    markCourtDecree(world);
+  } catch (err) {
+    console.warn('[Court] 朝议标记失败：', err.message);
+  }
   } catch (err) {
     console.warn('[Econ] 地方经济结算失败：', err.message);
   }
