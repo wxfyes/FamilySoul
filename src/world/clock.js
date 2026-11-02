@@ -420,11 +420,35 @@ function onNewDay(world, events) {
     }
   }
 
+/** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜本事（有涨有落，不写死）*/
+function dailyIncomeOf(world, prop) {
+  const base = Number(prop.baseIncome ?? prop.incomePerDay) || 0;
+  if (!(base > 0)) return 0;
+  if (prop.baseIncome == null) prop.baseIncome = base;
+  const city = world.cities?.[prop.city] || Object.values(world.cities || {}).find((c) => c && c.name === prop.city);
+  const price = Number(city?.price) || 100;
+  const unrest = Number(city?.unrest) || 0;
+  const season = String(world.clock?.season || 'spring');
+  const keeper = world.actors?.[prop.keeper];
+  const trust = Number(keeper?.relations?.husband?.trust ?? 30);
+  let m = 1;
+  m *= 0.6 + Math.min(2.2, price / 100) * 0.4;        // 物价高，生意跟着好
+  m *= 1 - Math.min(0.6, unrest / 160);                // 民心乱，客少
+  if (/茶/.test(String(prop.name || '')) ) m *= season === 'spring' ? 1.12 : season === 'winter' ? 0.92 : 1;
+  if (/酒/.test(String(prop.name || '')) ) m *= season === 'winter' ? 1.15 : 1;
+  m *= 0.9 + Math.min(0.35, trust / 300);              // 掌柜得力
+  if (Number(prop.staff) > 0) m *= 1 + Math.min(0.25, Number(prop.staff) * 0.03);
+  m *= 0.92 + Math.random() * 0.16;                    // 每日小波动
+  const gain = Math.round(base * m * 100) / 100;
+  prop.incomePerDay = gain;                            // 显示的就是今日进项
+  return gain;
+}
+
   // 各人的产业各人收：有掌柜归掌柜，没掌柜才进公账
   world.wallets = world.wallets && typeof world.wallets === "object" ? world.wallets : {};
   let income = 0;
   for (const p of world.assets.properties || []) {
-    const gain = Number(p.incomePerDay) || 0;
+    const gain = dailyIncomeOf(world, p);
     if (!(gain > 0)) continue;
     const keeper = String(p.keeper || "");
     if (keeper && keeper !== "husband" && world.actors?.[keeper]) {
