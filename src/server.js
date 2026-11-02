@@ -1593,6 +1593,19 @@ const STARTED_AT = Date.now();
         garrisons: world.garrisons || {},
         marches: (world.marches || []).map((m) => ({ to: m.to, count: m.count, arriveDay: m.arriveDay })),
         imperialArmy: world.imperialArmy || null,
+        bondEdges: (() => {
+          const seen = new Set();
+          const out = [];
+          for (const [a, m] of Object.entries(world.bonds || {})) {
+            for (const [b, v] of Object.entries(m || {})) {
+              const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              out.push({ a: world.actors?.[a]?.name || a, b: world.actors?.[b]?.name || b, type: v.type, score: v.score });
+            }
+          }
+          return out.slice(0, 80);
+        })(),
         npcArcs: Object.entries(world.npcArcs || {})
           .filter(([, a]) => a && a.lastStep)
           .map(([id, a]) => ({ id, name: world.actors?.[id]?.name || id, text: a.lastStep, day: a.day || 0 }))

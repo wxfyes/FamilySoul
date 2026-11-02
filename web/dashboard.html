@@ -174,6 +174,11 @@
     <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
   </section>
 
+  <section class="card full">
+    <h2>关系网（谁跟谁一伙，谁跟谁有仇）</h2>
+    <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
+  </section>
+
   <section class="card">
     <h2>街面风评</h2>
     <div id="rumors" class="muted" style="margin-top:6px">—</div>
@@ -595,7 +600,7 @@ function render(w){
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
   window.__lastWorld = w;
-  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); } catch (e) {}
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); } catch (e) {}
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   const shown = window.__actorExpand ? list : list.slice(0, 10);
   $('actors').innerHTML = shown.map(a=>{
@@ -706,6 +711,35 @@ async function openActor(id) {
   } catch (e) { /* 忽略 */ }
 }
 function closeActor() { $('actorModal').style.display = 'none'; }
+
+function renderBondMap(w) {
+  const el = $('bondmap');
+  if (!el) return;
+  const edges = w.bondEdges || [];
+  if (!edges.length) { el.innerHTML = '<div class="muted">还没有关系</div>'; return; }
+  const names = Array.from(new Set(edges.flatMap((e) => [e.a, e.b]))).slice(0, 24);
+  const n = names.length;
+  const R = 220, cx = 300, cy = 230;
+  const pos = {};
+  names.forEach((nm, i) => {
+    const ang = (Math.PI * 2 * i) / n - Math.PI / 2;
+    pos[nm] = [cx + R * Math.cos(ang), cy + R * Math.sin(ang)];
+  });
+  const lines = edges.filter((e) => pos[e.a] && pos[e.b]).map((e) => {
+    const [x1, y1] = pos[e.a];
+    const [x2, y2] = pos[e.b];
+    const color = e.score >= 25 ? '#7BD88F' : e.score <= -10 ? '#e05a5a' : '#4a5568';
+    const wd = Math.min(4, 1 + Math.abs(e.score) / 25);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${wd}" opacity="0.65"><title>${e.a}—${e.b} ${e.type}(${e.score})</title></line>`;
+  }).join('');
+  const dots = names.map((nm) => {
+    const [x, y] = pos[nm];
+    return `<circle cx="${x}" cy="${y}" r="5" fill="#7fb4ff"><title>${nm}</title></circle>`
+      + `<text x="${x}" y="${y - 9}" font-size="11" fill="#cfd6e4" text-anchor="middle">${nm}</text>`;
+  }).join('');
+  const legend = '<div class="muted" style="font-size:11px;margin-top:4px">绿＝亲近　红＝不对付　灰＝一般　（鼠标悬停看类型与分值）</div>';
+  el.innerHTML = `<svg width="600" height="470" viewBox="0 0 600 470">${lines}${dots}</svg>${legend}`;
+}
 
 function renderWorldExtras(w) {
   const rum = $('rumors');
