@@ -509,6 +509,57 @@ function runTreasury(world, events) {
   world.flags.grainPressure = pressure;
 }
 
+/** 读书与科举：学识靠读，功名靠考 */
+function runStudy(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  const hasAcademy = Boolean(world.places?.academy);
+  if (!hasAcademy) return;
+  // 在书院的人，学识每天长一点
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.id === 'husband') continue;
+    if (a.location !== 'academy') continue;
+    const cur = Number(a.study) || 0;
+    a.study = Math.min(100, Math.round((cur + 0.6) * 10) / 10);
+  }
+  // 每 90 天乡试：学识最高的几个人里有中的
+  if (day % 90 !== 0) return;
+  const candidates = Object.values(world.actors || {})
+    .filter((a) => a && !a.dead && (Number(a.study) || 0) >= 30)
+    .sort((a, b) => (Number(b.study) || 0) - (Number(a.study) || 0))
+    .slice(0, 5);
+  if (!candidates.length) return;
+  const winner = candidates[0];
+  const cur = String(winner.rank || '');
+  const next = !cur ? '秀才' : cur === '秀才' ? '举人' : cur === '举人' ? '进士' : '进士';
+  winner.rank = next;
+  winner.role = `${next}·${String(winner.role || '读书人').replace(/^(秀才|举人|进士)·?/, '')}`;
+  const rel = winner.relations?.husband || { trust: 30, desire: 0, fear: 0, grievance: 0 };
+  rel.trust = Math.min(100, (Number(rel.trust) || 30) + 8);
+  winner.relations = winner.relations || {};
+  winner.relations.husband = rel;
+  events.push(nextEvent(world, { action: 'exam', actor: winner.id, place: 'academy', payload: { text: `${winner.name}中${next}` }, isPublic: true }));
+}
+
+/** 节庆：每月初一十五庙会，香火旺、街面热闹 */
+function runFestivals(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  if (day % 15 !== 0) return;
+  const tpl = world.places?.temple;
+  for (const ct of Object.values(world.cities || {})) {
+    if (!ct) continue;
+    ct.price = Math.min(300, Math.round((Number(ct.price) || 100) * 1.04));
+    ct.unrest = Math.max(0, (Number(ct.unrest) || 0) - 2);
+  }
+  events.push(nextEvent(world, { action: 'festival', actor: 'monk', place: tpl ? 'temple' : null, payload: { text: '初一庙会，城隍庙前摆满摊子' }, isPublic: true }));
+  const monkA = world.actors?.monk;
+  if (monkA) {
+    const rel = monkA.relations?.husband || { trust: 28, grievance: 0 };
+    rel.trust = Math.min(100, (Number(rel.trust) || 28) + 1);
+    monkA.relations = monkA.relations || {};
+    monkA.relations.husband = rel;
+  }
+}
+
 /** 行会：同行抽成、会首说话有分量 */
 function runGuilds(world, events) {
   world.guilds = world.guilds || {};
@@ -565,6 +616,12 @@ function onNewDay(world, events) {
     runGuilds(world, events);
   } catch (err) {
     console.warn('[Guild] 行会结算失败：', err.message);
+  }
+  try {
+    runStudy(world, events);
+    runFestivals(world, events);
+  } catch (err) {
+    console.warn('[Study] 读书节庆失败：', err.message);
   }
   consumeSupplies(world);
   try {

@@ -103,6 +103,8 @@ export function createInitialState(dataDir) {
 
     places: {
       husband_room: { name: '正房', exits: ['tea_house', 'backyard'], owner: 'husband' },
+    academy: { name: '临江书院', exits: ['street'], owner: 'court', kind: '书院' },
+    temple: { name: '城隍庙', exits: ['street'], owner: 'court', kind: '庙' },
     jail_male: { name: '县衙男牢', exits: ['yamen'], owner: 'court' },
     jail_female: { name: '县衙女牢', exits: ['yamen'], owner: 'court' },
     // ── 街市：一条街该有的铺子 ──
@@ -150,6 +152,8 @@ export function createInitialState(dataDir) {
       wangpo: { id: 'wangpo', name: '王婆', role: '面摊', gender: 'female', home: 'noodle_stall', location: 'noodle_stall', goals: ['守着摊子过活'], relations: { husband: { trust: 33, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '下面', place: 'noodle_stall' }] },
       zhangtu: { id: 'zhangtu', name: '张屠户', role: '肉铺', gender: 'male', home: 'butcher', location: 'butcher', goals: ['多攒几亩田'], relations: { husband: { trust: 26, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '开案', place: 'butcher' }] },
       chenlangzhong: { id: 'chenlangzhong', name: '陈郎中', role: '回春堂郎中', gender: 'male', home: 'pharmacy', location: 'pharmacy', goals: ['把回春堂传下去'], relations: { husband: { trust: 35, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 8, do: '坐堂问诊', place: 'pharmacy' }] },
+      shuyuan: { id: 'shuyuan', name: '老夫子', role: '书院先生', gender: 'male', home: 'academy', location: 'academy', goals: ['教出几个中举的'], relations: { husband: { trust: 30, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 7, do: '讲学', place: 'academy' }, { at: 16, do: '批课业', place: 'academy' }] },
+      monk: { id: 'monk', name: '慧明和尚', role: '城隍庙住持', gender: 'male', home: 'temple', location: 'temple', goals: ['香火不断'], relations: { husband: { trust: 28, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '早课', place: 'temple' }] },
       leiqi: { id: 'leiqi', name: '雷七', role: '漕帮帮主', gender: 'male', home: 'dock', location: 'dock', goals: ['码头只归漕帮说话'], secret: '他与县衙书吏有旧账往来', relations: { husband: { trust: 25, desire: 0, fear: 0, grievance: 5 } }, schedule: [{ at: 7, do: '在码头点船', place: 'dock' }] },
       county_magistrate: { id: 'county_magistrate', name: '周文达', role: '临江县令', gender: 'male', home: 'yamen', location: 'yamen', goals: ['三年考绩升迁', '把这县的案子判清楚'], secret: '他收过钱通海一份年礼', relations: { husband: { trust: 30, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 9, do: '升堂理事', place: 'yamen' }, { at: 17, do: '退堂', place: 'yamen' }] },
       coroner: { id: 'coroner', name: '老宋', role: '仵作', gender: 'male', home: 'yamen', location: 'yamen', goals: ['少惹事'], relations: { husband: { trust: 25, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 8, do: '在衙里待命', place: 'yamen' }] },
