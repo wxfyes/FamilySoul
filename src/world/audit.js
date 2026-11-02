@@ -71,6 +71,28 @@ export function auditWorld(world) {
   return [...new Set(issues)];
 }
 
+function cnNum(s) {
+  const map = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const unit = { 十: 10, 百: 100, 千: 1000 };
+  let total = 0;
+  let cur = 0;
+  for (const ch of String(s)) {
+    if (map[ch] !== undefined) cur = map[ch];
+    else if (unit[ch]) {
+      total += (cur || 1) * unit[ch];
+      cur = 0;
+    }
+  }
+  return total + cur;
+}
+
+function parseAmount(raw) {
+  const s = String(raw || '');
+  if (/^\d/.test(s)) return Number(s);
+  if (/[一二三四五六七八九十百千两]/.test(s)) return cnNum(s);
+  return null;
+}
+
 function toNum(s) {
   const m = String(s || '').match(/(\d+(?:\.\d+)?)/);
   return m ? Number(m[1]) : null;
@@ -90,8 +112,10 @@ export function auditMemories(world) {
     }
     for (const p of props) {
       if (!p?.name) continue;
-      const short = String(p.name).slice(-3);
-      if (!text.includes(short)) continue;
+      const nm = String(p.name);
+      const hitName = [nm, nm.slice(-2), nm.slice(-3), nm.slice(0, 3)].some((x) => x && text.includes(x));
+      if (!hitName) continue;
+      const short = nm.slice(-3);
       const saysPreparing = /筹备|未开张|还没开/.test(text);
       const saysOpen = /开张|营业|开业/.test(text);
       const isOpen = /开张|营业|开业/.test(String(p.status || ''));
@@ -121,8 +145,8 @@ export function auditReply(reply, world) {
   if (!text) return issues;
   const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
 
-  for (const seg of text.match(/日入[^\d]{0,6}(\d+(?:\.\d+)?)\s*两/g) || []) {
-    const v = toNum(seg);
+  for (const seg of text.match(/日入[^0-9一二三四五六七八九十百]{0,6}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/g) || []) {
+    const v = parseAmount(String(seg).replace(/^日入[^0-9一二三四五六七八九十百]*/, "").replace(/\s*两$/, ""));
     if (v == null) continue;
     if (!props.some((p) => Math.abs(Number(p.incomePerDay) - v) < 0.01)) {
       const real = props.map((p) => `${p.name}${p.incomePerDay}两`).join('、');
@@ -130,18 +154,18 @@ export function auditReply(reply, world) {
     }
   }
 
-  const silverM = text.match(/现银[^\d]{0,4}(\d+(?:\.\d+)?)\s*两/) || text.match(/(\d+(?:\.\d+)?)\s*两现银/);
+  const silverM = text.match(/现银[^0-9一二三四五六七八九十百]{0,4}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/) || text.match(/([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两现银/);
   if (silverM) {
-    const v = Number(silverM[1]);
+    const v = parseAmount(silverM[1]);
     const real = Number(world.assets?.silver) || 0;
     if (Math.abs(v - real) > Math.max(1, real * 0.05)) {
       issues.push({ kind: 'reply', level: 'bad', text: `她说了「${v}两现银」，账本是 ${real} 两` });
     }
   }
 
-  const dayM = text.match(/第\s*(\d+)\s*日/);
+  const dayM = text.match(/第\s*([0-9]+|[一二三四五六七八九十百]+)\s*日/);
   if (dayM) {
-    const v = Number(dayM[1]);
+    const v = parseAmount(dayM[1]);
     const real = Number(world.clock?.day) || 1;
     if (Math.abs(v - real) > 1) {
       issues.push({ kind: 'reply', level: 'warn', text: `她说了「第${v}日」，世界是第${real}日` });
@@ -149,7 +173,7 @@ export function auditReply(reply, world) {
   }
 
   const cityNames = Object.keys(world.cities || {});
-  for (const c of new Set(text.match(/([\u4e00-\u9fa5]{2,4}府)/g) || [])) {
+  for (const c of new Set(text.match(/([一-龥]{2}府)/g) || [])) {
     if (!cityNames.includes(c)) {
       issues.push({ kind: 'reply', level: 'warn', text: `她提到了「${c}」，疆域里没有这座府` });
     }
