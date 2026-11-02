@@ -1877,7 +1877,11 @@ export class PetService {
       if (sceneSync) {
         console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
       }
-      if (!reply) reply = '……';
+      if (!reply) {
+        const wHome = loadState(this.dataDir);
+        const pNow = String(wHome.places?.[wHome.actors?.husband?.location]?.name || '');
+        reply = engineMovedHusband && pNow ? `【${pNow}】：（你到了${pNow}。）` : '……';
+      }
     const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps, { selfId: this._viewerActorId }) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
       // 新人必须真的落进世界：被后续存档冲掉就补一次
