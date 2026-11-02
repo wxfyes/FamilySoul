@@ -2,7 +2,7 @@
  * 状态摘要 —— 把世界状态压成一段给叙述层看的「天机」文字
  * 纯规则生成，不调用大模型；目标 ≤ 800 token。
  */
-import { loadState, readRecentEvents, seasonCN, shichenOf, round2 } from './state.js';
+import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2 } from './state.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
 
@@ -110,8 +110,11 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
     const hour = world.clock?.hour ?? 0;
     const season = world.clock?.season || 'spring';
     const weather = world.clock?.weather || '';
+    const wd = worldDate(world);
+    const lunarText = wd?.lunar?.text ? `农历${wd.lunar.text}` : '';
+    const solarText = wd ? `${wd.month}月${wd.day}日` : `第${day}日`;
     lines.push(
-      `【天机】${world.era || '乾宁三年'}·${seasonCN(season)} 第${day}日 ${shichenOf(hour)}${weather ? ` ${weather}` : ''}`,
+      `【天机】${world.era || '乾宁三年'}·${seasonCN(season)} ${solarText}${lunarText ? `（${lunarText}）` : ''} ${shichenOf(hour)}${weather ? ` ${weather}` : ''}`,
     );
 
     const me = world.actors?.[memberKey] || world.actors?.husband;

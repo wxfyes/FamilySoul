@@ -342,6 +342,39 @@ function normalizePlaces(places, actorsLive) {
   return places;
 }
 
+const CN_DIGIT = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+function cnDay(n) {
+  n = Number(n) || 1;
+  if (n <= 10) return '初' + CN_DIGIT[n];
+  if (n < 20) return '十' + CN_DIGIT[n - 10];
+  if (n === 20) return '二十';
+  if (n < 30) return '廿' + CN_DIGIT[n - 20];
+  if (n === 30) return '三十';
+  return String(n);
+}
+function cnMonth(n) {
+  n = Number(n) || 1;
+  if (n === 1) return '正月';
+  if (n <= 10) return CN_DIGIT[n] + '月';
+  if (n === 11) return '十一月';
+  if (n === 12) return '十二月';
+  return n + '月';
+}
+
+/** 公历 Date → 农历（用系统 ICU，零依赖、够准）*/
+export function lunarOf(date) {
+  try {
+    const fmt = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { month: 'numeric', day: 'numeric' });
+    const parts = fmt.formatToParts(date);
+    const mo = Number(parts.find((p) => p.type === 'month')?.value);
+    const da = Number(parts.find((p) => p.type === 'day')?.value);
+    if (!mo || !da) return null;
+    return { month: cnMonth(mo), day: cnDay(da), text: `${cnMonth(mo)}${cnDay(da)}` };
+  } catch {
+    return null;
+  }
+}
+
 /** 世界第 N 日对应公历哪一天；没设锚点就返回 null */
 export function worldDate(world) {
   const cal = world?.calendar || {};
@@ -351,7 +384,8 @@ export function worldDate(world) {
   const diff = (Number(world.clock?.day) || 1) - (Number(cal.anchorDay) || 1);
   anchor.setDate(anchor.getDate() + diff);
   const iso = `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}-${String(anchor.getDate()).padStart(2, '0')}`;
-  return { iso, month: anchor.getMonth() + 1, day: anchor.getDate(), year: anchor.getFullYear() };
+  const lunar = lunarOf(anchor);
+  return { iso, month: anchor.getMonth() + 1, day: anchor.getDate(), year: anchor.getFullYear(), lunar };
 }
 
 export function loadState(dataDir) {
