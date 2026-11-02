@@ -1470,6 +1470,19 @@ export class PetService {
                 console.log('[Proxy] 账本无借贷，已拦下：' + line.slice(0, 40));
                 line = `【${husPost?.name || '王甯'}】：这话我听不明白——我账上没有这笔。`;
               }
+              // 提到别的女人（不在事实里）→ 删掉那句
+              if (line) {
+                const others = ['婉儿', '芸娘', '小翠', '苏慕雪', '杨采云', '静儿', '杨采儿', '苏娘'];
+                const parts = line.split(/(?<=[。！？；])/);
+                const kept = parts.filter((x) => !others.some((n) => x.includes(n)));
+                if (kept.length && kept.join('').trim().length > 0) line = kept.join('').trim();
+                else if (others.some((n) => line.includes(n))) line = null;
+              }
+              // 把她的丈夫说成自己的心上人 → 整句替换
+              if (line && /(心里装着|心里有的是|惦记着)(于杰|于子归|她丈夫)/.test(line)) {
+                console.log('[Proxy] 关系错位，已拦下：' + line.slice(0, 30));
+                line = `【${husPost?.name || '王甯'}】：我心里装的是你，不是旁人。`;
+              }
             } catch { /* 忽略 */ }
             if (line) {
               reply = `${line}\n${String(reply).split('\n').filter((x) => !/没人应声/.test(x)).join('\n')}`
