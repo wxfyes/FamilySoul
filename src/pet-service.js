@@ -1668,6 +1668,15 @@ export class PetService {
       if (!replyText || replyText.trim().length < 6) return [];
       // 【省 token】只给一行名册，不再附整段天机
       let roster = '';
+      let props = '';
+      try {
+        const w0p = loadState(this.dataDir);
+        props = (w0p.assets?.properties || [])
+          .map((p) => `${p.name}(id=${p.id}, 日入${p.incomePerDay}, ${p.status || ''})`)
+          .join(' / ') || '（无）';
+      } catch {
+        props = '（无）';
+      }
       try {
         const w0 = loadState(this.dataDir);
         roster = Object.values(w0.actors || {})
@@ -1681,6 +1690,7 @@ export class PetService {
       const system = [
         '你是世界账本记账员。判断这一轮有没有改变世界，只输出回执行，不要解释、不要写台词。',
         `在场人物：${roster}`,
+        `产业清单：${props}`,
         '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=世界日+天数 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
         '剧情线：[[world:clue text="沈家旧案的一页卷宗"]] [[world:faction id=yamen delta=+5]]',
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
