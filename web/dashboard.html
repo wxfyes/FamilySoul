@@ -130,6 +130,11 @@
   </section>
 
   <section class="card">
+    <h2>天下（城池归属）</h2>
+    <div id="cities">—</div>
+  </section>
+
+  <section class="card">
     <h2>基础设施</h2>
     <div id="infra">—</div>
   </section>
@@ -310,6 +315,16 @@ function render(w){
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+
+  // ── 天下 ──────────────────────────────
+  const powers = w.powers || {};
+  const cities = w.cities || {};
+  const cityRows = Object.entries(cities).map(([name, c]) => {
+    const owner = powers[c.owner]?.name || c.owner;
+    const mine = c.owner === 'wangjia';
+    return `<div class="row"><span>${name} ${mine ? '<span class="good">（你的）</span>' : ''}</span><span class="muted">${owner} · 守备${c.defense} · 民心${c.unrest}</span></div>`;
+  });
+  $('cities').innerHTML = cityRows.length ? cityRows.join('') : '<div class="muted">还没有城池数据</div>';
 
   // ── 兵力 / 基建 ──────────────────────────────
   const mil = w.military || {};

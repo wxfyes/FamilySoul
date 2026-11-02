@@ -288,6 +288,42 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'power') {
+        // 新势力：立旗号、拉队伍
+        const name = String(args.name || '').trim().slice(0, 20);
+        if (!name) continue;
+        world.powers = world.powers || {};
+        const id = String(args.id || `p_${Object.keys(world.powers).length + 1}`).slice(0, 16);
+        if (!world.powers[id]) {
+          world.powers[id] = {
+            name,
+            kind: String(args.kind || '义军').slice(0, 8),
+            power: Math.max(0, Number(args.power) || 5),
+            relation: Number(args.relation) || 0,
+            troops: Math.max(0, Number(args.troops) || 0),
+            note: String(args.note || '').slice(0, 40),
+          };
+          applied.push(`新势力:${name}（${world.powers[id].kind}）`);
+        } else {
+          const p = world.powers[id];
+          if (Number.isFinite(Number(args.troops))) p.troops = Math.max(0, Number(args.troops));
+          if (Number.isFinite(Number(args.power))) p.power = Math.max(0, Number(args.power));
+          if (Number.isFinite(Number(args.relation))) p.relation = Math.max(-100, Math.min(100, Number(args.relation)));
+          applied.push(`势力:${p.name} 兵${p.troops}`);
+        }
+      } else if (kind === 'city') {
+        // 城池归属/守备
+        const cityName = String(args.name || '').trim();
+        if (!cityName) continue;
+        world.cities = world.cities || {};
+        if (!world.cities[cityName]) {
+          world.cities[cityName] = { region: String(args.region || ''), owner: 'court', defense: 20, wealth: 40, unrest: 10 };
+        }
+        const ct = world.cities[cityName];
+        if (args.owner && world.powers?.[args.owner]) ct.owner = String(args.owner);
+        if (Number.isFinite(Number(args.defense))) ct.defense = Math.max(0, Number(args.defense));
+        if (Number.isFinite(Number(args.unrest))) ct.unrest = Math.max(0, Math.min(100, Number(args.unrest)));
+        applied.push(`城池:${cityName} 属${world.powers?.[ct.owner]?.name || ct.owner}`);
       } else if (kind === 'troops') {
         // 招兵：护院/乡勇/兵马
         const field = String(args.field || 'guards');

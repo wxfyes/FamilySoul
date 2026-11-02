@@ -291,6 +291,13 @@ export function createInitialState(dataDir) {
         { name: '剑南道', cities: ['成都府', '绵州府', '嘉州府'] },
       ],
     },
+    // 天下势力：朝廷、藩镇、义军、商帮、山匪
+    powers: {
+      court: { name: '大乾朝廷', kind: '朝廷', power: 90, relation: 0, troops: 200000, note: '名义上统御天下' },
+      wangjia: { name: '王家', kind: '商帮', power: 5, relation: 100, troops: 0, note: '你自己' },
+    },
+    // 城池：谁占着、守备多少、富不富、民心稳不稳
+    cities: {},
     // 兵力：私兵→乡勇→起义军，一步一步
     military: {
       guards: 0,       // 护院家丁
@@ -425,6 +432,25 @@ export function worldDate(world) {
   return { iso, month: anchor.getMonth() + 1, day: anchor.getDate(), year: anchor.getFullYear(), lunar };
 }
 
+/** 按疆域把每座城建出来（只在缺的时候建，不覆盖已有归属）*/
+export function ensureCities(world) {
+  world.cities = world.cities && typeof world.cities === 'object' ? world.cities : {};
+  const regions = world.geo?.regions || [];
+  for (const r of regions) {
+    for (const name of r.cities || []) {
+      if (world.cities[name]) continue;
+      world.cities[name] = {
+        region: r.name,
+        owner: 'court',
+        defense: 15 + Math.floor(Math.random() * 15),
+        wealth: 30 + Math.floor(Math.random() * 40),
+        unrest: 5 + Math.floor(Math.random() * 15),
+      };
+    }
+  }
+  return world.cities;
+}
+
 export function loadState(dataDir) {
   const file = statePath(dataDir);
   const raw = readJson(file);
@@ -474,6 +500,8 @@ export function loadState(dataDir) {
     memories: Array.isArray(raw.memories) ? raw.memories : [],
     calendar: { ...base.calendar, ...(raw.calendar || {}) },
     geo: { ...base.geo, ...(raw.geo || {}) },
+    powers: { ...base.powers, ...(raw.powers || {}) },
+    cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
     infra: { ...base.infra, ...(raw.infra || {}) },
     factions: { ...base.factions, ...(raw.factions || {}) },

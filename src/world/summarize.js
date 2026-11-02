@@ -2,7 +2,7 @@
  * 状态摘要 —— 把世界状态压成一段给叙述层看的「天机」文字
  * 纯规则生成，不调用大模型；目标 ≤ 800 token。
  */
-import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2 } from './state.js';
+import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2, ensureCities } from './state.js';
 import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
@@ -270,6 +270,26 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
             })
             .join('、')}`,
         );
+      }
+    } catch {
+      /* 忽略 */
+    }
+
+    // 天下：谁占着哪些城、你自己的兵力
+    try {
+      ensureCities(world);
+      const mine = Object.entries(world.cities || {}).filter(([, c]) => c.owner === 'wangjia');
+      const powers = Object.values(world.powers || {})
+        .filter((p) => p && p.kind !== '商帮')
+        .slice(0, 4)
+        .map((p) => `${p.name}(${p.kind},兵${p.troops})`);
+      if (powers.length) lines.push(`【天下】${powers.join('、')}`);
+      if (mine.length) {
+        lines.push(`【你的城】${mine.map(([n]) => n).join('、')}`);
+      }
+      const mil = world.military || {};
+      if ((Number(mil.guards) || 0) + (Number(mil.militia) || 0) + (Number(mil.army) || 0) > 0) {
+        lines.push(`【兵马】护院${mil.guards || 0} 乡勇${mil.militia || 0} 兵马${mil.army || 0} · 训练${mil.quality || 0} 士气${mil.morale || 0} 粮草${mil.supplies || 0}日`);
       }
     } catch {
       /* 忽略 */
