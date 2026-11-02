@@ -345,9 +345,20 @@ function render(w){
     return `<div class="row"><span><b>${m.title}</b> <span class="muted">${role}</span></span><span>${dot}</span></div>`;
   }).join('') || '<div class="muted">没有配置成员</div>';
 
-  $('audit-box').innerHTML = audit.length
+  const ledgerHtml = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
-    : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+    : '<div class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</div>';
+  const memIss = w.memAudit || [];
+  const repIss = w.replyAudit || [];
+  const memHtml = memIss.length
+    ? memIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 记忆与账本一致</div>';
+  const repHtml = repIss.length
+    ? repIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 最近台词与账本一致</div>';
+  $('audit-box').innerHTML = ledgerHtml
+    + '<div class="muted" style="margin:8px 0 4px">记忆自检</div>' + memHtml
+    + '<div class="muted" style="margin:8px 0 4px">台词自检</div>' + repHtml;
 
   // ── 朝中 ──────────────────────────────
   const court = w.court || {};
