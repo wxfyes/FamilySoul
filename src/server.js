@@ -552,8 +552,9 @@ const STARTED_AT = Date.now();
             id,
             name,
             role: String(it.role || '城中人'),
-            origin: 'spawned',
-            household: false,
+            origin: String(it.origin || 'spawned'),
+            gender: String(it.gender || 'female'),
+            household: Boolean(it.household),
             location: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
             goals: String(it.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
             secret: String(it.secret || ''),
@@ -744,6 +745,7 @@ const STARTED_AT = Date.now();
             intimacy: a.intimacy || null,
             household: Boolean(a.household),
             origin: a.origin || 'preset',
+            gender: a.gender || 'female',
             goals: Array.isArray(a.goals) ? a.goals : [],
           }));
         const recentReceipts = Array.isArray(world.flags?.recentReceipts) ? world.flags.recentReceipts : [];

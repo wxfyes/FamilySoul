@@ -35,6 +35,14 @@ function attitudeOf(actor) {
   const t = Number(actor?.relations?.husband?.trust ?? 0);
   const g = Number(actor?.relations?.husband?.grievance ?? 0);
 
+  // 男人之间谈的是交情与敌意，不是欲望
+  if (actor?.gender === 'male') {
+    if (g >= 60) return '对你有敌意，见面就要生事';
+    if (g >= 30) return '心里有疙瘩，面上还得应酬';
+    if (t >= 60) return '跟你称兄道弟，未必真心';
+    return '点头之交，各怀算盘';
+  }
+
   // 已进门的妻妾侍女：是自己人，绝不会真拒绝，最多闹闹小脾气
   if (actor?.household) {
     if (g >= 60) return '心里有气，会闹一场、要哄，但仍是你的妻妾';

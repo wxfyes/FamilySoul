@@ -174,6 +174,7 @@ export function applyWorldTags(dataDir, ops) {
           id,
           name,
           origin: 'spawned', // 标记：天道自己长出来的人
+          gender: String(args.gender || 'female'),
           role: String(args.role || '城中人'),
           location: resolvePlace(world, args.place) || 'street',
           goals: String(args.goals || '').split(';').map((s) => s.trim()).filter(Boolean),

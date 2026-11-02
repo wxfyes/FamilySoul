@@ -124,6 +124,12 @@ function human(sec){
 // 与后端一致的态度阶梯（仅用于展示）
 function attitude(a){
   const r = a.relations || {}; const d = +r.desire||0, t = +r.trust||0, g = +r.grievance||0;
+  if (a.gender==='male') {
+    if (g>=60) return '对你有敌意，见面就要生事';
+    if (g>=30) return '心里有疙瘩，面上还应酬';
+    if (t>=60) return '称兄道弟，未必真心';
+    return '点头之交，各怀算盘';
+  }
   if (a.household) {
     if (g>=60) return '心里有气，会闹一场、要哄';
     if (d>=60) return '心里有你，主动迎合';
