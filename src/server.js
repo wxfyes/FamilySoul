@@ -656,8 +656,31 @@ const STARTED_AT = Date.now();
             } catch {
               /* 忽略 */
             }
+            // 其他成员的聊天历史里提到她的那些句子也要剔除，否则模型还能顺着前 8 句"回忆"起来
+            let scrubbed = 0;
+            try {
+              const family = getFamilyProfiles();
+              for (const key of Object.keys(family)) {
+                const cur = petService.readHistory(key);
+                const msgs = cur.messages || [];
+                const keptMsgs = msgs.filter((m) => {
+                  const t = String(m?.text || '');
+                  const hit =
+                    t.includes(a.name) ||
+                    (a.name.length > 2 && t.includes(a.name.slice(-2)) && /【|妾身|她/.test(t));
+                  return !hit;
+                });
+                if (keptMsgs.length !== msgs.length) {
+                  scrubbed += msgs.length - keptMsgs.length;
+                  cur.messages = keptMsgs;
+                  petService.saveHistory(key, cur);
+                }
+              }
+            } catch (err) {
+              console.warn('[Reset] 对话痕迹清理失败：', err.message);
+            }
             done.push(
-              `${a.name} 深度抹除（原话 -${qBefore - (world.quotes || []).length}，约定 -${apBefore - (world.appointments || []).length}，事件 -${evRemoved}，对话 -${chatCleared}）`,
+              `${a.name} 深度抹除（原话 -${qBefore - (world.quotes || []).length}，约定 -${apBefore - (world.appointments || []).length}，事件 -${evRemoved}，对话 -${chatCleared}，痕迹 -${scrubbed}）`,
             );
           }
         }
