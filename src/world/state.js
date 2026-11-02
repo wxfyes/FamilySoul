@@ -611,7 +611,21 @@ export function loadState(dataDir) {
     promises: Array.isArray(raw.promises) ? raw.promises : [],
     memories: Array.isArray(raw.memories) ? raw.memories : [],
     calendar: { ...base.calendar, ...(raw.calendar || {}) },
-    geo: { ...base.geo, ...(raw.geo || {}) },
+    // 疆域取并集：老存档里的旧地图不能把新道新府盖掉
+    geo: (() => {
+      const merged = { ...base.geo, ...(raw.geo || {}) };
+      const regions = Array.isArray(merged.regions) ? [...merged.regions] : [];
+      for (const br of base.geo.regions || []) {
+        const hit = regions.find((r) => r?.name === br.name);
+        if (!hit) {
+          regions.push({ ...br, cities: [...br.cities] });
+        } else {
+          hit.cities = Array.from(new Set([...(hit.cities || []), ...br.cities]));
+        }
+      }
+      merged.regions = regions;
+      return merged;
+    })(),
     powers: { ...base.powers, ...(raw.powers || {}) },
     cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
