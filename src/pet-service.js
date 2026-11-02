@@ -569,7 +569,7 @@ export class PetService {
       // 注意：这里 history 还没加载，直接读一次历史文件取她上一句（本地 JSON，开销极小）
       const lastBotSaid =
         [...(this.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
-      const summonResult = applySummon(this.dataDir, say, lastBotSaid, this._viewerActorId || 'husband');
+      const summonResult = applySummon(this.dataDir, say, lastBotSaid, actorId && actorId !== 'husband' ? actorId : 'husband');
       summonedNames = summonResult?.summoned || [];
       if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
       leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);
@@ -1117,7 +1117,7 @@ export class PetService {
       // 硬性在场过滤：不在场的人写进来的段落，直接掐掉（提示词管不住，就用代码管）
     try {
       const wP = loadState(this.dataDir);
-      const hereP = wP.actors?.husband?.location;
+      const hereP = wP.actors?.[this._viewerActorId || 'husband']?.location;
       const allowed = Object.values(wP.actors || {})
         .filter((a) => a?.name && a.location === hereP)
         .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name, a.label].filter(Boolean));
@@ -1135,7 +1135,7 @@ export class PetService {
     // 事后检查：回复里出现了不在场的人（容易被"提一句"就拉进来）
     try {
       const wChk = loadState(this.dataDir);
-      const hereNow = wChk.actors?.husband?.location;
+      const hereNow = wChk.actors?.[this._viewerActorId || 'husband']?.location;
       const speakers = [...String(reply).matchAll(/【([^】\n]{1,12})】/g)].map((m) => m[1].trim());
       const intruders = [...new Set(speakers)].filter((nm) => {
         const a = Object.values(wChk.actors || {}).find(
@@ -1163,13 +1163,9 @@ export class PetService {
       /* 忽略 */
     }
 
-    // 真人扮演世界人物时：她的历史里可能残留旧的"婉儿口吻"标签，一律改成本人名字
+    // 真人扮演世界人物时：AI 演在场所有人，只去掉场景标记，不动任何人名标签
     if (this._viewerActorId) {
-      reply = String(reply).replace(/【([^】\n]{1,12})】/g, (all, inner) => {
-        const nm = String(inner).trim();
-        const known = (this._knownNames || []).some((n) => n && (nm === n || nm.endsWith(n) || n.endsWith(nm)));
-        return known ? '【王甯】' : all;
-      });
+      reply = String(reply).replace(/【天道[^】\n]{0,40}】[:：]?\s*/g, '');
     }
 
     // 她说要走了，就真的走（否则人会永远钉在原地）

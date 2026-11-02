@@ -74,7 +74,8 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
     (leaveWords.test(say) || (ackWords.test(say) && farewell.test(String(lastBotSaid || ''))));
 
   if (leaving) {
-    const home = world.places?.tea_house ? 'tea_house' : 'street';
+    // 「回家」回的是「自己的家」，不是相公的茶坊
+    const home = (me.home && world.places?.[me.home] ? me.home : null) || (world.places?.tea_house ? 'tea_house' : 'street');
     if (me.location !== home) {
       me.location = home;
       saveState(dataDir, world);
