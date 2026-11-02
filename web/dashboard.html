@@ -665,7 +665,7 @@ async function doReset() {
     if ($('rsWorld').checked || $('rsMem').checked) {
       const r = await fetch(`/api/admin/actor/reset?token=${encodeURIComponent(tk)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, relations: $('rsWorld').checked, clearPregnancy: $('rsWorld').checked, clearMemories: $('rsMem').checked }),
+        body: JSON.stringify({ id, relations: $('rsWorld').checked, clearPregnancy: $('rsWorld').checked, clearMemories: $('rsMem').checked, deep: $('rsDeep').checked }),
       });
       const j = await r.json();
       done.push('世界线：' + (j.done || []).join('、'));
