@@ -588,8 +588,8 @@ export class PetService {
         .filter((a) => a?.name && a.id !== 'husband' && a.kind !== 'human')
         .map((a) => ({ id: a.id, name: a.name, short: a.name.length > 2 ? a.name.slice(-2) : a.name }))
         .filter((x) => say.includes(x.name) || say.includes(x.short));
-      if (named.length === 1 && summonedNames.length === 0) {
-        contextHint += `（【点名】：相公这轮是在找「${named[0].name}」。**必须由她本人开口应话**，其余在场的人不许抢答，也不许写成别人出来接待。）\n`;
+      if (named.length === 1) {
+        contextHint += `（【点名】：相公这轮是去找「${named[0].name}」。**本轮只许她一个人开口**，其余角色一律不得出场、不得插话、不得替她接待。她若不在原地，要写出"她正从里头出来"这种自然过渡，不许让旁人代答。）\n`;
       }
     } catch {
       /* 忽略 */

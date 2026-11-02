@@ -57,13 +57,16 @@ export function applySummon(dataDir, text) {
       }
       summoned.push(a.name);
     }
-  } else if (hasGoVerb && mentioned.length === 1) {
-    // 我去 X 那儿 → 相公挪到 X 所在处
+  } else if (mentioned.length === 1) {
+    // 「找 X / X 在吗 / 我去 X 那」→ 相公挪到 X 所在处（而不是把 X 凭空叫来）
     const target = world.actors[mentioned[0]];
-    if (target && me.location !== target.location) {
-      me.location = target.location;
-      moved.push('相公');
-      visited = target.name;
+    if (target) {
+      summoned.push(target.name);
+      if (me.location !== target.location) {
+        me.location = target.location;
+        moved.push('相公');
+        visited = target.name;
+      }
     }
   }
 
