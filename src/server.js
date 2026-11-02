@@ -166,6 +166,14 @@ function getFamilyProfiles() {
   return defaults;
 }
 
+// 真人是否在线：以最后一次请求为准（2 分钟内算在线）
+const MEMBER_LAST_SEEN = new Map();
+const HUMAN_ONLINE_MS = 2 * 60 * 1000;
+
+function touchMember(key) {
+  if (key) MEMBER_LAST_SEEN.set(key, Date.now());
+}
+
 function resolveMember(req, url) {
   const headerToken = String(req.headers['x-pet-token'] || '').trim();
   const queryToken = String(url.searchParams.get('token') || '').trim();
@@ -176,6 +184,7 @@ function resolveMember(req, url) {
   const family = getFamilyProfiles();
   for (const [memberKey, profile] of Object.entries(family)) {
     if (profile.token && profile.token === clientToken) {
+      touchMember(memberKey);
       return { ...profile, memberKey };
     }
   }
@@ -857,6 +866,19 @@ const STARTED_AT = Date.now();
                 : `⚠ 偏低：最近 ${recentReceipts.length} 轮只有 ${rate}% 改变了世界，需要加强回执提示`,
           receiptRate: rate,
           audit: auditWorld(world),
+          members: Object.entries(getFamilyProfiles()).map(([key, p]) => {
+            const seen = MEMBER_LAST_SEEN.get(key) || 0;
+            const online = seen > 0 && Date.now() - seen < HUMAN_ONLINE_MS;
+            const actorId = p.actor || (key === 'husband' ? 'husband' : null);
+            return {
+              key,
+              title: p.title || key,
+              actor: actorId,
+              actorName: actorId ? world.actors?.[actorId]?.name || null : null,
+              online,
+              lastSeenSec: seen ? Math.round((Date.now() - seen) / 1000) : null,
+            };
+          }),
           runtime: {
             uptimeSec: Math.round(process.uptime()),
             rssMB: Math.round(process.memoryUsage().rss / 1048576),

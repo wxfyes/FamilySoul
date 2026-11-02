@@ -83,6 +83,11 @@
   </section>
 
   <section class="card">
+    <h2>真人（谁在用手机登着）</h2>
+    <div id="humans">—</div>
+  </section>
+
+  <section class="card">
     <h2>体检结果</h2>
     <div id="audit-box" class="muted">—</div>
   </section>
@@ -212,6 +217,16 @@ function render(w){
   $('a-income').textContent = income.toFixed(2) + ' 两/日';
   $('a-props').innerHTML = props.map(p =>
     `<div class="row"><span>${p.name}</span><span>${(+p.incomePerDay||0).toFixed(2)} 两 · ${p.status||''}</span></div>`).join('') || '<div class="muted">无产业</div>';
+
+  // 真人上线状态
+  const members = w.members || [];
+  $('humans').innerHTML = members.map(m => {
+    const dot = m.online
+      ? '<span class="good">● 在线</span>'
+      : (m.lastSeenSec != null ? `<span class="muted">离线 ${m.lastSeenSec < 3600 ? Math.round(m.lastSeenSec/60)+'分前' : Math.round(m.lastSeenSec/3600)+'小时前'}</span>` : '<span class="muted">从未登录</span>');
+    const role = m.actorName ? `扮演 ${m.actorName}` : '（独立陪伴，不进世界）';
+    return `<div class="row"><span><b>${m.title}</b> <span class="muted">${role}</span></span><span>${dot}</span></div>`;
+  }).join('') || '<div class="muted">没有配置成员</div>';
 
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
