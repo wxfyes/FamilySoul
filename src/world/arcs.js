@@ -218,12 +218,22 @@ export function arcStepPrompt(world, actorId) {
   const me = world.actors?.[actorId];
   const day = world.clock?.day || 1;
   const rel = me?.relations?.husband || {};
-  const recent = (arc.log || []).slice(-2).map((l) => l.text).filter(Boolean).join('；');
+  const wallet = Number(world.wallets?.[actorId]) || 0;
+  const props = (world.assets?.properties || []).filter((x) => x && x.keeper === actorId);
+  const daily = props.reduce((sum, x) => sum + (Number(x.incomePerDay) || 0), 0);
+  const debts = (world.promises || []).filter((pr) => pr && pr.loan && !pr.done && pr.loan.to === actorId);
+  const recent = (arc.log || []).slice(-3).map((l) => l.text).filter(Boolean).join('；');
+  const clues = (world.clues || []).slice(-6).map((c) => String(c.text || '')).filter((t) => t.includes(me?.name || '')).join('；');
   return [
-    `你是天道。人物：${me?.name || ''}（${me?.role || ''}）。`,
-    `她的难关：${seed.title}——${seed.hook}。`,
-    `第${day}日，她对相公：信任${rel.trust ?? 50}、怨怼${rel.grievance ?? 0}。`,
+    `你是天道。人物：${me?.name || ''}（${me?.role || ''}），第${day}日。`,
+    `她原先的难关：${seed.title}——${seed.hook}。`,
+    `她现在的处境：账上${wallet.toFixed(2)}两、日入${daily.toFixed(2)}两${props.length ? '（' + props.map((x) => x.name).join('、') + '）' : ''}。`,
+    debts.length ? `她还欠着：${debts.map((d) => `${d.loan.amount}两`).join('、')}。` : '她没有欠债。',
+    `她对相公：信任${rel.trust ?? 50}、怨怼${rel.grievance ?? 0}。`,
+    clues ? `与她有关的线索：${clues}` : '',
     recent ? `前情：${recent}。` : '',
-    '请写一句"眼下正在逼到她眼前的事"（20~40字，只写处境，不写她怎么反应，不写结局）。只输出这一句。',
+    '要求：写一句"眼下正在逼到她眼前的事"（20~40字）。',
+    '**如果原来那件事已经被解决（债被平了、人走了、事办完了），就写她眼下新的难处，不要重复旧事、不要假设旧事还在。**',
+    '只写处境，不写她怎么反应，不写结局。只输出这一句。',
   ].filter(Boolean).join('\n');
 }
