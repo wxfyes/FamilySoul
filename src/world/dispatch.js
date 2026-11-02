@@ -264,6 +264,12 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
       } else if (kind === 'move') {
         const id = resolveActor(world, args.who);
         if (!id) continue;
+        // 真人成员在自己的账号里走动，绝不许顺带把相公搬过去
+        const caller = String((opts && (opts.selfId || opts.memberKey)) || '');
+        if (id === 'husband' && caller && caller !== 'husband') {
+          applied.push(`拒绝:${caller}不能移动相公`);
+          continue;
+        }
         let place = resolvePlace(world, args.to);
         if (!place && args.to) {
           // 天道叙事里出现了账本没有的去处 → 就地建一个，
