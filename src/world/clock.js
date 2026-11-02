@@ -162,6 +162,8 @@ function runLocalEconomy(world, events) {
     // 物价向常价回归，再叠加季节与灾荒
     const drift = Math.round((100 - (Number(ct.price) || 100)) * 0.2);
     ct.price = Math.max(50, Math.min(300, Math.round((Number(ct.price) || 100) + drift)));
+    const gp = Number(world.flags?.grainPressure) || 1;
+    if (gp !== 1) ct.price = Math.max(50, Math.min(300, Math.round(ct.price * gp)));
 
     // 天灾：小概率
     if (Math.random() < 0.04) {
@@ -429,6 +431,74 @@ function runLoanDues(world, events, queuePush) {
   }
 }
 
+/**
+ * 国库与粮仓：钱和粮都有来处、有去处。
+ *  收：朝廷占的城按税率上缴
+ *  支：官俸（每位在任官）＋军饷（每千兵）＋赈济（灾年）
+ *  空：国库见底 → 朝廷只能加税 → 民心崩
+ *  粮：秋收入库，灾荒出仓；仓越空，粮价越高
+ */
+function runTreasury(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  world.court = world.court || {};
+  const tr = world.court.treasury = world.court.treasury || { silver: 1200, grain: 800, lastIncome: 0, lastExpense: 0 };
+
+  // 收：朝廷的城
+  let income = 0;
+  for (const ct of Object.values(world.cities || {})) {
+    if (!ct) continue;
+    const courtOwned = !ct.owner || ct.owner === 'court';
+    if (!courtOwned) continue;
+    const tax = Math.max(0, Math.min(50, Number(ct.tax) || 10));
+    income += Math.round(((Number(ct.wealth) || 30) * tax) / 100 / 3 * 100) / 100;
+  }
+  // 支：官俸 + 军饷
+  const offices = Object.values(world.court.offices || {}).filter((o) => o && o.holder && !o.vacant);
+  const salary = offices.length * 1.5;
+  const mil = world.military || {};
+  const pay = ((Number(mil.army) || 0) + (Number(mil.militia) || 0) * 0.5) / 100 * 2;
+  const expense = Math.round((salary + pay) * 100) / 100;
+
+  tr.silver = Math.round(((Number(tr.silver) || 0) + income - expense) * 100) / 100;
+  tr.lastIncome = Math.round(income * 100) / 100;
+  tr.lastExpense = expense;
+
+  // 国库见底：加税或欠俸
+  if (tr.silver < 0) {
+    tr.silver = 0;
+    world.flags = world.flags || {};
+    world.flags.courtBankrupt = (Number(world.flags.courtBankrupt) || 0) + 1;
+    for (const ct of Object.values(world.cities || {})) {
+      if (!ct) continue;
+      ct.tax = Math.min(50, (Number(ct.tax) || 10) + 2);
+      ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 2);
+    }
+    events.push(nextEvent(world, { action: 'treasury_empty', actor: 'court', place: null, payload: { text: '国库告罄，朝廷加征' }, isPublic: true }));
+  }
+
+  // 秋收入仓（每 30 天一次），灾荒出仓
+  if (day % 30 === 0) {
+    tr.grain = Math.min(3000, (Number(tr.grain) || 0) + 600);
+    events.push(nextEvent(world, { action: 'harvest', actor: 'court', place: null, payload: { text: '秋收入仓' }, isPublic: true }));
+  }
+  const disasters = (events || []).filter((e) => e?.action === 'disaster').length;
+  if (disasters > 0 && Number(tr.grain) > 0) {
+    const give = Math.min(Number(tr.grain), disasters * 120);
+    tr.grain = Number(tr.grain) - give;
+    for (const ct of Object.values(world.cities || {})) {
+      if (!ct) continue;
+      ct.unrest = Math.max(0, (Number(ct.unrest) || 0) - 3);
+    }
+    events.push(nextEvent(world, { action: 'relief_grain', actor: 'court', place: null, payload: { text: `开仓放粮 ${give} 石` }, isPublic: true }));
+  }
+
+  // 仓越空，粮价越高
+  const stock = Number(tr.grain) || 0;
+  const pressure = stock < 200 ? 1.25 : stock < 500 ? 1.1 : stock > 1500 ? 0.95 : 1;
+  world.flags = world.flags || {};
+  world.flags.grainPressure = pressure;
+}
+
 function consumeSupplies(world) {
   const mil = world.military;
   if (!mil) return;
@@ -445,6 +515,11 @@ function consumeSupplies(world) {
 
 function onNewDay(world, events) {
   consumeSupplies(world);
+  try {
+    runTreasury(world, events);
+  } catch (err) {
+    console.warn('[Treasury] 国库结算失败：', err.message);
+  }
   try {
     runLoanDues(world, events, (o) => queueProactive(world, { type: 'loan', ...o }));
   } catch (err) {
