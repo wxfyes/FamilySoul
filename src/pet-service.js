@@ -11,6 +11,7 @@ import { applySummon, applyNpcDeparture } from './world/summon.js';
 import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
 import { normalizeMemberReply } from './world/member-reply.js';
+import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -746,6 +747,16 @@ export class PetService {
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        try {
+          const rootDir2 = path.dirname(this.dataDir);
+          const humansHere = Object.values(wHere.actors || {})
+            .filter((a) => a && !a.dead && a.id !== this._viewerActorId && a.location === locId)
+            .filter((a) => Boolean(memberKeyOfActor(rootDir2, a.id)))
+            .map((a) => a.name);
+          if (humansHere.length) {
+            bits.push(`同一处的真人还有：${humansHere.join('、')}——他们的话由他们自己说，你不许替他们开口`);
+          }
+        } catch { /* 忽略 */ }
         const hus = Object.values(wHere.actors || {}).find((a) => a && a.id === 'husband');
         if (hus && hus.location !== locId) {
           const hp = String(wHere.places?.[hus.location]?.name || '别处');
@@ -1330,6 +1341,47 @@ export class PetService {
       } catch (err) {
         console.warn('[Member] 回复规范化失败：', err.message);
       }
+    }
+
+    // 真人同场：她说的这句话，同地点的别人也听得见
+    try {
+      if (this._viewerActorId && String(say || '').trim()) {
+        const rootDir = path.dirname(this.dataDir);
+        const wScene = loadState(this.dataDir);
+        const meScene = wScene.actors?.[this._viewerActorId];
+        const placeScene = meScene?.location;
+        if (placeScene) {
+          recordHumanLine(this.dataDir, placeScene, this._viewerActorId, meScene.name || '', say);
+          for (const other of Object.values(wScene.actors || {})) {
+            if (!other || other.dead || other.id === this._viewerActorId) continue;
+            if (other.location !== placeScene) continue;
+            const otherKey = memberKeyOfActor(rootDir, other.id);
+            if (!otherKey) continue; // 不是真人账号（NPC 由 AI 演）
+            wScene.proactive = Array.isArray(wScene.proactive) ? wScene.proactive : [];
+            wScene.proactive.push({
+              id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              type: 'human',
+              to: otherKey,
+              reason: 'human',
+              text: `【${meScene.name}】：${String(say).slice(0, 300)}`,
+              at: Date.now(),
+              day: wScene.clock?.day,
+              hour: wScene.clock?.hour,
+            });
+            wScene.proactive = wScene.proactive.slice(-20);
+            try {
+              const hOther = this.readHistory(otherKey);
+              hOther.messages = Array.isArray(hOther.messages) ? hOther.messages : [];
+              hOther.messages.push({ id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, role: 'assistant', text: `【${meScene.name}】：${String(say).slice(0, 300)}`, at: Date.now() });
+              if (hOther.messages.length > 200) hOther.messages = hOther.messages.slice(-200);
+              this.saveHistory(otherKey, hOther);
+            } catch { /* 忽略 */ }
+          }
+          saveState(this.dataDir, wScene);
+        }
+      }
+    } catch (err) {
+      console.warn('[Scene] 同场投递失败：', err.message);
     }
 
     // 她一开口就算"在行动"，主线不会因为躺平被世界替她定夺
