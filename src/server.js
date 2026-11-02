@@ -613,6 +613,53 @@ const STARTED_AT = Date.now();
           } else {
             done.push(a.name);
           }
+
+          // 深度抹除：连"她说过的话 / 与她的约定 / 关于她的事件"一起清，像从没发生过
+          if (body.deep) {
+            const qBefore = (world.quotes || []).length;
+            world.quotes = (world.quotes || []).filter((q) => q && q.actor !== id && String(q.name || '') !== a.name);
+            const apBefore = (world.appointments || []).length;
+            world.appointments = (world.appointments || []).filter(
+              (ap) => ap && ap.actorId !== id && String(ap.name || '') !== a.name,
+            );
+            let evRemoved = 0;
+            try {
+              const evFile = path.join(DATA_DIR, 'world', 'events.jsonl');
+              if (fs.existsSync(evFile)) {
+                const lines = fs.readFileSync(evFile, 'utf8').split('\n').filter(Boolean);
+                const kept = lines.filter((line) => {
+                  try {
+                    const e = JSON.parse(line);
+                    if (e && e.actor === id) return false;
+                    const t = JSON.stringify(e?.payload || {});
+                    if (t.includes(a.name)) return false;
+                    return true;
+                  } catch {
+                    return true;
+                  }
+                });
+                evRemoved = lines.length - kept.length;
+                fs.writeFileSync(evFile, kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+              }
+            } catch (err) {
+              console.warn('[Reset] 事件清理失败：', err.message);
+            }
+            // 她自己的聊天历史
+            let chatCleared = 0;
+            try {
+              const cur = petService.readHistory(id);
+              chatCleared = (cur.messages || []).length;
+              cur.messages = [];
+              cur.lastUserAt = 0;
+              cur.lastAssistantAt = 0;
+              petService.saveHistory(id, cur);
+            } catch {
+              /* 忽略 */
+            }
+            done.push(
+              `${a.name} 深度抹除（原话 -${qBefore - (world.quotes || []).length}，约定 -${apBefore - (world.appointments || []).length}，事件 -${evRemoved}，对话 -${chatCleared}）`,
+            );
+          }
         }
         saveState(DATA_DIR, world);
         console.log(`[Reset] 已重置：${done.join('、')}`);
