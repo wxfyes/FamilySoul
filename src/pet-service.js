@@ -403,6 +403,7 @@ export class PetService {
         lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
         lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
         lines.push('  [[world:pregnant who=liuwenxia]]');
+        lines.push('  [[world:troops field=guards delta=10]]  [[world:infra name=granary delta=1]]');
         lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
         lines.push('- 【凡发生了值得记一辈子的事（第一次、亲密、翻脸、重大决定），必须记 remember】，它会永久留存。');
         lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
@@ -1806,6 +1807,8 @@ export class PetService {
         '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算）',
         '产业：[[world:income id=canal_restaurant set=18 status="已开张"]] —— **凡是"开张/日入多少/生意变好变差"，一律用这个改产业营收，绝不许拿 [[world:asset]] 加一笔银子代替。**',
         '新开店：[[world:property name="城南布庄" set=10 status="已开张"]] —— 相公说要开一间以前没有的铺子时用它。',
+        '招兵：[[world:troops field=guards delta=10]]（护院 guards / 乡勇 militia / 兵马 army）',
+        '基建：[[world:infra name=granary delta=1]]（roads 路 / granary 粮仓 / dock 码头 / workshop 匠作坊 / school 学堂 / clinic 药堂）',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
         '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',

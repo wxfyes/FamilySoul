@@ -1163,6 +1163,9 @@ const STARTED_AT = Date.now();
           promises: (world.promises || []).filter((p) => p && !p.done),
           quotes: (world.quotes || []).slice(-40),
           arcs: world.arcs || {},
+          military: world.military || null,
+          infra: world.infra || null,
+          geo: world.geo || null,
           clues: (world.clues || []).slice(-12),
           appointments: (world.appointments || [])
             .filter((a) => a && Number(a.day) > 0)

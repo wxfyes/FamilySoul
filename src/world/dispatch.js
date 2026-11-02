@@ -288,6 +288,24 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'troops') {
+        // 招兵：护院/乡勇/兵马
+        const field = String(args.field || 'guards');
+        if (!['guards', 'militia', 'army'].includes(field)) continue;
+        const delta = Number(args.delta);
+        if (!Number.isFinite(delta) || delta === 0) continue;
+        world.military = world.military || {};
+        world.military[field] = Math.max(0, (Number(world.military[field]) || 0) + delta);
+        applied.push(`${field}${delta >= 0 ? '+' : ''}${delta}→${world.military[field]}`);
+      } else if (kind === 'infra') {
+        // 基建：修路、建仓、办学…
+        const key = String(args.name || '').trim();
+        const keys = ['roads', 'granary', 'dock', 'workshop', 'school', 'clinic'];
+        if (!keys.includes(key)) continue;
+        const delta = Number(args.delta) || 1;
+        world.infra = world.infra || {};
+        world.infra[key] = Math.max(0, Math.min(10, (Number(world.infra[key]) || 0) + delta));
+        applied.push(`基建:${key}=${world.infra[key]}`);
       } else if (kind === 'property') {
         // 新开产业：天道可以真的给世界添一间铺子
         const name = String(args.name || '').trim().slice(0, 20);

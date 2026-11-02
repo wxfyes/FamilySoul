@@ -120,6 +120,20 @@
     <div id="audit-box" class="muted">—</div>
   </section>
 
+  <section class="card">
+    <h2>势力与兵力</h2>
+    <div class="row"><span>护院家丁</span><span id="m-guards" class="big">0</span></div>
+    <div class="row"><span>乡勇团练</span><span id="m-militia">0</span></div>
+    <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
+    <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
+    <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
+  </section>
+
+  <section class="card">
+    <h2>基础设施</h2>
+    <div id="infra">—</div>
+  </section>
+
   <section class="card full">
     <h2>产业表（开遍全国）</h2>
     <table>
@@ -296,6 +310,22 @@ function render(w){
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+
+  // ── 兵力 / 基建 ──────────────────────────────
+  const mil = w.military || {};
+  if ($('m-guards')) {
+    $('m-guards').textContent = mil.guards ?? 0;
+    $('m-militia').textContent = mil.militia ?? 0;
+    $('m-army').textContent = mil.army ?? 0;
+    $('m-qm').textContent = `训练 ${mil.quality ?? 0} · 士气 ${mil.morale ?? 0}`;
+    $('m-sup').textContent = mil.supplies ?? 0;
+  }
+  const infra = w.infra || {};
+  const infraNames = { roads: '道路', granary: '粮仓', dock: '码头', workshop: '匠作坊', school: '学堂', clinic: '药堂' };
+  $('infra').innerHTML = Object.keys(infraNames).map(k => {
+    const v = Number(infra[k]) || 0;
+    return `<div class="row"><span>${infraNames[k]}</span><span>${'■'.repeat(v)}${'□'.repeat(Math.max(0, 10 - v))} ${v}/10</span></div>`;
+  }).join('');
 
   // ── 产业表 ──────────────────────────────
   const propList = w.assets?.properties || [];

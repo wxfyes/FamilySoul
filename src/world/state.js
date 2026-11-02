@@ -283,10 +283,31 @@ export function createInitialState(dataDir) {
       country: '大乾',
       capital: '京城',
       regions: [
-        { name: '江南道', cities: ['临江府', '苏州府', '杭州府', '扬州府'] },
-        { name: '京畿道', cities: ['京城', '洛阳府'] },
-        { name: '淮南道', cities: ['淮安府', '庐州府'] },
+        { name: '江南道', cities: ['临江府', '苏州府', '杭州府', '扬州府', '松江府'] },
+        { name: '京畿道', cities: ['京城', '洛阳府', '汴梁府', '太原府'] },
+        { name: '淮南道', cities: ['淮安府', '庐州府', '扬州府', '泰州府'] },
+        { name: '河北道', cities: ['幽州府', '冀州府', '沧州府'] },
+        { name: '岭南道', cities: ['广州府', '潮州府', '桂州府'] },
+        { name: '剑南道', cities: ['成都府', '绵州府', '嘉州府'] },
       ],
+    },
+    // 兵力：私兵→乡勇→起义军，一步一步
+    military: {
+      guards: 0,       // 护院家丁
+      militia: 0,      // 乡勇团练
+      army: 0,         // 正式兵马
+      quality: 20,     // 训练度
+      morale: 50,      // 士气
+      supplies: 0,     // 粮草（日）
+    },
+    // 基础设施：像现实社会一样，得一点点建
+    infra: {
+      roads: 0,        // 道路（影响商队与行军）
+      granary: 0,      // 粮仓（支撑军队）
+      dock: 0,         // 码头（水运与漕帮）
+      workshop: 0,     // 匠作坊（军械）
+      school: 0,       // 学堂（人才）
+      clinic: 0,       // 药堂（伤病）
     },
     // 公历锚点：世界第 N 日 = anchorDate + (N - anchorDay) 天
     calendar: { anchorDay: 1, anchorDate: '' },
@@ -453,6 +474,8 @@ export function loadState(dataDir) {
     memories: Array.isArray(raw.memories) ? raw.memories : [],
     calendar: { ...base.calendar, ...(raw.calendar || {}) },
     geo: { ...base.geo, ...(raw.geo || {}) },
+    military: { ...base.military, ...(raw.military || {}) },
+    infra: { ...base.infra, ...(raw.infra || {}) },
     factions: { ...base.factions, ...(raw.factions || {}) },
     clues: Array.isArray(raw.clues) ? raw.clues : [],
     appointments: Array.isArray(raw.appointments) ? raw.appointments : [],
