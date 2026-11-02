@@ -17,7 +17,7 @@
  * @param {string} p.recent 最近几句对话（可选）
  * @returns {{system:string, user:string, maxTokens:number}}
  */
-export function buildProxyPrompt({ actor, memories = [], hearerName, hearerPlace, said, recent = '' }) {
+export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName, hearerPlace, said, recent = '' }) {
   const rel = actor?.relations?.husband || {};
   const system = [
     `你现在代演「${actor?.name || '王甯'}」——${actor?.role || '临江茶坊少东家'}。`,
@@ -28,6 +28,7 @@ export function buildProxyPrompt({ actor, memories = [], hearerName, hearerPlace
     '3. 不要旁白、不要解释、不要写别人的台词、不要在开头写他的名字；',
     '4. 他不知道的事不许假装知道；不确定就照实说不知道。',
     memories.length ? `他记得的事：${memories.slice(-6).join('；')}` : '',
+    facts.length ? `与他有关的硬事实（必须照这个答，不许否认）：${facts.slice(-8).join('；')}` : '',
     `对${hearerName || '对方'}的态度：信任${rel.trust ?? 50}、欲望${rel.desire ?? 0}、怨怼${rel.grievance ?? 0}。`,
   ]
     .filter(Boolean)

@@ -1347,10 +1347,35 @@ export class PetService {
           || /(那你|你是谁|谁啊|在吗)/.test(String(say || ''));
         if (husHere && askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
-            const hisMem = (wPost.memories || []).map((m) => String(m?.text || '')).filter((t) => t.includes('王甯') || t.includes(husPost?.name || ''));
+            const herName = mePost?.name || '';
+            const hisMem = (wPost.memories || []).map((m) => String(m?.text || ''))
+              .filter((t) => t.includes('王甯') || t.includes(husPost?.name || '') || (herName && t.includes(herName)));
+            const facts = [];
+            for (const ap of wPost.appointments || []) {
+              const who = String(ap?.name || ap?.actorId || '');
+              if (!who || who === herName || who === 'liuwenxia' || /王甯/.test(who)) {
+                if (ap?.text || ap?.desc) facts.push(`第${ap.day}日${ap.hour ?? ''}时 ${ap.text || ap.desc}`);
+              }
+            }
+            try {
+              const evFile = path.join(this.dataDir, 'world', 'events.jsonl');
+              if (fs.existsSync(evFile)) {
+                const lines = fs.readFileSync(evFile, 'utf8').trim().split('\n').slice(-80);
+                for (const line of lines) {
+                  try {
+                    const e = JSON.parse(line);
+                    const t = String(e?.payload?.text || '');
+                    if (!t) continue;
+                    if (t.includes('雅阁') || (herName && t.includes(herName)) || t.includes('王甯')) facts.push(t);
+                  } catch { /* 忽略 */ }
+                }
+              }
+            } catch { /* 忽略 */ }
+
             const pp = buildProxyPrompt({
               actor: husPost,
               memories: hisMem,
+              facts,
               hearerName: mePost?.name || '',
               hearerPlace: String(wPost.places?.[locPost]?.name || ''),
               said: String(say || '').slice(0, 200),
