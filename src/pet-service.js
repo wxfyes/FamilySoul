@@ -173,6 +173,7 @@ export class PetService {
       lines.push('- 别人问「你们掌柜/东家呢」，知道就照天机说（例如东家是谁），不知道就说不知道；绝不许否认天机里写明的东家。');
       lines.push('- 在场的人只知道自己身份和听来的事。问别人家的私密账目、家事、借据，只能说「不清楚」「只听人提过一点」，绝不许凭空知道细节。');
       lines.push('- 谁惹的祸就说谁：她铺子的债是**于子归拿铺子名号借的**，不是天上掉下来的。');
+      lines.push('- 故事里要用到某个行当的人（郎中、稳婆、仵作、媒婆…）而世上没有时，给他一个姓再写，如「陈郎中」「王稳婆」。');
       lines.push('- 你提到账本之外的人（街坊、伙计、婆子、货郎…）时，必须在这句后面附一条：');
       lines.push('  [[world:spawn name="张婆子" role="巷口卖菜的" place="street"]]');
       lines.push('  不附，这个人就不存在，下次谁也找不到他。');
@@ -1626,25 +1627,33 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 兜底造人：只认"叫某某"这种明确说法，避免把动词当名字
+    // 兜底造人：①明确『叫某某』 ②故事里需要某个行当的人（郎中/稳婆/仵作…）
     try {
       if (reply) {
-        const pat = /(?:叫|名叫|唤作|唤做)\s*([\u4e00-\u9fa5]{2,3})/g;
         const wNow2 = loadState(this.dataDir);
-        const known = new Set(Object.values(wNow2.actors || {}).map((a) => a && a.name).filter(Boolean));
+        const actors2 = Object.values(wNow2.actors || {}).filter(Boolean);
+        const known = new Set(actors2.map((a) => a.name).filter(Boolean));
         const fresh = [];
+        // ① 叫某某
+        const patName = /(?:叫|名叫|唤作|唤做)\s*([\u4e00-\u9fa5]{2,3})/g;
         let m2;
-        while ((m2 = pat.exec(String(reply))) !== null) {
+        while ((m2 = patName.exec(String(reply))) !== null) {
           const nm = m2[1];
-          if (known.has(nm)) continue;
-          if (/(什么|怎样|如何|谁|哪里|哪儿)/.test(nm)) continue;
+          if (known.has(nm) || /(什么|怎样|如何|谁|哪里|哪儿)/.test(nm)) continue;
           if (fresh.some((x) => x.name === nm)) continue;
-          if (fresh.length >= 2) break;
           fresh.push({ name: nm, role: '城中人' });
         }
+        // ② 行当的人：故事要用到，世上却没有 → 就地长一个
+        const trades = ['郎中', '大夫', '稳婆', '接生婆', '媒婆', '仵作', '算命先生', '道士', '尼姑', '衙役', '更夫'];
+        for (const t of trades) {
+          if (!String(reply).includes(t)) continue;
+          if (actors2.some((a) => a.name === t || a.role === t)) continue;
+          if (fresh.some((x) => x.role === t)) continue;
+          fresh.push({ name: t, role: t });
+        }
         if (fresh.length) {
-          applyWorldTags(this.dataDir, fresh.map((f) => ({ kind: 'spawn', args: { name: f.name, role: f.role } })), { selfId: this._viewerActorId });
-          console.log('[World] 天道造人：' + fresh.map((f) => f.name).join('、'));
+          applyWorldTags(this.dataDir, fresh.slice(0, 3).map((f) => ({ kind: 'spawn', args: { name: f.name, role: f.role } })), { selfId: this._viewerActorId });
+          console.log('[World] 天道造人：' + fresh.slice(0, 3).map((f) => `${f.name}(${f.role})`).join('、'));
         }
       }
     } catch { /* 忽略 */ }
