@@ -257,6 +257,7 @@ function runPettyCrimes(world, events) {
   // 每天只查一次（卯时或之后第一次到）；步进/补算也能触发
   if (hour < 6) return;
   world.flags = world.flags || {};
+  if (world.flags.pendingCase && !world.flags.pendingCase.city) world.flags.pendingCase = null;
   if (Number(world.flags.crimeCheckedDay) === day) return;
   world.flags.crimeCheckedDay = day;
   const cities = Object.values(world.cities || {}).filter(Boolean);
@@ -265,9 +266,15 @@ function runPettyCrimes(world, events) {
   const p = 0.2 + Math.min(0.4, avgUnrest / 200);
   if (Math.random() > p) return;
   // 只决定"哪座城出了事"，案情由天道现写
-  const worst = cities.slice().sort((a, b) => (Number(b.unrest) || 0) - (Number(a.unrest) || 0))[0];
+  // 城市是按「名字」做 key 的，对象里不一定有 name 字段
+  const entries = Object.entries(world.cities || {}).filter(([, c]) => c && !c.dead);
+  const worst = entries.sort((x, y) => (Number(y[1].unrest) || 0) - (Number(x[1].unrest) || 0))[0];
+  if (!worst) return;
+  const worstName = String(worst[1].name || worst[0] || '');
   world.flags = world.flags || {};
-  if (!world.flags.pendingCase) world.flags.pendingCase = { city: worst.name || '', day };
+  if (!world.flags.pendingCase || !world.flags.pendingCase.city) {
+    world.flags.pendingCase = { city: worstName, day };
+  }
 }
 
 /** 补缺：位子空了，就从举人里选人补上；没举人就现补一个 */
