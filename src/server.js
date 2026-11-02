@@ -2119,6 +2119,18 @@ server.listen(PORT, '0.0.0.0', () => {
       const prompt = [
         `你是天道。${pend.city}民心浮动，今日出了一桩案子。`,
         `城中可涉案的人：${pool.join('、')}。`,
+        (() => {
+          const rel = [];
+          const list = Object.values(w.actors || {}).filter((a) => a && pool.some((p) => p.startsWith(a.name)));
+          for (let i = 0; i < list.length; i += 1) {
+            for (let j = i + 1; j < list.length; j += 1) {
+              const b = w.bonds?.[list[i].id]?.[list[j].id];
+              if (b) rel.push(`${list[i].name}与${list[j].name}是${b.type}`);
+            }
+          }
+          return rel.length ? `他们之间的关系：${rel.slice(0, 6).join('；')}。` : '';
+        })(),
+        '案子要跟他们的关系有关（亲人反目、邻里争产、同行下黑手），别编无关的。',
         '从这些人里挑一个犯事的、一个受害的，写清犯了什么事。',
         '只输出 JSON：{"culprit":"名字","victim":"名字","crime":"一句话(12字内)","place":"地点"}',
       ].join('\n');
@@ -2226,6 +2238,21 @@ server.listen(PORT, '0.0.0.0', () => {
           plaintiff.relations.husband.grievance = Math.min(100, (Number(plaintiff.relations.husband.grievance) || 0) + 10);
         }
       }
+      // 亲近的人替他叫屈
+      try {
+        const culpritId = cc.againstId;
+        const near = Object.entries(w3.bonds?.[culpritId] || {}).filter(([, b]) => b && b.score >= 30);
+        for (const [otherId] of near) {
+          const other = w3.actors?.[otherId];
+          if (!other || other.dead) continue;
+          other.relations = other.relations || {};
+          const rel = other.relations.husband || { trust: 30, desire: 0, fear: 0, grievance: 0 };
+          rel.grievance = Math.min(100, (Number(rel.grievance) || 0) + 4);
+          other.relations.husband = rel;
+          console.log(`[Court] ${other.name}替${w3.actors[culpritId]?.name}叫屈（怨怼+4）`);
+        }
+      } catch { /* 忽略 */ }
+
       saveState(DATA_DIR, w3);
       console.log(`[Court] 判案 ${cc.who} 告 ${cc.against}：${cc.reason}（${cc.verdict}）`);
     } catch (err) {

@@ -447,6 +447,19 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           loan.doneDay = world.clock.day;
         }
         applied.push(`还款:${amount}两 已到账`);
+      } else if (kind === 'bond') {
+        // 天道申报关系：拜把子、认亲、结仇
+        const aId = resolveActor(world, args.a || args.who);
+        const bId = resolveActor(world, args.b || args.with);
+        if (!aId || !bId || aId === bId) continue;
+        const type = String(args.type || '旧识').slice(0, 6);
+        const score = Math.max(-100, Math.min(100, Number(args.score) || 20));
+        world.bonds = world.bonds || {};
+        world.bonds[aId] = world.bonds[aId] || {};
+        world.bonds[bId] = world.bonds[bId] || {};
+        world.bonds[aId][bId] = { type, score };
+        world.bonds[bId][aId] = { type, score };
+        applied.push(`关系:${world.actors[aId]?.name}↔${world.actors[bId]?.name} ${type}(${score})`);
       } else if (kind === 'hire') {
         // 雇人/辞人：staff 增减，工钱按日结
         const nameHit = String(args.property || args.shop || args.text || '').trim();
