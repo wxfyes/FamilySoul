@@ -105,6 +105,28 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 「去某城」：城里没有长街就先修一条（不能把人塞进府衙）
+  if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
+    const cityHit = Object.keys(world.cities || {}).find((c) => String(say).includes(c));
+    if (cityHit) {
+      const streetName = `${cityHit}·长街`;
+      let pid = Object.keys(world.places || {}).find((k) => world.places[k]?.name === streetName);
+      if (!pid) {
+        world.flags = world.flags || {};
+        world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+        pid = `place_${world.flags.placeSeq}`;
+        const gov = Object.keys(world.places || {}).find((k) => String(k).startsWith('gov_') && String(world.places[k]?.name || '').includes(cityHit));
+        world.places[pid] = { name: streetName, exits: ['street', ...(gov ? [gov] : [])], dynamic: true, city: cityHit };
+      }
+      if (me.location !== pid) {
+        me.location = pid;
+        saveState(dataDir, world);
+        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: streetName, city: cityHit };
+      }
+      return { moved: [], summoned: [], visited: null, wentTo: streetName, alreadyThere: true, city: cityHit };
+    }
+  }
+
   // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
   if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
     // "回我房间/去正房"这类说法：先按别名认

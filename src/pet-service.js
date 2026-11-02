@@ -623,6 +623,12 @@ export class PetService {
       leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);
       if (summonResult?.wentTo && summonResult.moved?.length) {
         contextHintEarly += `（【已到场】：相公已经走到${summonResult.wentTo}了。本轮以新地点为主场，由这里的人开口；刚才那处的人最多送到门口说一句，不能继续占着戏。）\n`;
+        // 换了城：旧对话对象作废（她不在苏州）
+        try {
+          const wt2 = loadState(this.dataDir);
+          wt2.chatPartners = {};
+          saveState(this.dataDir, wt2);
+        } catch { /* 忽略 */ }
       }
       if (summonResult?.left) {
         contextHintEarly += '（【已离场】：相公已经离开刚才那个地方，回到茶坊了。本轮必须先写出转场（【天道·地点·临江茶坊】），**不许再写道别、不许让原处的人继续说"相公慢走"**。）\n';
@@ -1381,6 +1387,21 @@ export class PetService {
 
         // 只有真的换了地方，才说"到了"；原地不动时不许胡说
         const movedNow = Boolean(typeof summonResult !== 'undefined' && summonResult && ((summonResult.moved || []).length > 0 || summonResult.left));
+        // 换了地方：旧对话对象作废，且必须有一句转场
+        if (movedNow && this._viewerActorId) {
+          try {
+            const wt = loadState(this.dataDir);
+            wt.chatPartners = wt.chatPartners || {};
+            delete wt.chatPartners[this._viewerActorId];
+            saveState(this.dataDir, wt);
+          } catch { /* 忽略 */ }
+          const placeNow2 = String(wPost.places?.[locPost]?.name || '');
+          if (placeNow2) {
+            const head = `【${placeNow2}】：（你到了${placeNow2}。）`;
+            const rest = String(reply || '').split('\n').filter((x) => x && !/你到了|没人应声|没人接话/.test(x));
+            reply = [head, ...rest].join('\n').trim();
+          }
+        }
         if (/没人应声/.test(String(reply))) {
           const placeNow = String(wPost.places?.[locPost]?.name || '');
           if (movedNow && placeNow) reply = `【${placeNow}】：（你到了${placeNow}。）`;
