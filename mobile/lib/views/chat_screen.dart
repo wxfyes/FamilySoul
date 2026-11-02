@@ -23,6 +23,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocus = FocusNode();
   int _lastMessageCount = 0;
+  String _lastContentSig = '';
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
   final ImagePicker _imagePicker = ImagePicker();
@@ -549,10 +550,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// 只有本来就贴着底部时才自动滚动，避免你翻历史时被强行拽下去
-  bool _isNearBottom() {
+  bool _isNearBottom({double threshold = 120}) {
     if (!_scrollController.hasClients) return true;
     final pos = _scrollController.position;
-    return (pos.maxScrollExtent - pos.pixels) < 120;
+    return (pos.maxScrollExtent - pos.pixels) < threshold;
   }
 
   /// 滚到底。是否该滚由调用方在「布局之前」判断，这里不再重复判断。
@@ -611,10 +612,22 @@ class _ChatScreenState extends State<ChatScreen> {
     // 放进 postFrame 再判断就晚了——新消息已经把列表撑长，永远会被判成"不在底部"。
     final wasAtBottom = _isNearBottom();
     final messageCount = provider.messages.length;
-    if (messageCount != _lastMessageCount) {
-      final grew = messageCount > _lastMessageCount;
-      _lastMessageCount = messageCount;
-      if (wasAtBottom && grew) _scrollToBottom();
+
+    // 光看条数不够：回复是把「正在思考…」那条【替换】掉，条数不变、内容变长。
+    // 所以用「最后一条的 id + 文字长度 + 是否思考中」做签名，签名一变就滚。
+    final last = provider.messages.isEmpty ? null : provider.messages.last;
+    final lastSig = last == null ? '' : '${last.id}|${last.text.length}|${last.isPending}';
+    final contentChanged = lastSig != _lastContentSig;
+    final countChanged = messageCount != _lastMessageCount;
+    _lastContentSig = lastSig;
+    _lastMessageCount = messageCount;
+
+    if (wasAtBottom && (countChanged || contentChanged)) {
+      _scrollToBottom();
+      // 图片、语音条、多行文本会二次撑高布局，再来一次兜底
+      Future.delayed(const Duration(milliseconds: 260), () {
+        if (mounted && _isNearBottom(threshold: 400)) _scrollToBottom();
+      });
     }
 
     return Scaffold(
