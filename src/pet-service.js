@@ -995,6 +995,20 @@ export class PetService {
       try {
         const hasMarker = /【[^】\n]{1,12}】/.test(reply);
         const isMainPersona = profileKey === 'husband' || activeRole === '傲娇助手';
+        // 开头那段没有标记的旁白，也补上主角花名，否则会显示成账号名「温柔小娘子」
+        if (hasMarker && isMainPersona) {
+          const lead = reply.match(/^([\s\S]*?)(?=【[^】\n]{1,12}】)/);
+          if (lead && lead[1].trim().length > 0) {
+            try {
+              const w0 = loadState(this.dataDir);
+              const me = w0.actors?.waner;
+              const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : me?.name || '婉儿';
+              reply = `【${me?.label || '正妻'}·${short}】：${lead[1].trim()}\n${reply.slice(lead[1].length)}`;
+            } catch {
+              /* 忽略 */
+            }
+          }
+        }
         if (!hasMarker && isMainPersona && reply.trim().length > 0) {
           const w0 = loadState(this.dataDir);
           const me = w0.actors?.waner;
