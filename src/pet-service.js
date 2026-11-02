@@ -1318,6 +1318,35 @@ export class PetService {
             if (sp.includes('·')) return hereB.has(sp.split('·').pop());
             return hereB.has(sp);
           });
+          // ③ 不在场的人，不许被写成"就在跟前"
+          try {
+            const absent = Object.values(wB.actors || {}).filter(
+              (x) => x && !x.dead && x.id !== this._viewerActorId && x.location !== locB && x.name,
+            );
+            if (absent.length && String(reply).length > 0) {
+              const sentences = String(reply).split(/(?<=[。！？\n])/);
+              const presentWords = /(就在|在跟前|跟前|柜台|里头|身旁|身边|正坐着|一直在|出来了|在这儿)/;
+              const denyWords = /(不在|没见|出去了|别处|不在这儿|走了)/;
+              const kept3 = sentences.filter((sen) => {
+                const hitAbsent = absent.some((a) => {
+                  const nm = a.name || '';
+                  const shortName = nm.length > 2 ? nm.slice(-2) : nm;
+                  const aliases = a.id === 'husband'
+                    ? ['王甯', '王掌柜', '少掌柜', '相公', '少东家', '王少东家']
+                    : [nm, shortName].filter(Boolean);
+                  return aliases.some((x) => x && sen.includes(x));
+                });
+                if (!hitAbsent) return true;
+                if (denyWords.test(sen)) return true;
+                return !presentWords.test(sen);
+              });
+              const joined3 = kept3.join('').trim();
+              if (joined3) reply = joined3;
+            }
+          } catch {
+            /* 忽略 */
+          }
+
           const joined2 = kept2.join("").trim();
           if (joined2) {
             reply = joined2;
