@@ -639,11 +639,13 @@ export class PetService {
     }
 
     this._actorPersonaOverride = null;
+    this._viewerName = null;
     this._viewerActorId = actorId && actorId !== 'husband' ? actorId : null;
     if (this._viewerActorId) {
       try {
         const wA = loadState(this.dataDir);
         const a = wA.actors?.[this._viewerActorId];
+          this._viewerName = a?.name || null;
         if (a) {
           this._actorPersonaOverride = [
             `玩家扮演的是${a.name}（${a.role || ''}）。**你不演她**——她已经由真人控制。`,
@@ -1102,7 +1104,7 @@ export class PetService {
         if (!hasMarker && isMainPersona && reply.trim().length > 0) {
           if (this._viewerActorId) {
             // 真人扮演世界人物时，AI 演的是相公王甯，气泡应标「王甯」
-            reply = `【王甯】：${reply}`;
+            reply = `【旁白】：${reply}`;
           } else {
             const w0 = loadState(this.dataDir);
             const me = w0.actors?.waner;
@@ -1166,6 +1168,23 @@ export class PetService {
     // 真人扮演世界人物时：AI 演在场所有人，只去掉场景标记，不动任何人名标签
     if (this._viewerActorId) {
       reply = String(reply).replace(/【天道[^】\n]{0,40}】[:：]?\s*/g, '');
+      // 真人只由玩家自己演：AI 写出她的段落一律删掉
+      try {
+        const meName = this._viewerName;
+        if (meName) {
+          const segs = String(reply).split(/(?=【[^】\n]{1,12}】)/);
+          const kept = segs.filter((seg) => {
+            const mm = seg.match(/^【([^】\n]{1,12})】/);
+            if (!mm) return true;
+            const sp = mm[1].trim();
+            return !(sp === meName || sp.endsWith(meName) || meName.endsWith(sp));
+          });
+          const joined = kept.join("").trim();
+          if (joined) reply = joined;
+        }
+      } catch {
+        /* 忽略 */
+      }
     }
 
     // 她说要走了，就真的走（否则人会永远钉在原地）

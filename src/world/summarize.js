@@ -123,9 +123,15 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         (a) => a && a.id !== viewer && a.id !== 'husband' && a.kind !== 'human' && a.location === meV.location,
       );
       const husbandHere = world.actors?.husband?.location === meV.location;
+      const spouseV = Object.values(world.actors || {}).find(
+        (x) => x && x.id !== viewer && x.id !== 'husband' && x.gender === 'male' && x.home && meV.home && x.home === meV.home,
+      );
       const presentNames = [
-        ...(husbandHere ? ['相公（王甯，茶坊少掌柜）'] : []),
-        ...othersV.map((a) => `${a.name}（${a.role || ''}）`),
+        ...(husbandHere ? ['王甯（临江茶坊少掌柜，与她相好）'] : []),
+        ...othersV.map((a) => {
+          const isSpouse = spouseV && a.id === spouseV.id;
+          return `${a.name}（${a.role || ''}${isSpouse ? '·她的丈夫' : ''}）`;
+        }),
       ];
       lines.push(`【在场】${presentNames.length ? presentNames.join('、') : '只你一人'}`);
       // 你自己的心事（以你的感受表述，不给数字）
