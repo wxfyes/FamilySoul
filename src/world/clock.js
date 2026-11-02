@@ -16,6 +16,7 @@ import {
 } from './state.js';
 import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
+import { advanceArcs, ensureArcs } from './arcs.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
 export const DEFAULT_TICK_INTERVAL_MS = 2 * 60 * 1000; // 2 分钟心跳：世界推进更细，不用干等 10 分钟
@@ -214,6 +215,7 @@ function pruneProactive(world) {
     .filter((p) => {
       if (!p) return false;
       if (p.reason === 'appointment') return true; // 约定必须送达
+      if (p.reason === 'arc') return true;         // 她自己的难关，等她上线再看
       const h = (Number(p.day) || 1) * 24 + (Number(p.hour) || 0);
       return nowHour - h <= 24;
     })
@@ -341,6 +343,14 @@ function advanceHour(world, events, nowMs) {
       console.warn('[Heal] 自愈失败：', err.message);
     }
     advancePregnancies(world, events);
+
+    // 个人主线：她不上线，她的难关也会往前走
+    try {
+      ensureArcs(world);
+      advanceArcs(world, events, (opts) => queueProactive(world, { type: 'arc', ...opts }), nextEvent);
+    } catch (err) {
+      console.warn('[Arc] 主线推进失败：', err.message);
+    }
     onNewDay(world, events);
   }
 

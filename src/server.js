@@ -1005,6 +1005,7 @@ const STARTED_AT = Date.now();
           pending: world.pending || [],
           promises: (world.promises || []).filter((p) => p && !p.done),
           quotes: (world.quotes || []).slice(-40),
+          arcs: world.arcs || {},
           appointments: (world.appointments || [])
             .filter((a) => a && Number(a.day) > 0)
             .sort((a, b) => Number(a.day) * 24 + Number(a.hour) - (Number(b.day) * 24 + Number(b.hour)))

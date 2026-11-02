@@ -113,6 +113,11 @@
   </section>
 
   <section class="card full">
+    <h2>各自的主线（她们自己的人生）</h2>
+    <div id="arcs">—</div>
+  </section>
+
+  <section class="card full">
     <h2>待办（按时间排序）</h2>
     <div id="todo"></div>
   </section>
@@ -266,6 +271,17 @@ function render(w){
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+
+  // ── 各自的主线 ──────────────────────────────
+  const arcs = w.arcs || {};
+  const arcNames = {};
+  (w.actors || []).forEach(a => { arcNames[a.id] = a.name; });
+  const arcRows = Object.entries(arcs).map(([id, a]) => {
+    const last = (a.log || []).slice(-1)[0];
+    const stage = Number(a.stage) || 0;
+    return `<div class="row"><span><b>${arcNames[id] || id}</b> · ${a.title || ''} <span class="muted">阶段 ${stage + 1}</span></span><span class="muted">${last ? '第' + last.day + '日：' + String(last.text).slice(0, 28) : '（未推进）'}</span></div>`;
+  });
+  $('arcs').innerHTML = arcRows.length ? arcRows.join('') : '<div class="muted">暂无主线</div>';
 
   // ── 待办：约定 / 承诺 / 暗涌 ──────────────────────
   const nowH = (w.clock.day||1)*24 + (w.clock.hour||0);

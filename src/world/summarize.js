@@ -3,6 +3,7 @@
  * 纯规则生成，不调用大模型；目标 ≤ 800 token。
  */
 import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2 } from './state.js';
+import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
 
@@ -162,6 +163,15 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       // 只有与她有关的旧事
       const myMem = (world.memories || []).filter((m) => m && String(m.text || '').includes(meV.name));
       if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
+      // 她自己的主线（难关），只有她自己看得见
+      try {
+        const arc = arcViewFor(world, viewer);
+        if (arc) {
+          lines.push(`【你的难关】${arc.title}——${arc.hook}。眼下：${arc.step}`);
+        }
+      } catch {
+        /* 忽略 */
+      }
       lines.push('【提醒】你只知道你亲眼见过、亲耳听过的事。别人的银钱、产业、与他人私下的往来，你一概不知，也不许"忽然懂了"。');
       return lines.join('\n');
     }
