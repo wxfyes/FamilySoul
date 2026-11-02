@@ -343,6 +343,7 @@ export class PetService {
         lines.push('');
         lines.push(summary);
         lines.push('- 【天机用法】：以上是幕后实况，只用来决定你的处境判断、说话时机与措辞分寸，严禁逐字复述给相公听。');
+        lines.push('- 【有孕要记账】：若剧情明确她怀上了（她自己说、大夫诊出、你确认），必须记 [[world:pregnant who=她的id]]，否则这件事聊完就没、世界不会记。**没被记下的怀孕等于没发生。**');
         lines.push('- 【离开要说清去哪】：她若要离开，必须说清"回自己铺子/回家/去某处"，不许含混地说"下楼招呼客人"——除非她人真的在自己的铺子里。在别人的地方，她招不了自己的客。');
         lines.push('- 【关系即阻力】：【在场】里每个人后面那句「态度」就是她此刻的底线。她若"提防着/只是相识"，第一次勾引必须真拒绝，不许一勾就成；要靠给由头、给好处、反复周旋才松动；硬来会被记怨怼，甚至翻脸。她若"半推半就"，也不许立刻全应，要有推有就。**成不成由你演，但难度必须真实。**');
         lines.push('- 【私会风险·按现实讲理】：与有夫之妇私会，对方丈夫随时可能回来。**未被当场拿住，你总有法子脱身**（走侧门、借口查账对账、说是来送茶样/送东西、替他家修家什、被主人请来吃酒）；**被当场撞见**，就要靠由头、人情、银钱或身份搪塞过去。成败由你按关系值、对方脾性与机警程度裁定——**不许一律"必定败露"，也不许一律"必然无事"**。');
@@ -358,6 +359,7 @@ export class PetService {
         lines.push('  [[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]');
         lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
         lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
+        lines.push('  [[world:pregnant who=liuwenxia]]');
         lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
         lines.push('- 【凡发生了值得记一辈子的事（第一次、亲密、翻脸、重大决定），必须记 remember】，它会永久留存。');
         lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
@@ -1436,6 +1438,7 @@ export class PetService {
         '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=132 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
         '剧情线：[[world:clue text="沈家旧案的一页卷宗"]] [[world:faction id=yamen delta=+5]]',
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
+        '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算）',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
         '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',
