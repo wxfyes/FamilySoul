@@ -509,6 +509,20 @@ function runTreasury(world, events) {
   world.flags.grainPressure = pressure;
 }
 
+/** 行军到达：把兵驻进目标城 */
+function runMarches(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  if (!Array.isArray(world.marches) || !world.marches.length) return;
+  world.garrisons = world.garrisons && typeof world.garrisons === 'object' ? world.garrisons : {};
+  world.marches = world.marches.filter((m) => {
+    if (!m) return false;
+    if (day < Number(m.arriveDay || 0)) return true;
+    world.garrisons[m.to] = (Number(world.garrisons[m.to]) || 0) + (Number(m.count) || 0);
+    events.push(nextEvent(world, { action: 'march_in', actor: 'husband', place: null, payload: { text: `${m.count}兵抵${m.to}` }, isPublic: true }));
+    return false;
+  });
+}
+
 /** 山贼流寇：民心乱的城，会被抢。有兵才有太平。 */
 function runBandits(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -661,6 +675,11 @@ function onNewDay(world, events) {
     runBandits(world, events);
   } catch (err) {
     console.warn('[Bandit] 流寇失败：', err.message);
+  }
+  try {
+    runMarches(world, events);
+  } catch (err) {
+    console.warn('[March] 行军失败：', err.message);
   }
   consumeSupplies(world);
   try {

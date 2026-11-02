@@ -723,6 +723,22 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (!pid) continue;
         world.places[pid].kind = kindName;
         applied.push(`场所:${world.places[pid].name}=${kindName}`);
+      } else if (kind === 'march') {
+        // 行军：分兵去某城，若干日后到
+        const to = String(args.to || args.city || '').trim();
+        const count = Math.max(1, Math.round(Number(args.count) || 0));
+        if (!to || !count) continue;
+        const f = forceOf(world, 'husband');
+        const have = Number(f.army) || 0;
+        if (have < count) { applied.push(`行军失败:只有${have}兵`); continue; }
+        const mile = Number(args.days) > 0 ? Number(args.days) : 2;
+        f.army = have - count;
+        world.marches = Array.isArray(world.marches) ? world.marches : [];
+        world.flags = world.flags || {};
+        world.flags.marchSeq = (Number(world.flags.marchSeq) || 0) + 1;
+        const arriveDay = (Number(world.clock.day) || 1) + mile;
+        world.marches.push({ id: `march_${world.flags.marchSeq}`, to, count, arriveDay, from: world.actors?.husband?.location || null });
+        applied.push(`行军:${count}兵→${to}，${mile}日后到`);
       } else if (kind === 'siege') {
         // 攻城：兵力 vs 守备，结果由算式 + 少量随机决定
         const cityName = String(args.city || args.name || '').trim();
@@ -748,10 +764,14 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           if (world.actors?.[allyId]?.name) allyNames.push(world.actors[allyId].name);
         }
         if (allyPower > 0) applied.push(`合兵:${allyNames.join('、')}`);
+        // 已经驻在那座城外的兵，也算这一战的人手
+        const stationed = Number(world.garrisons?.[cityName]) || 0;
+        if (stationed > 0) applied.push(`驻军参战:${stationed}`);
         const ours =
           (Number(mil.army) || 0) +
           (Number(mil.militia) || 0) * 0.6 +
           (Number(mil.guards) || 0) * 0.3 +
+          stationed * 0.9 +
           allyPower;
         if (ours <= 0) {
           applied.push('攻城:无兵可战');
@@ -782,6 +802,8 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           }
           ct.defense = Math.max(1, Math.round((Number(ct.defense) || 10) / 2));
           ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 20);
+          world.garrisons = world.garrisons || {};
+          if (stationed > 0) world.garrisons[cityName] = Math.max(1, Math.round(stationed * 0.8));
           applied.push(`攻城:${cityName} 已下`);
           events.push(
             nextEvent(world, {
@@ -799,6 +821,10 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           const rest = Math.max(0, loss - takeArmy);
           mil.militia = Math.max(0, (Number(mil.militia) || 0) - rest);
           mil.morale = Math.max(0, (Number(mil.morale) || 0) - 15);
+          if (stationed > 0) {
+            world.garrisons = world.garrisons || {};
+            world.garrisons[cityName] = Math.max(0, Math.round(stationed * 0.8));
+          }
           applied.push(`攻城:${cityName} 未下（折损${loss}，士气-15）`);
           events.push(
             nextEvent(world, {
