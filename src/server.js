@@ -2110,16 +2110,18 @@ server.listen(PORT, '0.0.0.0', () => {
       const w = peek(DATA_DIR);
       const city = String(w.flags?.pendingCityShop || '');
       if (!city) return;
-      const existing = Object.values(w.places || {})
-        .filter((p) => p && String(p.name || '').includes(city))
-        .map((p) => String(p.name).replace(`${city}·`, ''));
-      const have = existing.join('、') || '（还没有）';
+      // 每城标配：青楼、赌坊、客栈、当铺、药铺、米行、酒楼、铁铺、布庄、香烛、糕点、茶馆
+      const REQUIRED = ['青楼', '赌坊', '客栈', '当铺', '药铺', '米铺', '铁匠铺', '衣铺', '糖铺', '面摊', '肉铺', '香烛', '糕点', '茶馆'];
+      const cityPlaces = Object.values(w.places || {}).filter((p) => p && String(p.name || '').includes(city));
+      const haveKinds = new Set(cityPlaces.map((p) => String(p.shopKind || '')));
+      const haveNames = cityPlaces.map((p) => String(p.name).replace(`${city}·`, ''));
+      const missing = REQUIRED.filter((k) => !haveKinds.has(k));
       const prompt = [
         `你是天道，正在铺设${city}的街市。`,
-        `已有铺子：${have}。`,
-        '再补 4 家这条街还没有的铺子，要覆盖柴米油盐、瓜果梨枣、糕点甜食、酒肉鱼虾、布帛针线、香烛纸马、书坊笔墨、木作砖瓦这类营生。',
+        haveNames.length ? `已有：${haveNames.join('、')}。` : '这条街还没有铺子。',
+        missing.length ? `还缺这些行当：${missing.slice(0, 4).join('、')}——这次就补这几个。` : '标配已齐，补 4 家本地特色。',
         '只输出 JSON 数组：[{"shop":"铺名","kind":"行当","who":"掌柜名","role":"掌柜身份"}]',
-        '不要和已有铺子重复，不要四家都是同一种生意。',
+        'kind 必须用上面给的行当名（如「青楼」「赌坊」「客栈」）。不要重复已有铺子。',
       ].join('\n');
       const res = await petService.llmClient.complete({
         system: '只输出 JSON 数组，不要解释。',
