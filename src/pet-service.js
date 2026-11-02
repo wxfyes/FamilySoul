@@ -742,6 +742,20 @@ export class PetService {
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = contextHintEarly;
+    // 府里都有谁：不只玩家该知道，婉儿/芸娘她们彼此也得认得
+    try {
+      const wH = loadState(this.dataDir);
+      const meH = this._viewerActorId ? wH.actors?.[this._viewerActorId] : wH.actors?.husband;
+      const house = Object.values(wH.actors || {}).filter(
+        (a) => a && !a.dead && a.id !== 'husband' && (a.household || (meH?.home && a.home === meH.home)),
+      );
+      if (house.length) {
+        const line = house.map((a) => `${a.name}（${a.role || '府中人'}）`).join('、');
+        contextHint += `（【府中人】${line}——她们是同一座宅子里的人，彼此都认得，绝不许问"你是谁"、也不许说"不认识"。）\n`;
+        console.log(`[Bonds] 府中人 ${house.length}：${line.slice(0, 40)}`);
+      }
+    } catch { /* 忽略 */ }
+
     // 问"某人在哪"：直接给准确位置
     try {
       const mWhere = String(say || '').match(/([\u4e00-\u9fa5]{2,4})\s*(?:在哪儿|在哪|在何处|何处)/);
