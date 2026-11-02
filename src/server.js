@@ -2178,6 +2178,53 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
+  // 御案折子：天道（皇帝）批：查实罢官，或留任
+  async function resolveMemorials() {
+    try {
+      const w = peek(DATA_DIR);
+      const m = (w.memorials || []).find((x) => x && x.status === 'pending');
+      if (!m) return;
+      const official = w.actors?.[m.againstId];
+      if (!official) { return; }
+      const prompt = [
+        '你是天道，扮演天子批折子。',
+        `有人弹劾${m.office || ''}${m.against}：${m.claim}。`,
+        `此人风评：对相公信任 ${official.relations?.husband?.trust ?? 30}，怨怼 ${official.relations?.husband?.grievance ?? 0}。`,
+        '只输出 JSON：{"action":"dismiss|keep","reason":"一句批语(16字内)"}',
+      ].join('\n');
+      const res = await petService.llmClient.complete({
+        system: '只输出一行 JSON，不要解释。',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 120,
+        temperature: 0.7,
+      });
+      const raw = String(res?.text || '');
+      const mm = raw.match(/\{[\s\S]*\}/);
+      let d = { action: 'keep', reason: '查无实据' };
+      try { if (mm) d = { ...d, ...JSON.parse(mm[0]) }; } catch { /* 默认 */ }
+      const w2 = peek(DATA_DIR);
+      const m2 = (w2.memorials || []).find((x) => x && x.id === m.id);
+      if (!m2) return;
+      m2.status = d.action === 'dismiss' ? 'dismissed' : 'kept';
+      m2.reason = String(d.reason || '').slice(0, 30);
+      if (d.action === 'dismiss') {
+        for (const [key, off] of Object.entries(w2.court?.offices || {})) {
+          if (off && off.holder === m.againstId) {
+            off.holder = null;
+            off.vacant = true;
+            (w2.court.vacancies = w2.court.vacancies || []).push({ key, title: off.title, day: w2.clock.day });
+          }
+        }
+        const a = w2.actors?.[m.againstId];
+        if (a) { a.role = '罢官闲居'; a.home = a.home || 'street'; }
+      }
+      saveState(DATA_DIR, w2);
+      console.log(`[Court] 批折子：${m.against}——${m2.reason}（${m2.status}）`);
+    } catch (err) {
+      console.warn('[Court] 批折子失败：', err.message);
+    }
+  }
+
   // 案情由天道现写：哪座城、谁犯事、犯了什么
   async function generateCase() {
     try {
@@ -2506,6 +2553,7 @@ server.listen(PORT, '0.0.0.0', () => {
         await generateCityShops();
         await generateCase();
         await judgeCases();
+        await resolveMemorials();
       },
     });
   } catch (err) {

@@ -728,6 +728,24 @@ export function ensureCourt(world) {
     }
   }
 
+  // 每城补知县（独立于官职是否已存在）
+  try {
+    for (const cityName of Object.keys(world.cities || {})) {
+      const countyId = `county_${cityName}`;
+      if (world.actors?.[countyId]) continue;
+      const govPlace = ensureGovPlace(world, cityName);
+      const SURNAMES = ['王', '李', '张', '刘', '陈', '杨', '赵', '周', '吴', '徐'];
+      const sn = SURNAMES[Math.abs(cityName.length + cityName.charCodeAt(0)) % SURNAMES.length];
+      world.actors = world.actors || {};
+      world.actors[countyId] = {
+        id: countyId, name: `${sn}知县`, role: `${cityName}知县`, gender: 'male',
+        home: govPlace, location: govPlace, origin: 'preset',
+        goals: ['三年考满'], relations: { husband: { trust: 28, desire: 0, fear: 0, grievance: 0 } },
+        schedule: [{ at: 9, do: '升堂理事', place: govPlace }],
+      };
+    }
+  } catch { /* 忽略 */ }
+
   return world.court;
 }
 

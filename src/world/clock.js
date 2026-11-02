@@ -266,6 +266,32 @@ function runPettyCrimes(world, events) {
   if (!world.flags.pendingCase) world.flags.pendingCase = { city: worst.name || '', day };
 }
 
+/** 御案上的折子：言官会弹劾地方官 */
+function runMemorials(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  if (day % 4 !== 0) return;
+  if (Math.random() > 0.5) return;
+  const officials = Object.entries(world.court?.offices || {})
+    .filter(([k, o]) => o && o.holder && k.startsWith('city:'))
+    .map(([, o]) => o);
+  if (!officials.length) return;
+  const off = officials[Math.floor(Math.random() * officials.length)];
+  const holder = world.actors?.[off.holder];
+  if (!holder) return;
+  world.memorials = Array.isArray(world.memorials) ? world.memorials : [];
+  if (world.memorials.some((m) => m && m.againstId === holder.id && m.status === 'pending')) return;
+  world.flags = world.flags || {};
+  world.flags.memorialSeq = (Number(world.flags.memorialSeq) || 0) + 1;
+  const claims = ['贪墨税银', '纵容家奴横行', '虚报灾情冒赈', '办案受贿', '私加火耗'];
+  world.memorials.push({
+    id: `memorial_${world.flags.memorialSeq}`,
+    against: holder.name, againstId: holder.id, office: off.title || '',
+    claim: claims[Math.floor(Math.random() * claims.length)],
+    day, status: 'pending',
+  });
+  events.push(nextEvent(world, { action: 'memorial', actor: 'court', place: null, payload: { text: `御案上多了一份弹劾${holder.name}的折子` }, isPublic: true }));
+}
+
 function markCourtDecree(world) {
   const day = Number(world.clock?.day) || 1;
   world.court = world.court || {};
@@ -796,6 +822,11 @@ function onNewDay(world, events) {
     runForeign(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
   } catch (err) {
     console.warn('[Foreign] 外交失败：', err.message);
+  }
+  try {
+    runMemorials(world, events);
+  } catch (err) {
+    console.warn('[Court] 折子失败：', err.message);
   }
   consumeSupplies(world);
   try {
