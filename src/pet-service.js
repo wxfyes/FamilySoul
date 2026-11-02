@@ -1506,6 +1506,48 @@ export class PetService {
           } catch (err) {
             console.warn('[Proxy] 代演失败：', err.message);
           }
+
+        // 任何被点名的在场者，若主模型不肯写他，就单独代演一句
+        try {
+          const namedPresent = Object.values(wPost.actors || {}).filter(
+            (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband'
+              && a.location === locPost && a.name && String(say || '').includes(a.name),
+          );
+          for (const npc of namedPresent.slice(0, 2)) {
+            const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
+            if (already) continue;
+            const npcMem = (wPost.memories || [])
+              .filter((m) => String(m?.text || '').includes(npc.name))
+              .map((m) => String(m.text))
+              .slice(-6);
+            const npcFacts = (wPost.promises || [])
+              .filter((pr) => !pr.done && String(pr.text || '').includes(npc.name))
+              .map((pr) => `他曾应下：${pr.text}`)
+              .slice(-4);
+            const npPrompt = buildProxyPrompt({
+              actor: npc,
+              memories: npcMem,
+              facts: npcFacts.concat([`你和${mePost?.name || '她'}的关系：${npc.role || '相识'}`]),
+              hearerName: mePost?.name || '',
+              hearerPlace: String(wPost.places?.[locPost]?.name || ''),
+              said: String(say || '').slice(0, 200),
+              recent: '',
+            });
+            const npRes = await this.llmClient.complete({
+              system: npPrompt.system,
+              messages: [{ role: 'user', content: npPrompt.user }],
+              maxTokens: 160,
+              temperature: 0.8,
+            });
+            const npLine = wrapProxyLine(npc.name, npRes?.text);
+            if (npLine) {
+              reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声/.test(x)).join('\n')}`.trim();
+              console.log('[Proxy] 代演' + npc.name + '：' + npLine.slice(0, 40));
+            }
+          }
+        } catch (err) {
+          console.warn('[Proxy] 点名代演失败：', err.message);
+        }
         }
       } catch (err) {
         console.warn('[Member] 回复规范化失败：', err.message);
