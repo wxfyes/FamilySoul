@@ -852,7 +852,18 @@ const STARTED_AT = Date.now();
           assets: world.assets,
           actors,
           pending: world.pending || [],
-          promises: world.promises || [],
+          promises: (world.promises || []).filter((p) => p && !p.done),
+          appointments: (world.appointments || [])
+            .filter((a) => a && Number(a.day) > 0)
+            .sort((a, b) => Number(a.day) * 24 + Number(a.hour) - (Number(b.day) * 24 + Number(b.hour)))
+            .map((a) => ({
+              name: a.name,
+              day: Number(a.day),
+              hour: Number(a.hour),
+              every: a.every || null,
+              place: world.places?.[a.place]?.name || '',
+              text: a.text || '',
+            })),
           recentEvents: (() => {
             // 只显示已经发生的事（时钟回拨后旧账里会有"未来事件"）
             const nowH = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);

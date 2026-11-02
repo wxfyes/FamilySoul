@@ -28,6 +28,9 @@
   th{color:var(--dim);font-weight:500;font-size:12px}
   td.num{font-variant-numeric:tabular-nums}
   .tag{display:inline-block;border-radius:6px;padding:0 6px;font-size:11px;border:1px solid var(--line);color:var(--dim)}
+  .tag.bad{border-color:var(--bad);color:var(--bad)}
+  .tag.warn{border-color:var(--warn);color:var(--warn)}
+  .tag.good{border-color:var(--good);color:var(--good)}
   .bar{height:6px;background:#0c0e12;border-radius:4px;overflow:hidden;min-width:46px}
   .bar i{display:block;height:100%;background:var(--accent)}
   pre{white-space:pre-wrap;word-break:break-word;background:#0c0e12;border:1px solid var(--line);border-radius:8px;padding:10px;margin:0;font-size:12.5px;line-height:1.75;max-height:420px;overflow:auto}
@@ -82,6 +85,11 @@
   <section class="card">
     <h2>体检结果</h2>
     <div id="audit-box" class="muted">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>待办（按时间排序）</h2>
+    <div id="todo"></div>
   </section>
 
   <section class="card full">
@@ -208,6 +216,43 @@ function render(w){
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+
+  // ── 待办：约定 / 承诺 / 暗涌 ──────────────────────
+  const nowH = (w.clock.day||1)*24 + (w.clock.hour||0);
+  const rows = [];
+  const pad = (n)=>String(n).padStart(2,'0');
+  const when = (day, hour) => {
+    const diff = (day*24 + hour) - nowH;
+    if (diff < 0) return `<span class="bad">已过 ${Math.abs(diff)} 小时</span>`;
+    if (diff === 0) return `<span class="warn">就在此刻</span>`;
+    if (diff < 24) return `<span class="warn">还有 ${diff} 小时</span>`;
+    return `<span class="muted">还有 ${Math.round(diff/24)} 天</span>`;
+  };
+  (w.appointments||[]).forEach(a => rows.push({
+    t: a.day*24 + a.hour,
+    kind: '约定', cls: a.day*24+a.hour < nowH ? 'bad' : 'warn',
+    title: `${a.name}${a.place?` · ${a.place}`:''}`,
+    detail: a.text || '', extra: (a.every? `每${a.every}天`:''),
+    when: when(a.day, a.hour),
+  }));
+  (w.promises||[]).forEach(p => rows.push({
+    t: Number(p.due)*24,
+    kind: '承诺', cls: Number(p.due) < w.clock.day ? 'bad' : 'warn',
+    title: String(p.text||''), detail: '', extra: '',
+    when: Number(p.due) < w.clock.day ? `<span class="bad">已逾期</span>` : when(Number(p.due), 23),
+  }));
+  (w.pending||[]).forEach(e => rows.push({
+    t: Number(e.due||99)*24,
+    kind: '暗涌', cls: 'bad',
+    title: String(e.desc||''), detail: '', extra: '',
+    when: when(Number(e.due)||99, 12),
+  }));
+  rows.sort((a,b)=>a.t-b.t);
+  $('todo').innerHTML = rows.length ? rows.map(r => `
+    <div class="row">
+      <span><span class="tag ${r.cls}">${r.kind}</span> <b>${r.title}</b> ${r.detail?`<span class="muted">${r.detail}</span>`:''} ${r.extra?`<span class="muted">（${r.extra}）</span>`:''}</span>
+      <span>${r.when}</span>
+    </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   $('actors').innerHTML = list.map(a=>{
