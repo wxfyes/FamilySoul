@@ -636,8 +636,8 @@ export function ensureCourt(world) {
         kind: 'official',
         office: post,
         household: false,
-        home: world.places?.['yamen'] ? 'yamen' : 'street',
-        location: 'yamen',
+        home: ensureGovPlace(world, city),
+        location: ensureGovPlace(world, city),
         relations: { husband: { trust: 20, desire: 0, fear: 0, grievance: 0 } },
         goals: id === 'emperor'
           ? ['压住江南的乱象', '把兵权收回来', '看这几个老臣谁先动']
@@ -651,6 +651,20 @@ export function ensureCourt(world) {
     const off = world.court.offices[post];
     if (!off) world.court.offices[post] = { title: role, holder: id, vacant: false };
   }
+  // 老存档迁移：朝官（天子/宰相/尚书/巡抚/知府）回到各自的城
+  const seedCity = {
+    emperor: '京城', chancellor: '京城', revenue: '京城', war: '京城',
+    governor: '苏州府', prefect: '临江府',
+  };
+  for (const [id, cityName] of Object.entries(seedCity)) {
+    const actor = world.actors?.[id];
+    if (!actor) continue;
+    if (actor.location && actor.location !== 'yamen') continue;
+    const govPlace = ensureGovPlace(world, cityName);
+    actor.location = govPlace;
+    actor.home = govPlace;
+  }
+
   // 老存档迁移：已经存在的各府官员，别都挤在临江县衙
   for (const [post, off] of Object.entries(world.court.offices || {})) {
     if (!post.startsWith('city:') || !off?.holder) continue;
