@@ -174,6 +174,25 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       // 只有与她有关的旧事
       const myMem = (world.memories || []).filter((m) => m && String(m.text || '').includes(meV.name));
       if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
+      // 她此刻所在的这间铺子，东家是谁（别把别人的铺子当成自己的）
+      try {
+        const myLoc = world.actors?.[viewer]?.location;
+        const locName = String(world.places?.[myLoc]?.name || '');
+        if (locName) {
+          const prop = (world.assets?.properties || []).find((p) => {
+            const pn = String(p?.name || '');
+            if (!pn) return false;
+            return locName.includes(pn) || pn.includes(locName) || locName.includes(pn.slice(-3));
+          });
+          if (prop) {
+            const keeper = prop.keeper ? world.actors?.[prop.keeper]?.name : null;
+            lines.push(`【这间铺子】${prop.name}${keeper ? `，当家的叫${keeper}` : '，没有明写当家的是谁'}`);
+          }
+        }
+      } catch {
+        /* 忽略 */
+      }
+
       // 她自己的兵（如果有）
       try {
         const myF = world.forces?.[viewer];

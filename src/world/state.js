@@ -83,13 +83,14 @@ export function createInitialState(dataDir) {
       silver: 528,
       copper: 6,
       properties: [
-        { id: 'tea_house', name: '临江茶坊老店', status: '正常营业', incomePerDay: 1.2 },
+        { id: 'tea_house', name: '临江茶坊老店', status: '正常营业', incomePerDay: 1.2, keeper: 'husband' },
         // 于家酒肆：紫嫣（刘文霞）自己的铺子，归在她名下
         { id: 'wine_shop', name: '于家酒肆', status: '正常营业', incomePerDay: 1.1, keeper: 'liuwenxia', city: '临江府' },
         // 于子归的营造行：土木包工
         { id: 'yujie_yard', name: '于家营造行', status: '正常营业', incomePerDay: 0.9, keeper: 'yujie', city: '临江府' },
         {
           id: 'canal_restaurant',
+          keeper: 'husband',
           name: '运河码头三层大酒楼',
           status: '筹备开张',
           incomePerDay: 0,
@@ -786,6 +787,11 @@ export function loadState(dataDir) {
     assets: (() => {
       const a = { ...base.assets, ...(raw.assets || {}) };
       a.properties = Array.isArray(a.properties) ? [...a.properties] : [];
+      for (const pr of a.properties) {
+        if (!pr || pr.keeper) continue;
+        if (pr.id === 'wine_shop' || pr.name === '于家酒肆' || pr.id === 'yujie_yard') continue;
+        pr.keeper = 'husband';
+      }
       if (!a.properties.some((x) => x && (x.id === 'wine_shop' || x.name === '于家酒肆'))) {
         a.properties.push({ id: 'wine_shop', name: '于家酒肆', status: '正常营业', incomePerDay: 1.1, keeper: 'liuwenxia', city: '临江府' });
       }
