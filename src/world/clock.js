@@ -191,6 +191,15 @@ function fireAppointments(world, events) {
       speaker: actor ? actor.name : ap.name,
       force: true, // 约定就是约定，不受冷却限制
     });
+
+    // 周期性约定（如「每旬晌午雅阁见面」）：触发后自动排下一次，不会约一次就断
+    if (Number(ap.every) > 0) {
+      keep.push({
+        ...ap,
+        day: Number(ap.day) + Number(ap.every),
+        madeAt: { day: world.clock.day, hour: world.clock.hour },
+      });
+    }
   }
 
   world.appointments = keep;

@@ -543,6 +543,19 @@ const server = http.createServer(async (req, res) => {
             .filter((m) => m && String(m.text || '').trim())
             .map((m) => ({ text: String(m.text).slice(0, 100), day: Number(m.day) || world.clock.day, at: Date.now() }));
         }
+        if (Array.isArray(body.appointments)) {
+          world.appointments = body.appointments
+            .filter((a) => a && String(a.name || '').trim())
+            .map((a) => ({
+              actorId: String(a.actorId || '') || null,
+              name: String(a.name).slice(0, 12),
+              day: Number(a.day) || world.clock.day,
+              hour: Number(a.hour) || 12,
+              every: Number(a.every) > 0 ? Number(a.every) : undefined,
+              text: String(a.text || '').slice(0, 80),
+              madeAt: { day: world.clock.day, hour: world.clock.hour },
+            }));
+        }
         if (Array.isArray(body.promises)) {
           world.promises = body.promises
             .filter((p) => p && String(p.text || '').trim())

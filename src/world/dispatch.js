@@ -227,6 +227,7 @@ export function applyWorldTags(dataDir, ops) {
           name: actor?.name || String(args.who || '').slice(0, 12),
           day,
           hour,
+          every: Number(args.every) > 0 ? Number(args.every) : undefined, // 每 N 天重复
           text: String(args.text || '').slice(0, 80),
           madeAt: { day: world.clock.day, hour: world.clock.hour },
         });
