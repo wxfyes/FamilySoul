@@ -266,6 +266,43 @@ function runPettyCrimes(world, events) {
   if (!world.flags.pendingCase) world.flags.pendingCase = { city: worst.name || '', day };
 }
 
+/** 补缺：位子空了，就从举人里选人补上；没举人就现补一个 */
+function runAppointments(world, events) {
+  const offices = world.court?.offices || {};
+  const vacancies = Object.entries(offices).filter(([, o]) => o && o.vacant);
+  if (!vacancies.length) return;
+  const pool = Object.values(world.actors || {}).filter(
+    (a) => a && !a.dead && a.id !== 'husband' && ['秀才', '举人', '进士'].includes(String(a.rank || '')),
+  ).sort((x, y) => (Number(y.study) || 0) - (Number(x.study) || 0));
+  for (const [key, off] of vacancies.slice(0, 2)) {
+    const pick = pool.find((a) => !a.officeKey);
+    if (pick) {
+      pick.officeKey = key;
+      pick.role = off.title || pick.role;
+      off.holder = pick.id;
+      off.vacant = false;
+      events.push(nextEvent(world, { action: 'appoint', actor: pick.id, place: null, payload: { text: `${pick.name}补${off.title || key}缺` }, isPublic: true }));
+      continue;
+    }
+    // 没人可用：现补一个候补官
+    const SURNAMES = ['孙', '马', '朱', '胡', '郭', '何', '高', '林', '罗', '郑'];
+    const sn = SURNAMES[Math.abs(String(key).length * 7 + Number(world.clock?.day || 1)) % SURNAMES.length];
+    world.flags = world.flags || {};
+    world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
+    const id = `npc_${world.flags.npcSeq}`;
+    const title = String(off.title || '地方官');
+    world.actors[id] = {
+      id, name: `${sn}${title.slice(0, 2)}`, role: title, gender: 'male', origin: 'spawned',
+      home: 'yamen', location: 'yamen', officeKey: key, rank: '进士', study: 70,
+      goals: ['坐稳这个位子'], relations: { husband: { trust: 25, desire: 0, fear: 0, grievance: 0 } },
+      schedule: [{ at: 9, do: '升堂理事', place: 'yamen' }],
+    };
+    off.holder = id;
+    off.vacant = false;
+    events.push(nextEvent(world, { action: 'appoint', actor: id, place: 'yamen', payload: { text: `${world.actors[id].name}补${title}缺` }, isPublic: true }));
+  }
+}
+
 /** 御案上的折子：言官会弹劾地方官 */
 function runMemorials(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -827,6 +864,11 @@ function onNewDay(world, events) {
     runMemorials(world, events);
   } catch (err) {
     console.warn('[Court] 折子失败：', err.message);
+  }
+  try {
+    runAppointments(world, events);
+  } catch (err) {
+    console.warn('[Court] 补缺失败：', err.message);
   }
   consumeSupplies(world);
   try {
