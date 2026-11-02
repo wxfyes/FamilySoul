@@ -1372,9 +1372,13 @@ export class PetService {
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
         const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
         const said = String(say || '');
-        const askedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said)
-          || /(你|您)/.test(said)
-          || /(那你|你是谁|谁啊|在吗)/.test(said);
+        // 她在跟别的在场者说话时，王甯不许插嘴
+        const talkingToOther = Object.values(wPost.actors || {}).some(
+          (a) => a && !a.dead && a.id !== 'husband' && a.id !== this._viewerActorId
+            && a.location === locPost && a.name && said.includes(a.name),
+        );
+        const namedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said);
+        const askedHim = namedHim || (!talkingToOther && /(你|您)/.test(said));
         if (askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';
