@@ -1349,9 +1349,15 @@ export class PetService {
         if (husHere && askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';
-            const hisMem = (wPost.memories || []).map((m) => String(m?.text || ''))
-              .filter((t) => t.includes('王甯') || t.includes(husPost?.name || '') || (herName && t.includes(herName))
-                || /(相公|雅阁|相好|留门|答应了)/.test(t))
+            const myId = this._viewerActorId;
+            const hisMem = (wPost.memories || [])
+              .filter((m) => {
+                const about = Array.isArray(m?.about) ? m.about : [];
+                if (m?.visible === 'public') return true;
+                if (about.length === 0) return false; // 没写主人的，默认不给外人看
+                return about.includes(myId) || about.includes('husband') || about.includes('紫嫣');
+              })
+              .map((m) => String(m?.text || ''))
               .slice(-12);
             const recentLines = [...(this.readHistory(profileKey).messages || [])]
               .slice(-4)

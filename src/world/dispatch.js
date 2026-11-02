@@ -290,7 +290,13 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.memories = Array.isArray(world.memories) ? world.memories : [];
         const dup = world.memories.some((m) => m && m.text && m.text.slice(0, 12) === text.slice(0, 12));
         if (dup) continue;
-        world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
+        world.memories.push({
+          text: String(args.text || '').slice(0, 120),
+          day: world.clock.day,
+          at: Date.now(),
+          about: String(args.about || args.who || '').split(/[,，、]/).map((x) => x.trim()).filter(Boolean),
+          visible: String(args.visible || 'private'),
+        });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
       } else if (kind === 'ally') {
