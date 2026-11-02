@@ -181,12 +181,39 @@ export function auditReply(reply, world) {
   return issues;
 }
 
+/** ④ 归属自检：凡有主的东西，必须写清主人 */
+export function auditOwnership(world) {
+  const issues = [];
+  for (const [id, p] of Object.entries(world.places || {})) {
+    if (!p || p.owner) continue;
+    issues.push({ kind: 'own', level: 'warn', text: `地点无主：${p.name || id}` });
+  }
+  for (const pr of world.assets?.properties || []) {
+    if (!pr || pr.owner) continue;
+    issues.push({ kind: 'own', level: 'warn', text: `产业无主：${pr.name || pr.id}` });
+  }
+  for (const [name, ct] of Object.entries(world.cities || {})) {
+    if (!ct || ct.owner) continue;
+    issues.push({ kind: 'own', level: 'bad', text: `城池无主：${name}` });
+  }
+  for (const [id, pw] of Object.entries(world.powers || {})) {
+    if (!pw || pw.ownerActor || id === 'court') continue;
+    issues.push({ kind: 'own', level: 'warn', text: `势力无主：${pw.name || id}` });
+  }
+  for (const c of world.clues || []) {
+    if (!c || c.owner) continue;
+    issues.push({ kind: 'own', level: 'warn', text: `线索无主：${String(c.text || '').slice(0, 12)}` });
+  }
+  return issues;
+}
+
 /** 全量自检 */
 export function auditAll(world) {
   const ledger = auditWorld(world).map((t) => ({ kind: 'ledger', level: 'bad', text: t }));
   const memory = auditMemories(world);
+  const ownership = auditOwnership(world);
   const reply = Array.isArray(world.auditIssues) ? world.auditIssues.slice(-12) : [];
-  const all = [...ledger, ...memory, ...reply];
+  const all = [...ledger, ...memory, ...ownership, ...reply];
   return {
     ledger,
     memory,
@@ -194,6 +221,7 @@ export function auditAll(world) {
     counts: {
       ledger: ledger.length,
       memory: memory.length,
+      ownership: ownership.length,
       reply: reply.length,
       bad: all.filter((x) => x.level === 'bad').length,
     },

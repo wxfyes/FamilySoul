@@ -437,7 +437,8 @@ const STARTED_AT = Date.now();
           .slice(0, 12),
         clues: (world.clues || [])
           .filter((c) => {
-            if (isHusband) return true;
+            if (isHusband) return !c.owner || c.owner === 'husband';
+            if (c.owner) return c.owner === actorId;
             const nm = me?.name || '';
             const short = nm.length > 2 ? nm.slice(-2) : nm;
             return Boolean(nm) && (String(c.text || '').includes(nm) || String(c.text || '').includes(short));
@@ -1311,6 +1312,7 @@ const STARTED_AT = Date.now();
           court: world.court || null,
           chosen: world.flags?.chosenName || null,
           memAudit: auditAll(world).memory,
+          ownAudit: auditAll(world).ownership,
           replyAudit: auditAll(world).reply,
           terrain: world.terrain || [],
           courtPressure: Number(world.flags?.courtPressure) || 0,

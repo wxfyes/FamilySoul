@@ -101,15 +101,15 @@ export function createInitialState(dataDir) {
     },
 
     places: {
-      tea_house: { name: '临江茶坊', exits: ['street', 'backyard'] },
-      backyard: { name: '后院暖阁', exits: ['tea_house'] },
-      wine_shop: { name: '于家酒肆', exits: ['street'], dynamic: false },
-      goods_shop: { name: '翟家货栈', exits: ['street'], dynamic: false },
-      street: { name: '青石板长街', exits: ['tea_house', 'yamen'] },
-      dock: { name: '运河码头', exits: ['street', 'canal_restaurant'] },
-      canal_restaurant: { name: '运河码头大酒楼', exits: ['dock'] },
-      yang_mansion: { name: '杨府', exits: ['street'] },
-      yamen: { name: '临江县衙', exits: ['street'] },
+      tea_house: { name: '临江茶坊', exits: ['street', 'backyard'], owner: 'husband' },
+      backyard: { name: '后院暖阁', exits: ['tea_house'], owner: 'husband' },
+      wine_shop: { name: '于家酒肆', exits: ['street'], dynamic: false, owner: 'liuwenxia' },
+      goods_shop: { name: '翟家货栈', exits: ['street'], dynamic: false, owner: 'yangcaiyun' },
+      street: { name: '青石板长街', exits: ['tea_house', 'yamen'], owner: 'public' },
+      dock: { name: '运河码头', exits: ['street', 'canal_restaurant'], owner: 'public' },
+      canal_restaurant: { name: '运河码头大酒楼', exits: ['dock'], owner: 'husband' },
+      yang_mansion: { name: '杨府', exits: ['street'], owner: 'yangzhenhua' },
+      yamen: { name: '临江县衙', exits: ['street'], owner: 'court' },
     },
 
     actors: {

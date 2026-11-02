@@ -362,6 +362,10 @@ function render(w){
   const ledgerHtml = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<div class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</div>';
+  const ownIss = w.ownAudit || [];
+  const ownHtml = ownIss.length
+    ? ownIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 所有东西都有主（或明确公有）</div>';
   const memIss = w.memAudit || [];
   const repIss = w.replyAudit || [];
   const memHtml = memIss.length
@@ -371,6 +375,7 @@ function render(w){
     ? repIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
     : '<div class="good">✓ 最近台词与账本一致</div>';
   $('audit-box').innerHTML = ledgerHtml
+    + '<div class="muted" style="margin:8px 0 4px">归属自检</div>' + ownHtml
     + '<div class="muted" style="margin:8px 0 4px">记忆自检</div>' + memHtml
     + '<div class="muted" style="margin:8px 0 4px">台词自检</div>' + repHtml;
 

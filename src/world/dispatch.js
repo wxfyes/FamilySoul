@@ -263,7 +263,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (!text) continue;
         world.clues = Array.isArray(world.clues) ? world.clues : [];
         if (world.clues.some((c) => c && String(c.text || '').slice(0, 10) === text.slice(0, 10))) continue;
-        world.clues.push({ text: text.slice(0, 80), day: world.clock.day, source: String(args.source || '').slice(0, 20) });
+        world.clues.push({ text: text.slice(0, 80), day: world.clock.day, source: String(args.source || '').slice(0, 20), owner: String(args.who || selfId || 'husband') });
         if (world.clues.length > 60) world.clues = world.clues.slice(-60);
         applied.push(`线索:${text.slice(0, 14)}`);
       } else if (kind === 'pregnant') {
@@ -514,7 +514,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (ct.owner === ownerId) continue;
         if (who !== 'husband' && !world.powers[ownerId]) {
           const an = world.actors?.[who]?.name || who;
-          world.powers[ownerId] = { name: `${an}的部曲`, kind: '私兵', power: 3, relation: 0, troops: 0, note: '' };
+          world.powers[ownerId] = { name: `${an}的部曲`, kind: '私兵', power: 3, relation: 0, troops: 0, note: '', ownerActor: who };
         }
         // 盟友的兵来助战（各出一半）
         let allyPower = 0;
@@ -595,7 +595,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.powers = world.powers || {};
         const id = String(args.id || `p_${Object.keys(world.powers).length + 1}`).slice(0, 16);
         if (!world.powers[id]) {
-          world.powers[id] = {
+          world.powers[id] = { ownerActor: String(args.who || selfId || 'husband'),
             name,
             kind: String(args.kind || '义军').slice(0, 8),
             power: Math.max(0, Number(args.power) || 5),
