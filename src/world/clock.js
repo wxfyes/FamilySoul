@@ -16,7 +16,7 @@ import {
 } from './state.js';
 import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
-import { ensureCourt } from './state.js';
+import { ensureCourt, forceOf } from './state.js';
 import { advanceArcs, ensureArcs } from './arcs.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -209,6 +209,79 @@ function runLocalEconomy(world, events) {
   }
 }
 
+/**
+ * 朝廷不会坐着看：通缉高、占城多 → 压力上升 → 派兵围剿
+ * 只算"阻力与代价"，不写台词。
+ */
+function runCourtReaction(world, events, queuePush) {
+  const day = world.clock?.day ?? 1;
+  world.flags = world.flags || {};
+  const mine = Object.entries(world.cities || {}).filter(([, c]) => c.owner === 'wangjia' || String(c.owner || '').startsWith('actor_'));
+  const threat = (Number(world.wanted) || 0) * 0.5 + mine.length * 20 + (Number(world.reputation) || 0) * 0.2;
+  let pressure = Number(world.flags.courtPressure) || 0;
+  pressure = Math.max(0, pressure + (threat > 55 ? 12 : -4));
+  world.flags.courtPressure = Math.min(100, pressure);
+
+  if (threat <= 55 || pressure < 45) return;
+  if (Math.random() > 0.5) return;
+
+  // 挑一座"非朝廷"的城来打
+  const target = mine.length ? mine[Math.floor(Math.random() * mine.length)] : null;
+  const attackerPower = 250 + pressure * 8;
+  if (!target) {
+    // 没城：抄你的产业
+    const props = world.assets?.properties || [];
+    if (props.length) {
+      const p = props[Math.floor(Math.random() * props.length)];
+      const loss = Math.round((Number(p.incomePerDay) || 0) * 0.3 * 100) / 100;
+      p.incomePerDay = Math.max(0, Math.round(((Number(p.incomePerDay) || 0) - loss) * 100) / 100);
+      world.flags.courtPressure = Math.max(0, pressure - 15);
+      events.push(nextEvent(world, { action: 'court_raid', actor: 'system', place: p.place || null, payload: { text: `官府查封${p.name}，日入受损` }, isPublic: true }));
+      queuePush?.({ to: 'husband', reason: 'court', facts: { 官府: '查封产业' }, fallback: `官府来人查了${p.name}的账。`, force: true });
+    }
+    return;
+  }
+
+  const [cityName, ct] = target;
+  const owner = ct.owner;
+  const ownerActor = owner.startsWith('actor_') ? owner.slice(6) : 'husband';
+  const f = forceOf(world, ownerActor);
+  const defensePower = (Number(ct.defense) || 10) * 30 + ((Number(f.army) || 0) + (Number(f.militia) || 0) * 0.6) + (Number(world.infra?.workshop) || 0) * 50;
+
+  if (defensePower >= attackerPower) {
+    // 守住
+    f.army = Math.max(0, Math.round((Number(f.army) || 0) * 0.9));
+    f.morale = Math.max(0, (Number(f.morale) || 50) + 5);
+    if (owner === 'wangjia') world.reputation = Math.min(100, (Number(world.reputation) || 50) + 5);
+    world.flags.courtPressure = Math.max(0, pressure - 20);
+    events.push(nextEvent(world, { action: 'court_repelled', actor: 'system', place: ct.region || null, payload: { text: `朝廷兵马来攻${cityName}，被挡回去` }, isPublic: true }));
+    queuePush?.({
+      to: ownerActor,
+      reason: 'court',
+      facts: { 战事: `${cityName}守住了` },
+      fallback: `官府派兵来攻${cityName}，被你的人挡了回去。折了些兵马，但城还在。`,
+      force: true,
+    });
+  } else {
+    // 城丢
+    ct.owner = 'court';
+    ct.defense = Math.max(5, Math.round(attackerPower / 40));
+    f.army = Math.max(0, Math.round((Number(f.army) || 0) * 0.7));
+    f.militia = Math.max(0, Math.round((Number(f.militia) || 0) * 0.8));
+    f.morale = Math.max(0, (Number(f.morale) || 50) - 25);
+    if (owner === 'wangjia') world.reputation = Math.max(0, (Number(world.reputation) || 50) - 8);
+    world.flags.courtPressure = Math.max(0, pressure - 10);
+    events.push(nextEvent(world, { action: 'court_take', actor: 'system', place: ct.region || null, payload: { text: `朝廷夺回${cityName}` }, isPublic: true }));
+    queuePush?.({
+      to: ownerActor,
+      reason: 'court',
+      facts: { 战事: `${cityName}失守` },
+      fallback: `官府大军压境，${cityName}没守住。兵马折了大半，城归了朝廷。`,
+      force: true,
+    });
+  }
+}
+
 function consumeSupplies(world) {
   const mil = world.military;
   if (!mil) return;
@@ -227,6 +300,7 @@ function onNewDay(world, events) {
   consumeSupplies(world);
   try {
     runLocalEconomy(world, events);
+    runCourtReaction(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
   } catch (err) {
     console.warn('[Econ] 地方经济结算失败：', err.message);
   }
@@ -296,6 +370,7 @@ function pruneProactive(world) {
       if (!p) return false;
       if (p.reason === 'appointment') return true; // 约定必须送达
       if (p.reason === 'arc') return true;         // 她自己的难关，等她上线再看
+      if (p.reason === 'court') return true;       // 朝廷打过来了，必须让她知道
       const h = (Number(p.day) || 1) * 24 + (Number(p.hour) || 0);
       return nowHour - h <= 24;
     })
