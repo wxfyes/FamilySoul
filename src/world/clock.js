@@ -509,6 +509,40 @@ function runTreasury(world, events) {
   world.flags.grainPressure = pressure;
 }
 
+/** 山贼流寇：民心乱的城，会被抢。有兵才有太平。 */
+function runBandits(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  if (day % 2 !== 0) return; // 隔日可能出事
+  const cities = Object.values(world.cities || {}).filter(Boolean);
+  if (!cities.length) return;
+  const hot = cities.filter((c) => (Number(c.unrest) || 0) >= 45);
+  if (!hot.length) return;
+  if (Math.random() > 0.35) return;
+  const ct = hot[Math.floor(Math.random() * hot.length)];
+  const mine = ct.owner === 'wangjia';
+  const mil = world.military || {};
+  const guards = mine ? ((Number(mil.army) || 0) + (Number(mil.militia) || 0) + (Number(mil.guards) || 0)) : 0;
+  const defense = (Number(ct.defense) || 10) * 12 + guards;
+  const raiders = 20 + Math.floor(Math.random() * 60);
+  if (defense >= raiders * 4) {
+    if (mine && guards > 0) {
+      world.military.morale = Math.max(0, (Number(world.military.morale) || 50) - 2);
+      world.military.supplies = Math.max(0, (Number(world.military.supplies) || 0) - 2);
+      events.push(nextEvent(world, { action: 'repelled', actor: 'husband', place: null, payload: { text: `${ct.name}击退一股流寇` }, isPublic: true }));
+    }
+    return;
+  }
+  const loss = Math.round((Number(ct.wealth) || 30) * (mine ? 0.12 : 0.06) * 100) / 100;
+  ct.wealth = Math.max(0, Math.round(((Number(ct.wealth) || 30) - loss) * 100) / 100);
+  ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 6);
+  events.push(nextEvent(world, { action: 'bandits', actor: 'system', place: ct.region || null, payload: { text: `${ct.name}遭流寇劫掠，损${loss}两` }, isPublic: true }));
+  if (mine) {
+    world.military = world.military || {};
+    world.military.morale = Math.max(0, (Number(world.military.morale) || 50) - 8);
+    world.military.army = Math.max(0, Math.round((Number(world.military.army) || 0) * 0.92));
+  }
+}
+
 /** 读书与科举：学识靠读，功名靠考 */
 function runStudy(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -622,6 +656,11 @@ function onNewDay(world, events) {
     runFestivals(world, events);
   } catch (err) {
     console.warn('[Study] 读书节庆失败：', err.message);
+  }
+  try {
+    runBandits(world, events);
+  } catch (err) {
+    console.warn('[Bandit] 流寇失败：', err.message);
   }
   consumeSupplies(world);
   try {

@@ -854,6 +854,18 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (!Number.isFinite(delta) || delta === 0) continue;
         const who = String(args.who || 'husband');
         const f = forceOf(world, who);
+        // 招兵要发饷：正兵 3 两/人，乡勇 1 两，护院 2 两
+        const unit = field === 'army' ? 3 : field === 'militia' ? 1 : 2;
+        if (delta > 0) {
+          const cost = Math.round(delta * unit * 100) / 100;
+          const purse = Number(world.assets.silver) || 0;
+          if (purse < cost) {
+            applied.push(`招兵失败:需${cost}两，账上只有${purse}两`);
+            continue;
+          }
+          world.assets.silver = round2(purse - cost);
+          applied.push(`招兵花费${cost}两`);
+        }
         f[field] = Math.max(0, (Number(f[field]) || 0) + delta);
         applied.push(`${field}${delta >= 0 ? '+' : ''}${delta}→${f[field]}`);
       } else if (kind === 'infra') {
