@@ -547,6 +547,7 @@ export function ensureCourt(world) {
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};
   const seed = [
+    ['emperor', '萧景隆', '当朝天子', 'emperor', '京城'],
     ['cuiyuanli', '崔元礼', '当朝宰相', 'chancellor', '京城'],
     ['luchengye', '卢承业', '户部尚书', 'revenue', '京城'],
     ['hanchong', '韩崇', '兵部尚书', 'war', '京城'],
@@ -593,7 +594,7 @@ export function ensureCourt(world) {
         location: 'yamen',
         relations: { husband: { trust: 20, desire: 0, fear: 0, grievance: 0 } },
         goals: id === 'yangshenzhi' ? ['给采儿定一门体面的亲事', '坐稳临江知府这位子'] : [`坐稳${post}这位子`, '看清朝中风向'],
-        secret: id === 'yangshenzhi' ? '拿女儿的亲事换官场上的路' : '府里上下都收过银子',
+        secret: id === 'emperor' ? '身子骨早就不行了，怕的是有人先动手' : (id === 'yangshenzhi' ? '拿女儿的亲事换官场上的路' : '府里上下都收过银子'),
         schedule: [],
       };
     }
