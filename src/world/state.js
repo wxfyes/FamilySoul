@@ -307,7 +307,10 @@ export function createInitialState(dataDir) {
 function normalizePlaces(places, actorsLive) {
   const actors = actorsLive || {};
   for (const p of Object.values(places || {})) {
-    const nm = String(p?.name || '');
+    let nm = String(p?.name || '');
+    // 历史遗留：「地点·雅阁」这种把格式词当地名了
+    nm = nm.replace(/^(地点|场景|场所|时空)[·・]/, '');
+    if (nm && p && p.name !== nm) p.name = nm;
     const m = /^([\u4e00-\u9fa5]{2,4})(处|廊下|房里|屋|房)$/.exec(nm);
     if (!m) continue;
     const who = Object.values(actors || {}).find(

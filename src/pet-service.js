@@ -1167,7 +1167,9 @@ export class PetService {
       const placeNameRaw = m[1]
         .split(/[·・]/)
         .map((s) => s.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        // 「【天道·地点·雅阁】」里的"地点"是格式词，不是地名，必须剥掉
+        .filter((s, i) => !(i === 0 && /^(地点|场景|场所|时空|现场)$/.test(s)));
       if (placeNameRaw.length === 0) return null;
       let placeName = placeNameRaw.join('·'); // 保留「大酒楼·后院账房」这种细位置
       let headName = placeNameRaw[0];
