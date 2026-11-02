@@ -160,7 +160,8 @@ export function applyWorldTags(dataDir, ops) {
           applied.push(`已忽略:${text.slice(0, 12)}（府中人不可能再迎娶）`);
           continue;
         }
-        const due = Number(args.due) || world.clock.day + 3;
+        const rawDue = Number(args.due);
+        const due = rawDue >= world.clock.day && rawDue <= world.clock.day + 30 ? rawDue : world.clock.day + 3;
         world.promises.push({ text: text.slice(0, 120), due, done: false, at: world.clock.day });
         applied.push(`承诺:${text.slice(0, 16)}（第${due}日）`);
       } else if (kind === 'spawn') {
@@ -221,7 +222,8 @@ export function applyWorldTags(dataDir, ops) {
         // 约定：约好某日某时见面 → 到点由时钟自动触发她上门
         const id = resolveActor(world, args.who);
         const actor = id ? world.actors[id] : null;
-        const day = Number(args.day) || world.clock.day;
+        const rawDay = Number(args.day);
+        const day = rawDay >= world.clock.day && rawDay <= world.clock.day + 30 ? rawDay : world.clock.day + 1;
         const hour = Number(args.hour) || 12;
         world.appointments = Array.isArray(world.appointments) ? world.appointments : [];
         world.appointments.push({

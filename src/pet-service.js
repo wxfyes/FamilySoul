@@ -381,7 +381,7 @@ export class PetService {
         lines.push('  [[world:relation who=waner field=trust delta=+3]]  [[world:asset delta=-12.5 reason="买茶苗"]]');
         lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]  [[world:move who=qiantonghai to=dock]]');
         lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
-        lines.push('  [[world:appointment who=liuwenxia day=5 hour=12 text="提两坛茶酒样来茶坊"]]');
+        lines.push('  [[world:appointment who=liuwenxia day=世界日+1 hour=12 text="提两坛茶酒样来茶坊"]]');
         lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
         lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
         lines.push('  [[world:pregnant who=liuwenxia]]');
@@ -1120,11 +1120,25 @@ export class PetService {
     try {
       const wP = loadState(this.dataDir);
       const hereP = wP.actors?.[this._viewerActorId || 'husband']?.location;
+      // 本轮对话对象：上一轮 AI 说话的那位（允许跨地点一对一交谈）
+      let partnerName = null;
+      try {
+        const hh = this.readHistory(profileKey).messages || [];
+        for (let k = hh.length - 1; k >= 0; k--) {
+          if (hh[k].role === "user") continue;
+          const mm = String(hh[k].text || "").match(/^【([^】\n]{1,12})】/);
+          if (mm) { partnerName = mm[1].trim(); break; }
+        }
+      } catch {
+        partnerName = null;
+      }
+
       const allowed = Object.values(wP.actors || {})
         .filter((a) => a?.name && a.location === hereP)
         .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name, a.label].filter(Boolean));
       // 相公本轮明确要请/叫的人，也放行
       for (const n of summonedNames) allowed.push(n);
+      if (partnerName) allowed.push(partnerName);
       const res = this.enforcePresence(reply, allowed);
       if (res.dropped.length > 0) {
         console.log(`[Scene] 已掐掉不在场的段落：${[...new Set(res.dropped)].join('、')}`);
@@ -1612,13 +1626,14 @@ export class PetService {
       const system = [
         '你是世界账本记账员。判断这一轮有没有改变世界，只输出回执行，不要解释、不要写台词。',
         `在场人物：${roster}`,
-        '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=132 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
+        '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=世界日+天数 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
         '剧情线：[[world:clue text="沈家旧案的一页卷宗"]] [[world:faction id=yamen delta=+5]]',
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
         '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算）',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
         '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',
+        '**动情/暧昧/答应私会/被撩到心软** → 必须记 [[world:relation who=她的id field=desire delta=+4]]（明显亲密可 +8）；被冷落或受惊则记 delta=-3。',
       ].join('\n');
 
       const res = await this.llmClient.complete({
