@@ -302,6 +302,45 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.allies[a] = Array.from(new Set([...(world.allies[a] || []), b]));
         world.allies[b] = Array.from(new Set([...(world.allies[b] || []), a]));
         applied.push(`结盟:${world.actors[a]?.name}↔${world.actors[b]?.name}`);
+      } else if (kind === 'spend') {
+        // 花钱：买东西、付账、打赏。文与两都认（1000 文 = 1 两）
+        const who = String(args.who || 'husband');
+        const unit = String(args.unit || '文');
+        let amount = Number(args.amount);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+        if (unit === '文') amount = round2(amount / 1000);
+        amount = round2(amount);
+        const actorId = who === 'husband' ? 'husband' : who;
+        const isHus = actorId === 'husband';
+        if (isHus) {
+          world.assets.copper = Number(world.assets.copper) || 0;
+          const silver = Number(world.assets.silver) || 0;
+          const total = silver + world.assets.copper / 1000;
+          if (total < amount) {
+            applied.push(`钱不够:需${amount}两`);
+            continue;
+          }
+          // 先用铜钱付，铜钱不够再动银子
+          const copper = Number(world.assets.copper) || 0;
+          const needWen = Math.round(amount * 1000);
+          if (copper >= needWen) {
+            world.assets.copper = copper - needWen;
+          } else {
+            const rest = round2((needWen - copper) / 1000);
+            world.assets.copper = 0;
+            world.assets.silver = round2(silver - rest);
+          }
+          applied.push(`花销:${amount}两 → 余银${world.assets.silver}两/铜${world.assets.copper}文`);
+        } else {
+          world.wallets = world.wallets || {};
+          const have = Number(world.wallets[actorId]) || 0;
+          if (have < amount) {
+            applied.push(`钱不够:需${amount}两`);
+            continue;
+          }
+          world.wallets[actorId] = round2(have - amount);
+          applied.push(`花销:${amount}两 → 余${world.wallets[actorId]}两`);
+        }
       } else if (kind === 'kill') {
         // 杀一个人：人没了，官位空出来，等人顶上
         const id = resolveActor(world, args.who || args.name);

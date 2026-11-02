@@ -74,8 +74,12 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
     (leaveWords.test(say) || (ackWords.test(say) && farewell.test(String(lastBotSaid || ''))));
 
   if (leaving) {
-    // 「回家」回的是「自己的家」，不是相公的茶坊
-    const home = (me.home && world.places?.[me.home] ? me.home : null) || (world.places?.tea_house ? 'tea_house' : 'street');
+    // 相公说"走了" = 离开这里上街；她自己说"回家" = 回自己家
+    const isHusband = !selfId || selfId === 'husband';
+    const exits = world.places?.[me.location]?.exits || [];
+    const home = isHusband
+      ? (exits.includes('street') ? 'street' : exits[0] || 'street')
+      : ((me.home && world.places?.[me.home] ? me.home : null) || (world.places?.tea_house ? 'tea_house' : 'street'));
     if (me.location !== home) {
       me.location = home;
       saveState(dataDir, world);

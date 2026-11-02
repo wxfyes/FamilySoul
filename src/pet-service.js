@@ -403,7 +403,7 @@ export class PetService {
         lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
         lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
         lines.push('  [[world:pregnant who=liuwenxia]]');
-        lines.push('  [[world:troops field=guards delta=10]]  [[world:infra name=granary delta=1]]');
+        lines.push('  [[world:troops field=guards delta=10]]  [[world:infra name=granary delta=1]]  [[world:spend amount=32 unit=文]]');
         lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
         lines.push('- 【凡发生了值得记一辈子的事（第一次、亲密、翻脸、重大决定），必须记 remember】，它会永久留存。');
         lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
@@ -1842,6 +1842,7 @@ export class PetService {
         '招兵：[[world:troops field=guards delta=10]]（护院 guards / 乡勇 militia / 兵马 army）',
         '基建：[[world:infra name=granary delta=1]]（roads 路 / granary 粮仓 / dock 码头 / workshop 匠作坊 / school 学堂 / clinic 药堂）',
         '攻城：[[world:siege city="临江府"]] —— 只有相公明确下令攻城时才记；兵不够/没粮时不许记成功。',
+        '花销：[[world:spend amount=32 unit=文 reason="买茶"]] —— **凡是付账、买东西、打赏、雇人，必须记这一笔**；不记就等于白拿。',
         '结盟：[[world:ally a=husband b=liuwenxia]] —— 两人合兵，攻城时盟友各出一半兵力。',
         '**杀天子不准直接写 [[world:kill who=emperor]] 就算完**——先写它，会得到"天道示警"；相公若仍执意，才用 [[world:regicide]]。',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
