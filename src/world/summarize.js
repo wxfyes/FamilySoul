@@ -299,6 +299,16 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         .slice(0, 4)
         .map((p) => `${p.name}(${p.kind},兵${p.troops})`);
       if (powers.length) lines.push(`【天下】${powers.join('、')}`);
+      // 朝中：谁坐着什么位子，哪个位子空着
+      try {
+        const offs = Object.entries(world.court?.offices || {}).map(([k, o]) => {
+          const holder = o.holder ? world.actors?.[o.holder]?.name : null;
+          return `${o.title}${holder ? ':' + holder : '（空缺）'}`;
+        });
+        if (offs.length) lines.push(`【朝中】${offs.join('、')}`);
+      } catch {
+        /* 忽略 */
+      }
       // 地方：物产、物价、税率、民心
       const own = Object.entries(world.cities || {}).filter(([, c]) => c.owner === 'wangjia').slice(0, 3);
       if (own.length) {

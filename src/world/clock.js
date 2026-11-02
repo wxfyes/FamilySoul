@@ -16,6 +16,7 @@ import {
 } from './state.js';
 import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
+import { ensureCourt } from './state.js';
 import { advanceArcs, ensureArcs } from './arcs.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -445,6 +446,7 @@ function advanceHour(world, events, nowMs) {
     // 个人主线：她不上线，她的难关也会往前走
     try {
       ensureArcs(world);
+      ensureCourt(world);
       advanceArcs(world, events, (opts) => queueProactive(world, { type: 'arc', ...opts }), nextEvent);
     } catch (err) {
       console.warn('[Arc] 主线推进失败：', err.message);
@@ -456,7 +458,7 @@ function advanceHour(world, events, nowMs) {
   if (world.clock.hour === 21) {
     const here = world.actors?.husband?.location;
     for (const a of Object.values(world.actors || {})) {
-      if (!a || a.kind === 'human' || a.id === 'husband') continue;
+      if (!a || a.dead || a.kind === 'human' || a.id === 'husband') continue;
       const home = a.home && world.places?.[a.home] ? a.home : null;
       if (!home) continue;
       if (a.location === home) continue;

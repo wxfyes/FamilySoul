@@ -288,6 +288,41 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'kill') {
+        // 杀一个人：人没了，官位空出来，等人顶上
+        const id = resolveActor(world, args.who || args.name);
+        const a = id && world.actors[id];
+        if (!a || a.id === 'husband') continue;
+        a.dead = true;
+        a.deadDay = world.clock.day;
+        if (a.office && world.court?.offices?.[a.office]) {
+          world.court.offices[a.office].holder = null;
+          world.court.offices[a.office].vacant = true;
+        }
+        world.reputation = Math.max(0, (Number(world.reputation) || 50) - 5);
+        world.wanted = Math.min(100, (Number(world.wanted) || 0) + 15);
+        applied.push(`${a.name} 已死${a.office ? '（官职空缺）' : ''}`);
+        events.push(
+          nextEvent(world, {
+            action: 'death',
+            actor: id,
+            place: a.location || null,
+            payload: { text: `${a.name}死了` },
+            isPublic: true,
+          }),
+        );
+      } else if (kind === 'office') {
+        // 顶缺：空出来的官位，谁有本事谁坐
+        const post = String(args.post || '').trim();
+        const id = resolveActor(world, args.who || args.name);
+        const off = world.court?.offices?.[post];
+        if (!off || !world.actors?.[id]) continue;
+        if (!off.vacant) continue;
+        off.holder = id;
+        off.vacant = false;
+        world.actors[id].office = post;
+        world.reputation = Math.min(100, (Number(world.reputation) || 50) + 10);
+        applied.push(`${world.actors[id].name} 接任${off.title}`);
       } else if (kind === 'tax') {
         // 定税率：税高民心散，税低民心归
         const cityName = String(args.city || args.name || '').trim();

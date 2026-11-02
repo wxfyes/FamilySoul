@@ -302,6 +302,23 @@ export function createInitialState(dataDir) {
         { name: '淮北道', cities: ['徐州府', '宿州府'] },
       ],
     },
+    // 朝廷：官职（可被杀、可被顶替）与律法
+    court: {
+      emperor: '乾宁帝',
+      offices: {
+        chancellor: { title: '当朝宰相', holder: 'cuiyuanli', vacant: false },
+        revenue: { title: '户部尚书', holder: 'luchengye', vacant: false },
+        war: { title: '兵部尚书', holder: 'hanchong', vacant: false },
+        governor: { title: '江南巡抚', holder: 'zhenghuaian', vacant: false },
+        prefect: { title: '临江知府', holder: 'yangshenzhi', vacant: false },
+      },
+      law: {
+        murder: '杀人者死',
+        taxCap: 30,
+        rebel: '谋逆者诛族',
+        smuggle: '私盐者杖一百、流三千里',
+      },
+    },
     // 名声与通缉：士绅口碑 / 官府悬赏
     reputation: 50,
     wanted: 0,
@@ -514,6 +531,42 @@ const CITY_GOODS = {
 };
 
 /** 按疆域把每座城建出来（只在缺的时候建，不覆盖已有归属）*/
+/** 朝中大员：没有就补上，死了不复活（位置空着等人顶上）*/
+export function ensureCourt(world) {
+  world.court = world.court || {};
+  world.court.offices = world.court.offices || {};
+  const seed = [
+    ['cuiyuanli', '崔元礼', '当朝宰相', 'chancellor', '京城'],
+    ['luchengye', '卢承业', '户部尚书', 'revenue', '京城'],
+    ['hanchong', '韩崇', '兵部尚书', 'war', '京城'],
+    ['zhenghuaian', '郑怀安', '江南巡抚', 'governor', '苏州府'],
+    ['yangshenzhi', '杨慎之', '临江知府', 'prefect', '临江府'],
+  ];
+  for (const [id, name, role, post, city] of seed) {
+    if (!world.actors) world.actors = {};
+    if (!world.actors[id]) {
+      world.actors[id] = {
+        id,
+        name,
+        role: `${role}（${city}）`,
+        gender: /夫人|娘|女/.test(role) ? 'female' : 'male',
+        kind: 'official',
+        office: post,
+        household: false,
+        home: world.places?.['yamen'] ? 'yamen' : 'street',
+        location: 'yamen',
+        relations: { husband: { trust: 20, desire: 0, fear: 0, grievance: 0 } },
+        goals: [`坐稳${post}这位子`, '看清朝中风向'],
+        secret: '府里上下都收过银子',
+        schedule: [],
+      };
+    }
+    const off = world.court.offices[post];
+    if (!off) world.court.offices[post] = { title: role, holder: id, vacant: false };
+  }
+  return world.court;
+}
+
 export function ensureCities(world) {
   world.cities = world.cities && typeof world.cities === 'object' ? world.cities : {};
   const regions = world.geo?.regions || [];
@@ -642,6 +695,7 @@ export function loadState(dataDir) {
     cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
     forces: { ...base.forces, ...(raw.forces || {}) },
+    court: { ...base.court, ...(raw.court || {}) },
     reputation: Number.isFinite(Number(raw.reputation)) ? Number(raw.reputation) : 50,
     wanted: Number.isFinite(Number(raw.wanted)) ? Number(raw.wanted) : 0,
     infra: { ...base.infra, ...(raw.infra || {}) },

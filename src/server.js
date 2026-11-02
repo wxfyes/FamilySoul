@@ -17,7 +17,7 @@ import { auditWorld } from './world/audit.js';
 import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
-import { ensureCities } from './world/state.js';
+import { ensureCities, ensureCourt } from './world/state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1166,6 +1166,7 @@ const STARTED_AT = Date.now();
           arcs: world.arcs || {},
           military: world.military || null,
           powers: world.powers || null,
+          court: world.court || null,
           cities: world.cities || null,
           infra: world.infra || null,
           geo: world.geo || null,
@@ -1686,6 +1687,7 @@ server.listen(PORT, '0.0.0.0', () => {
     const wA = peek(DATA_DIR);
     ensureArcs(wA);
     ensureCities(wA);
+    ensureCourt(wA);
     saveState(DATA_DIR, wA);
     console.log(`[Arc] 已播种 ${Object.keys(wA.arcs || {}).length} 条个人主线`);
   } catch (err) {

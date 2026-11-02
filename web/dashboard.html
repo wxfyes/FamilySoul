@@ -143,6 +143,11 @@
   </section>
 
   <section class="card">
+    <h2>朝中（官职）</h2>
+    <div id="court">—</div>
+  </section>
+
+  <section class="card">
     <h2>天下（城池归属）</h2>
     <div id="cities">—</div>
   </section>
@@ -328,6 +333,14 @@ function render(w){
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+
+  // ── 朝中 ──────────────────────────────
+  const court = w.court || {};
+  const offs = Object.entries(court.offices || {});
+  $('court').innerHTML = offs.length ? offs.map(([k, o]) => {
+    const holder = o.holder ? ((w.actors || []).find(a => a.id === o.holder)?.name || o.holder) : null;
+    return `<div class="row"><span>${o.title}</span><span class="muted">${holder || '<span class="bad">空缺</span>'}</span></div>`;
+  }).join('') : '<div class="muted">朝廷未设官</div>';
 
   // ── 天下 ──────────────────────────────
   const powers = w.powers || {};
