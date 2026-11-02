@@ -29,7 +29,7 @@ function findMentioned(world, text) {
 /**
  * @returns {{moved:string[], summoned:string[], visited:string|null}|null}
  */
-export function applySummon(dataDir, text) {
+export function applySummon(dataDir, text, lastBotSaid = '') {
   const say = String(text || '').trim();
   if (!say) return null;
 
@@ -38,11 +38,30 @@ export function applySummon(dataDir, text) {
   if (!me) return null;
 
   const mentioned = findMentioned(world, say);
-  if (mentioned.length === 0) return null;
 
   const moved = [];
   const summoned = [];
   let visited = null;
+
+  // ── 离场判断（必须放在"没提到人就返回"之前，否则"我走了"永远不生效）──
+  const leaveWords = /(走了|我走|告辞|先回|回去|回家|出门|离开|散了|不坐了)/;
+  const ackWords = /^(好|好的|嗯|嗯嗯|行|知道了|好嘞|成|去吧)[。！!~\s]*$/;
+  const farewell = /(慢走|走好|门掩上|掩门|送出|送到门口|回头见|改日|下回|路上|仔细着)/;
+  const leaving =
+    mentioned.length === 0 &&
+    (leaveWords.test(say) || (ackWords.test(say) && farewell.test(String(lastBotSaid || ''))));
+
+  if (leaving) {
+    const home = world.places?.tea_house ? 'tea_house' : 'street';
+    if (me.location !== home) {
+      me.location = home;
+      saveState(dataDir, world);
+      return { moved: ['相公'], summoned: [], visited: null, left: true };
+    }
+    return { moved: [], summoned: [], visited: null, left: false };
+  }
+
+  if (mentioned.length === 0) return null;
 
   const hasSummonVerb = SUMMON_VERBS.test(say) && COME_WORDS.test(say);
   const hasGoVerb = GO_WORDS.test(say) && /(那|那里|那儿|房里|屋|处)/.test(say);

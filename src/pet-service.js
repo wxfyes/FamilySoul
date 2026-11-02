@@ -525,9 +525,14 @@ export class PetService {
 
     // 召唤与走动：把「叫谁过来 / 我去谁那儿」落到账本上（只改位置，不写台词）
     let summonedNames = [];
+    let contextHintEarly = '';
     try {
-      const summonResult = applySummon(this.dataDir, say);
+      const lastBotSaid = [...(history.messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
+      const summonResult = applySummon(this.dataDir, say, lastBotSaid);
       summonedNames = summonResult?.summoned || [];
+      if (summonResult?.left) {
+        contextHintEarly += '（【已离场】：相公已经离开刚才那个地方，回到茶坊了。本轮必须先写出转场（【天道·地点·临江茶坊】），**不许再写道别、不许让原处的人继续说"相公慢走"**。）\n';
+      }
       if (summonResult?.moved?.length) {
         console.log(`[Scene] 召唤/走动 → ${summonResult.moved.join('、')}`);
       }
@@ -577,7 +582,7 @@ export class PetService {
     }
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
-    let contextHint = '';
+    let contextHint = contextHintEarly;
     if (summonedNames.length > 0) {
       contextHint += `（【已到场】：${summonedNames.join('、')} 现在就在相公面前。本轮必须由她亲自开口应声（按分角格式写她的台词），你不许替她回答，也不许说她不在。若相公直接对她说"过来"，她必须应声上前。）\n`;
     }
