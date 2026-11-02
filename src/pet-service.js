@@ -1040,7 +1040,25 @@ export class PetService {
         /* 花名补全失败不影响回复 */
       }
       // 硬对齐：叙事里的场景标记优先于模型是否记得写回执
-      // 她说要走了，就真的走（否则人会永远钉在原地）
+      // 事后检查：回复里出现了不在场的人（容易被"提一句"就拉进来）
+    try {
+      const wChk = loadState(this.dataDir);
+      const hereNow = wChk.actors?.husband?.location;
+      const speakers = [...String(reply).matchAll(/【([^】\n]{1,12})】/g)].map((m) => m[1].trim());
+      const intruders = [...new Set(speakers)].filter((nm) => {
+        const a = Object.values(wChk.actors || {}).find(
+          (x) => x?.name && x.id !== 'husband' && (x.name === nm || nm.includes(x.name.slice(-2))),
+        );
+        return a && a.location !== hereNow;
+      });
+      if (intruders.length > 0) {
+        console.log(`[Scene] ⚠ 不在场却被写进来：${intruders.join('、')}（相公此刻在${wChk.places?.[hereNow]?.name || hereNow}）`);
+      }
+    } catch {
+      /* 忽略 */
+    }
+
+    // 她说要走了，就真的走（否则人会永远钉在原地）
     try {
       const gone = applyNpcDeparture(this.dataDir, reply);
       if (gone.length > 0) console.log(`[Scene] 离席：${gone.join('、')}`);
