@@ -1346,7 +1346,7 @@ export class PetService {
           || /(王甯|王掌柜|少掌柜)/.test(lastTurns)
           || /(你|您)/.test(String(say || ''))
           || /(那你|你是谁|谁啊|在吗)/.test(String(say || ''));
-        if (husHere && askedHim && !/【[^】]*王甯/.test(String(reply))) {
+        if (askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';
             const myId = this._viewerActorId;
@@ -1415,7 +1415,9 @@ export class PetService {
               memories: hisMem,
               facts,
               hearerName: mePost?.name || '',
-              hearerPlace: String(wPost.places?.[locPost]?.name || ''),
+              hearerPlace: husHere
+                ? String(wPost.places?.[locPost]?.name || '')
+                : `${String(wPost.places?.[locPost]?.name || '')}（他人在「${String(wPost.places?.[husPost?.location]?.name || '别处')}」，这是托人捎话/隔空应答，不要写成他就在同一间屋里）`,
               said: String(say || '').slice(0, 200),
               recent: recentLines,
             });
