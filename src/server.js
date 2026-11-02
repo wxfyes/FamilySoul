@@ -922,7 +922,10 @@ const STARTED_AT = Date.now();
       try {
         const body = await parseJsonBody(req, 64 * 1024);
         const days = Number(body.days) || 1;
-        const log = await stepWorld(days);
+        if (typeof globalThis.__stepWorld !== 'function') {
+          return sendJson(res, 503, { ok: false, error: '世界还没启动完，稍后再试' });
+        }
+        const log = await globalThis.__stepWorld(days);
         const world = peek(DATA_DIR);
         return sendJson(res, 200, { ok: true, steps: log, clock: world.clock });
       } catch (err) {
@@ -2579,6 +2582,9 @@ server.listen(PORT, '0.0.0.0', () => {
     }
     return done;
   }
+
+  globalThis.__stepWorld = stepWorld;
+  globalThis.__worldGenerators = { generateCase, judgeCases, resolveMemorials, generateDecree, generateCityShops, generateNpcArcs };
 
   // 世界引擎：启动天道时钟（离线补算 + 定时心跳）
   try {
