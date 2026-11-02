@@ -169,6 +169,11 @@
     <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
   </section>
 
+  <section class="card">
+    <h2>城中动静（各人自己的事）</h2>
+    <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
+  </section>
+
   <section class="card full">
     <h2>朝中（官职）</h2>
     <div id="decrees" class="muted" style="margin:6px 0 10px">—</div>
@@ -390,7 +395,11 @@ function render(w){
     const members = w.members || [];
     const actorOpts = (w.actors || []).filter(a => a.id !== 'husband')
       .map(a => `<option value="${a.id}">${a.name}（${a.role || ''}）</option>`).join('');
-    $('bind').innerHTML = members.map(m => {
+    const seenKeys = new Set();
+    const uniq = members.filter((m) => { if (seenKeys.has(m.key)) return false; seenKeys.add(m.key); return true; });
+    const boundList = uniq.filter((m) => m.actor);
+    const shownList = window.__bindExpand ? uniq : boundList;
+    $('bind').innerHTML = shownList.map(m => {
       const cur = m.actor || '';
       const tag = cur ? '' : '<span class="muted">未绑定</span>';
       return `<tr>
@@ -399,7 +408,9 @@ function render(w){
         <td><select id="bind-${m.key}" class="bind-select"><option value="">（解除绑定）</option>${actorOpts}</select></td>
         <td><button onclick="doBind('${m.key}')">保存</button></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="4" class="muted">没有成员</td></tr>';
+    }).join('') + (uniq.length > boundList.length
+      ? `<tr><td colspan="4" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__bindExpand=!window.__bindExpand;load();" style="color:#7fb4ff">${window.__bindExpand ? '收起' : '展开全部（共 ' + uniq.length + ' 个账号）'}</a></td></tr>`
+      : '');
     members.forEach(m => { const sel = $('bind-' + m.key); if (sel && m.actor) sel.value = m.actor; });
   } catch (e) { $('bind').innerHTML = '<div class="muted">渲染失败</div>'; }
 
