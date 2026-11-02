@@ -162,6 +162,24 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       }
     }
 
+    // 身孕：怀上了就一直跟着她，不会聊完就没
+    try {
+      const pregs = Object.values(world.actors || {}).filter((a) => a?.pregnancy && !a.pregnancy.born);
+      if (pregs.length > 0) {
+        lines.push(
+          `【身孕】${pregs
+            .map((a) => {
+              const d = Number(a.pregnancy.days) || 0;
+              const m = Math.floor(d / 30);
+              return `${a.name}（怀上约${m}个月${d >= 120 ? '，已显怀' : ''}）`;
+            })
+            .join('、')}`,
+        );
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     const moneyText = money(world.assets || {});
     const propsText = propsLine(world.assets || {});
     lines.push(`【家底】${moneyText}${propsText ? ` · ${propsText}` : ''}`);

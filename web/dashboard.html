@@ -258,7 +258,8 @@ function render(w){
   $('actors').innerHTML = list.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};
     const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
-    const intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
+    let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
+    if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
     return `<tr>
       <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
       <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>

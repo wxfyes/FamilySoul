@@ -259,6 +259,23 @@ export function applyWorldTags(dataDir, ops) {
         world.clues.push({ text: text.slice(0, 80), day: world.clock.day, source: String(args.source || '').slice(0, 20) });
         if (world.clues.length > 60) world.clues = world.clues.slice(-60);
         applied.push(`线索:${text.slice(0, 14)}`);
+      } else if (kind === 'pregnant') {
+        // 有孕：由天道判定，落进账本后就按月推进，不会聊完就没
+        const id = resolveActor(world, args.who);
+        const who = id ? world.actors[id] : null;
+        if (!who || who.id === 'husband') continue;
+        if (who.pregnancy) continue;
+        who.pregnancy = { sinceDay: world.clock.day, father: String(args.father || 'husband').slice(0, 12), confirmed: true };
+        applied.push(`有孕:${who.name}`);
+        events.push(
+          nextEvent(world, {
+            action: 'pregnant',
+            actor: who.id,
+            place: who.location,
+            payload: { text: `${who.name}有了身孕` },
+            isPublic: false,
+          }),
+        );
       } else if (kind === 'remember') {
         // 长期记忆：一句话，永久保存，不受 14 条对话窗口限制
         const text = String(args.text || '').trim();

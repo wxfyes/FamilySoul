@@ -94,6 +94,47 @@ function applyEffects(world, effects = []) {
 }
 
 /** 新的一天：结算日流水（市井风闻改到每日辰时播报，见 advanceHour）*/
+function advancePregnancies(world, events) {
+  for (const a of Object.values(world.actors || {})) {
+    const pg = a?.pregnancy;
+    if (!pg || !pg.sinceDay) continue;
+    const days = world.clock.day - Number(pg.sinceDay);
+    pg.days = days;
+    // 足月（约 280 天）→ 生下孩子，变成世界里真正的人
+    if (days >= 280 && !pg.born) {
+      pg.born = true;
+      world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
+      const id = `npc_${world.flags.npcSeq}`;
+      const boy = (Number(world.flags.npcSeq) + days) % 2 === 0;
+      const babyName = boy ? `${a.name.slice(-2)}之子` : `${a.name.slice(-2)}之女`;
+      world.actors[id] = {
+        id,
+        name: babyName,
+        role: `${a.name}${boy ? '所生之子' : '所生之女'}`,
+        gender: boy ? 'male' : 'female',
+        origin: 'spawned',
+        household: Boolean(a.household),
+        home: a.home || a.location,
+        location: a.location,
+        goals: ['长大成人'],
+        relations: { husband: { trust: 50, desire: 0, fear: 0, grievance: 0 } },
+        schedule: [],
+      };
+      a.pregnancy = { ...pg, bornDay: world.clock.day };
+      events.push(
+        nextEvent(world, {
+          action: 'birth',
+          actor: a.id,
+          place: a.location,
+          payload: { text: `${a.name}诞下${babyName}` },
+          isPublic: true,
+        }),
+      );
+      console.log(`[World] ${a.name}临盆，孩子入世：${babyName}`);
+    }
+  }
+}
+
 function onNewDay(world, events) {
   // 气是会消的：每天自动消退 1 点（被人一再冷落才会积住）
   for (const a of Object.values(world.actors || {})) {
@@ -285,6 +326,7 @@ function advanceHour(world, events, nowMs) {
     } catch (err) {
       console.warn('[Heal] 自愈失败：', err.message);
     }
+    advancePregnancies(world, events);
     onNewDay(world, events);
   }
 

@@ -799,6 +799,7 @@ const STARTED_AT = Date.now();
             origin: a.origin || 'preset',
             gender: a.gender || 'female',
             servant: Boolean(a.servant),
+            pregnancy: a.pregnancy || null,
             goals: Array.isArray(a.goals) ? a.goals : [],
           }));
         const recentReceipts = Array.isArray(world.flags?.recentReceipts) ? world.flags.recentReceipts : [];
