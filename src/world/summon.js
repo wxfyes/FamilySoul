@@ -51,12 +51,12 @@ function findMentioned(world, text) {
 /**
  * @returns {{moved:string[], summoned:string[], visited:string|null}|null}
  */
-export function applySummon(dataDir, text, lastBotSaid = '') {
+export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband') {
   const say = String(text || '').trim();
   if (!say) return null;
 
   const world = loadState(dataDir);
-  const me = world.actors?.husband;
+  const me = world.actors?.[selfId] || world.actors?.husband;
   if (!me) return null;
 
   const mentioned = findMentioned(world, say);
@@ -78,7 +78,7 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
     if (me.location !== home) {
       me.location = home;
       saveState(dataDir, world);
-      return { moved: ['相公'], summoned: [], visited: null, left: true };
+      return { moved: [me.name || '相公'], summoned: [], visited: null, left: true };
     }
     // 人已经在家（比如刚回完茶坊又说一声「嗯」），也要让本轮发生转场，不能继续原地道别
     return { moved: [], summoned: [], visited: null, left: false, alreadyHome: true };
@@ -92,7 +92,7 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
       if (me.location !== pid) {
         me.location = pid;
         saveState(dataDir, world);
-        return { moved: ['相公'], summoned: [], visited: null, wentTo: p.name };
+        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: p.name };
       }
       return { moved: [], summoned: [], visited: null, wentTo: p.name, alreadyThere: true };
     }
@@ -137,7 +137,7 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
       summoned.push(target.name);
       if (me.location !== target.location) {
         me.location = target.location;
-        moved.push('相公');
+        moved.push(me.name || '相公');
         visited = target.name;
       }
     }

@@ -125,7 +125,7 @@ export class PetService {
       lines.push('【你要演的人】');
       lines.push(this._actorPersonaOverride);
       lines.push('');
-      const own = buildStateSummary(this.dataDir, { roleName: '傲娇助手', memberKey: 'husband', viewer: null });
+      const own = buildStateSummary(this.dataDir, { roleName: '傲娇助手', memberKey: 'husband', viewer: this._viewerActorId });
       lines.push('');
       lines.push('【你此刻知道的实况（只有这些）】');
       lines.push(own);
@@ -569,7 +569,7 @@ export class PetService {
       // 注意：这里 history 还没加载，直接读一次历史文件取她上一句（本地 JSON，开销极小）
       const lastBotSaid =
         [...(this.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
-      const summonResult = applySummon(this.dataDir, say, lastBotSaid);
+      const summonResult = applySummon(this.dataDir, say, lastBotSaid, this._viewerActorId || 'husband');
       summonedNames = summonResult?.summoned || [];
       if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
       leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);
@@ -626,7 +626,7 @@ export class PetService {
     } catch (err) {
       console.warn('[Ritual] 状态推进失败：', err.message);
     }
-    // 绑定世界人物的成员：给她自己的身份卡，而不是配置里的角色卡
+    // 绑定世界人物的成员：AI 演「除她之外的所有人」
     // 收集「真有人名」白名单，供在场过滤与标签改写判断
     try {
       const wk = loadState(this.dataDir);
@@ -640,38 +640,23 @@ export class PetService {
 
     this._actorPersonaOverride = null;
     this._viewerActorId = actorId && actorId !== 'husband' ? actorId : null;
-    if (actorId && actorId !== 'husband') {
+    if (this._viewerActorId) {
       try {
         const wA = loadState(this.dataDir);
-        const a = wA.actors?.[actorId];
+        const a = wA.actors?.[this._viewerActorId];
         if (a) {
-          const spouse = Object.values(wA.actors || {}).find(
-            (x) => x && x.id !== actorId && x.id !== 'husband' && x.gender === 'male' && x.home && a.home && x.home === a.home,
-          );
-          // 真人登录某个世界人物时：AI 不演她，而是演「相公王甯」跟她对话
           this._actorPersonaOverride = [
-            '你是王甯，临江茶坊的少掌柜，运河码头大酒楼的东家。',
-            '你性子温润、有担当，说话不急不躁，心里装着生意、也装着眼前这个人。',
-            `此刻你正与${a.name}（${a.role || ''}）在一处说话。`,
-            '**你只演你自己（王甯）**：她说什么，你按你的性情、身份与处境回应；绝不替她说话、绝不替她做决定、绝不描述她的心理活动。',
-            '她说的话可能是真的、也可能是遮掩——你自己判断，不必点破，也不必全信。',
-            '**你是男人。** 自称只能是"我"，【绝对禁止】自称"妾身、奴家、小女子、人家"，也【禁止】用女腔撒娇。',
-            '用第一人称对白为主，动作与神态点到为止。',
+            `玩家扮演的是${a.name}（${a.role || ''}）。**你不演她**——她已经由真人控制。`,
+            '你负责演这个世界的其他人：在场的人（王甯、于杰、翟长盛、随科、小翠、阿吉、钱通海…）以及路人掌柜。',
+            '**谁在场，就由谁开口**；不在场的人不会说话，也不能凭空出现。',
+            '每个人的身份、性情、对玩家的态度，由【在场】与【你此刻知道的实况】决定。',
+            '绝不替玩家说话、绝不替她做决定、绝不描写她的心理活动，也不要写"她心想"。',
+            '她的话可能是试探、也可能是遮掩——你按人物本来的处境应答，不必点破，也不必全信。',
+            '台词一律用第一人称；动作、神态放圆括号里，点到为止。',
           ].join('\n');
         }
       } catch {
-        // 收集「真有人名」白名单，供在场过滤与标签改写判断
-    try {
-      const wk = loadState(this.dataDir);
-      this._knownNames = Object.values(wk.actors || {})
-        .flatMap((a) => [a?.name, a?.name && a.name.length > 2 ? a.name.slice(-2) : null, a?.label])
-        .filter(Boolean)
-        .concat(['王甯', '相公']);
-    } catch {
-      this._knownNames = ['王甯', '相公'];
-    }
-
-    this._actorPersonaOverride = null;
+        this._actorPersonaOverride = null;
       }
     }
 
@@ -1195,7 +1180,7 @@ export class PetService {
       console.warn('[Scene] 离席处理失败：', err.message);
     }
 
-    const sceneSync = this.syncSceneFromReply(reply, { skipHusbandMove: engineMovedHusband });
+    const sceneSync = this.syncSceneFromReply(reply, { skipHusbandMove: engineMovedHusband, selfId: this._viewerActorId || 'husband' });
       if (sceneSync) {
         console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
       }
@@ -1382,7 +1367,7 @@ export class PetService {
    * 硬对齐：天道常在开头写「【天道·运河码头大酒楼·后院账房】」这样的场景标记。
    * 只要出现这个标记，就把相公与本轮开口的人一起挪过去——不依赖模型是否记得写回执。
    */
-  syncSceneFromReply(text, { skipHusbandMove = false } = {}) {
+  syncSceneFromReply(text, { skipHusbandMove = false, selfId = 'husband' } = {}) {
     try {
       const m = String(text || '').match(/【天道[·:：]\s*([^】]{2,24})】/);
       if (!m) return null;
@@ -1397,7 +1382,7 @@ export class PetService {
       let headName = placeNameRaw[0];
 
       const world = loadState(this.dataDir);
-      const me = world.actors?.husband;
+      const me = world.actors?.[selfId] || world.actors?.husband;
       if (!me) return null;
 
       // 「【天道·林芸娘】」这种是人名不是地点 → 换成她所在之处，别建出「林芸娘处」
