@@ -256,6 +256,13 @@ export class PetService {
       lines.push('');
     }
 
+    // 最高优先级：放在人格卡之前，防止被后面的几十条规则稀释
+    lines.push('【在场铁律 · 最高优先】');
+    lines.push('本轮能开口的，只有【天机·在场/场合】里点到的人，加上你自己。');
+    lines.push('相公提到某个人（"怕她回来看到""她要是知道了"），**只是提到，不是到场**。');
+    lines.push('任何人都不能因为被提一句就推门进来；要进来，必须写出她怎么来的、为什么来。');
+    lines.push('');
+
     if (persona) {
       lines.push('【人格卡（你就是这个人）】');
       lines.push(persona);
