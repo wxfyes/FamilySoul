@@ -718,7 +718,38 @@ export function forceOf(world, who = 'husband') {
   return world.forces[who];
 }
 
+/** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
+export function migrateOwnership(world) {
+  if (!world || typeof world !== 'object') return world;
+  // 地点
+  for (const [id, p] of Object.entries(world.places || {})) {
+    if (!p || p.owner) continue;
+    if (id === 'street' || id === 'dock' || id === 'canal') p.owner = 'public';
+    else if (id === 'yamen') p.owner = 'court';
+    else if (id === 'yang_mansion') p.owner = 'yangzhenhua';
+    else if (id === 'wine_shop') p.owner = 'liuwenxia';
+    else if (id === 'goods_shop') p.owner = 'yangcaiyun';
+    else p.owner = 'husband';
+  }
+  // 势力
+  for (const [id, pw] of Object.entries(world.powers || {})) {
+    if (!pw || pw.ownerActor) continue;
+    if (id === 'wangjia') pw.ownerActor = 'husband';
+    else if (id === 'court') pw.ownerActor = 'court';
+  }
+  // 线索
+  for (const c of world.clues || []) {
+    if (c && !c.owner) c.owner = 'husband';
+  }
+  return world;
+}
+
 export function loadState(dataDir) {
+  const __w = __loadStateInner(dataDir);
+  return migrateOwnership(__w);
+}
+
+function __loadStateInner(dataDir) {
   const file = statePath(dataDir);
   const raw = readJson(file);
   if (!raw || typeof raw !== 'object') {
