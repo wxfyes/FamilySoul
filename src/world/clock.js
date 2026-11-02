@@ -740,7 +740,26 @@ function consumeSupplies(world) {
   }
 }
 
+function recordHistory(world) {
+  const day = Number(world.clock?.day) || 1;
+  world.history = Array.isArray(world.history) ? world.history : [];
+  if (world.history.some((h) => h && h.day === day)) return;
+  const cities = Object.values(world.cities || {}).filter(Boolean);
+  const unrest = cities.length ? Math.round(cities.reduce((a, c) => a + (Number(c.unrest) || 0), 0) / cities.length) : 0;
+  const price = cities.length ? Math.round(cities.reduce((a, c) => a + (Number(c.price) || 100), 0) / cities.length) : 100;
+  world.history.push({
+    day,
+    unrest,
+    price,
+    treasury: Math.round(Number(world.court?.treasury?.silver) || 0),
+    grain: Math.round(Number(world.court?.treasury?.grain) || 0),
+    silver: Math.round(Number(world.assets?.silver) || 0),
+  });
+  if (world.history.length > 40) world.history = world.history.slice(-40);
+}
+
 function onNewDay(world, events) {
+  try { recordHistory(world); } catch (e) { /* 忽略 */ }
   try {
     const spread = spreadRumors(world);
     if (spread.length) console.log(`[Rumor] 传开 ${spread.length} 次`);

@@ -174,6 +174,21 @@
     <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
   </section>
 
+  <section class="card">
+    <h2>趋势（近 14 日）</h2>
+    <div id="trend" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>盘点（为什么没动静）</h2>
+    <div id="diag" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>大事记时间线</h2>
+    <div id="timeline" class="muted" style="margin-top:6px">—</div>
+  </section>
+
   <section class="card full">
     <h2>关系网（谁跟谁一伙，谁跟谁有仇）</h2>
     <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
@@ -235,7 +250,7 @@
   </section>
 
   <section class="card full">
-    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志</span></h2>
+    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span></h2>
     <table>
       <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
       <tbody id="actors"></tbody>
@@ -600,8 +615,12 @@ function render(w){
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
   window.__lastWorld = w;
-  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); } catch (e) {}
-  const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
+  const officialIds = new Set(w.officeHolders || []);
+  const list = (w.actors||[])
+    .filter((a) => a && !officialIds.has(a.id))
+    .slice()
+    .sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   const shown = window.__actorExpand ? list : list.slice(0, 10);
   $('actors').innerHTML = shown.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};
@@ -658,6 +677,21 @@ async function renderNpcArcs(list) {
     : '暂时还没有动静（每 3 天各人自有一桩事）';
 }
 
+function openProp(name) {
+  const w = window.__lastWorld || {};
+  const p = (w.assets?.properties || []).find((x) => x && x.name === name);
+  if (!p) return;
+  const wage = (Number(p.staff) || 0) * 0.12;
+  const net = (Number(p.incomePerDay) || 0) - wage;
+  $('amName').textContent = `产业：${p.name}`;
+  $('amBody').innerHTML = `
+    <div>东家：${p.owner === 'husband' ? '王甯' : (p.owner || '—')}　掌柜：${p.keeper === 'husband' ? '王甯' : (p.keeper || '—')}</div>
+    <div>日入：${Number(p.incomePerDay || 0).toFixed(2)} 两　人手：${p.staff || 0} 人　工钱：${wage.toFixed(2)} 两/日</div>
+    <div>净入：<b>${net.toFixed(2)} 两/日</b>　月约：<b>${(net * 30).toFixed(1)} 两</b></div>
+    <div>状态：${p.status || '—'}　城市：${p.city || '—'}</div>`;
+  $('actorModal').style.display = 'block';
+}
+
 function openCity(name) {
   const w = window.__lastWorld || {};
   const c = (w.cities || {})[name];
@@ -711,6 +745,47 @@ async function openActor(id) {
   } catch (e) { /* 忽略 */ }
 }
 function closeActor() { $('actorModal').style.display = 'none'; }
+
+function sparkline(vals, color, label) {
+  if (!vals.length) return `<div class="muted">${label}：还没有数据</div>`;
+  const w = 260, h = 46, max = Math.max(1, ...vals), min = Math.min(...vals);
+  const span = Math.max(1, max - min);
+  const pts = vals.map((v, i) => `${(i / Math.max(1, vals.length - 1)) * w},${h - ((v - min) / span) * (h - 6) - 3}`).join(' ');
+  return `<div style="margin-bottom:6px"><span class="muted" style="font-size:11px">${label} ${vals[vals.length - 1]}</span>`
+    + `<svg width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/></svg></div>`;
+}
+function renderTrends(w) {
+  const el = $('trend');
+  if (!el) return;
+  const h = w.history || [];
+  el.innerHTML = sparkline(h.map((x) => x.unrest), '#e05a5a', '民心不安')
+    + sparkline(h.map((x) => x.price), '#d8c48a', '物价')
+    + sparkline(h.map((x) => x.treasury), '#7BD88F', '国库')
+    + `<div class="muted" style="font-size:11px">趋势向上＝在变坏（民心/物价）</div>`;
+}
+function renderDiag(w) {
+  const el = $('diag');
+  if (!el) return;
+  const rows = [];
+  const day = w.clock?.day || 1, hour = w.clock?.hour || 0;
+  if (!(w.cases || []).length) rows.push(`没有案子：民间案子每天卯时（6点）才可能出，现在第${day}日${hour}时`);
+  if (!(w.rumors || []).length) rows.push('没有风评：判了案、出了大事才会生风评');
+  const unrest = (w.cities ? Object.values(w.cities) : []).reduce((a, c) => a + (Number(c.unrest) || 0), 0) / Math.max(1, Object.keys(w.cities || {}).length);
+  rows.push(`平均民心不安 ${Math.round(unrest)}（≥85 才会民变）`);
+  if (!(w.npcArcs || []).length) rows.push('NPC 命运还没生成：每个心跳补 5 个');
+  el.innerHTML = rows.map((r) => `<div class="row"><span>${r}</span></div>`).join('');
+}
+function renderTimeline(w) {
+  const el = $('timeline');
+  if (!el) return;
+  const evs = (w.recentEvents || []).slice(-40);
+  if (!evs.length) { el.innerHTML = '还没有大事'; return; }
+  const byDay = {};
+  evs.forEach((e) => { const d = e.day || (w.clock?.day || 1); (byDay[d] = byDay[d] || []).push(e.text || e.payload?.text || e.action); });
+  el.innerHTML = Object.keys(byDay).sort((a, b) => b - a).slice(0, 6).map((d) =>
+    `<div style="margin-bottom:6px"><b>第${d}日</b><div style="margin-left:10px">${byDay[d].slice(-6).map((t) => `· ${t}`).join('<br>')}</div></div>`
+  ).join('');
+}
 
 function renderBondMap(w) {
   const el = $('bondmap');

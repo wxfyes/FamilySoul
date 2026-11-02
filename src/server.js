@@ -1593,6 +1593,8 @@ const STARTED_AT = Date.now();
         garrisons: world.garrisons || {},
         marches: (world.marches || []).map((m) => ({ to: m.to, count: m.count, arriveDay: m.arriveDay })),
         imperialArmy: world.imperialArmy || null,
+        officeHolders: Object.values(world.court?.offices || {}).map((o) => o && o.holder).filter(Boolean),
+        history: (world.history || []).slice(-14),
         bondEdges: (() => {
           const seen = new Set();
           const out = [];
