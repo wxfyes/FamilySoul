@@ -8,6 +8,7 @@ import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from '.
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
 import { applySummon, applyNpcDeparture } from './world/summon.js';
+import { auditReply } from './world/audit.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -1331,6 +1332,35 @@ export class PetService {
       if (!reply) reply = '……';
     const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps, { selfId: this._viewerActorId }) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
+
+      // 兜底记账：付了钱却没记 → 按"上一句报价 + 这一句答应买"两段式对账
+      // 五道闸门：①这一句有购买动作 ②上一句报了价 ③不是"免了/回头再给" ④金额不离谱 ⑤这轮还没记过花销
+      try {
+        const alreadyPaid = applied.some((x) => /花销|银两|资产/.test(String(x)));
+        const buyWords = /(买|要了|来一|来两|来半|付钱|付账|结账|打赏|雇|租下|住下|拿走|带走|打包|就要这个|成，|好，就)/;
+        const freeWords = /(不要钱|送你|免了|不必|算了|回头再给|下回给|记在账上|赊着)/;
+        const prevBot = [...(this.readHistory(profileKey).messages || [])].reverse().find((x) => x.role !== 'user')?.text || '';
+        if (!alreadyPaid && buyWords.test(say) && !freeWords.test(String(prevBot))) {
+          const m = String(prevBot).match(/([0-9]+|[一二三四五六七八九十百千]+)\s*(文|两)(?:银|钱|整)?/);
+          if (m) {
+            const raw = m[1];
+            const unit = m[2];
+            const num = /^[0-9]/.test(raw) ? Number(raw) : cnNum(raw);
+            const liang = unit === '文' ? num / 1000 : num;
+            if (Number.isFinite(liang) && liang > 0 && liang <= 5) {
+              const paid = applyWorldTags(this.dataDir, [{ kind: 'spend', args: { amount: liang, unit: '两', reason: '对话消费' } }], {
+                selfId: this._viewerActorId || 'husband',
+              });
+              if (paid.length > 0) console.log(`[Ledger] 兜底扣款 ${num}${unit}：${paid.join('、')}`);
+              else console.log(`[Ledger] 兜底扣款未成（钱不够）：${num}${unit}`);
+            } else {
+              console.log(`[Ledger] 金额可疑，未自动扣：${num}${unit}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Ledger] 兜底扣款失败：', err.message);
+      }
 
       // 主模型没写回执 → 记账员在后台补记（不阻塞回复，否则容易拖到客户端超时）
       let changed = applied.length > 0;
