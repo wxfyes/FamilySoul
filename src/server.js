@@ -155,7 +155,9 @@ function getFamilyProfiles() {
           role: v.role || '贴心管家',
           title: v.title || k,
           presence: v.presence || '随时在线陪伴',
-          description: v.description || '自定义受邀成员 / 知心挚友'
+          description: v.description || '自定义受邀成员 / 知心挚友',
+          // 绑定世界人物：这名成员登录后就是账本里的那个人（如刘文霞本人）
+          actor: v.actor || null,
         };
       }
     }
@@ -552,6 +554,39 @@ const STARTED_AT = Date.now();
         saveState(DATA_DIR, world);
         console.log(`[World] 时钟已对齐现实：第${world.clock.day}日 ${world.clock.hour}时`);
         return sendJson(res, 200, { ok: true, clock: world.clock });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.32 重置某个世界人物的线 POST /api/admin/actor/reset（清空关系/身孕/与她有关的记忆）
+    if (req.method === 'POST' && pathname === '/api/admin/actor/reset') {
+      try {
+        const body = await parseJsonBody(req, 128 * 1024);
+        const world = peek(DATA_DIR);
+        const ids = Array.isArray(body.ids) ? body.ids : [body.id].filter(Boolean);
+        const done = [];
+        for (const id of ids) {
+          const a = world.actors?.[id];
+          if (!a) continue;
+          if (body.relations !== false) {
+            a.relations = { ...(a.relations || {}), husband: { trust: 30, desire: 20, fear: 0, grievance: 0 } };
+          }
+          if (body.clearPregnancy !== false) delete a.pregnancy;
+          if (body.consummated === false && a.intimacy) {
+            a.intimacy = { level: 0, tone: 0, ritual: 'solemn' };
+          }
+          if (body.clearMemories !== false) {
+            const before = (world.memories || []).length;
+            world.memories = (world.memories || []).filter((m) => !String(m?.text || '').includes(a.name));
+            done.push(`${a.name}（记忆 -${before - world.memories.length}）`);
+          } else {
+            done.push(a.name);
+          }
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Reset] 已重置：${done.join('、')}`);
+        return sendJson(res, 200, { ok: true, done });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
