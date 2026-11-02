@@ -158,6 +158,11 @@
   </section>
 
   <section class="card full">
+    <h2>山川（地形）</h2>
+    <div id="terrain">—</div>
+  </section>
+
+  <section class="card full">
     <h2>天下（城池归属）</h2>
     <div id="cities">—</div>
   </section>
@@ -367,6 +372,16 @@ function render(w){
       `</div></div>`
     : '<div class="muted">朝廷未设官</div>';
   $('court').innerHTML = mandateHtml + courtBody;
+
+  // ── 山川 ──────────────────────────────
+  const ter = w.terrain || [];
+  const terKind = { river: '江河水道', canal: '运河', mountain: '山脉', pass: '关隘', lake: '湖泽' };
+  const terHtml = ter.map((t) =>
+    `<span class="chip" title="${(t.cities || []).join('、')}"><b>${t.name}</b>&nbsp;<span class="muted">${terKind[t.kind] || t.kind}</span></span>`
+  ).join('');
+  $('terrain').innerHTML = ter.length
+    ? `<div class="geo-chips" style="display:flex">${terHtml}</div><div class="muted" style="margin-top:6px">关隘加守备 30%，山脉加 15%；沿江沿运富庶 +10%。鼠标悬停看经过哪些城。</div>`
+    : '<div class="muted">还没有山川</div>';
 
   // ── 天下 ──────────────────────────────
   const powers = w.powers || {};

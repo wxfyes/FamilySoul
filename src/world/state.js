@@ -302,6 +302,20 @@ export function createInitialState(dataDir) {
         { name: '淮北道', cities: ['徐州府', '宿州府'] },
       ],
     },
+    // 山川河流：地形会真的影响守备与商路
+    terrain: [
+      { id: 'yangtze', name: '长江', kind: 'river', cities: ['临江府', '扬州府', '松江府', '江陵府', '潭州府'], note: '水路通天下，商船昼夜不绝' },
+      { id: 'yellow', name: '黄河', kind: 'river', cities: ['开封府', '归德府', '徐州府', '济南府'], note: '屡屡决口，沿河州县十年九灾' },
+      { id: 'grand_canal', name: '大运河', kind: 'canal', cities: ['临江府', '扬州府', '淮安府', '京城', '苏州府'], note: '漕运命脉，朝廷看得极紧' },
+      { id: 'taihang', name: '太行山', kind: 'mountain', cities: ['大同府', '平阳府', '冀州府'], note: '山道险绝，一夫当关' },
+      { id: 'qinling', name: '秦岭', kind: 'mountain', cities: ['长安府', '凤翔府', '秦州府'], note: '南北之界，翻山极难' },
+      { id: 'taishan', name: '泰山', kind: 'mountain', cities: ['济南府', '兖州府'], note: '五岳之尊，天子封禅之地' },
+      { id: 'shanhaiguan', name: '山海关', kind: 'pass', cities: ['辽阳府', '金州府'], note: '关外门户，失之则中原震动' },
+      { id: 'jianmenguan', name: '剑门关', kind: 'pass', cities: ['绵州府', '嘉州府'], note: '蜀道之险，咽喉所在' },
+      { id: 'dongting', name: '洞庭湖', kind: 'lake', cities: ['江陵府', '潭州府'], note: '水阔浪急，渔米之乡' },
+      { id: 'boyang', name: '鄱阳湖', kind: 'lake', cities: ['洪州府', '赣州府'], note: '鱼米丰足，亦多水患' },
+    ],
+
     // 朝廷：官职（可被杀、可被顶替）与律法
     court: {
       emperor: '乾宁帝',
@@ -616,6 +630,25 @@ export function ensureCourt(world) {
   return world.court;
 }
 
+/** 山河落地：关隘加守备、水运加富庶（只加一次，用 flag 记着）*/
+export function ensureTerrain(world) {
+  world.terrain = Array.isArray(world.terrain) ? world.terrain : [];
+  world.flags = world.flags || {};
+  if (world.flags.terrainApplied) return world.terrain;
+  for (const t of world.terrain) {
+    for (const cn of t.cities || []) {
+      const ct = world.cities?.[cn];
+      if (!ct) continue;
+      if (t.kind === 'pass') ct.defense = Math.round((Number(ct.defense) || 10) * 1.3);
+      if (t.kind === 'mountain') ct.defense = Math.round((Number(ct.defense) || 10) * 1.15);
+      if (t.kind === 'river' || t.kind === 'canal') ct.wealth = Math.round((Number(ct.wealth) || 40) * 1.1);
+      if (t.kind === 'lake') ct.wealth = Math.round((Number(ct.wealth) || 40) * 1.05);
+    }
+  }
+  world.flags.terrainApplied = true;
+  return world.terrain;
+}
+
 export function ensureCities(world) {
   world.cities = world.cities && typeof world.cities === 'object' ? world.cities : {};
   const regions = world.geo?.regions || [];
@@ -745,6 +778,7 @@ export function loadState(dataDir) {
     military: { ...base.military, ...(raw.military || {}) },
     forces: { ...base.forces, ...(raw.forces || {}) },
     allies: { ...base.allies, ...(raw.allies || {}) },
+    terrain: Array.isArray(raw.terrain) && raw.terrain.length ? raw.terrain : base.terrain,
     court: (() => {
       const m = { ...base.court, ...(raw.court || {}) };
       m.mandate = { ...base.court.mandate, ...(raw.court?.mandate || {}) };

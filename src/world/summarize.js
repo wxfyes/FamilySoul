@@ -331,6 +331,17 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       }
       lines.push(`【名声】士绅口碑${world.reputation ?? 50} · 官府通缉${world.wanted ?? 0}`);
       try {
+        const here = world.actors?.[viewer || 'husband']?.location;
+        const hereCity = world.places?.[here]?.name || '';
+        const near = (world.terrain || []).filter((t) => (t.cities || []).some((cn) => hereCity.includes(String(cn).replace('府', '')) || String(cn).includes(hereCity)));
+        const list = near.length ? near : (world.terrain || []).slice(0, 3);
+        if (list.length) {
+          lines.push(`【山河】${list.map((t) => `${t.name}（${t.note}）`).join('；')}`);
+        }
+      } catch {
+        /* 忽略 */
+      }
+      try {
         const key = viewer || 'husband';
         const allies = (world.allies?.[key] || []).map((id) => world.actors?.[id]?.name).filter(Boolean);
         if (allies.length) lines.push(`【盟友】${allies.join('、')}（可合兵）`);

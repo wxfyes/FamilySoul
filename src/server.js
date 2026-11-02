@@ -17,7 +17,7 @@ import { auditWorld } from './world/audit.js';
 import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
-import { ensureCities, ensureCourt } from './world/state.js';
+import { ensureCities, ensureCourt, ensureTerrain } from './world/state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1168,6 +1168,7 @@ const STARTED_AT = Date.now();
           powers: world.powers || null,
           court: world.court || null,
           chosen: world.flags?.chosenName || null,
+          terrain: world.terrain || [],
           courtPressure: Number(world.flags?.courtPressure) || 0,
           cities: world.cities || null,
           infra: world.infra || null,
@@ -1690,6 +1691,7 @@ server.listen(PORT, '0.0.0.0', () => {
     ensureArcs(wA);
     ensureCities(wA);
     ensureCourt(wA);
+    ensureTerrain(wA);
     saveState(DATA_DIR, wA);
     console.log(`[Arc] 已播种 ${Object.keys(wA.arcs || {}).length} 条个人主线`);
   } catch (err) {

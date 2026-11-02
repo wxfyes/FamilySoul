@@ -16,7 +16,7 @@ import {
 } from './state.js';
 import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
-import { ensureCourt, forceOf } from './state.js';
+import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs } from './arcs.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -529,6 +529,7 @@ function advanceHour(world, events, nowMs) {
     try {
       ensureArcs(world);
       ensureCourt(world);
+      ensureTerrain(world);
       advanceArcs(world, events, (opts) => queueProactive(world, { type: 'arc', ...opts }), nextEvent);
     } catch (err) {
       console.warn('[Arc] 主线推进失败：', err.message);
