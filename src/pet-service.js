@@ -709,7 +709,36 @@ export class PetService {
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = contextHintEarly;
-    // 锁定本轮对话对象：上一轮 AI 是谁，就继续由谁接话（除非相公明确点了别人）
+    // 她此刻所在：东家、掌柜、在场名单——压到最后，防止模型凭空造人
+    try {
+      if (this._viewerActorId) {
+        const wHere = loadState(this.dataDir);
+        const meA = wHere.actors?.[this._viewerActorId];
+        const locId = meA?.location;
+        const locName = String(wHere.places?.[locId]?.name || '');
+        const place = wHere.places?.[locId];
+        const prop = (wHere.assets?.properties || []).find((p) => {
+          const pn = String(p?.name || '');
+          if (!pn || !locName) return false;
+          return locName.includes(pn) || pn.includes(locName) || locName.includes(pn.slice(-3));
+        });
+        const ownerName = prop?.owner === 'husband' ? '王甯' : (wHere.actors?.[prop?.owner]?.name || '');
+        const keeperName = wHere.actors?.[prop?.keeper]?.name || '';
+        const hereNames = Object.values(wHere.actors || {})
+          .filter((a) => a && !a.dead && a.id !== this._viewerActorId && a.location === locId)
+          .map((a) => `${a.name}（${a.role || '在场'}）`);
+        const bits = [`你现在在「${locName || '未明'}」`];
+        if (place?.owner === 'public') bits.push('这是公家地方，没有东家');
+        else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
+        if (keeperName) bits.push(`掌柜是「${keeperName}」`);
+        bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        contextHint += `（【此间铁律】${bits.join('；')}。名单之外的人一律不在此处，**绝不许虚构管账先生、新来的伙计、小翠姐之类的人物或职位**；有人问掌柜/东家，就按这里写的答。）\n`;
+      }
+    } catch {
+      /* 忽略 */
+    }
+
+    // 锁定本轮对话对象：上一轮 AI 是谁，就继续由它接话（除非相公明确点了别人）
     try {
       const wL = loadState(this.dataDir);
       const locked = wL.flags?.partner?.[profileKey];
