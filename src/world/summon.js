@@ -115,6 +115,14 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
       const p = world.places[pid];
       if (me.location !== pid) {
         me.location = pid;
+        // 到了从没去过的城 → 让天道把这条街补出来
+        try {
+          const cityName = Object.keys(world.cities || {}).find((c) => String(p.name || '').includes(c) || String(c).includes(String(p.name || '')));
+          if (cityName && !(world.cityShops || {})[cityName]) {
+            world.flags = world.flags || {};
+            world.flags.pendingCityShop = cityName;
+          }
+        } catch { /* 忽略 */ }
         saveState(dataDir, world);
         return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: p.name };
       }

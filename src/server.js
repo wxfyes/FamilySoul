@@ -2104,6 +2104,63 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
+  // 天下不止一座城：走到哪座城，天道就把那条街补出来（每城一次）
+  async function generateCityShops() {
+    try {
+      const w = peek(DATA_DIR);
+      const city = String(w.flags?.pendingCityShop || '');
+      if (!city) return;
+      const regions = Object.keys(w.cities || {});
+      const prompt = [
+        `你是天道，正在铺设${city}的街市。`,
+        '给这座城写 4 家铺子，各配一个当家的。只输出 JSON 数组：',
+        '[{"shop":"铺名","kind":"行当","who":"掌柜名","role":"掌柜身份"}]',
+        '铺子要符合这座城的脾性（有的临水多船行，有的近山多山货），不要四家都是茶馆。',
+      ].join('\n');
+      const res = await petService.llmClient.complete({
+        system: '只输出 JSON 数组，不要解释。',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 260,
+        temperature: 0.95,
+      });
+      const raw = String(res?.text || '');
+      const m = raw.match(/\[[\s\S]*\]/);
+      let list = [];
+      try { list = m ? JSON.parse(m[0]) : []; } catch { list = []; }
+      const w2 = peek(DATA_DIR);
+      w2.flags = w2.flags || {};
+      w2.flags.pendingCityShop = '';
+      w2.cityShops = w2.cityShops || {};
+      w2.cityShops[city] = true;
+      w2.places = w2.places || {};
+      let made = 0;
+      for (const item of Array.isArray(list) ? list.slice(0, 4) : []) {
+        const shop = String(item?.shop || '').slice(0, 12);
+        const who = String(item?.who || '').slice(0, 8);
+        const kind = String(item?.kind || '铺子').slice(0, 8);
+        const role = String(item?.role || kind).slice(0, 12);
+        if (!shop || !who) continue;
+        if (Object.values(w2.actors).some((a) => a?.name === who)) continue;
+        w2.flags.placeSeq = (Number(w2.flags.placeSeq) || 0) + 1;
+        const pid = `place_${w2.flags.placeSeq}`;
+        w2.places[pid] = { name: `${city}·${shop}`.slice(0, 20), exits: ['street'], dynamic: true, city };
+        w2.flags.npcSeq = (Number(w2.flags.npcSeq) || 0) + 1;
+        const nid = `npc_${w2.flags.npcSeq}`;
+        w2.actors[nid] = {
+          id: nid, name: who, role, gender: 'female', origin: 'spawned',
+          home: pid, location: pid, city,
+          relations: { husband: { trust: 30, desire: 10, fear: 0, grievance: 0 } },
+          schedule: [], goals: [],
+        };
+        made += 1;
+      }
+      saveState(DATA_DIR, w2);
+      console.log(`[City] ${city} 补出 ${made} 家铺子`);
+    } catch (err) {
+      console.warn('[City] 补街市失败：', err.message);
+    }
+  }
+
   // 朝议：每 5 天由天道下一道旨（加税/赈灾/征役…），进而推动民心
   async function generateDecree() {
     try {
@@ -2195,6 +2252,7 @@ server.listen(PORT, '0.0.0.0', () => {
         await fillProactiveTexts();
         await generateNpcArcs();
         await generateDecree();
+        await generateCityShops();
       },
     });
   } catch (err) {
