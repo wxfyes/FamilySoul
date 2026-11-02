@@ -16,6 +16,8 @@ class MyWorldScreen extends StatefulWidget {
 
 class _MyWorldScreenState extends State<MyWorldScreen> {
   Map<String, dynamic>? _data;
+  List<Map<String, dynamic>> _who = const [];
+  final TextEditingController _whoCtrl = TextEditingController();
   bool _loading = true;
   String? _error;
 
@@ -31,11 +33,24 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _whoCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadWho({String q = ''}) async {
+    final rows = await widget.api.fetchWho(q: q);
+    if (!mounted) return;
+    setState(() => _who = rows);
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+    await _loadWho();
     final data = await widget.api.fetchMyWorld();
     if (!mounted) return;
     setState(() {
@@ -355,6 +370,63 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
           ),
         ),
       ],
+
+      // 行踪：谁在哪
+      _sectionTitle('行踪（谁在哪）'),
+      _cardShell(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _whoCtrl,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: '搜名字或身份',
+                      hintStyle: const TextStyle(color: _muted, fontSize: 12),
+                      filled: true,
+                      fillColor: const Color(0xFF1B2029),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onSubmitted: (v) => _loadWho(q: v.trim()),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(onPressed: () => _loadWho(q: _whoCtrl.text.trim()), child: const Text('查')),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (_who.isEmpty)
+              const Text('没找到人', style: TextStyle(color: _muted, fontSize: 12.5))
+            else
+              for (final w in _who)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    children: [
+                      if (w['here'] == true)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Icon(Icons.place, size: 13, color: Color(0xFF7BD88F)),
+                        ),
+                      Expanded(
+                        child: Text(
+                          '${w['name']}  ${w['role'] ?? ''}',
+                          style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text('${w['place'] ?? ''}', style: const TextStyle(color: _muted, fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
 
       // 名声
       _sectionTitle('名声'),

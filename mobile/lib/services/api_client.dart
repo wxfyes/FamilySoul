@@ -48,6 +48,17 @@ class SurfCoreApiClient {
     return null;
   }
 
+  /// 行踪：谁在哪（只返回名字/身份/地点）
+  Future<List<Map<String, dynamic>>> fetchWho({String q = ''}) async {
+    try {
+      final res = await _dio.get('/api/who', queryParameters: {'token': config.token.trim(), if (q.isNotEmpty) 'q': q});
+      if (res.statusCode == 200 && res.data is Map && res.data['rows'] is List) {
+        return (res.data['rows'] as List).cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
   /// 检查服务连通性与健康状态
   Future<bool> checkHealth() async {
     for (var attempt = 0; attempt < 2; attempt++) {
