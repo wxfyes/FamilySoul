@@ -1534,6 +1534,14 @@ const STARTED_AT = Date.now();
           promises: (world.promises || []).filter((p) => p && !p.done),
           quotes: (world.quotes || []).slice(-40),
           arcs: world.arcs || {},
+        rumors: (world.rumors || []).slice(-10).map((r) => ({ text: r.text, weight: r.weight, reach: (r.heardBy || []).length, tone: r.tone, day: r.day })),
+        cases: (world.cases || []).slice(-8).map((c) => ({ id: c.id, who: c.who, against: c.against, claim: c.claim, status: c.status, verdict: c.verdict, reason: c.reason || '', hearing: c.hearing || '', day: c.day })),
+        guilds: Object.values(world.guilds || {}).map((g) => ({ name: g.name, head: world.actors?.[g.head]?.name || g.headName || '', dues: g.dues, power: g.power, attitude: g.attitude || '' })),
+        foreign: Object.values(world.foreign || {}).map((n) => ({ name: n.name, relation: n.relation, army: n.army, wants: n.wants })),
+        envoy: world.envoy || null,
+        garrisons: world.garrisons || {},
+        marches: (world.marches || []).map((m) => ({ to: m.to, count: m.count, arriveDay: m.arriveDay })),
+        imperialArmy: world.imperialArmy || null,
         npcArcs: Object.entries(world.npcArcs || {})
           .filter(([, a]) => a && a.lastStep)
           .map(([id, a]) => ({ id, name: world.actors?.[id]?.name || id, text: a.lastStep, day: a.day || 0 }))

@@ -174,6 +174,21 @@
     <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
   </section>
 
+  <section class="card">
+    <h2>街面风评</h2>
+    <div id="rumors" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>案子</h2>
+    <div id="cases" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>天下（行会 · 外交 · 驻军）</h2>
+    <div id="realm" class="muted" style="margin-top:6px">—</div>
+  </section>
+
   <section class="card full">
     <h2>朝中（官职）</h2>
     <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
@@ -579,7 +594,7 @@ function render(w){
       <span>${r.when}${(r.kind==='承诺'||r.kind==='暗涌')?` <span class="todo-del" data-kind="${r.kind==='暗涌'?'pending':'promise'}" data-text="${String(r.title||'').replace(/"/g,'&quot;')}">✕</span>`:''}</span>
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
-  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); } catch (e) {}
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); } catch (e) {}
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   const shown = window.__actorExpand ? list : list.slice(0, 10);
   $('actors').innerHTML = shown.map(a=>{
@@ -635,6 +650,35 @@ async function renderNpcArcs(list) {
   el.innerHTML = rows.length
     ? rows.map((x) => `<div class="row"><span><b>${x.name}</b></span><span class="muted" style="max-width:70%;text-align:right">${x.text}</span></div>`).join('')
     : '暂时还没有动静（每 3 天各人自有一桩事）';
+}
+
+function renderWorldExtras(w) {
+  const rum = $('rumors');
+  if (rum) {
+    const list = (w.rumors || []).slice(-6).reverse();
+    rum.innerHTML = list.length
+      ? list.map((r) => `<div class="row"><span>${r.tone < 0 ? '🔻' : r.tone > 0 ? '🔺' : '·'} ${r.text}</span><span class="muted">${r.reach}人知</span></div>`).join('')
+      : '街上还平静';
+  }
+  const cs = $('cases');
+  if (cs) {
+    const list = (w.cases || []).slice(-6).reverse();
+    const st = { filed: '待审', summoned: '已传唤', hearing: '开审中', judged: '已判' };
+    cs.innerHTML = list.length
+      ? list.map((c) => `<div class="row"><span>${c.who} 告 ${c.against}·${c.claim}</span><span class="muted">${st[c.status] || c.status}${c.verdict ? '·' + (c.verdict === 'guilty' ? '有罪' : '无罪') : ''}</span></div>`).join('')
+      : '衙门清闲';
+  }
+  const rm = $('realm');
+  if (rm) {
+    const g = (w.guilds || []).map((x) => `${x.name}·${x.head}(${x.attitude === 'hostile' ? '敌视' : x.attitude === 'friendly' ? '亲近' : '一般'})`).join('　');
+    const f = (w.foreign || []).map((x) => `${x.name}(${Math.round(x.relation)})`).join('　');
+    const gs = Object.entries(w.garrisons || {}).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`).join('　');
+    rm.innerHTML = `<div class="row"><span>行会</span><span class="muted" style="text-align:right;max-width:75%">${g || '—'}</span></div>`
+      + `<div class="row"><span>邻国</span><span class="muted" style="text-align:right;max-width:75%">${f || '—'}</span></div>`
+      + `<div class="row"><span>驻军</span><span class="muted">${gs || '—'}</span></div>`
+      + (w.envoy ? `<div class="row"><span>使节</span><span class="muted">${w.envoy.name} 求${w.envoy.demand}</span></div>` : '')
+      + (w.imperialArmy ? `<div class="row"><span>官军</span><span class="muted" style="color:#e05a5a">${w.imperialArmy.count}人 → ${w.imperialArmy.target}（第${w.imperialArmy.arriveDay}日到）</span></div>` : '');
+  }
 }
 
 function renderTreasury(court) {
