@@ -312,6 +312,14 @@ export function createInitialState(dataDir) {
         governor: { title: '江南巡抚', holder: 'zhenghuaian', vacant: false },
         prefect: { title: '临江知府', holder: 'yangshenzhi', vacant: false },
       },
+      // 天意：皇帝是什么人、天道允不允许动他
+      mandate: {
+        quality: 'benevolent_deceived', // 仁君·被蒙蔽
+        note: '一心想着赈济天下，银子却一层层被官员剥走，到百姓手里所剩无几',
+        wrath: false,                    // 天道是否已降罚
+      },
+      // 待决之事（杀不杀皇帝，得先让人知道真相）
+      decisions: [],
       law: {
         murder: '杀人者死',
         taxCap: 30,
@@ -737,7 +745,12 @@ export function loadState(dataDir) {
     military: { ...base.military, ...(raw.military || {}) },
     forces: { ...base.forces, ...(raw.forces || {}) },
     allies: { ...base.allies, ...(raw.allies || {}) },
-    court: { ...base.court, ...(raw.court || {}) },
+    court: (() => {
+      const m = { ...base.court, ...(raw.court || {}) };
+      m.mandate = { ...base.court.mandate, ...(raw.court?.mandate || {}) };
+      m.decisions = Array.isArray(raw.court?.decisions) ? raw.court.decisions : [];
+      return m;
+    })(),
     reputation: Number.isFinite(Number(raw.reputation)) ? Number(raw.reputation) : 50,
     wanted: Number.isFinite(Number(raw.wanted)) ? Number(raw.wanted) : 0,
     infra: { ...base.infra, ...(raw.infra || {}) },

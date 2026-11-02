@@ -1167,6 +1167,7 @@ const STARTED_AT = Date.now();
           military: world.military || null,
           powers: world.powers || null,
           court: world.court || null,
+          chosen: world.flags?.chosenName || null,
           courtPressure: Number(world.flags?.courtPressure) || 0,
           cities: world.cities || null,
           infra: world.infra || null,

@@ -306,6 +306,17 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
           return `${o.title}${holder ? ':' + holder : '（空缺）'}`;
         });
         if (offs.length) lines.push(`【朝中】${offs.join('、')}`);
+        const mnd = world.court?.mandate || {};
+        if (mnd.quality) {
+          lines.push(`【天意】${mnd.quality === 'benevolent_deceived' ? '当今天子并非昏君，只是被权臣蒙蔽' : '当今天子'}：${mnd.note || ''}${mnd.wrath ? '（天道已降罚，天下大乱）' : ''}`);
+        }
+        const dec = (world.court?.decisions || []).filter((d) => d.kind === 'regicide');
+        if (dec.length) {
+          lines.push('【待决】相公已动过弑君之念。天道示警：杀的是被蒙蔽的仁君，真凶在朝中。你要把这话说给他听，等他亲口定夺——他不改口才可动手。');
+        }
+        if (world.flags?.chosenName && mnd.wrath) {
+          lines.push(`【天命】${world.flags.chosenName} 已应运而起，各地义军并立`);
+        }
       } catch {
         /* 忽略 */
       }

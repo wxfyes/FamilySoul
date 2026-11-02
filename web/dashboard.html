@@ -353,13 +353,20 @@ function render(w){
     const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
     return !o.holder ? '<span class="bad">空缺</span>' : (actor ? actor.name : o.holder + '（未入世）');
   };
-  $('court').innerHTML = offsAll.length
+  const mnd = court.mandate || {};
+  const decCount = (court.decisions || []).length;
+  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君·被蒙蔽' : '当今天子';
+  const mandateHtml = mnd.quality
+    ? `<div class="row" style="border:1px dashed #2a2f3a;border-radius:6px;padding:6px 8px;margin-bottom:8px"><span>天意</span><span class="muted">${mandateTxt} · ${mnd.note || ''}${mnd.wrath ? ' · <span class="bad">天罚已降</span>' : ''}${decCount ? ' · <span class="bad">有弑君待决</span>' : ''}</span></div>`
+    : '';
+  const courtBody = offsAll.length
     ? `<div class="off-block"><div class="off-title">中枢</div><div class="off-grid">` +
       central.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
       `</div></div><div class="off-block"><div class="off-title">各府父母官（${local.length}）</div><div class="off-grid">` +
       local.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
       `</div></div>`
     : '<div class="muted">朝廷未设官</div>';
+  $('court').innerHTML = mandateHtml + courtBody;
 
   // ── 天下 ──────────────────────────────
   const powers = w.powers || {};

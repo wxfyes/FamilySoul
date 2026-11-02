@@ -307,6 +307,31 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         const id = resolveActor(world, args.who || args.name);
         const a = id && world.actors[id];
         if (!a || a.id === 'husband') continue;
+        // 动天子 → 先起一桩天道示警，不能一杀了之
+        if (id === 'emperor' && !args.confirmed) {
+          world.court = world.court || {};
+          world.court.decisions = Array.isArray(world.court.decisions) ? world.court.decisions : [];
+          const dm = world.court.mandate || {};
+          world.court.decisions.push({
+            id: `d_${world.clock.day}_${world.court.decisions.length}`,
+            kind: 'regicide',
+            target: 'emperor',
+            createdDay: world.clock.day,
+          });
+          applied.push(
+            `天道示警:天子${a.name}是${dm.quality === 'benevolent_deceived' ? '被权臣蒙蔽的仁君' : '昏君'}——${dm.note || ''}。真要动手，须再下一次决心。`,
+          );
+          events.push(
+            nextEvent(world, {
+              action: 'heaven_warning',
+              actor: 'husband',
+              place: '京城',
+              payload: { text: '天道示警：天子被蒙蔽，杀之恐招天罚' },
+              isPublic: false,
+            }),
+          );
+          continue;
+        }
         a.dead = true;
         a.deadDay = world.clock.day;
         if (a.office && world.court?.offices?.[a.office]) {
@@ -322,6 +347,52 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
             actor: id,
             place: a.location || null,
             payload: { text: `${a.name}死了` },
+            isPublic: true,
+          }),
+        );
+      } else if (kind === 'regicide') {
+        // 杀了被蒙蔽的仁君：天下大乱，天道另择天命之人
+        const emp = world.actors?.emperor;
+        if (!emp || emp.dead) continue;
+        emp.dead = true;
+        emp.deadDay = world.clock.day;
+        const off = world.court?.offices?.emperor;
+        if (off) {
+          off.holder = null;
+          off.vacant = true;
+        }
+        world.court.decisions = [];
+        world.court.mandate = { ...(world.court.mandate || {}), wrath: true, wrathDay: world.clock.day };
+        world.wanted = 100;
+        world.reputation = Math.max(0, (Number(world.reputation) || 50) - 40);
+
+        // 天下大乱：各城民心崩、守备乱
+        for (const ct of Object.values(world.cities || {})) {
+          if (!ct) continue;
+          ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 30);
+          ct.defense = Math.max(3, Math.round((Number(ct.defense) || 10) * 0.7));
+        }
+        // 各地义军并起
+        world.powers = world.powers || {};
+        for (const nm of ['山东义军', '河北义军', '关中义军']) {
+          const id = `rebel_${nm}`;
+          if (!world.powers[id]) {
+            world.powers[id] = { name: nm, kind: '义军', power: 20, relation: -20, troops: 2000 + Math.floor(Math.random() * 3000), note: '闻天子遇弑，起兵讨逆' };
+          }
+        }
+        // 天道另择天命之人
+        const given = ['景琰', '怀瑾', '承煜', '明恪', '子期'];
+        const surname = ['刘', '李', '赵', '陈', '萧'][Math.floor(Math.random() * 5)];
+        const chosenName = surname + given[Math.floor(Math.random() * given.length)];
+        world.flags.chosenName = chosenName;
+        world.powers.chosen = { name: `${chosenName}（天命所归）`, kind: '义军', power: 40, relation: -30, troops: 3000, note: '应运而起，众望所归' };
+        applied.push(`弑君:天罚降临，${chosenName} 应运而起`);
+        events.push(
+          nextEvent(world, {
+            action: 'regicide',
+            actor: 'husband',
+            place: '京城',
+            payload: { text: `天子遇弑，天下大乱，${chosenName} 起兵` },
             isPublic: true,
           }),
         );
