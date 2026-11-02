@@ -1077,7 +1077,7 @@ export class PetService {
               const w0 = loadState(this.dataDir);
               const me = w0.actors?.waner;
               const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : me?.name || '婉儿';
-              const label = this._viewerActorId ? '相公·王甯' : `${me?.label || '正妻'}·${short}`;
+              const label = this._viewerActorId ? '王甯' : `${me?.label || '正妻'}·${short}`;
               reply = `【${label}】：${lead[1].trim()}\n${reply.slice(lead[1].length)}`;
             } catch {
               /* 忽略 */
@@ -1087,7 +1087,7 @@ export class PetService {
         if (!hasMarker && isMainPersona && reply.trim().length > 0) {
           if (this._viewerActorId) {
             // 真人扮演世界人物时，AI 演的是相公王甯，气泡应标「王甯」
-            reply = `【相公·王甯】：${reply}`;
+            reply = `【王甯】：${reply}`;
           } else {
             const w0 = loadState(this.dataDir);
             const me = w0.actors?.waner;
