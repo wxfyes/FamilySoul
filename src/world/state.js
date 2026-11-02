@@ -5,6 +5,7 @@
  * 所有数据结构见 docs/world-engine.md 第 3、4 节。
  */
 import fs from 'node:fs';
+import { lunarFromTable } from './lunar-table.js';
 import path from 'node:path';
 
 export const STATE_VERSION = 1;
@@ -363,6 +364,11 @@ function cnMonth(n) {
 
 /** 公历 Date → 农历（用系统 ICU，零依赖、够准）*/
 export function lunarOf(date) {
+  // 优先用自带表（软路由 ICU 精简，Intl 会静默退回公历）
+  const fromTable = lunarFromTable(date);
+  if (fromTable) {
+    return { month: cnMonth(fromTable.month), day: cnDay(fromTable.day), text: `${cnMonth(fromTable.month)}${cnDay(fromTable.day)}` };
+  }
   try {
     const fmt = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { month: 'numeric', day: 'numeric' });
     const parts = fmt.formatToParts(date);
