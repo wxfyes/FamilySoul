@@ -65,7 +65,9 @@ function resolveActor(world, who) {
 
 function resolvePlace(world, to) {
   if (!to) return null;
-  const key = String(to).trim();
+  const raw = String(to).trim();
+  const alias = { 我房间: 'husband_room', 我的房间: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room', 房里: 'husband_room', 我房里: 'husband_room' };
+  const key = alias[raw] && world.places?.[alias[raw]] ? alias[raw] : raw;
   if (world.places?.[key]) return key;
   for (const [id, p] of Object.entries(world.places || {})) {
     if (p?.name && (p.name.includes(key) || key.includes(p.name))) return id;
@@ -208,7 +210,13 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           // 避免「故事在酒肆、账本还写着茶坊」的错位
           world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
           place = `place_${world.flags.placeSeq}`;
-          world.places[place] = { name: String(args.to).slice(0, 20), exits: [], dynamic: true };
+          const fromPlace = world.actors[id]?.location;
+          world.places[place] = {
+            name: String(args.to).slice(0, 20),
+            exits: fromPlace ? [fromPlace] : [],
+            owner: id === 'husband' ? 'husband' : 'public',
+            dynamic: true,
+          };
         }
         if (!place) continue;
         world.actors[id].location = place;

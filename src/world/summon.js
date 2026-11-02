@@ -104,6 +104,19 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
 
   // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
   if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
+    // "回我房间/去正房"这类说法：先按别名认
+    const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
+    const aliasKey = Object.keys(roomAlias).find((k) => String(say).includes(k));
+    if (aliasKey && world.places?.[roomAlias[aliasKey]]) {
+      const pid = roomAlias[aliasKey];
+      const p = world.places[pid];
+      if (me.location !== pid) {
+        me.location = pid;
+        saveState(dataDir, world);
+        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: p.name };
+      }
+      return { moved: [], summoned: [], visited: null, wentTo: p.name, alreadyThere: true };
+    }
     const placeHit = findPlace(world, say);
     if (placeHit) {
       const [pid, p] = placeHit;

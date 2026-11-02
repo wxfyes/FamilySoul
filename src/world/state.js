@@ -101,7 +101,8 @@ export function createInitialState(dataDir) {
     },
 
     places: {
-      tea_house: { name: '临江茶坊', exits: ['street', 'backyard'], owner: 'husband' },
+      husband_room: { name: '正房', exits: ['tea_house', 'backyard'], owner: 'husband' },
+    tea_house: { name: '临江茶坊', exits: ['street', 'backyard', 'husband_room'], owner: 'husband' },
       backyard: { name: '后院暖阁', exits: ['tea_house'], owner: 'husband' },
       wine_shop: { name: '于家酒肆', exits: ['street'], dynamic: false, owner: 'liuwenxia' },
       goods_shop: { name: '翟家货栈', exits: ['street'], dynamic: false, owner: 'yangcaiyun' },
@@ -762,6 +763,25 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 相公的房间归一：别让账本里出现 "husband_room" 这种地名
+  world.places = world.places || {};
+  if (!world.places.husband_room) {
+    world.places.husband_room = { name: '正房', exits: ['tea_house', 'backyard'], owner: 'husband' };
+  } else {
+    const hr = world.places.husband_room;
+    if (!hr.name || /husband_room|我房间|我的房间/.test(String(hr.name))) hr.name = '正房';
+    hr.owner = hr.owner || 'husband';
+    hr.exits = Array.isArray(hr.exits) && hr.exits.length ? hr.exits : ['tea_house', 'backyard'];
+  }
+  for (const [pid, pl] of Object.entries(world.places)) {
+    if (pid !== 'husband_room' && pl && /^(我房间|我的房间)$/.test(String(pl.name || ''))) {
+      delete world.places[pid];
+      for (const a of Object.values(world.actors || {})) {
+        if (a && a.location === pid) a.location = 'husband_room';
+      }
+    }
+  }
+
   if (!world || typeof world !== 'object') return world;
   // 地点
   for (const [id, p] of Object.entries(world.places || {})) {
