@@ -314,17 +314,25 @@ function render(w){
     detail: a.text || '', extra: (a.every? `每${a.every}天`:''),
     when: when(a.day, a.hour),
   }));
+  // 承诺 / 暗涌只有「哪一天」，没有「几点」——按天显示，别算成半夜 23 点
+  const dayText = (due) => {
+    const d = Number(due) - Number(w.clock.day);
+    if (d < 0) return `<span class="bad">已逾期 ${Math.abs(d)} 天</span>`;
+    if (d === 0) return `<span class="warn">今天到期</span>`;
+    if (d === 1) return `<span class="warn">明天到期</span>`;
+    return `<span class="muted">还有 ${d} 天</span>`;
+  };
   (w.promises||[]).forEach(p => rows.push({
     t: Number(p.due)*24,
     kind: '承诺', cls: Number(p.due) < w.clock.day ? 'bad' : 'warn',
     title: String(p.text||''), detail: '', extra: '',
-    when: Number(p.due) < w.clock.day ? `<span class="bad">已逾期</span>` : when(Number(p.due), 23),
+    when: dayText(p.due),
   }));
   (w.pending||[]).forEach(e => rows.push({
     t: Number(e.due||99)*24,
     kind: '暗涌', cls: 'bad',
     title: String(e.desc||''), detail: '', extra: '',
-    when: when(Number(e.due)||99, 12),
+    when: dayText(e.due || 99),
   }));
   rows.sort((a,b)=>a.t-b.t);
   $('todo').innerHTML = rows.length ? rows.map(r => `
