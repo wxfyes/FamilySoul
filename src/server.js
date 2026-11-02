@@ -552,6 +552,7 @@ const server = http.createServer(async (req, res) => {
               day: Number(a.day) || world.clock.day,
               hour: Number(a.hour) || 12,
               every: Number(a.every) > 0 ? Number(a.every) : undefined,
+              place: String(a.place || '') || null,
               text: String(a.text || '').slice(0, 80),
               madeAt: { day: world.clock.day, hour: world.clock.hour },
             }));
