@@ -315,6 +315,12 @@ export function applyWorldTags(dataDir, ops) {
           ? Object.values(world.actors || {}).find((a) => a?.name && (a.name === keeperName || a.name.includes(keeperName)))
           : null;
         const staff = Math.max(0, Number(args.staff) || 0);
+        // 城市：话里点的城，落到疆域里；对不上就当"临江府"
+        const wantCity = String(args.city || '').trim();
+        const cities = (world.geo?.regions || []).flatMap((r) => r.cities || []);
+        const city = wantCity && cities.some((c) => c.includes(wantCity) || wantCity.includes(c))
+          ? cities.find((c) => c.includes(wantCity) || wantCity.includes(c))
+          : (wantCity || '临江府');
         world.assets.properties.push({
           id: `prop_${world.flags.propSeq}`,
           name,
@@ -324,6 +330,7 @@ export function applyWorldTags(dataDir, ops) {
           place: placeId,
           keeper: keeper?.id || null,
           staff,
+          city,
           note: String(args.note || '').slice(0, 60),
           openedDay: world.clock.day,
         });

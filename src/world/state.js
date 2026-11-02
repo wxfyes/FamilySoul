@@ -278,6 +278,16 @@ export function createInitialState(dataDir) {
     promises: [],
     // 账本结构版本：升版本时把预设人物的日程/住处刷成最新设计（不影响用户自己造的 npc_*）
     stateVersion: 4,
+    // 疆域：开遍全国要有个地图
+    geo: {
+      country: '大乾',
+      capital: '京城',
+      regions: [
+        { name: '江南道', cities: ['临江府', '苏州府', '杭州府', '扬州府'] },
+        { name: '京畿道', cities: ['京城', '洛阳府'] },
+        { name: '淮南道', cities: ['淮安府', '庐州府'] },
+      ],
+    },
     // 公历锚点：世界第 N 日 = anchorDate + (N - anchorDay) 天
     calendar: { anchorDay: 1, anchorDate: '' },
     // 势力与声望：复仇、翻案、朝堂线都靠它记账
@@ -442,6 +452,7 @@ export function loadState(dataDir) {
     promises: Array.isArray(raw.promises) ? raw.promises : [],
     memories: Array.isArray(raw.memories) ? raw.memories : [],
     calendar: { ...base.calendar, ...(raw.calendar || {}) },
+    geo: { ...base.geo, ...(raw.geo || {}) },
     factions: { ...base.factions, ...(raw.factions || {}) },
     clues: Array.isArray(raw.clues) ? raw.clues : [],
     appointments: Array.isArray(raw.appointments) ? raw.appointments : [],

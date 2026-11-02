@@ -121,6 +121,14 @@
   </section>
 
   <section class="card full">
+    <h2>产业表（开遍全国）</h2>
+    <table>
+      <thead><tr><th>产业</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
+      <tbody id="props"></tbody>
+    </table>
+  </section>
+
+  <section class="card full">
     <h2>各自的主线（她们自己的人生）</h2>
     <div id="arcs">—</div>
   </section>
@@ -288,6 +296,20 @@ function render(w){
   $('audit-box').innerHTML = audit.length
     ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
     : '<span class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</span>';
+
+  // ── 产业表 ──────────────────────────────
+  const propList = w.assets?.properties || [];
+  $('props').innerHTML = propList.length ? propList.map(p =>
+    `<tr>
+      <td><b>${p.name}</b></td>
+      <td class="muted">${p.city || '临江府'}</td>
+      <td class="muted">${p.placeName || ''}</td>
+      <td class="muted">${p.keeperName || '—'}</td>
+      <td class="muted">${p.staff ? p.staff + ' 人' : '—'}</td>
+      <td class="num">${(+p.incomePerDay||0).toFixed(2)} 两</td>
+      <td class="muted">${p.status || ''}</td>
+      <td class="muted">${p.openedDay ? '第' + p.openedDay + '日' : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="8" class="muted">还没有产业</td></tr>';
 
   // ── 各自的主线 ──────────────────────────────
   const arcs = w.arcs || {};
