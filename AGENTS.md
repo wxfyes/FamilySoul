@@ -62,7 +62,7 @@
 3. **iOS 语音零破坏**：`Platform.isIOS` 必须 100% 保持原汁原味的 Apple Speech (`_speech.listen`) 与扬声器外放；
 4. **Android 离线中文语音**：`Platform.isAndroid` 100% 直连 `OfflineAsrService`，绝不可删除 `mobile/assets/asr/*.onnx` 权重；
 5. **音频 URL 完整性**：必须带 `${config.apiPrefix}/audio/$audioKey.wav?token=${...}`，严禁相对路径，严禁 PowerShell 吞变量；
-6. **改动即发布闭环**：修改 `mobile/` 必须同时完成 Android 本地编译 APK + iOS Actions 云端编译拉取 IPA + 同步桌面、小主机共享目录与 GitHub Release。
+6. **改动即发布闭环（按【当前发布范围】执行）**：修改 `mobile/` 必须完成 `flutter analyze` 零告警 + 本地 `flutter build apk --release`，产物放桌面供实测；**iOS 只在用户明确说“可以打 iOS”时才推 Actions**；小主机已暂停，不再同步。
 
 ---
 
