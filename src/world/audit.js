@@ -215,7 +215,11 @@ export function auditAll(world) {
   const ledger = auditWorld(world).map((t) => ({ kind: 'ledger', level: 'bad', text: t }));
   const memory = auditMemories(world);
   const ownership = auditOwnership(world);
-  const reply = Array.isArray(world.auditIssues) ? world.auditIssues.slice(-12) : [];
+  // 只留最近两天的台词告警：老账不翻，免得早修好的问题一直挂着
+  const today = Number(world.clock?.day) || 1;
+  const reply = Array.isArray(world.auditIssues)
+    ? world.auditIssues.filter((x) => x && (!x.day || today - Number(x.day) <= 1)).slice(-12)
+    : [];
   const all = [...ledger, ...memory, ...ownership, ...reply];
   return {
     ledger,
