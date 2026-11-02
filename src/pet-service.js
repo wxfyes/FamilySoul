@@ -576,6 +576,8 @@ export class PetService {
           if (rel) {
             rel.desire = Math.min(100, Math.round((Number(rel.desire) || 0) + 8));
             rel.trust = Math.min(100, Math.round((Number(rel.trust) || 0) + 5));
+            // 亲密是最好的消气药
+            rel.grievance = Math.max(0, Math.round((Number(rel.grievance) || 0) - 6));
             who.intimacy = who.intimacy || {};
             who.intimacy.consummated = true;
             if (!(who.intimacy.level > 0)) who.intimacy.level = 1;

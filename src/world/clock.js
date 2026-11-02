@@ -95,6 +95,14 @@ function applyEffects(world, effects = []) {
 
 /** 新的一天：结算日流水（市井风闻改到每日辰时播报，见 advanceHour）*/
 function onNewDay(world, events) {
+  // 气是会消的：每天自动消退 1 点（被人一再冷落才会积住）
+  for (const a of Object.values(world.actors || {})) {
+    const g = a?.relations?.husband?.grievance;
+    if (typeof g === 'number' && g > 0) {
+      a.relations.husband.grievance = Math.max(0, Math.round((g - 1) * 10) / 10);
+    }
+  }
+
   const income = (world.assets.properties || []).reduce(
     (sum, p) => sum + (Number(p.incomePerDay) || 0),
     0,
