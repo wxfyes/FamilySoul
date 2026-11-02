@@ -300,6 +300,16 @@ export function applyWorldTags(dataDir, ops) {
         if (args.status) p.status = String(args.status).slice(0, 20);
         p.incomePerDay = Math.round((Number(p.incomePerDay) || 0) * 100) / 100;
         applied.push(`产业:${p.name} 日入${p.incomePerDay}两${args.status ? `（${p.status}）` : ''}`);
+        // 一开张，那条「择吉日开张」的承诺就算办成了
+        if (args.status && /开张|营业|开业/.test(String(args.status))) {
+          for (const pr of world.promises || []) {
+            if (!pr.done && /开张|开业/.test(String(pr.text || ''))) {
+              pr.done = true;
+              pr.doneDay = world.clock.day;
+              applied.push(`承诺完成:${String(pr.text).slice(0, 12)}`);
+            }
+          }
+        }
       } else if (kind === 'event') {
         const text = String(args.text || '').trim();
         if (!text) continue;
