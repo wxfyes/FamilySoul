@@ -760,6 +760,7 @@ const STARTED_AT = Date.now();
             household: Boolean(a.household),
             origin: a.origin || 'preset',
             gender: a.gender || 'female',
+            servant: Boolean(a.servant),
             goals: Array.isArray(a.goals) ? a.goals : [],
           }));
         const recentReceipts = Array.isArray(world.flags?.recentReceipts) ? world.flags.recentReceipts : [];

@@ -35,6 +35,13 @@ function attitudeOf(actor) {
   const t = Number(actor?.relations?.husband?.trust ?? 0);
   const g = Number(actor?.relations?.husband?.grievance ?? 0);
 
+  // 府里的下人：听差遣的自家人，不谈交情也不谈男女
+  if (actor?.servant) {
+    if (g >= 60) return '心里有气，但不敢违拗';
+    if (t >= 60) return actor.gender === 'male' ? '忠心办事的伙计，最得力' : '贴心的丫头，最得力';
+    return actor.gender === 'male' ? '府里的伙计，听你差遣' : '府里的丫头，听你差遣';
+  }
+
   // 府里的男仆/伙计：听差遣的下人，不谈交情也不谈敌意
   if (actor?.gender === 'male' && actor?.household) {
     if (g >= 60) return '心里有气，但不敢违拗';

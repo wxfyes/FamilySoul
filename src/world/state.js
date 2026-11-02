@@ -152,7 +152,7 @@ export function createInitialState(dataDir) {
         ],
       },
       xiaocui: {
-        id: 'xiaocui', gender: 'female', home: 'backyard',
+        id: 'xiaocui', gender: 'female', servant: true, home: 'backyard',
         name: '小翠',
         role: '贴身丫鬟',
         label: '丫鬟',
@@ -163,7 +163,7 @@ export function createInitialState(dataDir) {
         schedule: [{ at: 20, do: '回后院伺候', place: 'backyard' }],
       },
       aji: {
-        id: 'aji', gender: 'male', home: 'tea_house', schedule: [{ at: 6, do: '开门生火、擦桌摆盏', place: 'tea_house' }, { at: 12, do: '往前街送茶点', place: 'street' }, { at: 18, do: '回茶坊收档', place: 'tea_house' }],
+        id: 'aji', gender: 'male', servant: true, home: 'tea_house', schedule: [{ at: 6, do: '开门生火、擦桌摆盏', place: 'tea_house' }, { at: 12, do: '往前街送茶点', place: 'street' }, { at: 18, do: '回茶坊收档', place: 'tea_house' }],
         name: '阿吉',
         role: '跑堂伙计',
         label: '跑堂伙计',
@@ -276,7 +276,7 @@ export function createInitialState(dataDir) {
 
     promises: [],
     // 账本结构版本：升版本时把预设人物的日程/住处刷成最新设计（不影响用户自己造的 npc_*）
-    stateVersion: 2,
+    stateVersion: 3,
     // 势力与声望：复仇、翻案、朝堂线都靠它记账
     factions: {
       yamen: { name: '临江府衙', relation: 0, power: 45 },
@@ -366,6 +366,7 @@ export function loadState(dataDir) {
       if (baseActor.home) live.home = baseActor.home;
       if (baseActor.gender) live.gender = baseActor.gender;
       if (typeof baseActor.household === 'boolean') live.household = baseActor.household;
+      if (typeof baseActor.servant === 'boolean') live.servant = baseActor.servant;
     }
     console.log(`[State] 账本升级到 v${base.stateVersion}：已刷新 ${Object.keys(base.actors || {}).length} 位预设人物的日程与住处`);
   }
