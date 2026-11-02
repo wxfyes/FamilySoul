@@ -175,7 +175,7 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         lines.push(
           `【约定】${aps
             .map((a) => `第${a.day}日${a.hour}时 ${a.name}${a.text ? `（${a.text}）` : ''}`)
-            .join('；')}`,
+            .join('；')} —— **在场的那一位必须主动提起这件事**（"明日晌午雅阁，妾身记着呢"）。`,
         );
       }
     } catch {
@@ -191,6 +191,27 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       const cls = (world.clues || []).slice(-4);
       if (cls.length > 0) {
         lines.push(`【线索】${cls.map((c) => String(c.text || '').slice(0, 30)).join('；')}`);
+      }
+    } catch {
+      /* 忽略 */
+    }
+
+    // 「她与相公的约」：把当前这个角色自己的约定单独拎出来，否则她根本不会主动提
+    try {
+      const meId =
+        roleName === '傲娇助手'
+          ? 'waner'
+          : Object.entries(world.actors || {}).find(([, a]) => a?.role === roleName)?.[0];
+      const meActor = meId ? world.actors?.[meId] : null;
+      const mine = (world.appointments || []).filter(
+        (a) => a && meActor && (a.actorId === meId || a.name === meActor.name),
+      );
+      if (mine.length > 0) {
+        lines.push(
+          `【她与相公的约】${mine
+            .map((a) => `第${a.day}日${a.hour}时 在${world.places?.[a.place]?.name || a.place || '老地方'}${a.text ? `（${a.text}）` : ''}`)
+            .join('；')} —— 这是她自己应下的，见面时要主动提起。`,
+        );
       }
     } catch {
       /* 忽略 */
