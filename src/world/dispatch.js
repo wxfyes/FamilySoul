@@ -228,6 +228,7 @@ export function applyWorldTags(dataDir, ops) {
           day,
           hour,
           every: Number(args.every) > 0 ? Number(args.every) : undefined, // 每 N 天重复
+          place: resolvePlace(world, args.place) || world.actors?.husband?.location || null, // 约在哪见
           text: String(args.text || '').slice(0, 80),
           madeAt: { day: world.clock.day, hour: world.clock.hour },
         });

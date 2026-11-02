@@ -173,24 +173,50 @@ function fireAppointments(world, events) {
       (ap.actorId && world.actors?.[ap.actorId]) ||
       Object.values(world.actors || {}).find((a) => a && a.name === ap.name);
 
-    // 人是真来的：把她的位置挪到相公所在处
-    if (actor) actor.location = world.actors?.husband?.location || actor.location;
+    // 到点了：相公是否真在那个地方？
+    const meetPlace = ap.place || world.actors?.husband?.location;
+    const husbandThere = !meetPlace || world.actors?.husband?.location === meetPlace;
+    // 她按时去了约定的地方（不管相公来没来）
+    if (actor && meetPlace) actor.location = meetPlace;
 
-    events.push(
-      nextEvent(world, {
-        action: 'appointment_arrived',
-        actor: actor?.id || 'system',
-        payload: { who: ap.name, text: ap.text },
-        isPublic: true,
-      }),
-    );
-
-    queueProactive(world, {
-      reason: 'appointment',
-      facts: { who: ap.name, text: ap.text },
-      speaker: actor ? actor.name : ap.name,
-      force: true, // 约定就是约定，不受冷却限制
-    });
+    if (husbandThere) {
+      // 会面成了
+      events.push(
+        nextEvent(world, {
+          action: 'appointment_met',
+          actor: actor?.id || 'system',
+          payload: { who: ap.name, text: ap.text },
+          isPublic: true,
+        }),
+      );
+      queueProactive(world, {
+        reason: 'appointment',
+        facts: { who: ap.name, text: ap.text, met: true },
+        speaker: actor ? actor.name : ap.name,
+        force: true,
+      });
+    } else {
+      // 失约：她白等一场，这件事必须有后果
+      const rel = actor?.relations?.husband;
+      if (rel && typeof rel.grievance === 'number') {
+        rel.grievance = Math.max(0, Math.min(100, rel.grievance + 3));
+      }
+      events.push(
+        nextEvent(world, {
+          action: 'appointment_missed',
+          actor: actor?.id || 'system',
+          place: meetPlace || null,
+          payload: { who: ap.name, text: ap.text, place: world.places?.[meetPlace]?.name || '' },
+          isPublic: true,
+        }),
+      );
+      queueProactive(world, {
+        reason: 'appointment_missed',
+        facts: { who: ap.name, text: ap.text, place: world.places?.[meetPlace]?.name || '' },
+        speaker: actor ? actor.name : ap.name,
+        force: true,
+      });
+    }
 
     // 周期性约定（如「每旬晌午雅阁见面」）：触发后自动排下一次，不会约一次就断
     if (Number(ap.every) > 0) {
