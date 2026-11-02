@@ -1448,7 +1448,16 @@ export class PetService {
               maxTokens: pp.maxTokens,
               temperature: 0.8,
             });
-            const line = wrapProxyLine(husPost?.name || '王甯', r?.text);
+            let line = wrapProxyLine(husPost?.name || '王甯', r?.text);
+            // 账本没有借贷时，任何“承认借过/给过钱”的话都替换掉
+            try {
+              const hasLoan = (wPost.promises || []).some((pr) => pr && pr.loan && !pr.done);
+              const moneyTalk = /(借|欠|交到你手上|交给你|到期|还你|这二十两|银子我认)/;
+              if (line && !hasLoan && moneyTalk.test(line)) {
+                console.log('[Proxy] 账本无借贷，已拦下：' + line.slice(0, 40));
+                line = `【${husPost?.name || '王甯'}】：这话我听不明白——我账上没有这笔。`;
+              }
+            } catch { /* 忽略 */ }
             if (line) {
               reply = `${line}\n${String(reply).split('\n').filter((x) => !/没人应声/.test(x)).join('\n')}`
                 .replace(/\n{2,}/g, '\n')
