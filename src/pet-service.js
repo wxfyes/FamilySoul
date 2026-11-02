@@ -1357,6 +1357,12 @@ export class PetService {
           askedHusband: /(王甯|王掌柜|少掌柜|相公)/.test(String(say || '')),
         });
 
+        // 刚换了地方：别回"没人应声"，直接报到场
+        if (/没人应声/.test(String(reply))) {
+          const placeNow = String(wPost.places?.[locPost]?.name || '');
+          if (placeNow) reply = `【${placeNow}】：（你到了${placeNow}。）`;
+        }
+
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
         const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
         const said = String(say || '');
