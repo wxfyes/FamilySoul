@@ -443,7 +443,52 @@ const STARTED_AT = Date.now();
           })
           .slice(-8)
           .map((c) => ({ text: c.text, day: c.day })),
-        arc: arc ? { title: arc.title, stage: arc.stage, done: Boolean(arc.done), outcome: arc.outcome || '', atEdge: Boolean(arc.atEdge) } : null,
+        arc: arc
+          ? {
+              title: arc.title,
+              stage: arc.stage,
+              done: Boolean(arc.done),
+              outcome: arc.outcome || '',
+              atEdge: Boolean(arc.atEdge),
+              step: (() => {
+                try {
+                  const steps = (arc.log || []).map((l) => l.text);
+                  return steps.length ? steps[steps.length - 1] : '';
+                } catch {
+                  return '';
+                }
+              })(),
+            }
+          : null,
+        news: (() => {
+          try {
+            const evs = [];
+            const file = path.join(DATA_DIR, 'world', 'events.jsonl');
+            if (fs.existsSync(file)) {
+              const lines = fs.readFileSync(file, 'utf8').trim().split('\n').slice(-60);
+              for (const line of lines) {
+                try {
+                  const e = JSON.parse(line);
+                  const text = String(e?.payload?.text || '');
+                  if (!text) continue;
+                  if (!isHusband) {
+                    const nm = me?.name || '';
+                    const short = nm.length > 2 ? nm.slice(-2) : nm;
+                    const mine = (nm && (text.includes(nm) || text.includes(short))) || e.actor === actorId;
+                    const nearby = e.place && place?.name && String(place.name).includes(String(e.place).replace('府', '')) && e.isPublic;
+                    if (!mine && !nearby) continue;
+                  }
+                  evs.push({ text, day: e.day, hour: e.hour });
+                } catch {
+                  /* 忽略脏行 */
+                }
+              }
+            }
+            return evs.slice(-5).reverse();
+          } catch {
+            return [];
+          }
+        })(),
         military: troops > 0 ? { guards: f.guards || 0, militia: f.militia || 0, army: f.army || 0, supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
       });

@@ -113,6 +113,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     final assets = (d['assets'] as Map?)?.cast<String, dynamic>() ?? {};
     final todos = (d['todos'] as List?) ?? const [];
     final clues = (d['clues'] as List?) ?? const [];
+    final news = (d['news'] as List?) ?? const [];
     final arc = (d['arc'] as Map?)?.cast<String, dynamic>();
     final mil = (d['military'] as Map?)?.cast<String, dynamic>();
     final standing = (d['standing'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -237,7 +238,9 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
               Text(
                 arc['done'] == true
                     ? '已了结：${arc['outcome'] ?? ''}'
-                    : (arc['atEdge'] == true ? '到了最后关头——再不动，就由不得我了' : '阶段 ${(arc['stage'] ?? 0) + 1}'),
+                    : (arc['atEdge'] == true
+                        ? '到了最后关头——再不动，就由不得我了'
+                        : ([if ((arc['step'] as String?)?.isNotEmpty == true) '眼下：${arc['step']}' else '阶段 ${(arc['stage'] ?? 0) + 1}']).join()),
                 style: TextStyle(
                   color: arc['done'] == true ? const Color(0xFF7BD88F) : (arc['atEdge'] == true ? const Color(0xFFFFB86B) : _muted),
                   fontSize: 12.5,
@@ -285,6 +288,34 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 ],
               ),
       ),
+
+      // 世界新闻
+      if (news.isNotEmpty) ...[
+        _sectionTitle('世界动静'),
+        _cardShell(
+          child: Column(
+            children: [
+              for (final e in news)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.bolt_rounded, size: 13, color: Color(0xFF7C8BA1)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('${e['text']}',
+                            style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5, height: 1.45)),
+                      ),
+                      if (e['day'] != null)
+                        Text('第${e['day']}日', style: const TextStyle(color: _muted, fontSize: 10.5)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
 
       // 线索
       if (clues.isNotEmpty) ...[
