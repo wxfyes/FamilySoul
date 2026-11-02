@@ -222,7 +222,14 @@ function runHearings(world, events) {
   const day = Number(world.clock?.day) || 1;
   const hour = Number(world.clock?.hour) || 0;
   for (const c of world.cases || []) {
-    if (!c || c.status !== 'summoned') continue;
+    if (!c) continue;
+    // 老案子（只有 filed）补上开庭日，别永远卡着
+    if (c.status === 'filed') {
+      c.status = 'summoned';
+      if (!Number(c.hearDay)) c.hearDay = day;
+      if (!Number(c.hearHour)) c.hearHour = 9;
+    }
+    if (c.status !== 'summoned') continue;
     if (day < Number(c.hearDay || 0)) continue;
     if (day === Number(c.hearDay) && hour < Number(c.hearHour || 9)) continue;
     const p1 = world.actors?.[c.whoId];
