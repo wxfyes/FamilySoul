@@ -476,6 +476,15 @@ function runTreasury(world, events) {
     events.push(nextEvent(world, { action: 'treasury_empty', actor: 'court', place: null, payload: { text: '国库告罄，朝廷加征' }, isPublic: true }));
   }
 
+  // 欠俸：国库长期不足，官府只能加派、贪腐更狠
+  if (tr.silver < 300) {
+    world.flags = world.flags || {};
+    world.flags.courtPressure = Math.min(100, (Number(world.flags.courtPressure) || 0) + 2);
+    if (day % 7 === 0) {
+      events.push(nextEvent(world, { action: 'arrears', actor: 'court', place: null, payload: { text: '官俸拖欠，衙门加派捐税' }, isPublic: true }));
+    }
+  }
+
   // 秋收入仓（每 30 天一次），灾荒出仓
   if (day % 30 === 0) {
     tr.grain = Math.min(3000, (Number(tr.grain) || 0) + 600);
@@ -573,6 +582,21 @@ function dailyIncomeOf(world, prop) {
   let income = 0;
   for (const p of world.assets.properties || []) {
     const gain = dailyIncomeOf(world, p);
+    // 工钱：每人每日 0.12 两，从掌柜/东家账上扣；扣不出就有人辞工
+    const staff = Number(p.staff) || 0;
+    if (staff > 0) {
+      const wage = Math.round(staff * 0.12 * 100) / 100;
+      const payer = (p.keeper && p.keeper !== 'husband' && world.actors?.[p.keeper]) ? p.keeper : 'husband';
+      const purse = payer === 'husband' ? (Number(world.assets.silver) || 0) : (Number(world.wallets?.[payer]) || 0);
+      if (purse >= wage) {
+        if (payer === 'husband') world.assets.silver = round2(purse - wage);
+        else world.wallets[payer] = round2(purse - wage);
+      } else {
+        p.staff = Math.max(0, staff - 1);
+        p.morale = Math.max(0, (Number(p.morale) || 50) - 8);
+        console.log(`[Wage] ${p.name}发不出工钱，走了一个人（剩 ${p.staff}）`);
+      }
+    }
     if (!(gain > 0)) continue;
     const keeper = String(p.keeper || "");
     if (keeper && keeper !== "husband" && world.actors?.[keeper]) {

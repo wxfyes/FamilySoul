@@ -447,6 +447,17 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           loan.doneDay = world.clock.day;
         }
         applied.push(`还款:${amount}两 已到账`);
+      } else if (kind === 'hire') {
+        // 雇人/辞人：staff 增减，工钱按日结
+        const nameHit = String(args.property || args.shop || args.text || '').trim();
+        const list = world.assets?.properties || [];
+        const prop = nameHit ? list.find((x) => x && String(x.name || '').includes(nameHit)) : null;
+        if (!prop) { applied.push('雇工:没找到那间产业'); continue; }
+        const delta = Math.round(Number(args.count ?? args.delta ?? 1));
+        if (!Number.isFinite(delta) || delta === 0) continue;
+        const cur = Number(prop.staff) || 0;
+        prop.staff = Math.max(0, Math.min(60, cur + delta));
+        applied.push(`雇工:${prop.name} ${prop.staff}人`);
       } else if (kind === 'forgive') {
         // 免债：钱不收回，凭证作废（这是"送她"，不是"取消"）
         const who = resolveActor(world, args.who || args.to);
