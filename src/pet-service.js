@@ -1530,7 +1530,11 @@ export class PetService {
             const npPrompt = buildProxyPrompt({
               actor: npc,
               memories: npcMem,
-              facts: npcFacts.concat([`你和${mePost?.name || '她'}的关系：${npc.role || '相识'}`]),
+              facts: npcFacts.concat([
+                npc.home && mePost?.home && npc.home === mePost.home && npc.gender === 'male'
+                  ? `你是${mePost?.name || '她'}的丈夫，说话要像当家的：亲近但实在，不许说「偷来的半日闲」这种外人才说的话`
+                  : `你和${mePost?.name || '她'}的关系：${npc.role || '相识'}`,
+              ]),
               hearerName: mePost?.name || '',
               hearerPlace: String(wPost.places?.[locPost]?.name || ''),
               said: String(say || '').slice(0, 200),
@@ -1544,7 +1548,7 @@ export class PetService {
             });
             const npLine = wrapProxyLine(npc.name, npRes?.text);
             if (npLine) {
-              reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声/.test(x)).join('\n')}`.trim();
+              reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声|没人接话/.test(x)).join('\n')}`.trim();
               console.log('[Proxy] 代演' + npc.name + '：' + npLine.slice(0, 40));
             }
           }
