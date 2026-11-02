@@ -768,6 +768,7 @@ export class PetService {
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        if (hereNames.length) bits.push('玩家点了谁的名字，就必须由那个人开口应声，不许沉默、不许换别人答');
         try {
           const rootDir2 = path.dirname(this.dataDir);
           const humansHere = Object.values(wHere.actors || {})
@@ -1360,10 +1361,12 @@ export class PetService {
           askedHusband: /(王甯|王掌柜|少掌柜|相公)/.test(String(say || '')),
         });
 
-        // 刚换了地方：别回"没人应声"，直接报到场
+        // 只有真的换了地方，才说"到了"；原地不动时不许胡说
+        const movedNow = Boolean(summonResult && ((summonResult.moved || []).length > 0 || summonResult.left));
         if (/没人应声/.test(String(reply))) {
           const placeNow = String(wPost.places?.[locPost]?.name || '');
-          if (placeNow) reply = `【${placeNow}】：（你到了${placeNow}。）`;
+          if (movedNow && placeNow) reply = `【${placeNow}】：（你到了${placeNow}。）`;
+          else reply = `【${placeNow || '这里'}】：（没人接话。）`;
         }
 
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
