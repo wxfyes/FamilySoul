@@ -1421,22 +1421,13 @@ export class PetService {
               }
             } catch { /* 忽略 */ }
 
-            // ③ 他自己账号里跟她的对话（排除别的女人的私话）
-            try {
-              const hisHist = this.readHistory('husband');
-              for (const m of (hisHist.messages || []).slice(-200)) {
-                const t = String(m?.text || '');
-                if (!t) continue;
-                if (/(杨采云|苏慕雪)/.test(t)) continue;
-                if (/(紫嫣|文霞)/.test(t) || /雅阁/.test(t)) histFacts.push(`他说过/她说过：${t.slice(0, 70)}`);
-              }
-            } catch { /* 忽略 */ }
+            // ③ 不再喂聊天记录：聊天会互相带偏，代演只认账本
+            //    （他记不记得，取决于账本里有没有，而不是刚才聊了什么）
 
             const facts = [
               ...promiseFacts.slice(-6),
               ...memoryFacts,
               ...apptFacts.slice(-4),
-              ...histFacts.slice(-6),
             ].slice(0, 16);
 
             console.log('[Proxy] 事实' + facts.length + '条：' + facts.slice(-4).join(' ｜ ').slice(0, 160));
@@ -1449,7 +1440,7 @@ export class PetService {
                 ? String(wPost.places?.[locPost]?.name || '')
                 : `${String(wPost.places?.[locPost]?.name || '')}（他人在「${String(wPost.places?.[husPost?.location]?.name || '别处')}」，这是托人捎话/隔空应答，不要写成他就在同一间屋里）`,
               said: String(say || '').slice(0, 200),
-              recent: recentLines,
+              recent: '', // 不带聊天记录，只按账本回答
             });
             const r = await this.llmClient.complete({
               system: pp.system,
