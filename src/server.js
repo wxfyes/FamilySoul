@@ -772,6 +772,34 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26c 手动调账 POST /api/admin/wallet {actor, delta, reason}
+    if (req.method === 'POST' && pathname === '/api/admin/wallet') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const actor = String(body.actor || 'husband');
+        const delta = Number(body.delta) || 0;
+        if (!delta) return sendJson(res, 400, { ok: false, error: 'delta 不能为 0' });
+        world.wallets = world.wallets || {};
+        if (actor === 'husband') {
+          world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + delta) * 100) / 100;
+        } else {
+          const cur = Number(world.wallets[actor]) || 0;
+          world.wallets[actor] = Math.max(0, Math.round((cur + delta) * 100) / 100);
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Wallet] ${actor} ${delta > 0 ? '+' : ''}${delta} 两（${String(body.reason || '').slice(0, 20)}）`);
+        return sendJson(res, 200, {
+          ok: true,
+          actor,
+          silver: actor === 'husband' ? world.assets.silver : world.wallets[actor],
+          husbandSilver: world.assets.silver,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
