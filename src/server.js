@@ -433,6 +433,23 @@ const STARTED_AT = Date.now();
   }
 
 
+    // 9.25 把成员绑定到世界人物 POST /api/admin/bind {member, actor}
+    if (req.method === 'POST' && pathname === '/api/admin/bind') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const member = String(body.member || '').trim();
+        const actor = String(body.actor || '').trim();
+        if (!config.family?.[member]) return sendJson(res, 404, { ok: false, error: '没有这个成员' });
+        if (actor && !peek(DATA_DIR).actors?.[actor]) return sendJson(res, 404, { ok: false, error: '世界没有这个人物' });
+        config.family[member].actor = actor;
+        if (actor) config.family[member].title = peek(DATA_DIR).actors[actor].name;
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+        console.log(`[Bind] ${member} → ${actor || '（解除）'}`);
+        return sendJson(res, 200, { ok: true, member, actor });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
   // ── 管理控制台专属 API ──────────────────────────────────────
   if (pathname.startsWith('/api/admin')) {
     // 鉴权校验：只有相公专属通行证才可调度家庭后宫

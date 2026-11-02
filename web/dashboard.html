@@ -131,6 +131,12 @@
   </section>
 
   <section class="card">
+    <h2>成员绑定（这个账号演谁）</h2>
+    <div id="bind">—</div>
+    <div class="muted" style="margin-top:6px">没绑定时，这个账号看到的会是「相公」那份数据。</div>
+  </section>
+
+  <section class="card">
     <h2>真人（谁在用手机登着）</h2>
     <div id="humans">—</div>
   </section>
@@ -360,6 +366,23 @@ function render(w){
     + '<div class="muted" style="margin:8px 0 4px">记忆自检</div>' + memHtml
     + '<div class="muted" style="margin:8px 0 4px">台词自检</div>' + repHtml;
 
+  // ── 成员绑定 ──────────────────────────────
+  try {
+    const members = w.members || [];
+    const actorOpts = (w.actors || []).filter(a => a.id !== 'husband')
+      .map(a => `<option value="${a.id}">${a.name}（${a.role || ''}）</option>`).join('');
+    $('bind').innerHTML = members.map(m => {
+      const cur = m.actor || '';
+      const label = cur ? ((w.actors || []).find(a => a.id === cur)?.name || cur) : '（未绑定 → 相公号数据）';
+      return `<div class="row"><span><b>${m.title}</b> <span class="muted">${label}</span></span><span>
+        <select id="bind-${m.key}" style="background:#1e222b;color:#e8eaee;border:1px solid #2a2f3a;border-radius:6px;padding:3px 6px">
+          <option value="">（解除）</option>${actorOpts}
+        </select>
+        <button onclick="doBind('${m.key}')">保存</button></span></div>`;
+    }).join('') || '<div class="muted">没有成员</div>';
+    members.forEach(m => { const sel = $('bind-' + m.key); if (sel && m.actor) sel.value = m.actor; });
+  } catch (e) { $('bind').innerHTML = '<div class="muted">渲染失败</div>'; }
+
   // ── 朝中 ──────────────────────────────
   const court = w.court || {};
   const offsAll = Object.entries(court.offices || {});
@@ -559,6 +582,24 @@ function foldRegion(el, r) {
       e.style.display = e.style.display === 'none' ? '' : 'none';
     }
   });
+}
+
+async function doBind(memberKey) {
+  const tk = token();
+  const sel = $('bind-' + memberKey);
+  if (!tk || !sel) return;
+  const actor = sel.value;
+  try {
+    const r = await fetch(`/api/admin/bind?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member: memberKey, actor }),
+    });
+    const j = await r.json();
+    alert(j.ok ? '已绑定' : ('失败：' + (j.error || '')));
+    load();
+  } catch (e) {
+    alert('失败：' + e.message);
+  }
 }
 
 async function doRename() {
