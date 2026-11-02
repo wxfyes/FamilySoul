@@ -1267,6 +1267,19 @@ export class PetService {
       }
     }
 
+    // 她一开口就算"在行动"，主线不会因为躺平被世界替她定夺
+    try {
+      if (this._viewerActorId) {
+        const wAct = loadState(this.dataDir);
+        if (wAct.arcs?.[this._viewerActorId]) {
+          wAct.arcs[this._viewerActorId].lastActiveDay = wAct.clock.day;
+          saveState(this.dataDir, wAct);
+        }
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     // 台词自检：她说的数字/日期/地名和账本对不对得上（只记录，不改世界）
     try {
       if (!this._viewerActorId) {

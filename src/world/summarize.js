@@ -193,7 +193,17 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       try {
         const arc = arcViewFor(world, viewer);
         if (arc) {
-          lines.push(`【你的难关】${arc.title}——${arc.hook}。眼下：${arc.step}`);
+          const doneArc = world.arcs?.[viewer];
+          if (doneArc?.done) {
+            lines.push(`【你的难关】${arc.title}——已了结：${doneArc.outcome || ''}`);
+          } else {
+            let limit = '';
+            if (doneArc?.atEdge) {
+              const left = 3 - ((Number(world.clock?.day) || 1) - Math.max(Number(doneArc.atEdgeDay) || 0, Number(doneArc.lastActiveDay) || 0));
+              limit = left > 0 ? `（再不动手，${left}天后就由不得你了）` : '（已在最后关头）';
+            }
+            lines.push(`【你的难关】${arc.title}——${arc.hook}。眼下：${arc.step}${limit}`);
+          }
         }
       } catch {
         /* 忽略 */

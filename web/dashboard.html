@@ -462,7 +462,12 @@ function render(w){
   const arcRows = Object.entries(arcs).map(([id, a]) => {
     const last = (a.log || []).slice(-1)[0];
     const stage = Number(a.stage) || 0;
-    return `<div class="row"><span><b>${arcNames[id] || id}</b> · ${a.title || ''} <span class="muted">阶段 ${stage + 1}</span></span><span class="muted">${last ? '第' + last.day + '日：' + String(last.text).slice(0, 28) : '（未推进）'}</span></div>`;
+    const tail = a.done
+      ? `<span class="good">已了结：${a.outcome || ''}</span>`
+      : (a.atEdge
+        ? '<span class="warn">最后关头 · 3 天内不动就被世界定夺</span>'
+        : `<span class="muted">${last ? '第' + last.day + '日：' + String(last.text).slice(0, 28) : '（未推进）'}</span>`);
+    return `<div class="row"><span><b>${arcNames[id] || id}</b> · ${a.title || ''} <span class="muted">阶段 ${stage + 1}</span></span>${tail}</div>`;
   });
   $('arcs').innerHTML = arcRows.length ? arcRows.join('') : '<div class="muted">暂无主线</div>';
 

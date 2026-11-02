@@ -17,7 +17,7 @@ import {
 import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
 import { ensureCourt, forceOf, ensureTerrain } from './state.js';
-import { advanceArcs, ensureArcs } from './arcs.js';
+import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
 export const DEFAULT_TICK_INTERVAL_MS = 2 * 60 * 1000; // 2 分钟心跳：世界推进更细，不用干等 10 分钟
@@ -531,6 +531,31 @@ function advanceHour(world, events, nowMs) {
       ensureCourt(world);
       ensureTerrain(world);
       advanceArcs(world, events, (opts) => queueProactive(world, { type: 'arc', ...opts }), nextEvent);
+      // 躺平到限期：世界替她做决定（结果由她的处境算出来）
+      for (const actorId of Object.keys(world.arcs || {})) {
+        const res = resolveArc(world, actorId);
+        if (!res) continue;
+        world.memories = Array.isArray(world.memories) ? world.memories : [];
+        world.memories.push({ text: res.memory, day: world.clock.day, at: Date.now() });
+        if (world.memories.length > 120) world.memories = world.memories.slice(-120);
+        events.push(
+          nextEvent(world, {
+            action: 'arc_resolved',
+            actor: actorId,
+            place: world.actors?.[actorId]?.location || null,
+            payload: { text: res.text },
+            isPublic: false,
+          }),
+        );
+        queueProactive(world, {
+          to: actorId,
+          reason: 'arc',
+          facts: { 结果: res.text },
+          fallback: res.text,
+          force: true,
+          type: 'arc',
+        });
+      }
     } catch (err) {
       console.warn('[Arc] 主线推进失败：', err.message);
     }

@@ -52,6 +52,62 @@ const ARC_SEEDS = {
 };
 
 const DAYS_PER_STEP = 2; // 每两天推进一步，不催命也不拖沓
+const DAYS_AT_EDGE = 3;  // 走到最后一步再躺 3 天，世界就替她做决定
+
+/** 结局：分数由她自己的处境算出来，不写死 */
+const ARC_OUTCOMES = {
+  liuwenxia: {
+    good: { text: '债主逼到门口，她硬是把铺子保住了', memory: '紫嫣顶住了债主，铺子没被抵掉' },
+    bad: { text: '限期到，酒肆被抵了出去', memory: '紫嫣没能凑出银子，酒肆被钱通海的人抵走' },
+  },
+  yangcaiyun: {
+    good: { text: '她拦住了抽银，货栈没被掏空', memory: '苏慕雪拦住了丈夫抽银，货栈保住了' },
+    bad: { text: '货栈被搬空，只剩一个空架子', memory: '苏慕雪没拦住，货栈被搬空了' },
+  },
+  zhanjing: {
+    good: { text: '脏账的事被她摘干净了', memory: '静儿从衙门的脏账里脱了身' },
+    bad: { text: '她替人顶了那笔账', memory: '静儿被推出去顶了账，下了大狱' },
+  },
+  yangzhenhua: {
+    good: { text: '这门亲事被她硬顶了回去', memory: '杨采儿抗婚成功，知府拿她没办法' },
+    bad: { text: '亲事定下了，庚帖送到府里', memory: '杨采儿没能抗住，亲事被定了下来' },
+  },
+};
+
+/** 她的处境分：信任、名声、兵、盟友、怨怼 */
+export function resolveScore(world, actorId) {
+  const a = world.actors?.[actorId];
+  if (!a) return 0;
+  const rel = a.relations?.husband || {};
+  const f = world.forces?.[actorId] || {};
+  const troops = (Number(f.guards) || 0) + (Number(f.militia) || 0) + (Number(f.army) || 0);
+  const allies = (world.allies?.[actorId] || []).length;
+  return (Number(rel.trust) || 0) * 0.6 + (Number(world.reputation) || 50) * 0.3 + troops * 0.02 + allies * 12 - (Number(rel.grievance) || 0) * 0.4;
+}
+
+/**
+ * 到边缘还不动 → 世界替她做决定
+ * @returns {{text:string, good:boolean}|null}
+ */
+export function resolveArc(world, actorId) {
+  const arc = world.arcs?.[actorId];
+  const seed = ARC_SEEDS[actorId];
+  const out = ARC_OUTCOMES[actorId];
+  if (!arc || !seed || arc.done) return null;
+  const day = world.clock?.day ?? 1;
+  const edgeAt = Number(arc.atEdgeDay) || day;
+  const lastActive = Number(arc.lastActiveDay) || 0;
+  const since = Math.max(edgeAt, lastActive);
+  if (!arc.atEdge) return null;
+  if (day - since < DAYS_AT_EDGE) return null;
+
+  const good = resolveScore(world, actorId) >= 55;
+  const oc = good ? out.good : out.bad;
+  arc.done = true;
+  arc.doneDay = day;
+  arc.outcome = oc.text;
+  return { text: oc.text, memory: oc.memory, good };
+}
 
 /** 给已存在的、绑定真人的角色补上主线 */
 export function ensureArcs(world) {
@@ -122,7 +178,10 @@ export function advanceArcs(world, events, queuePush, nextEvent) {
       force: true,
     });
 
-    if (arc.stage >= seed.steps.length - 1) arc.atEdge = true;
+    if (arc.stage >= seed.steps.length - 1) {
+      if (!arc.atEdge) arc.atEdgeDay = day;
+      arc.atEdge = true;
+    }
   }
 }
 
