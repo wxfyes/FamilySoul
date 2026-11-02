@@ -1344,6 +1344,7 @@ export class PetService {
         const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
         const askedHim = /(王甯|王掌柜|少掌柜|相公)/.test(String(say || ''))
           || /(王甯|王掌柜|少掌柜)/.test(lastTurns)
+          || /(你|您)/.test(String(say || ''))
           || /(那你|你是谁|谁啊|在吗)/.test(String(say || ''));
         if (husHere && askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
@@ -1377,6 +1378,15 @@ export class PetService {
                   } catch { /* 忽略 */ }
                 }
               }
+            } catch { /* 忽略 */ }
+            // 他自己账号里跟她聊过的事，也算他的记忆
+            try {
+              const hisHist = this.readHistory('husband');
+              const hisLines = (hisHist.messages || [])
+                .filter((m) => /(雅阁|紫嫣|文霞)/.test(String(m?.text || '')))
+                .slice(-8)
+                .map((m) => String(m.text).slice(0, 80));
+              for (const l of hisLines) facts.push(l);
             } catch { /* 忽略 */ }
 
             const pp = buildProxyPrompt({
