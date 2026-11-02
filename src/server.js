@@ -1488,6 +1488,11 @@ const STARTED_AT = Date.now();
           promises: (world.promises || []).filter((p) => p && !p.done),
           quotes: (world.quotes || []).slice(-40),
           arcs: world.arcs || {},
+        npcArcs: Object.entries(world.npcArcs || {})
+          .filter(([, a]) => a && a.lastStep)
+          .map(([id, a]) => ({ id, name: world.actors?.[id]?.name || id, text: a.lastStep, day: a.day || 0 }))
+          .sort((x, y) => (y.day || 0) - (x.day || 0))
+          .slice(0, 12),
           military: world.military || null,
           powers: world.powers || null,
           court: world.court || null,

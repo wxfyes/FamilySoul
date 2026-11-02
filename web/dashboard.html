@@ -567,7 +567,7 @@ function render(w){
       <span>${r.when}${(r.kind==='承诺'||r.kind==='暗涌')?` <span class="todo-del" data-kind="${r.kind==='暗涌'?'pending':'promise'}" data-text="${String(r.title||'').replace(/"/g,'&quot;')}">✕</span>`:''}</span>
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
-  try { renderDecrees(w.court); } catch (e) {}
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); } catch (e) {}
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   const shown = window.__actorExpand ? list : list.slice(0, 10);
   $('actors').innerHTML = shown.map(a=>{
@@ -616,7 +616,16 @@ function foldRegion(el, r) {
   });
 }
 
-async function renderDecrees(court) {
+async function renderNpcArcs(list) {
+  const el = $('npcarcs');
+  if (!el) return;
+  const rows = (list || []).slice(0, 8);
+  el.innerHTML = rows.length
+    ? rows.map((x) => `<div class="row"><span><b>${x.name}</b></span><span class="muted" style="max-width:70%;text-align:right">${x.text}</span></div>`).join('')
+    : '暂时还没有动静（每 3 天各人自有一桩事）';
+}
+
+function renderDecrees(court) {
   const el = $('decrees');
   if (!el) return;
   const ds = (court?.decisions || []).slice(-3).reverse();
