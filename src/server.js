@@ -2104,6 +2104,58 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
+  // 案情由天道现写：哪座城、谁犯事、犯了什么
+  async function generateCase() {
+    try {
+      const w = peek(DATA_DIR);
+      const pend = w.flags?.pendingCase;
+      if (!pend || !pend.city) return;
+      const pool = Object.values(w.actors || {})
+        .filter((a) => a && !a.dead && !a.jailed && a.id !== 'husband' && !a.playerControlled)
+        .filter((a) => !/(知府|县令|知县|尚书|宰相|天子|巡抚|统领|正妻|如夫人|千金)/.test(String(a.role || '')))
+        .slice(0, 40)
+        .map((a) => `${a.name}（${a.role || '城中人'}）`);
+      if (pool.length < 2) { return; }
+      const prompt = [
+        `你是天道。${pend.city}民心浮动，今日出了一桩案子。`,
+        `城中可涉案的人：${pool.join('、')}。`,
+        '从这些人里挑一个犯事的、一个受害的，写清犯了什么事。',
+        '只输出 JSON：{"culprit":"名字","victim":"名字","crime":"一句话(12字内)","place":"地点"}',
+      ].join('\n');
+      const res = await petService.llmClient.complete({
+        system: '只输出一行 JSON，不要解释。',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 160,
+        temperature: 0.95,
+      });
+      const raw = String(res?.text || '');
+      const m = raw.match(/\{[\s\S]*\}/);
+      let d = null;
+      try { d = m ? JSON.parse(m[0]) : null; } catch { d = null; }
+      const w2 = peek(DATA_DIR);
+      w2.flags = w2.flags || {};
+      w2.flags.pendingCase = null;
+      const culprit = Object.values(w2.actors || {}).find((a) => a && a.name === String(d?.culprit || ''));
+      const victim = Object.values(w2.actors || {}).find((a) => a && a.name === String(d?.victim || ''));
+      if (!culprit || !victim || culprit.id === victim.id) { saveState(DATA_DIR, w2); return; }
+      w2.cases = Array.isArray(w2.cases) ? w2.cases : [];
+      w2.flags.caseSeq = (Number(w2.flags.caseSeq) || 0) + 1;
+      w2.cases.push({
+        id: `case_${w2.flags.caseSeq}`,
+        day: w2.clock.day, hour: w2.clock.hour, city: pend.city,
+        place: culprit.location || null,
+        who: victim.name, whoId: victim.id,
+        against: culprit.name, againstId: culprit.id,
+        claim: String(d?.crime || '犯了事').slice(0, 20),
+        witnesses: [], status: 'filed', verdict: null, petty: true,
+      });
+      saveState(DATA_DIR, w2);
+      console.log(`[Case] ${pend.city}：${culprit.name}${d?.crime}（告主：${victim.name}）`);
+    } catch (err) {
+      console.warn('[Case] 生成案情失败：', err.message);
+    }
+  }
+
   // 县衙判案：只依据事实（原告、被告、人证、双方关系），由天道裁定
   async function judgeCases() {
     try {
@@ -2147,7 +2199,19 @@ server.listen(PORT, '0.0.0.0', () => {
         const culprit = w3.actors?.[cc.againstId];
         if (jailDays > 0 && culprit && culprit.id !== 'husband') {
           culprit.jailed = { untilDay: (Number(w3.clock?.day) || 1) + jailDays, caseId: cc.id };
-          culprit.location = culprit.gender === 'male' ? 'jail_male' : 'jail_female';
+          const cityName = String(cc.city || '');
+          if (cityName && cityName !== '临江府') {
+            const jailName = `${cityName}·大牢`;
+            let jp = Object.keys(w3.places || {}).find((k) => w3.places[k]?.name === jailName);
+            if (!jp) {
+              w3.flags.placeSeq = (Number(w3.flags.placeSeq) || 0) + 1;
+              jp = `place_${w3.flags.placeSeq}`;
+              w3.places[jp] = { name: jailName, exits: ['street'], owner: 'court', dynamic: true, city: cityName };
+            }
+            culprit.location = jp;
+          } else {
+            culprit.location = culprit.gender === 'male' ? 'jail_male' : 'jail_female';
+          }
         }
         if (Number(pen.rep) > 0) w3.reputation = Math.max(0, (Number(w3.reputation) || 50) - Number(pen.rep));
       } else {
@@ -2326,6 +2390,7 @@ server.listen(PORT, '0.0.0.0', () => {
         await generateNpcArcs();
         await generateDecree();
         await generateCityShops();
+        await generateCase();
         await judgeCases();
       },
     });
