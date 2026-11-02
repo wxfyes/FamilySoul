@@ -16,6 +16,17 @@ function money(assets) {
   return parts.join(' · ');
 }
 
+function propsDetail(props) {
+  const bits = [];
+  for (const p of props) {
+    const extra = [];
+    if (p.staff) extra.push(`${p.staff}个人手`);
+    const s = `${p.name}（日入${p.incomePerDay}两${extra.length ? '，' + extra.join('，') : ''}）`;
+    bits.push(s);
+  }
+  return bits.join('；');
+}
+
 function propsLine(assets) {
   const props = (assets.properties || []).filter((p) => p.status !== '正常营业');
   if (props.length === 0) return '';

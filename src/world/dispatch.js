@@ -295,12 +295,36 @@ export function applyWorldTags(dataDir, ops) {
         world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
         if (world.assets.properties.some((x) => x.name === name)) continue;
         world.flags.propSeq = (Number(world.flags.propSeq) || 0) + 1;
+        // 位置：能对上就用已有地点，对不上就新建一个
+        let placeId = null;
+        const wantPlace = String(args.place || '').trim();
+        if (wantPlace) {
+          placeId = Object.keys(world.places || {}).find((id) => {
+            const n = String(world.places[id]?.name || '');
+            return n === wantPlace || n.includes(wantPlace) || wantPlace.includes(n);
+          }) || null;
+          if (!placeId) {
+            world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+            placeId = `place_${world.flags.placeSeq}`;
+            world.places[placeId] = { name: wantPlace, exits: ['street'], dynamic: true };
+          }
+        }
+        // 掌柜 / 人手
+        const keeperName = String(args.keeper || '').trim();
+        const keeper = keeperName
+          ? Object.values(world.actors || {}).find((a) => a?.name && (a.name === keeperName || a.name.includes(keeperName)))
+          : null;
+        const staff = Math.max(0, Number(args.staff) || 0);
         world.assets.properties.push({
           id: `prop_${world.flags.propSeq}`,
           name,
           kind: String(args.kind || 'shops').slice(0, 12),
           incomePerDay: Math.max(0, Number(args.set ?? args.income ?? 0) || 0),
           status: String(args.status || '筹备开张').slice(0, 12),
+          place: placeId,
+          keeper: keeper?.id || null,
+          staff,
+          note: String(args.note || '').slice(0, 60),
           openedDay: world.clock.day,
         });
         applied.push(`新产业:${name} 日入${Number(args.set ?? args.income ?? 0) || 0}两`);

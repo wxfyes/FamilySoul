@@ -258,8 +258,12 @@ function render(w){
   const props = w.assets?.properties || [];
   const income = props.reduce((s,p)=>s+(+p.incomePerDay||0),0);
   $('a-income').textContent = income.toFixed(2) + ' 两/日';
-  $('a-props').innerHTML = props.map(p =>
-    `<div class="row"><span>${p.name}</span><span>${(+p.incomePerDay||0).toFixed(2)} 两 · ${p.status||''}</span></div>`).join('') || '<div class="muted">无产业</div>';
+  $('a-props').innerHTML = props.map(p => {
+    const bits = [];
+    if (p.staff) bits.push(p.staff + ' 个人手');
+    const extra = bits.length ? ` <span class="muted">（${bits.join('，')}）</span>` : '';
+    return `<div class="row"><span>${p.name}${extra}</span><span>${(+p.incomePerDay||0).toFixed(2)} 两 · ${p.status||''}</span></div>`;
+  }).join('') || '<div class="muted">无产业</div>';
 
   // 清空面板：填充下拉
   const sel = $('resetWho');

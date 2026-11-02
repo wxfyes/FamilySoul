@@ -1680,7 +1680,33 @@ export class PetService {
         if (nm && !props.some((x) => x.name === nm)) {
           world.flags.propSeq = (Number(world.flags.propSeq) || 0) + 1;
           world.assets.properties = props;
-          props.push({ id: `prop_${world.flags.propSeq}`, name: nm, kind: "shops", incomePerDay: value, status: "已开张", openedDay: world.clock.day });
+          // 位置：话里的"在城南 / 在码头"
+          let placeId = null;
+          const pm = say.match(/在\s*([\u4e00-\u9fa5]{2,8}?)(?:开|盘|置|租|买|，|。|$)/);
+          if (pm) {
+            const want = pm[1].trim().replace(/(新|的|那边|附近|里|处|一带)$/u, "");
+            placeId = Object.keys(world.places || {}).find((id) => {
+              const n = String(world.places[id]?.name || "");
+              return n && (n.includes(want) || want.includes(n));
+            }) || null;
+            if (!placeId && want.length >= 2) {
+              world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+              placeId = `place_${world.flags.placeSeq}`;
+              world.places[placeId] = { name: want, exits: ["street"], dynamic: true };
+            }
+          }
+          // 人手："三个伙计"
+          let staff = 0;
+          const sm = say.match(/([0-9]+|[一二三四五六七八九十]+)\s*个?\s*(?:伙计|人手|伙计|帮工|小二)/);
+          if (sm) staff = /^[0-9]/.test(sm[1]) ? Number(sm[1]) : cnNum(sm[1]);
+          // 掌柜："让婉儿当掌柜 / 婉儿管着"
+          let keeper = null;
+          for (const a of Object.values(world.actors || {})) {
+            if (a?.name && say.includes(a.name)) { keeper = a.id; break; }
+          }
+          world.flags.propSeq = (Number(world.flags.propSeq) || 0) + 1;
+          world.assets.properties = props;
+          props.push({ id: `prop_${world.flags.propSeq}`, name: nm, kind: "shops", incomePerDay: value, status: "已开张", place: placeId, keeper, staff, openedDay: world.clock.day });
           saveState(this.dataDir, world);
           console.log(`[Ledger] 新开产业：${nm} 日入 ${value} 两`);
           return [`新产业:${nm}`];
