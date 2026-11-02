@@ -1150,7 +1150,14 @@ const STARTED_AT = Date.now();
           date: worldDate(world),
           calendar: world.calendar || null,
           clock: { ...(world.clock || {}), shichen: shichenOf(world.clock?.hour ?? 0) },
-          assets: world.assets,
+          assets: {
+            ...(world.assets || {}),
+            properties: (world.assets?.properties || []).map((pr) => ({
+              ...pr,
+              placeName: world.places?.[pr.place]?.name || '',
+              keeperName: pr.keeper ? world.actors?.[pr.keeper]?.name || '' : '',
+            })),
+          },
           actors,
           pending: world.pending || [],
           promises: (world.promises || []).filter((p) => p && !p.done),
