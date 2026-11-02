@@ -1668,7 +1668,7 @@ export class PetService {
       // 必须同时满足：① 有生意类词（日入/营收/开张…） ② 说到了具体产业，或明确说"开张/营业"
       const bizWord = /(日入|日进|营收|流水|进项|开张|营业|开业|每天|每日|一天)/.test(say);
       if (!bizWord) return [];
-      const named = props.find((p) => p.name && (say.includes(String(p.name)) || say.includes(String(p.name).slice(0, 4)) || say.includes(String(p.name).slice(0, 2))));
+      const named = props.find((p) => { const nm = String(p.name || ""); for (let n = nm.length; n >= 2; n--) { for (let i = 0; i + n <= nm.length; i++) { if (say.includes(nm.slice(i, i + n))) return true; } } return false; });
       const openedWord = /开张|营业|开业/.test(say);
       if (!named && !openedWord) return []; // 光说个数字，不记账
       const expense = /(花|用掉|喝|吃|买|付给|欠|还了|赏|赌|输)/.test(say);
