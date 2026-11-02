@@ -1295,6 +1295,39 @@ export class PetService {
           const joined = kept.join("").trim();
           if (joined) reply = joined;
         }
+        // ① 她不是相公：不许有人管她叫相公
+        const herName = this._viewerName || '老板娘';
+        reply = String(reply).split('相公').join(`老板娘(` + herName + `)`);
+
+        // ② 名单外的人不许开口
+        try {
+          const wB = loadState(this.dataDir);
+          const meB = wB.actors?.[this._viewerActorId];
+          const locB = meB?.location;
+          const hereB = new Set(
+            Object.values(wB.actors || {})
+              .filter((x) => x && !x.dead && x.location === locB)
+              .flatMap((x) => [x.name, x.name.length > 2 ? x.name.slice(-2) : x.name]),
+          );
+          const segs2 = String(reply).split(/(?=【[^】\n]{1,12}】)/);
+          const kept2 = segs2.filter((seg) => {
+            const mm = seg.match(/^【([^】\n]{1,12})】/);
+            if (!mm) return true;
+            const sp = mm[1].trim();
+            if (/^旁白/.test(sp)) return true;
+            if (sp.includes('·')) return hereB.has(sp.split('·').pop());
+            return hereB.has(sp);
+          });
+          const joined2 = kept2.join("").trim();
+          if (joined2) {
+            reply = joined2;
+          } else if (segs2.length > 0) {
+            const bare = segs2.map((s) => s.replace(/^【[^】\n]{1,12}】[:：]?\s*/, "")).join("").trim();
+            if (bare) reply = bare;
+          }
+        } catch {
+          /* 忽略 */
+        }
       } catch {
         /* 忽略 */
       }
