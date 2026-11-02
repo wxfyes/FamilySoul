@@ -1407,6 +1407,20 @@ export class PetService {
               }
             }
 
+            // 借贷备忘：以账本为准，别被聊天带偏
+            try {
+              const loans = (wPost.promises || []).filter((pr) => pr && pr.loan && !pr.done);
+              if (loans.length === 0) {
+                promiseFacts.push('账本上没有任何未了的借贷（她若说有，先别认，让她把数目和由头说清楚）');
+              } else {
+                for (const pr of loans) {
+                  const fromName = wPost.actors?.[pr.loan.from]?.name || pr.loan.from;
+                  const toName = wPost.actors?.[pr.loan.to]?.name || pr.loan.to;
+                  promiseFacts.push(`${fromName}借给${toName}${pr.loan.amount}两，欠钱的是${toName}，第${pr.due}日该还`);
+                }
+              }
+            } catch { /* 忽略 */ }
+
             // ③ 他自己账号里跟她的对话（排除别的女人的私话）
             try {
               const hisHist = this.readHistory('husband');
