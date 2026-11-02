@@ -557,7 +557,7 @@ export function ensureCourt(world) {
         location: 'yamen',
         relations: { husband: { trust: 20, desire: 0, fear: 0, grievance: 0 } },
         goals: [`坐稳${post}这位子`, '看清朝中风向'],
-        secret: '府里上下都收过银子',
+        secret: id === 'yangshenzhi' ? '拿女儿的亲事换官场上的路' : '府里上下都收过银子',
         schedule: [],
       };
     }
