@@ -2181,6 +2181,7 @@ export class PetService {
         '花销：[[world:spend amount=32 unit=文 reason="买茶"]] —— **凡是付账、买东西、打赏、雇人，必须记这一笔**；不记就等于白拿。',
         '借钱：[[world:loan to=liuwenxia amount=20 due=第40日]] —— 相公答应借钱给别人时用这个，钱会真的转过去；不记就等于空口许诺。',
         '还钱：[[world:repay who=liuwenxia amount=20]] —— 借的人还钱时用它，钱回到出借人手里。',
+        '免债：[[world:forgive who=liuwenxia]] —— 相公说"那钱不用还了/算我送她"时用它：钱不收回，凭证作废。',
         '结盟：[[world:ally a=husband b=liuwenxia]] —— 两人合兵，攻城时盟友各出一半兵力。',
         '**杀天子不准直接写 [[world:kill who=emperor]] 就算完**——先写它，会得到"天道示警"；相公若仍执意，才用 [[world:regicide]]。',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',

@@ -379,6 +379,32 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           loan.doneDay = world.clock.day;
         }
         applied.push(`还款:${amount}两 已到账`);
+      } else if (kind === 'forgive') {
+        // 免债：钱不收回，凭证作废（这是"送她"，不是"取消"）
+        const who = resolveActor(world, args.who || args.to);
+        const target = (world.promises || []).find(
+          (pr) => !pr.done && pr.loan && (!who || pr.loan.to === who),
+        );
+        if (!target) {
+          applied.push('免债:没有可免的借款');
+          continue;
+        }
+        target.done = true;
+        target.doneDay = world.clock.day;
+        target.forgiven = true;
+        const debtor = target.loan.to;
+        const creditor = target.loan.from;
+        world.memories = Array.isArray(world.memories) ? world.memories : [];
+        world.memories.push({
+          text: `${world.actors?.[creditor]?.name || creditor}免了${world.actors?.[debtor]?.name || debtor}${target.loan.amount}两的债`,
+          day: world.clock.day,
+          at: Date.now(),
+          about: [debtor, creditor].filter(Boolean),
+          visible: 'private',
+        });
+        const rel = world.actors?.[debtor]?.relations?.husband;
+        if (rel && typeof rel.trust === 'number') rel.trust = Math.min(100, rel.trust + 5);
+        applied.push(`免债:${target.loan.amount}两 已勾销`);
       } else if (kind === 'collect') {
         // 讨债：当场从她账上扣
         const who = resolveActor(world, args.who || args.to);
