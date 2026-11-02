@@ -16,6 +16,28 @@ function namesOf(actor) {
   return list.filter(Boolean);
 }
 
+/** 按"最长公共片段"找一个地点，容忍「酒楼盯着」「长街买炭」这种带后缀的说法 */
+function findPlace(world, text) {
+  const t = String(text || '');
+  let best = null;
+  let bestLen = 1;
+  for (const [id, p] of Object.entries(world.places || {})) {
+    const nm = String(p?.name || '');
+    if (nm.length < 2) continue;
+    for (let n = nm.length; n >= 2; n--) {
+      let hit = false;
+      for (let i = 0; i + n <= nm.length; i++) {
+        if (t.includes(nm.slice(i, i + n))) { hit = true; break; }
+      }
+      if (hit) {
+        if (n > bestLen) { bestLen = n; best = [id, p]; }
+        break;
+      }
+    }
+  }
+  return best;
+}
+
 /** 在文本里找提到的人（非真人 actor，排除相公本人） */
 function findMentioned(world, text) {
   const hits = [];
@@ -64,13 +86,7 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
 
   // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
   if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
-    const placeHit = Object.entries(world.places || {}).find(([, p]) => {
-      const nm = String(p?.name || '');
-      if (nm.length < 2) return false;
-      if (say.includes(nm)) return true;
-      const short = nm.length > 2 ? nm.slice(-2) : nm;
-      return short.length >= 2 && say.includes(short);
-    });
+    const placeHit = findPlace(world, say);
     if (placeHit) {
       const [pid, p] = placeHit;
       if (me.location !== pid) {
@@ -86,6 +102,23 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
 
   const hasSummonVerb = SUMMON_VERBS.test(say) && COME_WORDS.test(say);
   const hasGoVerb = GO_WORDS.test(say) && /(那|那里|那儿|房里|屋|处)/.test(say);
+
+  // 「让/叫/派 X 去 Y」→ 把 X 派到 Y，并给她一天的"外派"豁免，免得日程立刻把她拉回
+  const sendMatch = String(say).match(/(?:让|叫|派|打发)?\s*([^\s，。]{1,8}?)\s*[，,]?\s*你?\s*(?:去|往|到|回)\s*([^\s，。]{1,10})/);
+  if (sendMatch) {
+    const whoName = sendMatch[1];
+    const destName = sendMatch[2];
+    const who = Object.values(world.actors || {}).find(
+      (a) => a?.name && a.id !== 'husband' && (a.name === whoName || whoName.includes(a.name.slice(-2))),
+    );
+    const dest = findPlace(world, destName) || Object.entries(world.places || {}).find(([, p]) => String(p?.name || '') === destName);
+    if (who && dest) {
+      who.location = dest[0];
+      who.away = { place: dest[0], untilDay: (Number(world.clock.day) || 1) + 1 };
+      saveState(dataDir, world);
+      return { moved: [who.name], summoned: [], visited: null, sent: who.name, to: dest[1].name };
+    }
+  }
 
   if (hasSummonVerb) {
     // 叫 X 过来 → X 挪到相公所在处

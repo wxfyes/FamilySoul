@@ -168,8 +168,9 @@ function runSchedules(world) {
     if (!Array.isArray(actor.schedule)) continue;
     for (const slot of actor.schedule) {
       if (slot.at === world.clock.hour && slot.place && actor.location !== slot.place) {
-        // 正在私会的人不打断；其余照日程走（人不能因为站在你跟前就钉死不动）
+        // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来
         if (actor.intimacy?.ritual === 'unlocked') continue;
+        if (actor.away && Number(actor.away.untilDay) >= Number(world.clock.day)) continue;
         actor.location = slot.place;
         // 主子（不含正妻本人）走到相公所在之处 → 主动来见
         if (
