@@ -306,11 +306,30 @@ function runLoanDues(world, events, queuePush) {
     }
     if (day - Number(pr.overdueDay) >= 3 && !pr.failed) {
       pr.failed = true;
-      pr.done = true;
       world.memories = Array.isArray(world.memories) ? world.memories : [];
       world.memories.push({ text: `${name}赖了一笔账没还`, day, at: Date.now(), about: [borrower], visible: 'private' });
       events.push(nextEvent(world, { action: 'loan_default', actor: borrower, place: null, payload: { text: `${name}赖账` }, isPublic: false }));
       queuePush?.({ to: borrower, reason: 'loan', facts: { 借款: '已赖账' }, fallback: `那笔银子到底没还上，街面上开始有人说了。`, force: true });
+    }
+    // 逾期 7 天：出借人不再等，直接从她账上扣
+    if (day - Number(pr.overdueDay) >= 7 && !pr.done) {
+      const owed = round2((Number(pr.loan.amount) || 0) - (Number(pr.repaid) || 0));
+      const purse = Number(world.wallets?.[borrower]) || 0;
+      const take = Math.min(purse, owed);
+      if (take > 0) {
+        world.wallets = world.wallets || {};
+        world.wallets[borrower] = round2(purse - take);
+        const lender = pr.loan.from || 'husband';
+        if (lender === 'husband') world.assets.silver = round2((Number(world.assets.silver) || 0) + take);
+        else world.wallets[lender] = round2((Number(world.wallets[lender]) || 0) + take);
+        pr.repaid = round2((Number(pr.repaid) || 0) + take);
+        events.push(nextEvent(world, { action: 'loan_collected', actor: borrower, place: null, payload: { text: `强行扣还${name}${take}两` }, isPublic: false }));
+        queuePush?.({ to: borrower, reason: 'loan', facts: { 借款: '被强行扣还' }, fallback: `那笔旧账被人从你账上直接划走了 ${take} 两。`, force: true });
+      }
+      if ((Number(pr.repaid) || 0) >= (Number(pr.loan.amount) || 0)) {
+        pr.done = true;
+        pr.doneDay = day;
+      }
     }
   }
 }

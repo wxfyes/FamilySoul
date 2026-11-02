@@ -365,6 +365,33 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           loan.doneDay = world.clock.day;
         }
         applied.push(`还款:${amount}两 已到账`);
+      } else if (kind === 'collect') {
+        // 讨债：当场从她账上扣
+        const who = resolveActor(world, args.who || args.to);
+        if (!who) continue;
+        const loan = (world.promises || []).find((pr) => !pr.done && pr.loan && pr.loan.to === who);
+        if (!loan) {
+          applied.push('讨债:没有欠账');
+          continue;
+        }
+        const owed = round2((Number(loan.loan.amount) || 0) - (Number(loan.repaid) || 0));
+        const purse = Number(world.wallets?.[who]) || 0;
+        const take = Math.min(purse, owed);
+        if (take <= 0) {
+          applied.push('讨债:她账上没钱');
+          continue;
+        }
+        world.wallets = world.wallets || {};
+        world.wallets[who] = round2(purse - take);
+        const lender = loan.loan.from || 'husband';
+        if (lender === 'husband') world.assets.silver = round2((Number(world.assets.silver) || 0) + take);
+        else world.wallets[lender] = round2((Number(world.wallets[lender]) || 0) + take);
+        loan.repaid = round2((Number(loan.repaid) || 0) + take);
+        if ((Number(loan.repaid) || 0) >= (Number(loan.loan.amount) || 0)) {
+          loan.done = true;
+          loan.doneDay = world.clock.day;
+        }
+        applied.push(`讨债:收回${take}两`);
       } else if (kind === 'spend') {
         // 花钱：买东西、付账、打赏。文与两都认（1000 文 = 1 两）
         const who = String(args.who || 'husband');
