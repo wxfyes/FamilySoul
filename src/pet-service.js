@@ -1536,7 +1536,12 @@ export class PetService {
                 ? String(wPost.places?.[locPost]?.name || '')
                 : `${String(wPost.places?.[locPost]?.name || '')}（他人在「${String(wPost.places?.[husPost?.location]?.name || '别处')}」，这是托人捎话/隔空应答，不要写成他就在同一间屋里）`,
               said: String(say || '').slice(0, 200),
-              recent: '', // 不带聊天记录，只按账本回答
+              recent: (() => {
+                try {
+                  const h = this.readHistory(profileKey).messages || [];
+                  return h.slice(-4).map((m) => String(m.text || '').slice(0, 50)).join('\n');
+                } catch { return ''; }
+              })(), // 不带聊天记录，只按账本回答
             });
             const r = await this.llmClient.complete({
               system: pp.system,
@@ -2108,6 +2113,51 @@ export class PetService {
           assistantMsg.text = `【${pName}】：（你在${pName}。）`;
           assistantMsg.audioKey = null;
           console.log('[Where] 直接答位置：' + pName);
+        }
+      }
+    } catch { /* 忽略 */ }
+
+    // 全场收口：一句问话里点了谁，就只留谁的话；旁人（含婉儿）的段落掐掉
+    try {
+      const wEnd = loadState(this.dataDir);
+      const sayText = String(say || '');
+      const namedHere = Object.values(wEnd.actors || {}).filter(
+        (a) => a && !a.dead && a.name && sayText.includes(a.name),
+      );
+      if (namedHere.length === 1 && reply && /【[^】]+】/.test(String(reply))) {
+        const keepName = namedHere[0].name;
+        const placeName = String(wEnd.places?.[namedHere[0].location]?.name || '');
+        const segs = String(reply).split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+        const kept = segs.filter((seg) => {
+          const m = seg.match(/^【([^】\n]{1,12})】/);
+          if (!m) return true;
+          const who = m[1].trim();
+          if (who === keepName || (placeName && who === placeName)) return true;
+          if (/(天道|旁白|众人)/.test(who)) return true;
+          const actor = Object.values(wEnd.actors || {}).find((a) => a && a.name === who);
+          if (actor && actor.id !== namedHere[0].id) {
+            console.log(`[Scene] 只留${keepName}，掐掉${who}`);
+            return false;
+          }
+          return true;
+        });
+        const joined = kept.join('').trim();
+        if (joined) reply = joined;
+      }
+    } catch { /* 忽略 */ }
+
+    // 记住这一轮是谁在说话（相公号也要有对象记忆）
+    try {
+      const wP = loadState(this.dataDir);
+      const speakers = [...String(reply || '').matchAll(/【([^】\n]{1,12})】/g)].map((m) => m[1].trim());
+      const last = speakers.filter((n) => !/天道|旁白|众人/.test(n)).pop();
+      if (last) {
+        const hit = Object.values(wP.actors || {}).find((a) => a && a.name === last);
+        wP.chatPartners = wP.chatPartners || {};
+        const key = this._viewerActorId || 'husband';
+        if (hit && wP.chatPartners[key] !== hit.id) {
+          wP.chatPartners[key] = hit.id;
+          saveState(this.dataDir, wP);
         }
       }
     } catch { /* 忽略 */ }
