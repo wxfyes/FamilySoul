@@ -125,6 +125,11 @@ function human(sec){
 function attitude(a){
   if (!a.relations) return '—';
   const r = a.relations || {}; const d = +r.desire||0, t = +r.trust||0, g = +r.grievance||0;
+  if (a.gender==='male' && a.household) {
+    if (g>=60) return '心里有气，但不敢违拗';
+    if (t>=60) return '忠心办事的伙计，最得力';
+    return '府里的伙计，听你差遣';
+  }
   if (a.gender==='male') {
     if (g>=60) return '对你有敌意，见面就要生事';
     if (g>=30) return '心里有疙瘩，面上还应酬';

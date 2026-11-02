@@ -35,7 +35,14 @@ function attitudeOf(actor) {
   const t = Number(actor?.relations?.husband?.trust ?? 0);
   const g = Number(actor?.relations?.husband?.grievance ?? 0);
 
-  // 男人之间谈的是交情与敌意，不是欲望
+  // 府里的男仆/伙计：听差遣的下人，不谈交情也不谈敌意
+  if (actor?.gender === 'male' && actor?.household) {
+    if (g >= 60) return '心里有气，但不敢违拗';
+    if (t >= 60) return '忠心办事的伙计，最得力';
+    return '府里的伙计，听你差遣';
+  }
+
+  // 外头的男人：谈的是交情与敌意，不是欲望
   if (actor?.gender === 'male') {
     if (g >= 60) return '对你有敌意，见面就要生事';
     if (g >= 30) return '心里有疙瘩，面上还得应酬';
