@@ -427,7 +427,7 @@ const STARTED_AT = Date.now();
         self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
         date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
         assets: {
-          silver: isHusband ? Number(world.assets?.silver) || 0 : null,
+          silver: isHusband ? Number(world.assets?.silver) || 0 : Number(world.wallets?.[actorId]) || 0,
           properties: props.map((p) => ({ name: p.name, income: Number(p.incomePerDay) || 0, status: p.status || '', staff: p.staff || 0, city: p.city || '' })),
           daily: props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0),
         },

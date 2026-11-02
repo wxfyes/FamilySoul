@@ -86,6 +86,8 @@ export function createInitialState(dataDir) {
         { id: 'tea_house', name: '临江茶坊老店', status: '正常营业', incomePerDay: 1.2 },
         // 于家酒肆：紫嫣（刘文霞）自己的铺子，归在她名下
         { id: 'wine_shop', name: '于家酒肆', status: '正常营业', incomePerDay: 1.1, keeper: 'liuwenxia', city: '临江府' },
+        // 于子归的营造行：土木包工
+        { id: 'yujie_yard', name: '于家营造行', status: '正常营业', incomePerDay: 0.9, keeper: 'yujie', city: '临江府' },
         {
           id: 'canal_restaurant',
           name: '运河码头三层大酒楼',
@@ -343,6 +345,8 @@ export function createInitialState(dataDir) {
         smuggle: '私盐者杖一百、流三千里',
       },
     },
+    // 各人的私房钱：产业归谁，钱就进谁的口袋
+    wallets: {},
     // 名声与通缉：士绅口碑 / 官府悬赏
     reputation: 50,
     wanted: 0,
@@ -787,6 +791,7 @@ export function loadState(dataDir) {
       }
       return a;
     })(),    forces: { ...base.forces, ...(raw.forces || {}) },
+    wallets: { ...base.wallets, ...(raw.wallets || {}) },
     allies: { ...base.allies, ...(raw.allies || {}) },
     terrain: Array.isArray(raw.terrain) && raw.terrain.length ? raw.terrain : base.terrain,
     court: (() => {

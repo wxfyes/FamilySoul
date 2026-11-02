@@ -319,10 +319,19 @@ function onNewDay(world, events) {
     }
   }
 
-  const income = (world.assets.properties || []).reduce(
-    (sum, p) => sum + (Number(p.incomePerDay) || 0),
-    0,
-  );
+  // 各人的产业各人收：有掌柜归掌柜，没掌柜才进公账
+  world.wallets = world.wallets && typeof world.wallets === "object" ? world.wallets : {};
+  let income = 0;
+  for (const p of world.assets.properties || []) {
+    const gain = Number(p.incomePerDay) || 0;
+    if (!(gain > 0)) continue;
+    const keeper = String(p.keeper || "");
+    if (keeper && keeper !== "husband" && world.actors?.[keeper]) {
+      world.wallets[keeper] = round2((Number(world.wallets[keeper]) || 0) + gain);
+    } else {
+      income += gain;
+    }
+  }
   if (income > 0) {
     world.assets.silver = round2((world.assets.silver || 0) + income);
     events.push(
