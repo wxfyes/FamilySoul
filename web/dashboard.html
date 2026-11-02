@@ -41,6 +41,17 @@
   .ev{font-size:12.5px;color:var(--dim);padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.04)}
   .ev b{color:var(--txt);font-weight:500}
   .muted{color:var(--dim);font-size:12px}
+  /* 天下：城池卡片式 */
+  .geo-region { border-top: 1px solid #232833; padding: 6px 0; }
+  .geo-head { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 2px; }
+  .geo-head b { font-size: 13px; }
+  .geo-head .geo-arrow { margin-left: auto; color: #6b7280; transition: transform .15s; }
+  .geo-region.open .geo-arrow { transform: rotate(90deg); }
+  .geo-chips { display: none; flex-wrap: wrap; gap: 6px; padding: 6px 0 2px 4px; }
+  .geo-region.open .geo-chips { display: flex; }
+  .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
+          background: #1b2029; border: 1px solid #2a303c; color: #cfd6e2; font-size: 12px; line-height: 1.4; }
+  .chip.mine { background: #17301f; border-color: #2f6b46; color: #9fe0b8; }
 </style>
 </head>
 <body>
@@ -323,33 +334,31 @@ function render(w){
   const cities = w.cities || {};
   const byRegion = {};
   Object.entries(cities).forEach(([name, c]) => {
-    const r = c.region || '未分道';
+    const r = c.region || "未分道";
     (byRegion[r] = byRegion[r] || []).push([name, c]);
   });
-  const fold = (el, r) => {
-    const parent = el.parentElement;
-    Array.from(parent.children).forEach((e) => {
-      if (e !== el && e.dataset.r === r) e.style.display = e.style.display === 'none' ? '' : 'none';
-    });
-  };
-  // 按地理顺序排，而不是按文字排序（否则山东会掉到最后）
-  const REGION_ORDER = ['京畿道', '河南道', '山东道', '河东道', '河北道', '关内道', '陇右道', '辽东道', '淮北道', '淮南道', '江南道', '闽浙道', '江西道', '荆湖道', '河南道', '剑南道', '云岭道', '云贵道', '岭南道'];
+  const REGION_ORDER = ["京畿道","河南道","山东道","河东道","河北道","关内道","陇右道","辽东道","淮北道","淮南道","江南道","闽浙道","江西道","荆湖道","剑南道","云贵道","岭南道"];
   const regionHtml = Object.keys(byRegion).sort((a, b) => {
     const ia = REGION_ORDER.indexOf(a);
     const ib = REGION_ORDER.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   }).map((r) => {
     const list = byRegion[r];
-    const mineCount = list.filter(([, c]) => c.owner === 'wangjia').length;
-    const head = `<div class="row" style="border-top:1px solid #2a2f3a;margin-top:6px;cursor:pointer" onclick="foldRegion(this,'${r}')"><span><b>${r}</b> <span class="muted">${list.length} 城${mineCount ? ' · 你的 ' + mineCount : ''}（点击折叠）</span></span><span></span></div>`;
-    const rows = list.map(([name, c]) => {
-      const owner = powers[c.owner]?.name || c.owner;
-      const mine = c.owner === 'wangjia';
-      return `<div class="row" data-r="${r}" style="padding-left:14px"><span>${name} ${mine ? '<span class="good">（你的）</span>' : ''}</span><span class="muted">${owner} · 守备${c.defense} · ${(c.goods || []).join('/') || '—'} · 税${c.tax ?? 10}% · 民心${c.unrest}</span></div>`;
-    }).join('');
-    return head + rows;
-  }).join('');
-  $('cities').innerHTML = regionHtml || '<div class="muted">还没有城池数据</div>';
+    const mineCount = list.filter(([, c]) => c.owner === "wangjia").length;
+    const avgUnrest = Math.round(list.reduce((s, [, c]) => s + (Number(c.unrest) || 0), 0) / list.length);
+    const head = `<div class="geo-head" onclick="this.parentElement.classList.toggle(\x27open\x27)">` +
+      `<b>${r}</b><span class="muted">${list.length} 城</span>` +
+      (mineCount ? `<span class="chip mine">你的 ${mineCount}</span>` : "") +
+      `<span class="muted">民心 ${avgUnrest}</span><span class="geo-arrow">▸</span></div>`;
+    const chips = list.map(([name, c]) => {
+      const mine = c.owner === "wangjia";
+      const goods = (c.goods || []).join("/");
+      const tip = `${c.region || ""}｜守备${c.defense}｜${goods || "无特产"}｜物价${c.price ?? 100}｜税${c.tax ?? 10}%｜民心${c.unrest}`;
+      return `<span class="chip${mine ? " mine" : ""}" title="${tip}">${name}</span>`;
+    }).join("");
+    return `<div class="geo-region">${head}<div class="geo-chips">${chips}</div></div>`;
+  }).join("");
+  $("cities").innerHTML = regionHtml || "<div class=\x27muted\x27>还没有城池数据</div>";
 
   // ── 兵力 / 基建 ──────────────────────────────
   const mil = w.military || {};
