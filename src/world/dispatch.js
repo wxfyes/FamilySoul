@@ -235,6 +235,28 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           nextEvent(world, { action: 'spawn', place: world.actors[id].location, payload: { id, name, role: world.actors[id].role }, isPublic: true }),
         );
         applied.push(`新人物:${name}`);
+      } else if (kind === 'report') {
+        // 报官：只记事实（谁、告谁、告什么、有什么人证），不写细节
+        const who = resolveActor(world, args.who || args.by);
+        const against = resolveActor(world, args.against || args.to);
+        const claim = String(args.claim || args.text || '').slice(0, 60);
+        if (!who || !against || !claim) continue;
+        world.cases = Array.isArray(world.cases) ? world.cases : [];
+        const witnesses = Object.values(world.actors || {})
+          .filter((a) => a && !a.dead && a.id !== who && a.id !== against && a.location === world.actors[who]?.location)
+          .map((a) => a.name);
+        world.flags = world.flags || {};
+        world.flags.caseSeq = (Number(world.flags.caseSeq) || 0) + 1;
+        world.cases.push({
+          id: `case_${world.flags.caseSeq}`,
+          day: world.clock.day, hour: world.clock.hour,
+          place: world.actors[who]?.location || null,
+          who: world.actors[who]?.name || who, whoId: who,
+          against: world.actors[against]?.name || against, againstId: against,
+          claim, witnesses, status: 'filed', verdict: null,
+        });
+        events.push(nextEvent(world, { actor: who, action: 'report', place: 'yamen', payload: { text: `${world.actors[who]?.name}到县衙告${world.actors[against]?.name}` }, isPublic: true }));
+        applied.push(`报官:${world.actors[who]?.name}告${world.actors[against]?.name}`);
       } else if (kind === 'move') {
         const id = resolveActor(world, args.who);
         if (!id) continue;

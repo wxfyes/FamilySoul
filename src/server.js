@@ -2104,6 +2104,60 @@ server.listen(PORT, '0.0.0.0', () => {
   runAudit();
   { const t = setInterval(runAudit, 24 * 60 * 60 * 1000); if (t.unref) t.unref(); }
 
+  // 县衙判案：只依据事实（原告、被告、人证、双方关系），由天道裁定
+  async function judgeCases() {
+    try {
+      const w = peek(DATA_DIR);
+      const c = (w.cases || []).find((x) => x && x.status === 'filed');
+      if (!c) return;
+      const w2 = peek(DATA_DIR);
+      const mag = Object.values(w2.actors || {}).find((a) => a && /县令/.test(String(a.role || '')));
+      const prompt = [
+        '你是天道，扮演临江县令周文达断案。',
+        `原告：${c.who}。被告：${c.against}。所告：${c.claim}。`,
+        `现场人证：${(c.witnesses || []).join('、') || '无'}。`,
+        `县令本人收过钱通海的礼（这条是秘密，他判的时候会偏向有钱有势的一方）。`,
+        '只输出 JSON：{"verdict":"guilty|false","reason":"一句话判词(20字内)","penalty":{"silver":0,"wanted":0,"rep":0}}',
+        '被告有罪则 guilty（罚银/加通缉/掉名声）；证据不足或原告诬告则 false（原告反坐）。',
+      ].join('\n');
+      const res = await petService.llmClient.complete({
+        system: '只输出一行 JSON，不要解释。',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 160,
+        temperature: 0.7,
+      });
+      const raw = String(res?.text || '');
+      const m = raw.match(/\{[\s\S]*\}/);
+      let d = { verdict: 'false', reason: '证据不足', penalty: {} };
+      try { if (m) d = { ...d, ...JSON.parse(m[0]) }; } catch { /* 默认 */ }
+      const w3 = peek(DATA_DIR);
+      const cc = (w3.cases || []).find((x) => x && x.id === c.id);
+      if (!cc) return;
+      cc.status = 'judged';
+      cc.verdict = d.verdict;
+      cc.reason = String(d.reason || '').slice(0, 40);
+      const pen = d.penalty || {};
+      const silver = Math.max(0, Number(pen.silver) || 0);
+      if (d.verdict === 'guilty') {
+        if (silver > 0) w3.assets.silver = Math.round(((Number(w3.assets.silver) || 0) - silver) * 100) / 100;
+        if (Number(pen.wanted) > 0) w3.flags.wanted = (Number(w3.flags.wanted) || 0) + Number(pen.wanted);
+        if (Number(pen.rep) > 0) w3.reputation = Math.max(0, (Number(w3.reputation) || 50) - Number(pen.rep));
+      } else {
+        const plaintiff = w3.actors?.[cc.whoId];
+        if (plaintiff) {
+          plaintiff.relations = plaintiff.relations || {};
+          plaintiff.relations.husband = plaintiff.relations.husband || { trust: 30, desire: 0, fear: 0, grievance: 0 };
+          plaintiff.relations.husband.trust = Math.max(0, (Number(plaintiff.relations.husband.trust) || 30) - 10);
+          plaintiff.relations.husband.grievance = Math.min(100, (Number(plaintiff.relations.husband.grievance) || 0) + 10);
+        }
+      }
+      saveState(DATA_DIR, w3);
+      console.log(`[Court] 判案 ${cc.who} 告 ${cc.against}：${cc.reason}（${cc.verdict}）`);
+    } catch (err) {
+      console.warn('[Court] 判案失败：', err.message);
+    }
+  }
+
   // 天下不止一座城：走到哪座城，天道就把那条街补出来（分批长到 12 家）
   async function generateCityShops() {
     try {
@@ -2264,6 +2318,7 @@ server.listen(PORT, '0.0.0.0', () => {
         await generateNpcArcs();
         await generateDecree();
         await generateCityShops();
+        await judgeCases();
       },
     });
   } catch (err) {
