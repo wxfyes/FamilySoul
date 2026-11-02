@@ -123,6 +123,7 @@ function human(sec){
 }
 // 与后端一致的态度阶梯（仅用于展示）
 function attitude(a){
+  if (!a.relations) return '—';
   const r = a.relations || {}; const d = +r.desire||0, t = +r.trust||0, g = +r.grievance||0;
   if (a.gender==='male') {
     if (g>=60) return '对你有敌意，见面就要生事';

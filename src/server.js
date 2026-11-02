@@ -558,7 +558,14 @@ const STARTED_AT = Date.now();
             location: world.places?.[it.place] ? it.place : world.actors?.husband?.location || 'street',
             goals: String(it.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
             secret: String(it.secret || ''),
-            relations: { husband: { trust: Number(it.trust) || 20, desire: Number(it.desire) || 10, fear: 0, grievance: 0 } },
+            relations: {
+              husband: {
+                trust: Number.isFinite(Number(it.trust)) ? Number(it.trust) : 20,
+                desire: Number.isFinite(Number(it.desire)) ? Number(it.desire) : 10,
+                fear: 0,
+                grievance: Number.isFinite(Number(it.grievance)) ? Number(it.grievance) : 0,
+              },
+            },
             schedule: [],
           };
           added += 1;
