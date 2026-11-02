@@ -519,7 +519,7 @@ const STARTED_AT = Date.now();
       }
     }
   // ── 行踪簿：谁在哪（只给名字/身份/所在，不给私事）──────
-  if (req.method === 'GET' && pathname === '/api/who') {
+  if (req.method === 'GET' && (pathname === '/api/who' || pathname === '/dsh-surfcore/pet-api/api/who' || pathname === '/dsh-surfcore/pet-api/who')) {
     try {
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '无效令牌' });
