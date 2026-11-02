@@ -2296,7 +2296,7 @@ server.listen(PORT, '0.0.0.0', () => {
         who: victim.name, whoId: victim.id,
         against: culprit.name, againstId: culprit.id,
         claim: String(d?.crime || '犯了事').slice(0, 20),
-        witnesses: [], status: 'filed', verdict: null, petty: true,
+        witnesses: [], status: 'summoned', hearDay: (Number(w2.clock?.day) || 1) + 1, hearHour: 9, verdict: null, petty: true,
       });
       saveState(DATA_DIR, w2);
       console.log(`[Case] ${pend.city}：${culprit.name}${d?.crime}（告主：${victim.name}）`);
