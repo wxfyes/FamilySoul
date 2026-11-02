@@ -938,6 +938,18 @@ const STARTED_AT = Date.now();
             } catch (err) {
               console.warn('[Reset] 事件清理失败：', err.message);
             }
+            // 承诺与暗涌也一起清：人都抹了，关于她的承诺不能留着
+            const prBefore = (world.promises || []).length;
+            const nameShort = a.name && a.name.length > 2 ? a.name.slice(-2) : a.name;
+            world.promises = (world.promises || []).filter((pr) => {
+              const t = String(pr?.text || '');
+              return !(t.includes(a.name) || (nameShort && t.includes(nameShort)));
+            });
+            const pdBefore = (world.pending || []).length;
+            world.pending = (world.pending || []).filter((pd) => {
+              const t = String(pd?.desc || '');
+              return !(t.includes(a.name) || (nameShort && t.includes(nameShort)));
+            });
             // 她自己的聊天历史
             let chatCleared = 0;
             try {
@@ -974,7 +986,7 @@ const STARTED_AT = Date.now();
               console.warn('[Reset] 对话痕迹清理失败：', err.message);
             }
             done.push(
-              `${a.name} 深度抹除（原话 -${qBefore - (world.quotes || []).length}，约定 -${apBefore - (world.appointments || []).length}，事件 -${evRemoved}，对话 -${chatCleared}，痕迹 -${scrubbed}）`,
+              `${a.name} 深度抹除（原话 -${qBefore - (world.quotes || []).length}，约定 -${apBefore - (world.appointments || []).length}，承诺 -${prBefore - (world.promises || []).length}，暗涌 -${pdBefore - (world.pending || []).length}，事件 -${evRemoved}，对话 -${chatCleared}，痕迹 -${scrubbed}）`,
             );
           }
         }

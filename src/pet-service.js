@@ -1369,43 +1369,45 @@ export class PetService {
               .map((m) => `${m.role === 'user' ? (herName || '她') : ''}${String(m.text || '').slice(0, 60)}`)
               .filter(Boolean)
               .join('\n');
-            const facts = [];
-            for (const ap of wPost.appointments || []) {
-              const who = String(ap?.name || ap?.actorId || '');
-              if (!who || who === herName || who === 'liuwenxia' || /王甯/.test(who)) {
-                if (ap?.text || ap?.desc) facts.push(`第${ap.day}日${ap.hour ?? ''}时 ${ap.text || ap.desc}`);
-              }
-            }
+            const promiseFacts = [];
+            const memoryFacts = hisMem.slice(-6);
+            const apptFacts = [];
+            const histFacts = [];
+
+            // ① 他对她许过的承诺（最优先，必须认）
             for (const pr of wPost.promises || []) {
               const t = String(pr?.text || '');
               if (!t) continue;
               if ((herName && t.includes(herName)) || t.includes('紫嫣') || t.includes('文霞')) {
-                facts.push(`他曾许下：${t}`);
+                promiseFacts.push(`他对${herName || '她'}许下过：${t}`);
               }
             }
-            try {
-              const evFile = path.join(this.dataDir, 'world', 'events.jsonl');
-              if (fs.existsSync(evFile)) {
-                const lines = fs.readFileSync(evFile, 'utf8').trim().split('\n').slice(-80);
-                for (const line of lines) {
-                  try {
-                    const e = JSON.parse(line);
-                    const t = String(e?.payload?.text || '');
-                    if (!t) continue;
-                    if (t.includes('雅阁') || (herName && t.includes(herName)) || t.includes('王甯')) facts.push(t);
-                  } catch { /* 忽略 */ }
-                }
+
+            // ② 与她的约定
+            for (const ap of wPost.appointments || []) {
+              const who = String(ap?.name || ap?.actorId || '');
+              if (!who || who === herName || who === 'liuwenxia' || /王甯/.test(who)) {
+                if (ap?.text || ap?.desc) apptFacts.push(`约定：第${ap.day}日${ap.hour ?? ''}时 ${ap.text || ap.desc}`);
               }
-            } catch { /* 忽略 */ }
-            // 他自己账号里跟她聊过的事，也算他的记忆
+            }
+
+            // ③ 他自己账号里跟她的对话（排除别的女人的私话）
             try {
               const hisHist = this.readHistory('husband');
-              const hisLines = (hisHist.messages || [])
-                .filter((m) => /(雅阁|紫嫣|文霞)/.test(String(m?.text || '')))
-                .slice(-8)
-                .map((m) => String(m.text).slice(0, 80));
-              for (const l of hisLines) facts.push(l);
+              for (const m of (hisHist.messages || []).slice(-200)) {
+                const t = String(m?.text || '');
+                if (!t) continue;
+                if (/(杨采云|苏慕雪)/.test(t)) continue;
+                if (/(紫嫣|文霞)/.test(t) || /雅阁/.test(t)) histFacts.push(`他说过/她说过：${t.slice(0, 70)}`);
+              }
             } catch { /* 忽略 */ }
+
+            const facts = [
+              ...promiseFacts.slice(-6),
+              ...memoryFacts,
+              ...apptFacts.slice(-4),
+              ...histFacts.slice(-6),
+            ].slice(0, 16);
 
             console.log('[Proxy] 事实' + facts.length + '条：' + facts.slice(-4).join(' ｜ ').slice(0, 160));
             const pp = buildProxyPrompt({
