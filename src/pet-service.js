@@ -7,7 +7,7 @@ import { loadState, saveState } from './world/state.js';
 import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
-import { applySummon } from './world/summon.js';
+import { applySummon, applyNpcDeparture } from './world/summon.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -1040,7 +1040,15 @@ export class PetService {
         /* 花名补全失败不影响回复 */
       }
       // 硬对齐：叙事里的场景标记优先于模型是否记得写回执
-      const sceneSync = this.syncSceneFromReply(reply, { skipHusbandMove: engineMovedHusband });
+      // 她说要走了，就真的走（否则人会永远钉在原地）
+    try {
+      const gone = applyNpcDeparture(this.dataDir, reply);
+      if (gone.length > 0) console.log(`[Scene] 离席：${gone.join('、')}`);
+    } catch (err) {
+      console.warn('[Scene] 离席处理失败：', err.message);
+    }
+
+    const sceneSync = this.syncSceneFromReply(reply, { skipHusbandMove: engineMovedHusband });
       if (sceneSync) {
         console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
       }
@@ -1405,6 +1413,7 @@ export class PetService {
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
         '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
+        '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',
       ].join('\n');
 
       const res = await this.llmClient.complete({

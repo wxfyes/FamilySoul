@@ -115,3 +115,33 @@ export function applySummon(dataDir, text, lastBotSaid = '') {
   saveState(dataDir, world);
   return { moved, summoned, visited };
 }
+
+/**
+ * NPC 自己说要走：从回复里识别「下楼/告辞/先回/走了」，真的把她挪回自家。
+ * 只认「说话那个人」的分角段落，避免把别人要走也算到头上。
+ * @returns {string[]} 真的走了的人
+ */
+export function applyNpcDeparture(dataDir, replyText) {
+  const text = String(replyText || '');
+  if (!text) return [];
+  const world = loadState(dataDir);
+  const left = [];
+  const segs = text.split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+  for (const seg of segs) {
+    const m = seg.match(/^【([^】\n]{1,12})】/);
+    if (!m) continue;
+    const name = m[1].trim();
+    const bodyOnly = seg.replace(/^【[^】\n]{1,12}】[:：]?/, '');
+    if (!/(下楼|告辞|先回|回去|回铺子|回家|走了|且回去|先走了|退下)/.test(bodyOnly)) continue;
+    const actor = Object.values(world.actors || {}).find(
+      (a) => a && a.name && a.id !== 'husband' && (a.name === name || name.includes(a.name.slice(-2))),
+    );
+    if (!actor) continue;
+    const home = actor.home && world.places?.[actor.home] ? actor.home : null;
+    if (!home || actor.location === home) continue;
+    actor.location = home;
+    left.push(actor.name);
+  }
+  if (left.length > 0) saveState(dataDir, world);
+  return left;
+}
