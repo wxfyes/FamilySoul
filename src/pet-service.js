@@ -301,7 +301,7 @@ export class PetService {
 
     // 绑定世界人物的成员（如刘文霞本人登录）：只注入她自己视角的那段，走独立分支
     if (this._viewerActorId && this._actorPersonaOverride) {
-      const own = buildStateSummary(this.dataDir, { roleName, memberKey, viewer: this._viewerActorId });
+      const own = buildStateSummary(this.dataDir, { roleName: '傲娇助手', memberKey: 'husband', viewer: null });
       lines.push('');
       lines.push('【你此刻知道的实况（只有这些）】');
       lines.push(own);
@@ -630,16 +630,15 @@ export class PetService {
           const spouse = Object.values(wA.actors || {}).find(
             (x) => x && x.id !== actorId && x.id !== 'husband' && x.gender === 'male' && x.home && a.home && x.home === a.home,
           );
+          // 真人登录某个世界人物时：AI 不演她，而是演「相公王甯」跟她对话
           this._actorPersonaOverride = [
-            `你是${a.name}，${a.role || ''}。`,
-            (a.goals || []).length ? `你心里惦记的事：${a.goals.join('、')}。` : '',
-            a.secret ? `你不愿让人知道的：${a.secret}。` : '',
-            spouse ? `你的丈夫是${spouse.name}（${spouse.role || ''}）。` : '',
-            '你只知道你亲眼见过、亲耳听过的事；相公在别处的银钱、产业、与旁人的往来，你一概不知。',
-            '说话用第一人称，符合你的身份与处境，不要自称"妾身"以外的称呼方式。',
-          ]
-            .filter(Boolean)
-            .join('\n');
+            '你是王甯，临江茶坊的少掌柜，运河码头大酒楼的东家。',
+            '你性子温润、有担当，说话不急不躁，心里装着生意、也装着眼前这个人。',
+            `此刻你正与${a.name}（${a.role || ''}）在一处说话。`,
+            '**你只演你自己（王甯）**：她说什么，你按你的性情、身份与处境回应；绝不替她说话、绝不替她做决定、绝不描述她的心理活动。',
+            '她说的话可能是真的、也可能是遮掩——你自己判断，不必点破，也不必全信。',
+            '用第一人称对白为主，动作与神态点到为止。',
+          ].join('\n');
         }
       } catch {
         this._actorPersonaOverride = null;
