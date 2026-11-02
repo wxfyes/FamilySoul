@@ -400,13 +400,25 @@ const STARTED_AT = Date.now();
       const place = me?.location ? world.places?.[me.location] : null;
       const wd = worldDate(world);
       const todos = [];
+      const myName = me?.name || "";
+      const myShort = myName.length > 2 ? myName.slice(-2) : myName;
       for (const ap of world.appointments || []) {
-        if (ap.actorId && actorId && ap.actorId !== actorId) continue;
-        todos.push({ kind: '约定', text: ap.text || ap.desc || '', day: ap.day, hour: ap.hour });
+        // 她的账号只看自己的约定
+        if (!isHusband) {
+          const who = String(ap.actorId || ap.name || "");
+          if (!who) continue;
+          if (who !== actorId && who !== myName) continue;
+        }
+        todos.push({ kind: "约定", text: ap.text || ap.desc || "", day: ap.day, hour: ap.hour });
       }
       for (const pr of world.promises || []) {
         if (pr.done) continue;
-        todos.push({ kind: '承诺', text: pr.text || '', day: pr.due });
+        // 她的账号只看与她有关的承诺（否则会看到相公的全部家事）
+        if (!isHusband) {
+          const t = String(pr.text || "");
+          if (!myName || (!t.includes(myName) && !(myShort && t.includes(myShort)))) continue;
+        }
+        todos.push({ kind: "承诺", text: pr.text || "", day: pr.due });
       }
       const props = (world.assets?.properties || []).filter((p) => (isHusband ? true : p.keeper === actorId));
       const arc = actorId ? world.arcs?.[actorId] : null;
@@ -422,7 +434,15 @@ const STARTED_AT = Date.now();
           daily: props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0),
         },
         todos: todos.slice(0, 12),
-        clues: (world.clues || []).slice(-8).map((c) => ({ text: c.text, day: c.day })),
+        clues: (world.clues || [])
+          .filter((c) => {
+            if (isHusband) return true;
+            const nm = me?.name || '';
+            const short = nm.length > 2 ? nm.slice(-2) : nm;
+            return Boolean(nm) && (String(c.text || '').includes(nm) || String(c.text || '').includes(short));
+          })
+          .slice(-8)
+          .map((c) => ({ text: c.text, day: c.day })),
         arc: arc ? { title: arc.title, stage: arc.stage, done: Boolean(arc.done), outcome: arc.outcome || '', atEdge: Boolean(arc.atEdge) } : null,
         military: troops > 0 ? { guards: f.guards || 0, militia: f.militia || 0, army: f.army || 0, supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
