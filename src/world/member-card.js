@@ -47,10 +47,10 @@ function husbandLine(world, actorId) {
   const hus = Object.values(world.actors || {}).find((a) => a && a.id === 'husband');
   if (!hus) return null;
   if (hus.location === world.actors?.[actorId]?.location) {
-    return `【王甯】你的相好，临江茶坊东家，此刻就在你跟前。`;
+    return `【王甯】你的相好，临江茶坊东家，此刻就在你跟前（他本人不在线，由你代演他）。`;
   }
   const place = String(world.places?.[hus.location]?.name || '别处');
-  return `【王甯】你的相好，临江茶坊东家，此刻在「${place}」，不在这儿。`;
+  return `【王甯】你的相好，临江茶坊东家，此刻在「${place}」，不在这儿（他本人不在线，通篇由你代演他）。`;
 }
 
 /**
