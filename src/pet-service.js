@@ -1169,6 +1169,8 @@ export class PetService {
     try {
       reply = String(reply).replace(/【([^】\n]{1,40})】(?![:：])/g, (all, inner) => {
         const nm = String(inner).trim();
+        // 场景标记绝对不能动：【天道·地点·雅阁】
+        if (/^天道/.test(nm)) return all;
         const known = (this._knownNames || []).some((n) => n && (nm === n || nm.endsWith(n) || n.endsWith(nm)));
         return known ? all : `（${nm}）`;
       });
