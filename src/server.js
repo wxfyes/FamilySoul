@@ -1115,6 +1115,7 @@ const STARTED_AT = Date.now();
           era: world.era,
           epoch: world.epoch || 'ancient',
           date: worldDate(world),
+          calendar: world.calendar || null,
           clock: { ...(world.clock || {}), shichen: shichenOf(world.clock?.hour ?? 0) },
           assets: world.assets,
           actors,
@@ -1122,6 +1123,7 @@ const STARTED_AT = Date.now();
           promises: (world.promises || []).filter((p) => p && !p.done),
           quotes: (world.quotes || []).slice(-40),
           arcs: world.arcs || {},
+          clues: (world.clues || []).slice(-12),
           appointments: (world.appointments || [])
             .filter((a) => a && Number(a.day) > 0)
             .sort((a, b) => Number(a.day) * 24 + Number(a.hour) - (Number(b.day) * 24 + Number(b.hour)))

@@ -144,6 +144,11 @@
   </section>
 
   <section class="card">
+    <h2>线索（查到的底细）</h2>
+    <div id="clues">—</div>
+  </section>
+
+  <section class="card">
     <h2>她们亲口说过的话（原文）</h2>
     <div id="quotes">—</div>
   </section>
@@ -345,6 +350,11 @@ function render(w){
   }).join('');
 
   $('summary').textContent = w.summary || '—';
+
+  const cls = (w.clues || []).slice().reverse();
+  $('clues').innerHTML = cls.length ? cls.map(c =>
+    `<div class="row"><span>${String(c.text || '').replace(/</g,'&lt;')}</span><span class="muted">第${c.day}日 · ${c.source || ''}</span></div>`
+  ).join('') : '<div class="muted">还没有线索</div>';
 
   const qs = (w.quotes || []).slice(-10).reverse();
   $('quotes').innerHTML = qs.length ? qs.map(q =>
