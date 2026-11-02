@@ -212,13 +212,33 @@ export function auditOwnership(world) {
 
 /** 全量自检 */
 export function auditAll(world) {
+  // 一次性清账：把历史上误报的假地名丢掉
+  if (Array.isArray(world.auditIssues)) {
+    world.auditIssues = world.auditIssues.filter((x) => {
+      const m = String(x?.text || '').match(/她提到了「([^」]+)」/);
+      if (!m) return true;
+      if (!/府$/.test(m[1])) return true;
+      return !/(知|到|是|了|回|去|本|该|官|县|州)/.test(m[1]);
+    });
+  }
   const ledger = auditWorld(world).map((t) => ({ kind: 'ledger', level: 'bad', text: t }));
   const memory = auditMemories(world);
   const ownership = auditOwnership(world);
   // 只留最近两天的台词告警：老账不翻，免得早修好的问题一直挂着
   const today = Number(world.clock?.day) || 1;
+  const BAD_CITY = /(知|到|是|了|回|去|本|该|官|县|州|这|那|一|两|三)/;
   const reply = Array.isArray(world.auditIssues)
-    ? world.auditIssues.filter((x) => x && (!x.day || today - Number(x.day) <= 1)).slice(-12)
+    ? world.auditIssues
+      .filter((x) => x && (!x.day || today - Number(x.day) <= 1))
+      .filter((x) => {
+        // 按现在的规则重新判一遍：假地名（就是府/到府/张知府）不再报
+        const m = String(x?.text || '').match(/她提到了「([^」]+)」/);
+        if (!m) return true;
+        const name = m[1];
+        if (!/府$/.test(name)) return true;
+        return BAD_CITY.test(name) ? false : true;
+      })
+      .slice(-12)
     : [];
   const all = [...ledger, ...memory, ...ownership, ...reply];
   return {
