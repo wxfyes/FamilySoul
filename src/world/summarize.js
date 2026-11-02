@@ -162,6 +162,20 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       }
     }
 
+    // 子嗣：谁生了谁，多大了
+    try {
+      const kids = Object.values(world.actors || {}).filter((a) => a?.bornDay && a.role && /所生/.test(a.role));
+      if (kids.length > 0) {
+        lines.push(
+          `【子嗣】${kids
+            .map((k) => `${k.name}（${k.role}，${Math.max(0, world.clock.day - Number(k.bornDay))}天）`)
+            .join('、')}`,
+        );
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     // 身孕：怀上了就一直跟着她，不会聊完就没
     try {
       const pregs = Object.values(world.actors || {}).filter((a) => a?.pregnancy && !a.pregnancy.born);

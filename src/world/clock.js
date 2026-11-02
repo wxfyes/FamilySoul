@@ -105,8 +105,13 @@ function advancePregnancies(world, events) {
       pg.born = true;
       world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
       const id = `npc_${world.flags.npcSeq}`;
-      const boy = (Number(world.flags.npcSeq) + days) % 2 === 0;
-      const babyName = boy ? `${a.name.slice(-2)}之子` : `${a.name.slice(-2)}之女`;
+      // 性别 50/50 真随机；孩子随父姓（王家）
+      const boy = Math.random() < 0.5;
+      const GIVEN_BOY = ['承宗', '景行', '念祖', '守拙', '明远', '亦安'];
+      const GIVEN_GIRL = ['念慈', '柔嘉', '清婉', '静姝', '如珍', '亦宁'];
+      const pool = boy ? GIVEN_BOY : GIVEN_GIRL;
+      const given = pool[Math.floor(Math.random() * pool.length)];
+      const babyName = `王${given}`;
       world.actors[id] = {
         id,
         name: babyName,
@@ -116,6 +121,7 @@ function advancePregnancies(world, events) {
         household: Boolean(a.household),
         home: a.home || a.location,
         location: a.location,
+        bornDay: world.clock.day,
         goals: ['长大成人'],
         relations: { husband: { trust: 50, desire: 0, fear: 0, grievance: 0 } },
         schedule: [],
@@ -130,7 +136,14 @@ function advancePregnancies(world, events) {
           isPublic: true,
         }),
       );
-      console.log(`[World] ${a.name}临盆，孩子入世：${babyName}`);
+      world.memories = Array.isArray(world.memories) ? world.memories : [];
+      world.memories.push({
+        text: `第${world.clock.day}日，${a.name}为相公诞下${boy ? '一子' : '一女'}，取名${babyName}`,
+        day: world.clock.day,
+        at: Date.now(),
+      });
+      if (world.memories.length > 120) world.memories = world.memories.slice(-120);
+      console.log(`[World] ${a.name}临盆，孩子入世：${babyName}（${boy ? '子' : '女'}）`);
     }
   }
 }
