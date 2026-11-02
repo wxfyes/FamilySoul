@@ -1,6 +1,6 @@
-# FamilySoul 全景开发军规与最高防退化防漏法则（All AI Agents Mandatory Guide）
+# FamilySoul 全景开发军规与最高防退化防漏法则（All AI Agents Mandatory Guide · Skills）
 
-> **【接手第一件事】** 先读 `docs/维护手册.md`：里面是文件职责地图、不可破坏的机制
+> **【接手第一件事 / 用户说「skills」时先启用】** 读 `skills/familysoul-guide/SKILL.md` 与 `docs/维护手册.md`：里面是文件职责地图、不可破坏的机制
 > （位置优先级、方括号规则、双账号隔离、天机两视角）、已修问题清单与根因、
 > 验证清单、诊断入口、常见陷阱。**不读就动手 = 必然重犯旧错。**
 

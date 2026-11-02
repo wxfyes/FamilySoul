@@ -1,7 +1,8 @@
 ---
 name: familysoul-guide
 description: >-
-  【最高强制准则】接手、维护、迭代开发、调教角色、测试、部署或打包 FamilySoul 服务端与移动端代码时必须首先遵守此规范。
+  【最高强制准则 / Skills】接手、维护、迭代开发、调教角色、测试、部署或打包 FamilySoul 服务端与移动端代码时必须首先遵守此规范。
+  用户说「skills」「看 skills」「加载规范」时立即启用本技能；动手前必读 docs/维护手册.md。
 ---
 
 # FamilySoul 开发部署与防退化规范（dsh / Local Agents Skill）
