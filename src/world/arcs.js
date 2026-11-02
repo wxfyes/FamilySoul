@@ -122,6 +122,29 @@ export function ensureArcs(world) {
     const actor = world.actors?.[id];
     if (!actor) continue;
     if (!world.arcs[id]) {
+      // 难关总得有个出处：补一条因果（谁惹的、怎么惹的）
+      try {
+        const hasCause = (world.memories || []).some((m) => /于子归.*(借|名号|债)/.test(String(m?.text || '')));
+        if (!hasCause && id === 'liuwenxia') {
+          world.memories = Array.isArray(world.memories) ? world.memories : [];
+          world.memories.push({
+            text: '于子归拿于家酒肆的名号向钱通海借了一笔银子，工地上赔了，债却记在铺子头上',
+            day: world.clock?.day || 1,
+            at: Date.now(),
+            about: ['liuwenxia', 'yujie'],
+            visible: 'private',
+          });
+          world.clues = Array.isArray(world.clues) ? world.clues : [];
+          if (!world.clues.some((c) => /于子归.*借/.test(String(c?.text || '')))) {
+            world.clues.push({
+              text: '于子归拿于家酒肆名号向钱通海借银，债主找的是铺子',
+              day: world.clock?.day || 1,
+              source: '街面风声',
+              owner: 'liuwenxia',
+            });
+          }
+        }
+      } catch { /* 忽略 */ }
       world.arcs[id] = {
         title: seed.title,
         hook: seed.hook,
