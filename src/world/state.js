@@ -4,6 +4,7 @@
  * 只用纯规则读写，不调用任何大模型。
  * 所有数据结构见 docs/world-engine.md 第 3、4 节。
  */
+import { ensureBonds } from './bonds.js';
 import fs from 'node:fs';
 import { lunarFromTable } from './lunar-table.js';
 import path from 'node:path';
@@ -791,6 +792,9 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  try {
+    ensureBonds(world);
+  } catch { /* 关系网失败不影响读档 */ }
   // 相公的房间归一：别让账本里出现 "husband_room" 这种地名
   world.places = world.places || {};
   if (!world.places.husband_room) {

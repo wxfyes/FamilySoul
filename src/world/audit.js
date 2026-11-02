@@ -227,3 +227,15 @@ export function auditAll(world) {
     },
   };
 }
+
+/** 关系网自检：不许指向不存在的人 */
+export function auditBonds(world) {
+  const issues = [];
+  for (const [a, map] of Object.entries(world?.bonds || {})) {
+    if (!world.actors?.[a]) { issues.push(`关系网里有不存在的人：${a}`); continue; }
+    for (const b of Object.keys(map || {})) {
+      if (!world.actors?.[b]) issues.push(`${world.actors[a]?.name || a} 的关系指向不存在的人：${b}`);
+    }
+  }
+  return issues;
+}

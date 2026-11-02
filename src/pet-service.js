@@ -13,6 +13,7 @@ import { buildMemberCard } from './world/member-card.js';
 import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
 import { resolveTurnTarget } from './world/turn-target.js';
+import { describeBonds } from './world/bonds.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
 import { buildProxyPrompt, wrapProxyLine } from './world/proxy-actor.js';
 
@@ -784,6 +785,14 @@ export class PetService {
           .map((a) => `${a.name}正在${a.activity.text}`)
           .slice(0, 4);
         if (acts.length) bits.push(`他们手头的事：${acts.join('；')}（他们说自己的话时，要跟他们正在做的事对得上）`);
+        const hereIds = Object.values(wHere.actors || {})
+          .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId)
+          .map((a) => a.id);
+        const bondLines = describeBonds(wHere, hereIds);
+        if (bondLines.length) {
+          bits.push(`他们彼此：${bondLines.join('；')}（他们之间有自己的情分和恩怨，不只围着你转）`);
+          console.log(`[Bonds] 在场关系 ${bondLines.length} 条：${bondLines.slice(0, 3).join('；')}`);
+        }
         const own = Object.values(wHere.actors || {})
           .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId)
           .map((a) => ({ name: a.name, step: (wHere.npcArcs || {})[a.id]?.lastStep }))
