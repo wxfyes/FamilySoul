@@ -481,6 +481,36 @@ export function ensureCities(world) {
   return world.cities;
 }
 
+/**
+ * 势力阶梯：你现在算老几
+ * 由 名声 + 兵力 + 城池 + 势力值 决定，不写死剧情。
+ */
+export function standingOf(world) {
+  const rep = Number(world?.reputation) || 0;
+  const mil = world?.military || {};
+  const troops = (Number(mil.guards) || 0) + (Number(mil.militia) || 0) + (Number(mil.army) || 0);
+  const cities = Object.values(world?.cities || {}).filter((c) => c?.owner === 'wangjia').length;
+  const power = Number(world?.powers?.wangjia?.power) || 0;
+  const score = rep * 1.0 + troops * 0.05 + cities * 15 + power * 1.5;
+
+  const ladder = [
+    { at: 0, name: '无名之辈', note: '没人把你放在眼里' },
+    { at: 40, name: '一坊富户', note: '街面上有人打招呼' },
+    { at: 80, name: '临江乡绅', note: '县衙递帖子要先问你一句' },
+    { at: 150, name: '一方豪强', note: '护院成群，官府开始盯你' },
+    { at: 260, name: '义军首领', note: '有人愿意跟着你卖命' },
+    { at: 420, name: '割据诸侯', note: '朝廷把你写进邸报' },
+    { at: 650, name: '问鼎天下', note: '你的名字开始改朝换代' },
+  ];
+  let cur = ladder[0];
+  let next = null;
+  for (let i = 0; i < ladder.length; i++) {
+    if (score >= ladder[i].at) cur = ladder[i];
+    else { next = ladder[i]; break; }
+  }
+  return { score: Math.round(score), level: cur.name, note: cur.note, next: next ? { name: next.name, at: next.at } : null };
+}
+
 export function loadState(dataDir) {
   const file = statePath(dataDir);
   const raw = readJson(file);

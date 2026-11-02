@@ -2,7 +2,7 @@
  * 状态摘要 —— 把世界状态压成一段给叙述层看的「天机」文字
  * 纯规则生成，不调用大模型；目标 ≤ 800 token。
  */
-import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2, ensureCities } from './state.js';
+import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2, ensureCities, standingOf } from './state.js';
 import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
@@ -294,6 +294,12 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         );
       }
       lines.push(`【名声】士绅口碑${world.reputation ?? 50} · 官府通缉${world.wanted ?? 0}`);
+      try {
+        const st = standingOf(world);
+        lines.push(`【身份】${st.level}（${st.note}）${st.next ? `，距「${st.next.name}」还差 ${Math.max(0, st.next.at - st.score)} 分` : ''}`);
+      } catch {
+        /* 忽略 */
+      }
       if (mine.length) {
         lines.push(`【你的城】${mine.map(([n]) => n).join('、')}`);
       }
