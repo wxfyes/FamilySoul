@@ -25,6 +25,23 @@ const CLASSICAL_MUSIC_REGISTRY = {
   '一路生花': `${JSD_MUSIC_BASE}/%E4%B8%80%E8%B7%AF%E7%94%9F%E8%8A%B1-%E6%B8%A9%E5%A5%95%E5%BF%83.mp3`,
 };
 
+/** 中文数字 → 阿拉伯数字（十八、二十、一百二十…） */
+function cnNum(s) {
+  const map = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const unit = { 十: 10, 百: 100, 千: 1000 };
+  let total = 0;
+  let cur = 0;
+  for (const ch of String(s)) {
+    if (map[ch] !== undefined) {
+      cur = map[ch];
+    } else if (unit[ch]) {
+      total += (cur || 1) * unit[ch];
+      cur = 0;
+    }
+  }
+  return total + cur;
+}
+
 export class PetService {
   constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 8, promptMode = 'full' } = {}) {
     this.rolesManager = rolesManager;
@@ -722,6 +739,16 @@ export class PetService {
       }
     } catch {
       /* 忽略 */
+    }
+
+    // 相公亲口说了「日入 N 两」，直接落账（这是事实，不该由模型猜）
+    if (!this._viewerActorId) {
+      try {
+        const ledger = this.applyStatedIncome(say);
+        if (ledger.length > 0) console.log(`[Ledger] 已落账：${ledger.join("、")}`);
+      } catch {
+        /* 忽略 */
+      }
     }
 
     if (summonedNames.length > 0) {
@@ -1623,6 +1650,41 @@ export class PetService {
       return text;
     }
   }
+
+  /**
+   * 确定性记账：相公话里明确说了「日入 N 两」，就直接把产业营收改过去。
+   * 不是替天道编剧情，是把**他自己说出口的数字**记到账上——任何真人说这话都同样生效。
+   */
+  applyStatedIncome(userText) {
+    try {
+      const say = String(userText || "");
+      const m = say.match(/(?:日入|每天|每日|一天|日进)[^0-9一二三四五六七八九十百千]{0,16}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/);
+      const value = /^[0-9]/.test(String(m[1])) ? Number(m[1]) : cnNum(m[1]);
+      const world = loadState(this.dataDir);
+      const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+      if (props.length === 0) return [];
+      const opened = /开张|营业|开业/.test(say);
+      const named = props.find((p) => p.name && (say.includes(String(p.name)) || say.includes(String(p.name).slice(0, 4))));
+      const target = named || props.find((p) => !(Number(p.incomePerDay) > 0)) || props[0];
+      if (!target) return [];
+      const before = Number(target.incomePerDay) || 0;
+      target.incomePerDay = value;
+      if (opened) target.status = "已开张";
+      for (const pr of world.promises || []) {
+        if (!pr.done && opened && /开张|开业/.test(String(pr.text || ""))) {
+          pr.done = true;
+          pr.doneDay = world.clock.day;
+        }
+      }
+      saveState(this.dataDir, world);
+      console.log(`[Ledger] 按相公口述落账：${target.name} 日入 ${value} 两${opened ? "（已开张）" : ""}（原 ${before}）`);
+      return [`${target.name} 日入${value}两`];
+    } catch (err) {
+      console.warn("[Ledger] 口述落账失败：", err.message);
+      return [];
+    }
+  }
+
 
   /**
    * 记忆压缩：把即将滑出窗口的旧对话，提炼成几条长期事实。
