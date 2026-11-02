@@ -2055,7 +2055,7 @@ server.listen(PORT, '0.0.0.0', () => {
   // NPC 自己的命：每次心跳最多补两个（省 token）
   async function generateNpcArcs() {
     try {
-      for (let round = 0; round < 2; round += 1) {
+      for (let round = 0; round < 5; round += 1) {
         const world = peek(DATA_DIR);
         const pending = Object.entries(world.npcArcs || {}).find(([, a]) => a && a.pendingStep);
         if (!pending) return;

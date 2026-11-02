@@ -402,14 +402,33 @@ function markNpcArcs(world) {
   world.npcArcs = world.npcArcs || {};
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead || a.id === 'husband') continue;
-    const rel = a.relations?.husband || {};
-    const inPlay = (Number(rel.trust) || 0) >= 25 || (Number(rel.grievance) || 0) >= 10;
-    if (!inPlay) continue;
+    if (a.servant && !a.name) continue;
+    // 世界里每个活人都有自己的事，不再只挑"局中人"
+    if (!a.role && !a.schedule?.length) continue;
     const arc = world.npcArcs[a.id] || {};
     if (arc.pendingStep) continue;
     arc.stage = (Number(arc.stage) || 0) + 1;
     arc.pendingStep = true;
     world.npcArcs[a.id] = arc;
+  }
+}
+
+function ensureActivity(world) {
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.id === 'husband') continue;
+    if (a.activity?.text) continue;
+    const role = String(a.role || '');
+    let text = '忙着手里的事';
+    if (/知府|知县/.test(role)) text = '坐堂理事，批折子';
+    else if (/尚书|宰相/.test(role)) text = '在衙门里议事';
+    else if (/天子/.test(role)) text = '在宫里听政';
+    else if (/掌柜|东家|老板娘/.test(role)) text = '守着铺子看账';
+    else if (/工头|匠/.test(role)) text = '在工地上盯活';
+    else if (/行商|商/.test(role)) text = '在外头跑买卖';
+    else if (/伙计|跑堂/.test(role)) text = '招呼客人';
+    else if (/护卫|统领|兵/.test(role)) text = '当值巡街';
+    else if (/寡妇|绣|妇人/.test(role)) text = '在家做针线';
+    a.activity = { text, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
   }
 }
 
@@ -706,6 +725,7 @@ function advanceHour(world, events, nowMs) {
     }
   }
 
+  ensureActivity(world);
   runSchedules(world);
   try {
     markNpcArcs(world);
