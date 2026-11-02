@@ -951,6 +951,23 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26i 删案 POST /api/admin/case/remove {id}
+    if (req.method === 'POST' && pathname === '/api/admin/case/remove') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const id = String(body.id || '');
+        const before = (world.cases || []).length;
+        world.cases = (world.cases || []).filter((c) => c && c.id !== id);
+        saveState(DATA_DIR, world);
+        const removed = before - world.cases.length;
+        console.log(`[Case] 删除案卷 ${id}（${removed}）`);
+        return sendJson(res, 200, { ok: true, removed });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
