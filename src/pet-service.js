@@ -563,6 +563,25 @@ export class PetService {
       } else if (ritualCtx) {
         console.log(`[Ritual] ${ritualCtx.unlock ? '暗号命中 → 已解禁' : '事毕 → 已归位温存'}（${ritualCtx.actorId}）`);
       }
+      // 亲密一次，关系就真的近一层 —— 不靠记账员判，服务器自己记
+      if (ritualCtx?.finish && ritualCtx.actorId) {
+        try {
+          const wr = loadState(this.dataDir);
+          const who = wr.actors?.[ritualCtx.actorId];
+          const rel = who?.relations?.husband;
+          if (rel) {
+            rel.desire = Math.min(100, Math.round((Number(rel.desire) || 0) + 8));
+            rel.trust = Math.min(100, Math.round((Number(rel.trust) || 0) + 5));
+            who.intimacy = who.intimacy || {};
+            who.intimacy.consummated = true;
+            if (!(who.intimacy.level > 0)) who.intimacy.level = 1;
+            saveState(this.dataDir, wr);
+            console.log(`[Ritual] 关系结算：${who.name} 欲望+8→${rel.desire} 信任+5→${rel.trust}（已标为相好）`);
+          }
+        } catch (err2) {
+          console.warn('[Ritual] 关系结算失败：', err2.message);
+        }
+      }
     } catch (err) {
       console.warn('[Ritual] 状态推进失败：', err.message);
     }
