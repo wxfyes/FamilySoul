@@ -917,6 +917,19 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.25 世界步进 POST /api/admin/world/step {days}
+    if (req.method === 'POST' && pathname === '/api/admin/world/step') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const days = Number(body.days) || 1;
+        const log = await stepWorld(days);
+        const world = peek(DATA_DIR);
+        return sendJson(res, 200, { ok: true, steps: log, clock: world.clock });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.26h 人物志 GET /api/admin/actor/detail?id=xxx
     if (req.method === 'GET' && pathname === '/api/admin/actor/detail') {
       try {
@@ -2538,6 +2551,33 @@ server.listen(PORT, '0.0.0.0', () => {
     } catch (err) {
       console.warn('[NpcArc] 生成失败：', err.message);
     }
+  }
+
+  // 手动步进：推进 N 个世界日，并把依赖天道的那几套（案子/判决/折子/朝议/补街）跑一遍
+  async function stepWorld(days = 1) {
+    const { tick } = await import('./world/clock.js');
+    const msPerHour = Number(config.world?.msPerWorldHour) || 60 * 60 * 1000;
+    const base = Date.now();
+    const done = [];
+    for (let i = 0; i < Math.max(1, Math.min(30, days)); i += 1) {
+      const before = peek(DATA_DIR).clock?.day || 1;
+      tick(DATA_DIR, { now: base + (i + 1) * 24 * msPerHour, msPerWorldHour: msPerHour });
+      // 没有模型密钥时，只跑规则部分，不让请求卡死
+      const aiReady = (() => { try { return petService.llmClient.isReady(); } catch { return false; } })();
+      if (aiReady) {
+        try { await generateCase(); } catch (e) { /* 忽略 */ }
+        try { await judgeCases(); } catch (e) { /* 忽略 */ }
+        try { await resolveMemorials(); } catch (e) { /* 忽略 */ }
+        try { await generateDecree(); } catch (e) { /* 忽略 */ }
+        try { await generateCityShops(); } catch (e) { /* 忽略 */ }
+        try { await generateNpcArcs(); } catch (e) { /* 忽略 */ }
+      } else {
+        done.push('（无模型密钥，仅推进规则）');
+      }
+      const after = peek(DATA_DIR).clock?.day || 1;
+      done.push(`${before}→${after}`);
+    }
+    return done;
   }
 
   // 世界引擎：启动天道时钟（离线补算 + 定时心跳）

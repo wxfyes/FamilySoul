@@ -60,13 +60,20 @@ export function ensureBonds(world) {
     }
   }
 
-  // ② 同一衙门：同僚
-  for (const a of actors) {
-    for (const b of actors) {
-      if (a.id >= b.id) continue;
-      if (!OFFICIAL_WORDS.test(String(a.role || '')) || !OFFICIAL_WORDS.test(String(b.role || ''))) continue;
-      const samePlace = placeOf(world, a.id) && placeOf(world, a.id) === placeOf(world, b.id);
-      addBond(world, a.id, b.id, '同僚', samePlace ? 25 : 10);
+  // ② 同一衙门：同僚（只连同处办公的，不然 113 个官会连出上万物关系）
+  const officials = actors.filter((a) => OFFICIAL_WORDS.test(String(a.role || '')));
+  const byPlace = {};
+  for (const a of officials) {
+    const pl = placeOf(world, a.id);
+    if (!pl) continue;
+    (byPlace[pl] = byPlace[pl] || []).push(a);
+  }
+  for (const group of Object.values(byPlace)) {
+    if (group.length > 8) continue; // 同处一张桌子的才算同僚
+    for (let i = 0; i < group.length; i += 1) {
+      for (let j = i + 1; j < group.length; j += 1) {
+        addBond(world, group[i].id, group[j].id, '同僚', 25);
+      }
     }
   }
 
@@ -81,6 +88,18 @@ export function ensureBonds(world) {
     }
   }
 
+  // 总上限：世界再大，关系也不该无限膨胀
+  const ids = Object.keys(world.bonds);
+  let total = 0;
+  for (const id of ids) total += Object.keys(world.bonds[id] || {}).length;
+  if (total > 1200) {
+    // 只保留强关系（|score| >= 15）
+    for (const id of ids) {
+      for (const [oid, b] of Object.entries(world.bonds[id] || {})) {
+        if (Math.abs(Number(b?.score) || 0) < 15) delete world.bonds[id][oid];
+      }
+    }
+  }
   return world;
 }
 
