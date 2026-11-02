@@ -173,6 +173,9 @@ export class PetService {
       lines.push('- 别人问「你们掌柜/东家呢」，知道就照天机说（例如东家是谁），不知道就说不知道；绝不许否认天机里写明的东家。');
       lines.push('- 在场的人只知道自己身份和听来的事。问别人家的私密账目、家事、借据，只能说「不清楚」「只听人提过一点」，绝不许凭空知道细节。');
       lines.push('- 谁惹的祸就说谁：她铺子的债是**于子归拿铺子名号借的**，不是天上掉下来的。');
+      lines.push('- 你提到账本之外的人（街坊、伙计、婆子、货郎…）时，必须在这句后面附一条：');
+      lines.push('  [[world:spawn name="张婆子" role="巷口卖菜的" place="street"]]');
+      lines.push('  不附，这个人就不存在，下次谁也找不到他。');
 
       return lines.join('\n');
     }
@@ -1612,6 +1615,28 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 兜底：回复里出现了账本没有的"某婆子/某货郎"，天道就让他存在
+    try {
+      if (reply) {
+        const pat = /([\u4e00-\u9fa5]{2,4})(婆子|娘子|老汉|汉子|货郎|船夫|郎中|秀才|掌柜|妇人|脚夫|绣娘|花子|屠户|车夫)/g;
+        const wNow2 = loadState(this.dataDir);
+        const known = new Set(Object.values(wNow2.actors || {}).map((a) => a && a.name).filter(Boolean));
+        const fresh = [];
+        let m2;
+        while ((m2 = pat.exec(String(reply))) !== null) {
+          const nm = m2[1];
+          if (known.has(nm) || /(自己|我们|他们|你们|咱们|人家)/.test(nm)) continue;
+          if (fresh.some((x) => x.name === nm)) continue;
+          if (fresh.length >= 2) break;
+          fresh.push({ name: nm, role: m2[2] });
+        }
+        if (fresh.length) {
+          applyWorldTags(this.dataDir, fresh.map((f) => ({ kind: 'spawn', args: { name: f.name, role: f.role } })), { selfId: this._viewerActorId });
+          console.log('[World] 天道造人：' + fresh.map((f) => f.name + '(' + f.role + ')').join('、'));
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 回执标签绝不能出现在回复里
     try {
       if (reply) reply = String(reply).replace(/\[\[world:[\s\S]*?\]\]/g, '').replace(/\n{2,}/g, '\n').trim();
@@ -2356,7 +2381,9 @@ export class PetService {
         '结盟：[[world:ally a=husband b=liuwenxia]] —— 两人合兵，攻城时盟友各出一半兵力。',
         '**杀天子不准直接写 [[world:kill who=emperor]] 就算完**——先写它，会得到"天道示警"；相公若仍执意，才用 [[world:regicide]]。',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
-        '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
+        '**本轮回复里只要出现账本没有的人名（哪怕是别人嘴里提到的），就要输出 spawn 回执**，格式：',
+        '  [[world:spawn name="柳三娘" role="挑担卖花的" place="street"]]',
+        '  role 从他做的事推断，place 用对话里说的地点（street/tea_house/dock/wine_shop 等）。不输出就等于这个人不存在。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',
         '**动情/暧昧/答应私会/被撩到心软** → 必须记 [[world:relation who=她的id field=desire delta=+4]]（明显亲密可 +8）；被冷落或受惊则记 delta=-3。',
       ].join('\n');
