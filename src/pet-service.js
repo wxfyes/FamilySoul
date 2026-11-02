@@ -539,7 +539,7 @@ export class PetService {
       if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
       leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);
       if (summonResult?.wentTo && summonResult.moved?.length) {
-        contextHintEarly += `（【已到场】：相公已经走到${summonResult.wentTo}了。本轮先写转场，再由这里的人开口；刚才那处的人已经不在场。）\n`;
+        contextHintEarly += `（【已到场】：相公已经走到${summonResult.wentTo}了。本轮以新地点为主场，由这里的人开口；刚才那处的人最多送到门口说一句，不能继续占着戏。）\n`;
       }
       if (summonResult?.left) {
         contextHintEarly += '（【已离场】：相公已经离开刚才那个地方，回到茶坊了。本轮必须先写出转场（【天道·地点·临江茶坊】），**不许再写道别、不许让原处的人继续说"相公慢走"**。）\n';
