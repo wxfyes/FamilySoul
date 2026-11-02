@@ -1320,6 +1320,8 @@ export class PetService {
           present,
           husbandPresent: Boolean(husHere),
           husbandPlace: husHere ? null : String(wPost.places?.[husPost?.location]?.name || '别处'),
+          placeName: String(wPost.places?.[locPost]?.name || '这里'),
+          askedHusband: /(王甯|王掌柜|少掌柜|相公)/.test(String(say || '')),
         });
       } catch (err) {
         console.warn('[Member] 回复规范化失败：', err.message);

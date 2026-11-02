@@ -30,6 +30,7 @@ export function normalizeMemberReply(reply, ctx) {
   const selfName = String(ctx?.selfName || '');
   const selfAliases = new Set([selfName, ...(ctx?.selfAliases || [])].filter(Boolean));
   const present = new Set((ctx?.present || []).filter(Boolean));
+  const placeLabel = String(ctx?.placeName || '这里');
 
   const segs = splitSegments(reply);
   const kept = [];
@@ -40,7 +41,7 @@ export function normalizeMemberReply(reply, ctx) {
 
     if (!seg.speaker) {
       // 无标签：当旁白，但去掉"她自己"的痕迹
-      kept.push({ speaker: '旁白', text: body });
+      kept.push({ speaker: placeLabel, text: body });
       continue;
     }
 
@@ -58,10 +59,10 @@ export function normalizeMemberReply(reply, ctx) {
 
   // 全部被丢：用账本事实兜底，不写任何人台词
   if (kept.length === 0) {
-    if (ctx?.husbandPlace) {
-      return `【旁白】：他此刻在「${ctx.husbandPlace}」，眼下不在这间屋里。`;
+    if (ctx?.askedHusband && ctx?.husbandPlace) {
+      return `【${placeLabel}】：他此刻在「${ctx.husbandPlace}」，眼下不在这屋里。`;
     }
-    return '【旁白】：（没人应声。）';
+    return `【${placeLabel}】：（屋里一时没人应声。）`;
   }
 
   return kept.map((s) => `【${s.speaker}】：${s.text}`).join('\n');
