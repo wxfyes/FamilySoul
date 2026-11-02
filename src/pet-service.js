@@ -1407,6 +1407,7 @@ export class PetService {
               for (const l of hisLines) facts.push(l);
             } catch { /* 忽略 */ }
 
+            console.log('[Proxy] 事实' + facts.length + '条：' + facts.slice(-4).join(' ｜ ').slice(0, 160));
             const pp = buildProxyPrompt({
               actor: husPost,
               memories: hisMem,
