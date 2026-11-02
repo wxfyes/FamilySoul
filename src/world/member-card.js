@@ -65,6 +65,6 @@ export function buildMemberCard(dataDir, actorId) {
   if (arc) lines.push(arc);
   const hus = husbandLine(world, actorId);
   if (hus) lines.push(hus);
-  lines.push(`【规矩】只认这五条。名单外的人不存在；不在场的人不许说成在场；你自己不替自己说话。`);
+  lines.push(`【规矩】只认这五条。名单外的人不存在；不在场的人不许说成在场；你自己不替自己说话。王甯在场时，你找他他就得自己开口，不许让伙计挡驾。`);
   return lines.join('\n');
 }

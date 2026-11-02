@@ -1299,6 +1299,10 @@ export class PetService {
     // 真人扮演世界人物时：AI 演在场所有人，只去掉场景标记，不动任何人名标签
     if (this._viewerActorId) {
       reply = String(reply).replace(/【天道[^】\n]{0,40}】[:：]?\s*/g, '');
+      // 没有【人名】开头的叙述，一律算旁白，绝不能显示成她自己说的
+      if (reply && !/^【[^】\n]{1,12}】/.test(String(reply).trim())) {
+        reply = `【旁白】：${String(reply).trim()}`;
+      }
       // 真人只由玩家自己演：AI 写出她的段落一律删掉
       try {
         const meName = this._viewerName;
@@ -1322,11 +1326,14 @@ export class PetService {
           const wB = loadState(this.dataDir);
           const meB = wB.actors?.[this._viewerActorId];
           const locB = meB?.location;
-          const hereB = new Set(
-            Object.values(wB.actors || {})
+          const hereB = new Set([
+            ...(Object.values(wB.actors || {}).find((x) => x && x.id === 'husband' && x.location === locB)
+              ? ['王甯', '相公', '王掌柜', '少掌柜']
+              : []),
+            ...Object.values(wB.actors || {})
               .filter((x) => x && !x.dead && x.location === locB)
               .flatMap((x) => [x.name, x.name.length > 2 ? x.name.slice(-2) : x.name]),
-          );
+          ]);
           const segs2 = String(reply).split(/(?=【[^】\n]{1,12}】)/);
           const kept2 = segs2.filter((seg) => {
             const mm = seg.match(/^【([^】\n]{1,12})】/);
