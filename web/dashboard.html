@@ -100,6 +100,14 @@
       <button onclick="doReset()">执行清空</button>
     </span></div>
     <div class="muted" id="resetMsg" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:10px;border-top:1px dashed #2a2f3a;padding-top:8px">
+      <span>改名</span>
+      <span>
+        <input id="renameTo" placeholder="新名字" style="width:110px">
+        <button onclick="doRename()">改名</button>
+      </span>
+    </div>
+    <div class="muted" id="renameMsg" style="margin-top:4px"></div>
   </section>
 
   <section class="card">
@@ -349,6 +357,30 @@ function render(w){
     const txt = p.text||p.desc||p.goal||p.name||'';
     return `<div class="ev"><b>第${e.day}日${e.hour}时</b> [${e.action}] ${txt}</div>`;
   }).join('') || '<div class="muted">暂无</div>';
+}
+
+async function doRename() {
+  const tk = token();
+  const id = $('resetWho').value;
+  const oldName = $('resetWho').selectedOptions[0]?.textContent || '';
+  const to = ($('renameTo').value || '').trim();
+  const msg = $('renameMsg');
+  if (!tk) { msg.textContent = '先保存令牌'; return; }
+  if (!id || !to) { msg.textContent = '先选人物并填新名字'; return; }
+  if (!confirm(`把「${oldName}」改名为「${to}」？记忆、约定、事件、成员标题都会跟着改。`)) return;
+  msg.textContent = '改中…';
+  try {
+    const r = await fetch(`/api/admin/actor/rename?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name: to }),
+    });
+    const j = await r.json();
+    msg.textContent = j.ok ? `✓ ${j.from} → ${j.to}` : ('✗ ' + (j.error || '失败'));
+    $('renameTo').value = '';
+    load();
+  } catch (e) {
+    msg.textContent = '✗ ' + e.message;
+  }
 }
 
 async function doReset() {
