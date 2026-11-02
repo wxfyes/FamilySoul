@@ -739,18 +739,34 @@ const STARTED_AT = Date.now();
         const text = String(body.text || '').slice(0, 80);
         if (!text) return sendJson(res, 400, { ok: false, error: '缺少 text' });
         let removed = 0;
+        let reclaimed = 0;
         if (kind === 'pending') {
           const before = (world.pending || []).length;
           world.pending = (world.pending || []).filter((x) => String(x?.desc || '') !== text);
           removed = before - world.pending.length;
         } else {
           const before = (world.promises || []).length;
+          const target = (world.promises || []).find((x) => String(x?.text || '') === text);
+          // 借款凭证不能"删了就白拿"：先把钱退回去，再删凭证
+          if (target && target.loan && !target.done) {
+            const { from, to, amount } = target.loan;
+            const owed = Math.max(0, Number(amount) - (Number(target.repaid) || 0));
+            const purse = Number(world.wallets?.[to]) || 0;
+            const take = Math.min(purse, owed);
+            if (take > 0) {
+              world.wallets = world.wallets || {};
+              world.wallets[to] = Math.round((purse - take) * 100) / 100;
+              if (from === 'husband') world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + take) * 100) / 100;
+              else world.wallets[from] = Math.round(((Number(world.wallets[from]) || 0) + take) * 100) / 100;
+              reclaimed = take;
+            }
+          }
           world.promises = (world.promises || []).filter((x) => String(x?.text || '') !== text);
           removed = before - world.promises.length;
         }
         saveState(DATA_DIR, world);
         console.log(`[Todo] 删除${kind} ${removed} 条：${text.slice(0, 20)}`);
-        return sendJson(res, 200, { ok: true, removed });
+        return sendJson(res, 200, { ok: true, removed, reclaimed });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
@@ -1071,7 +1087,7 @@ const STARTED_AT = Date.now();
           }
           saveState(DATA_DIR, world);
           console.log(`[World] 移除人物：${removed.join('、') || '（无匹配）'}`);
-          return sendJson(res, 200, { ok: true, removed });
+          return sendJson(res, 200, { ok: true, removed, reclaimed });
         }
         const list = Array.isArray(body.items) ? body.items : [body];
         let added = 0;
