@@ -111,6 +111,11 @@
   </section>
 
   <section class="card">
+    <h2>她们亲口说过的话（原文）</h2>
+    <div id="quotes">—</div>
+  </section>
+
+  <section class="card">
     <h2>最近事件</h2>
     <div id="events">—</div>
   </section>
@@ -286,6 +291,11 @@ function render(w){
   }).join('');
 
   $('summary').textContent = w.summary || '—';
+
+  const qs = (w.quotes || []).slice(-10).reverse();
+  $('quotes').innerHTML = qs.length ? qs.map(q =>
+    `<div class="row"><span><b>${q.name}</b>：${String(q.text).replace(/</g,'&lt;')}</span><span class="muted">第${q.day}日${q.hour}时</span></div>`
+  ).join('') : '<div class="muted">还没有真人登录说过话。她登录后，这里会显示她亲口说的原文。</div>';
 
   const evs = (w.recentEvents||[]).slice(-8).reverse();
   $('events').innerHTML = evs.map(e=>{

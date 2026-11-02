@@ -1215,6 +1215,29 @@ export class PetService {
     }
 
     const userMsg = { id: `u-${now}`, role: 'user', text: say, at: now };
+
+    // 真人扮演世界人物时，把她说的原话记进世界（原文照录，不经 AI 解读）
+    if (this._viewerActorId) {
+      try {
+        const wq = loadState(this.dataDir);
+        const who = wq.actors?.[this._viewerActorId];
+        if (who) {
+          wq.quotes = Array.isArray(wq.quotes) ? wq.quotes : [];
+          wq.quotes.push({
+            actor: who.id,
+            name: who.name,
+            text: String(say).slice(0, 300),
+            day: wq.clock?.day ?? 1,
+            hour: wq.clock?.hour ?? 0,
+            at: Date.now(),
+          });
+          if (wq.quotes.length > 300) wq.quotes = wq.quotes.slice(-300);
+          saveState(this.dataDir, wq);
+        }
+      } catch (err) {
+        console.warn('[Quotes] 记录失败：', err.message);
+      }
+    }
     const assistantMsg = { id: `a-${now}`, role: 'assistant', text: reply, at: now };
     if (audioKey) {
       assistantMsg.audioKey = audioKey;
