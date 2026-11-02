@@ -119,7 +119,6 @@ export function createInitialState(dataDir) {
     noodle_stall: { name: '王婆面摊', exits: ['street'], owner: 'wangpo', kind: '面摊' },
     butcher: { name: '张屠户肉铺', exits: ['street'], owner: 'zhangtu', kind: '肉铺' },
     pharmacy: { name: '回春堂药铺', exits: ['street'], owner: 'chenlangzhong', kind: '药铺' },
-    teahouse_shop: { name: '临江茶坊', exits: ['street', 'backyard', 'husband_room'], owner: 'husband' },
     tea_house: { name: '临江茶坊', exits: ['street', 'backyard', 'husband_room'], owner: 'husband' },
       backyard: { name: '后院暖阁', exits: ['tea_house'], owner: 'husband' },
       wine_shop: { name: '于家酒肆', exits: ['street'], dynamic: false, owner: 'liuwenxia' },
@@ -831,6 +830,16 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 清掉误建的重复茶坊（teahouse_shop），把人挪回 tea_house
+  try {
+    if (world.places?.teahouse_shop) {
+      delete world.places.teahouse_shop;
+      for (const a of Object.values(world.actors || {})) {
+        if (a && a.location === 'teahouse_shop') a.location = 'tea_house';
+        if (a && a.home === 'teahouse_shop') a.home = 'tea_house';
+      }
+    }
+  } catch { /* 忽略 */ }
   try {
     ensureBonds(world);
   } catch { /* 关系网失败不影响读档 */ }
