@@ -2117,7 +2117,9 @@ server.listen(PORT, '0.0.0.0', () => {
         `原告：${c.who}。被告：${c.against}。所告：${c.claim}。`,
         `现场人证：${(c.witnesses || []).join('、') || '无'}。`,
         `县令本人收过钱通海的礼（这条是秘密，他判的时候会偏向有钱有势的一方）。`,
-        '只输出 JSON：{"verdict":"guilty|false","reason":"一句话判词(20字内)","penalty":{"silver":0,"wanted":0,"rep":0}}',
+        c.petty ? `这是一桩民间小案（${c.claim}）。` : '',
+        '只输出 JSON：{"verdict":"guilty|false","reason":"一句话判词(20字内)","penalty":{"silver":0,"wanted":0,"rep":0,"jail":0}}',
+        'jail = 下狱天数（小案 3~10 天，重案可 30 天）。',
         '被告有罪则 guilty（罚银/加通缉/掉名声）；证据不足或原告诬告则 false（原告反坐）。',
       ].join('\n');
       const res = await petService.llmClient.complete({
@@ -2141,6 +2143,12 @@ server.listen(PORT, '0.0.0.0', () => {
       if (d.verdict === 'guilty') {
         if (silver > 0) w3.assets.silver = Math.round(((Number(w3.assets.silver) || 0) - silver) * 100) / 100;
         if (Number(pen.wanted) > 0) w3.flags.wanted = (Number(w3.flags.wanted) || 0) + Number(pen.wanted);
+        const jailDays = Math.max(0, Math.min(60, Number(pen.jail) || 0));
+        const culprit = w3.actors?.[cc.againstId];
+        if (jailDays > 0 && culprit && culprit.id !== 'husband') {
+          culprit.jailed = { untilDay: (Number(w3.clock?.day) || 1) + jailDays, caseId: cc.id };
+          culprit.location = culprit.gender === 'male' ? 'jail_male' : 'jail_female';
+        }
         if (Number(pen.rep) > 0) w3.reputation = Math.max(0, (Number(w3.reputation) || 50) - Number(pen.rep));
       } else {
         const plaintiff = w3.actors?.[cc.whoId];

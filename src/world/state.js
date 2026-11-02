@@ -102,6 +102,8 @@ export function createInitialState(dataDir) {
 
     places: {
       husband_room: { name: '正房', exits: ['tea_house', 'backyard'], owner: 'husband' },
+    jail_male: { name: '县衙男牢', exits: ['yamen'], owner: 'court' },
+    jail_female: { name: '县衙女牢', exits: ['yamen'], owner: 'court' },
     // ── 街市：一条街该有的铺子 ──
     brothel: { name: '万花楼', exits: ['street'], owner: 'suyingxue', kind: '青楼' },
     casino: { name: '聚宝赌坊', exits: ['street'], owner: 'zhaoxing', kind: '赌坊' },

@@ -214,6 +214,44 @@ function runLocalEconomy(world, events) {
  * 只算"阻力与代价"，不写台词。
  */
 /** 每 5 天开一次朝议：朝廷要自己下旨，不是只会围剿 */
+/** 民间案子：民心越乱，案子越多。只记事实，不写过程。 */
+function runPettyCrimes(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  const hour = Number(world.clock?.hour) || 0;
+  // 刑满释放
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || !a.jailed) continue;
+    if (day >= Number(a.jailed.untilDay || 0)) {
+      a.location = a.home || 'street';
+      delete a.jailed;
+      events.push(nextEvent(world, { action: 'released', actor: a.id, place: a.location, payload: { text: `${a.name}刑满出狱` }, isPublic: true }));
+    }
+  }
+  if (hour !== 6) return; // 每天卯时
+  const cities = Object.values(world.cities || {}).filter(Boolean);
+  const avgUnrest = cities.length ? cities.reduce((s, c) => s + (Number(c.unrest) || 0), 0) / cities.length : 0;
+  const p = 0.25 + Math.min(0.4, avgUnrest / 200);
+  if (Math.random() > p) return;
+  const pool = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && !a.jailed && !a.playerControlled);
+  if (pool.length < 2) return;
+  const culprit = pool[Math.floor(Math.random() * pool.length)];
+  const victim = pool[Math.floor(Math.random() * pool.length)];
+  if (culprit === victim) return;
+  const crimes = ['偷了邻居的鸡', '当街斗殴', '赌输了钱动手抢', '酒后砸了铺子', '私贩盐铁', '失火烧了半间屋'];
+  const crime = crimes[Math.floor(Math.random() * crimes.length)];
+  world.cases = Array.isArray(world.cases) ? world.cases : [];
+  world.flags = world.flags || {};
+  world.flags.caseSeq = (Number(world.flags.caseSeq) || 0) + 1;
+  world.cases.push({
+    id: `case_${world.flags.caseSeq}`,
+    day, hour, place: culprit.location || null,
+    who: victim.name, whoId: victim.id,
+    against: culprit.name, againstId: culprit.id,
+    claim: crime, witnesses: [], status: 'filed', verdict: null, petty: true,
+  });
+  events.push(nextEvent(world, { action: 'crime', actor: culprit.id, place: culprit.location, payload: { text: `${culprit.name}${crime}` }, isPublic: true }));
+}
+
 function markCourtDecree(world) {
   const day = Number(world.clock?.day) || 1;
   world.court = world.court || {};
@@ -800,6 +838,12 @@ function advanceHour(world, events, nowMs) {
         type: 'proactive',
       });
     }
+  }
+
+  try {
+    runPettyCrimes(world, events);
+  } catch (err) {
+    console.warn('[Case] 民间案子失败：', err.message);
   }
 
   ensureActivity(world);
