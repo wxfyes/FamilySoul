@@ -747,7 +747,10 @@
               单端口 3088 多 Token 自动物理级隔离。各成员在手机填入属于自己的 Token，私密对话与记忆各存各的，谁也看不到谁的隐私！
             </p>
           </div>
-          <button class="btn btn-primary" onclick="saveFamilyConfig()">💾 保存家庭配置并生效</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="addNewMember()">➕ 邀请好友 / 添加新成员</button>
+            <button class="btn btn-primary" onclick="saveFamilyConfig()">💾 保存配置并生效</button>
+          </div>
         </div>
       </div>
 
@@ -1097,81 +1100,124 @@
       }
     }
 
+    let activeFamilyKeys = ['husband', 'wife', 'kid'];
+
     function renderFamilyCards() {
       const container = document.getElementById('familyCardsContainer');
-      const members = [
-        { key: 'husband', label: '相公 (老公)', icon: '👑', cls: 'card-husband', defaultRole: '傲娇助手' },
-        { key: 'wife', label: '夫人 (老婆)', icon: '💎', cls: 'card-wife', defaultRole: '贴心管家' },
-        { key: 'kid', label: '少爷/千金 (孩子)', icon: '⭐', cls: 'card-kid', defaultRole: '全能导师' }
-      ];
+      const baseMeta = {
+        husband: { label: '相公 (老公)', icon: '👑', cls: 'card-husband', defaultRole: '傲娇助手', isCore: true },
+        wife: { label: '夫人 (老婆)', icon: '💎', cls: 'card-wife', defaultRole: '贴心管家', isCore: true },
+        kid: { label: '少爷/千金 (孩子)', icon: '⭐', cls: 'card-kid', defaultRole: '全能导师', isCore: true }
+      };
 
-      const roleOptions = allRoles.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
+      // 汇总所有的成员 keys（包含已有的自定义成员）
+      const allKeys = Array.from(new Set([...Object.keys(baseMeta), ...Object.keys(familyConfig || {})]));
+      activeFamilyKeys = allKeys;
 
-      container.innerHTML = members.map(m => {
-        const conf = familyConfig[m.key] || {};
+      container.innerHTML = allKeys.map(k => {
+        const isCore = !!baseMeta[k]?.isCore;
+        const meta = baseMeta[k] || {
+          label: `受邀好友 / 成员 (${k})`,
+          icon: '🤝',
+          cls: 'card-kid',
+          defaultRole: '贴心管家',
+          isCore: false
+        };
+        const conf = familyConfig[k] || {};
+
         return `
-          <div class="member-card ${m.cls}">
-            <div class="member-header">
-              <div class="member-avatar">${m.icon}</div>
-              <div class="member-info">
-                <h3>${m.label}</h3>
-                <p>专属 Token 匹配，完全独立私密记忆</p>
+          <div class="member-card ${meta.cls}" id="card_box_${k}">
+            <div class="member-header" style="justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="member-avatar">${meta.icon}</div>
+                <div class="member-info">
+                  <h3>${meta.label}</h3>
+                  <p>专属 Token 匹配，完全独立私密记忆</p>
+                </div>
               </div>
+              ${!isCore ? `<button class="btn btn-secondary btn-sm" style="color: #ff5c7c; border-color: rgba(255,92,124,0.3);" onclick="removeMember('${k}')">🗑️ 移除</button>` : ''}
             </div>
 
             <div class="form-group">
               <label class="form-label">🔑 专属通信令牌 (手机端填入此项):</label>
               <div style="display: flex; gap: 6px;">
-                <input type="text" id="token_${m.key}" class="input-field" style="flex: 1; font-family: var(--font-mono); font-size: 12px;" value="${conf.token || ''}">
-                <button class="btn btn-secondary btn-sm" onclick="copyText(document.getElementById('token_${m.key}').value)">复制</button>
+                <input type="text" id="token_${k}" class="input-field" style="flex: 1; font-family: var(--font-mono); font-size: 12px;" value="${conf.token || ''}">
+                <button class="btn btn-secondary btn-sm" onclick="copyText(document.getElementById('token_${k}').value)">复制</button>
               </div>
             </div>
 
             <div class="form-group">
               <label class="form-label">🎭 绑定的专属伴侣角色:</label>
-              <select id="role_${m.key}" class="input-field">
-                ${allRoles.map(r => `<option value="${r.name}" ${r.name === conf.role ? 'selected' : ''}>${r.name}</option>`).join('')}
+              <select id="role_${k}" class="input-field">
+                ${allRoles.map(r => `<option value="${r.name}" ${(r.name === conf.role || (!conf.role && r.name === meta.defaultRole)) ? 'selected' : ''}>${r.name}</option>`).join('')}
               </select>
             </div>
 
             <div class="form-group">
               <label class="form-label">🌸 伴侣显示尊称:</label>
-              <input type="text" id="title_${m.key}" class="input-field" value="${conf.title || ''}" placeholder="如：温柔小娘子">
+              <input type="text" id="title_${k}" class="input-field" value="${conf.title || ''}" placeholder="如：知心好友 / 温柔小娘子">
             </div>
 
             <div class="form-group">
               <label class="form-label">🟢 在线陪伴状态文本:</label>
-              <input type="text" id="presence_${m.key}" class="input-field" value="${conf.presence || ''}" placeholder="如：在线守候相公">
+              <input type="text" id="presence_${k}" class="input-field" value="${conf.presence || ''}" placeholder="如：随时在线守候">
             </div>
           </div>
         `;
       }).join('');
     }
 
-    async function saveFamilyConfig() {
-      const newFamily = {
-        husband: {
-          token: document.getElementById('token_husband').value.trim(),
-          role: document.getElementById('role_husband').value,
-          title: document.getElementById('title_husband').value.trim(),
-          presence: document.getElementById('presence_husband').value.trim(),
-          description: '名门正妻 · 贴身娇妻'
-        },
-        wife: {
-          token: document.getElementById('token_wife').value.trim(),
-          role: document.getElementById('role_wife').value,
-          title: document.getElementById('title_wife').value.trim(),
-          presence: document.getElementById('presence_wife').value.trim(),
-          description: '女主人的专属私人管家与贴心伴侣'
-        },
-        kid: {
-          token: document.getElementById('token_kid').value.trim(),
-          role: document.getElementById('role_kid').value,
-          title: document.getElementById('title_kid').value.trim(),
-          presence: document.getElementById('presence_kid').value.trim(),
-          description: '孩子的学霸大哥哥兼探索导师'
-        }
+    function addNewMember() {
+      const name = prompt('请输入新成员标识（建议用英文字母或拼音，如 friend_zhang, brother, mom）：');
+      if (!name) return;
+      const cleanKey = name.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!cleanKey) {
+        alert('标识无效，只能包含英文字母、数字和下划线！');
+        return;
+      }
+      if (familyConfig[cleanKey]) {
+        alert('该成员标识已存在！');
+        return;
+      }
+
+      const randomToken = 'token_' + cleanKey + '_' + Math.random().toString(36).substring(2, 7);
+      familyConfig[cleanKey] = {
+        key: cleanKey,
+        token: randomToken,
+        role: '贴心管家',
+        title: cleanKey,
+        presence: '随时在线陪伴',
+        description: '受邀好友/自定义成员'
       };
+      renderFamilyCards();
+      showToast(`已添加新成员卡片 [${cleanKey}]，请调整配置后点击右上角“保存”！`);
+    }
+
+    function removeMember(k) {
+      if (!confirm(`确定要移除成员 [${k}] 吗？`)) return;
+      delete familyConfig[k];
+      renderFamilyCards();
+      showToast(`已移除成员 [${k}]，请记得点击右上角“保存”生效！`);
+    }
+
+    async function saveFamilyConfig() {
+      const newFamily = {};
+      activeFamilyKeys.forEach(k => {
+        const tokenInput = document.getElementById(`token_${k}`);
+        const roleInput = document.getElementById(`role_${k}`);
+        const titleInput = document.getElementById(`title_${k}`);
+        const presenceInput = document.getElementById(`presence_${k}`);
+        if (tokenInput && roleInput) {
+          newFamily[k] = {
+            key: k,
+            token: tokenInput.value.trim(),
+            role: roleInput.value,
+            title: titleInput ? titleInput.value.trim() : k,
+            presence: presenceInput ? presenceInput.value.trim() : '随时在线',
+            description: (familyConfig[k] && familyConfig[k].description) || '家庭成员'
+          };
+        }
+      });
 
       try {
         const res = await fetch('/api/admin/family/save?token=' + encodeURIComponent(getStoredToken()), {
@@ -1181,7 +1227,7 @@
         });
         const data = await res.json();
         if (data.ok) {
-          showToast('🎉 家庭多成员通行证配置已更新并热生效！');
+          showToast('🎉 通行证配置已全量更新并实时生效！');
           familyConfig = newFamily;
         } else {
           alert('保存失败: ' + data.error);

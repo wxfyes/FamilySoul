@@ -333,7 +333,14 @@ const server = http.createServer(async (req, res) => {
 
   // 0. Web 控制台主页托管
   const WEB_INDEX_FILE = path.join(ROOT_DIR, 'web', 'index.html');
+const WEB_DASH_FILE = path.join(ROOT_DIR, 'web', 'dashboard.html');
+const STARTED_AT = Date.now();
   const isHtmlWanted = req.headers.accept && req.headers.accept.includes('text/html');
+  if ((pathname === '/dashboard' || pathname === '/dashboard.html') && fs.existsSync(WEB_DASH_FILE)) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    fs.createReadStream(WEB_DASH_FILE).pipe(res);
+    return;
+  }
   if ((pathname === '/' || pathname === '/index.html' || pathname === '/admin') && isHtmlWanted) {
     if (fs.existsSync(WEB_INDEX_FILE)) {
       res.writeHead(200, {
@@ -684,6 +691,8 @@ const server = http.createServer(async (req, res) => {
             place: world.places?.[a.location]?.name || a.location || '',
             relations: a.relations?.husband || null,
             intimacy: a.intimacy || null,
+            household: Boolean(a.household),
+            goals: Array.isArray(a.goals) ? a.goals : [],
           }));
         const recentReceipts = Array.isArray(world.flags?.recentReceipts) ? world.flags.recentReceipts : [];
         const rate = recentReceipts.length
@@ -705,6 +714,14 @@ const server = http.createServer(async (req, res) => {
                 : `⚠ 偏低：最近 ${recentReceipts.length} 轮只有 ${rate}% 改变了世界，需要加强回执提示`,
           receiptRate: rate,
           audit: auditWorld(world),
+          runtime: {
+            uptimeSec: Math.round(process.uptime()),
+            rssMB: Math.round(process.memoryUsage().rss / 1048576),
+            node: process.version,
+            pid: process.pid,
+            port: Number(config.port) || 3088,
+            startedAt: STARTED_AT,
+          },
           cost: usage
             ? {
                 rounds: usage.rounds,
