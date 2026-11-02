@@ -199,3 +199,13 @@ export function arcViewFor(world, actorId) {
   const step = seed.steps[Math.min(Number(arc.stage) || 0, seed.steps.length - 1)];
   return { title: seed.title, hook: seed.hook, step, stage: arc.stage, atEdge: Boolean(arc.atEdge) };
 }
+
+/** 当前这一步的文案：有推进日志用最后一条，没有就用种子的第一步 */
+export function arcStepText(actorId, arc) {
+  const seed = ARC_SEEDS[actorId];
+  if (!seed) return '';
+  const logs = Array.isArray(arc?.log) ? arc.log : [];
+  if (logs.length) return String(logs[logs.length - 1]?.text || '');
+  const stage = Math.min(Number(arc?.stage) || 0, seed.steps.length - 1);
+  return seed.steps[stage] || seed.steps[0] || '';
+}

@@ -541,7 +541,14 @@ function render(w){
   (w.promises||[]).forEach(p => rows.push({
     t: Number(p.due)*24,
     kind: '承诺', cls: Number(p.due) < w.clock.day ? 'bad' : 'warn',
-    title: String(p.text||''), detail: '', extra: '', raw: String(p.text||''), kindKey: 'promise',
+    title: String(p.text||''), detail: '', raw: String(p.text||''), kindKey: 'promise',
+    extra: (() => {
+      const about = Array.isArray(p.about) ? p.about : [];
+      const names = about.map((id) => ((w.actors||[]).find(a => a.id === id)?.name || id)).filter(Boolean);
+      if (names.length) return '关于 ' + names.join('、');
+      const hit = (w.actors||[]).find(a => a.id !== 'husband' && a.name && String(p.text||'').includes(a.name));
+      return hit ? '关于 ' + hit.name : '';
+    })(),
     when: dayText(p.due),
   }));
   (w.pending||[]).forEach(e => rows.push({

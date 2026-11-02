@@ -7,6 +7,7 @@
  *   信息越少越准，也越省钱。
  */
 import { loadState, worldDate } from './state.js';
+import { arcStepText } from './arcs.js';
 
 function selfLine(world, actorId, me) {
   const props = (world.assets?.properties || []).filter((p) => p && p.owner === actorId);
@@ -35,8 +36,7 @@ function arcLine(world, actorId) {
   const arc = world.arcs?.[actorId];
   if (!arc) return null;
   if (arc.done) return `【你的难关】${arc.title}——已了结：${arc.outcome || ''}`;
-  const steps = (arc.log || []).map((l) => l.text);
-  const step = steps.length ? steps[steps.length - 1] : '';
+  const step = arcStepText(actorId, arc);
   const left = arc.atEdge
     ? 3 - ((Number(world.clock?.day) || 1) - Math.max(Number(arc.atEdgeDay) || 0, Number(arc.lastActiveDay) || 0))
     : null;

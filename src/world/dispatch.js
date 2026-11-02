@@ -314,6 +314,36 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.allies[a] = Array.from(new Set([...(world.allies[a] || []), b]));
         world.allies[b] = Array.from(new Set([...(world.allies[b] || []), a]));
         applied.push(`结盟:${world.actors[a]?.name}↔${world.actors[b]?.name}`);
+      } else if (kind === 'loan') {
+        // 借钱：钱真的从一方到另一方，同时立一条还款承诺
+        const fromId = String(args.from || 'husband');
+        const toId = resolveActor(world, args.to || args.who);
+        const amount = round2(Number(args.amount) || 0);
+        if (!toId || amount <= 0) continue;
+        world.wallets = world.wallets || {};
+        const payerIsHusband = fromId === 'husband';
+        const payerBalance = payerIsHusband ? (Number(world.assets.silver) || 0) : (Number(world.wallets[fromId]) || 0);
+        if (payerBalance < amount) {
+          applied.push(`借钱失败:${world.actors[fromId]?.name || fromId}只有${payerBalance}两`);
+          continue;
+        }
+        if (payerIsHusband) world.assets.silver = round2(payerBalance - amount);
+        else world.wallets[fromId] = round2(payerBalance - amount);
+        world.wallets[toId] = round2((Number(world.wallets[toId]) || 0) + amount);
+        world.flags = world.flags || {};
+        world.flags.loanSeq = (Number(world.flags.loanSeq) || 0) + 1;
+        const dueDay = Number(args.due) > 0 ? Number(args.due) : (Number(world.clock.day) || 1) + 30;
+        world.promises.push({
+          text: `${world.actors[toId]?.name || '她'}借${world.actors[fromId]?.name || '相公'}${amount}两，约定第${dueDay}日归还`,
+          due: dueDay,
+          at: world.clock.day,
+          done: false,
+          about: [toId],
+          loan: { from: fromId, to: toId, amount },
+        });
+        world.memories = Array.isArray(world.memories) ? world.memories : [];
+        world.memories.push({ text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两`, day: world.clock.day, at: Date.now(), about: [toId], visible: 'private' });
+        applied.push(`借款:${amount}两 已到账（${world.actors[toId]?.name || toId}）`);
       } else if (kind === 'spend') {
         // 花钱：买东西、付账、打赏。文与两都认（1000 文 = 1 两）
         const who = String(args.who || 'husband');
