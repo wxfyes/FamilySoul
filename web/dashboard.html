@@ -189,7 +189,7 @@
   <section class="card full">
     <h2>产业表（开遍全国）</h2>
     <table>
-      <thead><tr><th>产业</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
+      <thead><tr><th>产业</th><th>东家</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
       <tbody id="props"></tbody>
     </table>
   </section>
@@ -478,14 +478,15 @@ function render(w){
   $('props').innerHTML = propList.length ? propList.map(p =>
     `<tr>
       <td><b>${p.name}</b></td>
-      <td class="muted">${p.city || '临江府'}</td>
-      <td class="muted">${p.placeName || ''}</td>
-      <td class="muted">${p.keeperName || '—'}</td>
-      <td class="muted">${p.staff ? p.staff + ' 人' : '—'}</td>
+      <td class="muted">${p.ownerName || ""}</td>
+      <td class="muted">${p.city || "临江府"}</td>
+      <td class="muted">${p.placeName || ""}</td>
+      <td class="muted">${p.keeperName || "—"}</td>
+      <td class="muted">${p.staff ? p.staff + " 人" : "—"}</td>
       <td class="num">${(+p.incomePerDay||0).toFixed(2)} 两</td>
-      <td class="muted">${p.status || ''}</td>
-      <td class="muted">${p.openedDay ? '第' + p.openedDay + '日' : '—'}</td>
-    </tr>`).join('') : '<tr><td colspan="8" class="muted">还没有产业</td></tr>';
+      <td class="muted">${p.status || ""}</td>
+      <td class="muted">${p.openedDay ? "第" + p.openedDay + "日" : "—"}</td>
+    </tr>`).join('') : '<tr><td colspan="9" class="muted">还没有产业</td></tr>';
 
   // ── 各自的主线 ──────────────────────────────
   const arcs = w.arcs || {};

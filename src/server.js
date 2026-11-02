@@ -1298,6 +1298,7 @@ const STARTED_AT = Date.now();
               ...pr,
               placeName: world.places?.[pr.place]?.name || '',
               keeperName: pr.keeper ? world.actors?.[pr.keeper]?.name || '' : '',
+              ownerName: pr.owner === 'husband' ? '王甯' : (pr.owner ? world.actors?.[pr.owner]?.name || pr.owner : ''),
             })),
           },
           actors,

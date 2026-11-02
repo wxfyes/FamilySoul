@@ -185,8 +185,9 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
             return locName.includes(pn) || pn.includes(locName) || locName.includes(pn.slice(-3));
           });
           if (prop) {
+            const ownerName = prop.owner === 'husband' ? '王甯（相公）' : (world.actors?.[prop.owner]?.name || null);
             const keeper = prop.keeper ? world.actors?.[prop.keeper]?.name : null;
-            lines.push(`【这间铺子】${prop.name}${keeper ? `，当家的叫${keeper}` : '，没有明写当家的是谁'}`);
+            lines.push(`【这间铺子】${prop.name}，东家是${ownerName || '未明写'}${keeper ? '，掌柜是' + keeper : ''}`);
           }
         }
       } catch {
