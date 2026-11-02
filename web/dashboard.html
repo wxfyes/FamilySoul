@@ -52,6 +52,15 @@
   .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
           background: #1b2029; border: 1px solid #2a303c; color: #cfd6e2; font-size: 12px; line-height: 1.4; }
   .chip.mine { background: #17301f; border-color: #2f6b46; color: #9fe0b8; }
+  /* 朝中 / 天下：横向网格 */
+  .off-block { margin-bottom: 8px; }
+  .off-title { font-size: 12px; color: #8b93a7; margin: 4px 0 6px; }
+  .off-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px; }
+  .off-item { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px;
+              background: #1b2029; border: 1px solid #262c37; border-radius: 6px; font-size: 12px; }
+  .off-item b { font-weight: 600; color: #dfe5ee; }
+  .geo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; align-items: start; }
+  .geo-region { border: 1px solid #232833; border-radius: 8px; padding: 6px 8px; background: #171b22; }
 </style>
 </head>
 <body>
@@ -143,12 +152,12 @@
     <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
   </section>
 
-  <section class="card">
+  <section class="card full">
     <h2>朝中（官职）</h2>
     <div id="court">—</div>
   </section>
 
-  <section class="card">
+  <section class="card full">
     <h2>天下（城池归属）</h2>
     <div id="cities">—</div>
   </section>
@@ -337,11 +346,20 @@ function render(w){
 
   // ── 朝中 ──────────────────────────────
   const court = w.court || {};
-  const offs = Object.entries(court.offices || {});
-  $('court').innerHTML = offs.length ? offs.map(([k, o]) => {
-    const holder = o.holder ? ((w.actors || []).find(a => a.id === o.holder)?.name || o.holder) : null;
-    return `<div class="row"><span>${o.title}</span><span class="muted">${holder || '<span class="bad">空缺</span>'}</span></div>`;
-  }).join('') : '<div class="muted">朝廷未设官</div>';
+  const offsAll = Object.entries(court.offices || {});
+  const central = offsAll.filter(([k]) => !k.startsWith('city:'));
+  const local = offsAll.filter(([k]) => k.startsWith('city:'));
+  const labelOf = (o) => {
+    const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
+    return !o.holder ? '<span class="bad">空缺</span>' : (actor ? actor.name : o.holder + '（未入世）');
+  };
+  $('court').innerHTML = offsAll.length
+    ? `<div class="off-block"><div class="off-title">中枢</div><div class="off-grid">` +
+      central.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
+      `</div></div><div class="off-block"><div class="off-title">各府父母官（${local.length}）</div><div class="off-grid">` +
+      local.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
+      `</div></div>`
+    : '<div class="muted">朝廷未设官</div>';
 
   // ── 天下 ──────────────────────────────
   const powers = w.powers || {};
@@ -372,7 +390,7 @@ function render(w){
     }).join("");
     return `<div class="geo-region">${head}<div class="geo-chips">${chips}</div></div>`;
   }).join("");
-  $("cities").innerHTML = regionHtml || "<div class=\x27muted\x27>还没有城池数据</div>";
+  $("cities").innerHTML = `<div class="geo-grid">${regionHtml}</div>` || "";
 
   // ── 兵力 / 基建 ──────────────────────────────
   const mil = w.military || {};
