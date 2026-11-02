@@ -12,6 +12,7 @@ import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
 import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
+import { resolveTurnTarget } from './world/turn-target.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
 import { buildProxyPrompt, wrapProxyLine } from './world/proxy-actor.js';
 
@@ -1492,7 +1493,7 @@ export class PetService {
               }
               // 提到别的女人（不在事实里）→ 删掉那句
               if (line) {
-                const others = ['婉儿', '芸娘', '小翠', '苏慕雪', '杨采云', '静儿', '杨采儿', '苏娘'];
+                const others = ['婉儿', '芸娘', '小翠', '苏慕雪', '杨采云', '静儿', '杨采儿', '苏娘', '于杰', '于子归'];
                 const parts = line.split(/(?<=[。！？；])/);
                 const kept = parts.filter((x) => !others.some((n) => x.includes(n)));
                 if (kept.length && kept.join('').trim().length > 0) line = kept.join('').trim();
@@ -1584,6 +1585,24 @@ export class PetService {
         console.warn('[Member] 回复规范化失败：', err.message);
       }
     }
+
+    // 记下这一轮是谁在说话：下一句接着他说
+    try {
+      if (this._viewerActorId && reply) {
+        const spoken = String(reply).match(/【([^】]+)】/g) || [];
+        const names = spoken.map((x) => x.replace(/[【】]/g, '')).filter((n) => n && !/(屋里|街|茶坊|酒肆|府衙|码头|河|院|门|街面上)/.test(n));
+        if (names.length) {
+          const last = names[names.length - 1];
+          const wp3 = loadState(this.dataDir);
+          const hit = Object.values(wp3.actors || {}).find((a) => a && a.name === last);
+          if (hit) {
+            wp3.chatPartners = wp3.chatPartners || {};
+            wp3.chatPartners[this._viewerActorId] = hit.id;
+            saveState(this.dataDir, wp3);
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
 
     // 有人应过声，就别再留"没人接话"
     try {
