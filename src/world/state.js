@@ -276,7 +276,9 @@ export function createInitialState(dataDir) {
 
     promises: [],
     // 账本结构版本：升版本时把预设人物的日程/住处刷成最新设计（不影响用户自己造的 npc_*）
-    stateVersion: 3,
+    stateVersion: 4,
+    // 公历锚点：世界第 N 日 = anchorDate + (N - anchorDay) 天
+    calendar: { anchorDay: 1, anchorDate: '' },
     // 势力与声望：复仇、翻案、朝堂线都靠它记账
     factions: {
       yamen: { name: '临江府衙', relation: 0, power: 45 },
@@ -340,6 +342,18 @@ function normalizePlaces(places, actorsLive) {
   return places;
 }
 
+/** 世界第 N 日对应公历哪一天；没设锚点就返回 null */
+export function worldDate(world) {
+  const cal = world?.calendar || {};
+  if (!cal.anchorDate) return null;
+  const anchor = new Date(`${cal.anchorDate}T00:00:00`);
+  if (Number.isNaN(anchor.getTime())) return null;
+  const diff = (Number(world.clock?.day) || 1) - (Number(cal.anchorDay) || 1);
+  anchor.setDate(anchor.getDate() + diff);
+  const iso = `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}-${String(anchor.getDate()).padStart(2, '0')}`;
+  return { iso, month: anchor.getMonth() + 1, day: anchor.getDate(), year: anchor.getFullYear() };
+}
+
 export function loadState(dataDir) {
   const file = statePath(dataDir);
   const raw = readJson(file);
@@ -387,6 +401,7 @@ export function loadState(dataDir) {
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
     promises: Array.isArray(raw.promises) ? raw.promises : [],
     memories: Array.isArray(raw.memories) ? raw.memories : [],
+    calendar: { ...base.calendar, ...(raw.calendar || {}) },
     factions: { ...base.factions, ...(raw.factions || {}) },
     clues: Array.isArray(raw.clues) ? raw.clues : [],
     appointments: Array.isArray(raw.appointments) ? raw.appointments : [],

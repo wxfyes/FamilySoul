@@ -172,7 +172,9 @@ async function load(){
 }
 
 function render(w){
-  $('h-clock').textContent = `第${w.clock.day}日 ${w.clock.hour}时（${w.clock.shichen||''}）`;
+  const d = w.date;
+  const dateText = d ? `${d.month}月${d.day}日 ` : '';
+  $('h-clock').textContent = `${dateText}${w.clock.hour}时（${w.clock.shichen||''}）· 第${w.clock.day}日`;
   $('h-epoch').textContent = w.epoch === 'modern' ? '现代' : '古代';
   const audit = w.audit || [];
   $('h-audit').textContent = audit.length ? audit.length + ' 个问题' : '正常';

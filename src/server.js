@@ -14,6 +14,7 @@ import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld } from './world/audit.js';
+import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -520,6 +521,24 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.33 设定公历锚点 POST /api/admin/world/calendar（世界第N日 = 某年某月某日）
+    if (req.method === 'POST' && pathname === '/api/admin/world/calendar') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = peek(DATA_DIR);
+        const date = String(body.date || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return sendJson(res, 400, { ok: false, error: '日期格式应为 2026-11-02' });
+        }
+        world.calendar = { anchorDay: Number(world.clock.day) || 1, anchorDate: date };
+        saveState(DATA_DIR, world);
+        console.log(`[World] 公历锚点：第${world.calendar.anchorDay}日 = ${date}`);
+        return sendJson(res, 200, { ok: true, calendar: world.calendar, today: worldDate(world) });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.34 对齐世界时钟 POST /api/admin/world/clock（把世界时间锚到现实）
     if (req.method === 'POST' && pathname === '/api/admin/world/clock') {
       try {
@@ -828,6 +847,7 @@ const STARTED_AT = Date.now();
             : null,
           era: world.era,
           epoch: world.epoch || 'ancient',
+          date: worldDate(world),
           clock: { ...(world.clock || {}), shichen: shichenOf(world.clock?.hour ?? 0) },
           assets: world.assets,
           actors,
