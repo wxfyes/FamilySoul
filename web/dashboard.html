@@ -182,9 +182,9 @@ function render(w){
   $('r-uptime').textContent = human(rt.uptimeSec);
   $('r-rss').textContent = rt.rssMB ? rt.rssMB + ' MB' : '—';
   $('r-node').textContent = rt.node ? `${rt.node} / ${rt.pid} / ${rt.port}` : '—';
-  const rate = w.receiptRate ?? 0;
-  $('r-receipt').textContent = Math.round(rate*100) + '%';
-  $('r-receipt').className = rate >= 0.6 ? 'good' : rate >= 0.35 ? 'warn' : 'bad';
+  const rate = Number(w.receiptRate ?? 0); // 后端已经是百分数（0~100）
+  $('r-receipt').textContent = Math.round(rate) + '%';
+  $('r-receipt').className = rate >= 60 ? 'good' : rate >= 35 ? 'warn' : 'bad';
   $('r-health').textContent = w.health || '—';
 
   const c = w.cost || {};
