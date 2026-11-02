@@ -332,7 +332,13 @@ function render(w){
       if (e !== el && e.dataset.r === r) e.style.display = e.style.display === 'none' ? '' : 'none';
     });
   };
-  const regionHtml = Object.keys(byRegion).sort().map((r) => {
+  // 按地理顺序排，而不是按文字排序（否则山东会掉到最后）
+  const REGION_ORDER = ['京畿道', '河南道', '山东道', '河东道', '河北道', '关内道', '陇右道', '辽东道', '淮北道', '淮南道', '江南道', '闽浙道', '江西道', '荆湖道', '河南道', '剑南道', '云岭道', '云贵道', '岭南道'];
+  const regionHtml = Object.keys(byRegion).sort((a, b) => {
+    const ia = REGION_ORDER.indexOf(a);
+    const ib = REGION_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  }).map((r) => {
     const list = byRegion[r];
     const mineCount = list.filter(([, c]) => c.owner === 'wangjia').length;
     const head = `<div class="row" style="border-top:1px solid #2a2f3a;margin-top:6px;cursor:pointer" onclick="foldRegion(this,'${r}')"><span><b>${r}</b> <span class="muted">${list.length} 城${mineCount ? ' · 你的 ' + mineCount : ''}（点击折叠）</span></span><span></span></div>`;
