@@ -55,7 +55,8 @@ function loadConfig() {
     world: {
       enabled: true,
       tickIntervalMs: 2 * 60 * 1000,
-      msPerWorldHour: 2.5 * 60 * 1000,
+      // 世界与现实同速：1 现实小时 = 1 世界小时（按你要求同步）
+    msPerWorldHour: 60 * 60 * 1000,
     },
     activeRole: '傲娇助手',
   };
@@ -514,6 +515,24 @@ const STARTED_AT = Date.now();
         const testProxyUrl = String(body.proxy || config.gemini?.proxy || '').trim();
         const result = await visionService.testProxy(testProxyUrl);
         return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.34 对齐世界时钟 POST /api/admin/world/clock（把世界时间锚到现实）
+    if (req.method === 'POST' && pathname === '/api/admin/world/clock') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const now = new Date();
+        const targetHour = Number.isFinite(Number(body.hour)) ? Number(body.hour) : now.getHours();
+        world.clock.hour = Math.max(0, Math.min(23, Math.round(targetHour)));
+        if (Number.isFinite(Number(body.day))) world.clock.day = Math.max(1, Math.round(Number(body.day)));
+        world.lastRealAt = Date.now(); // 重置补算基准，避免一改就跳好几天
+        saveState(DATA_DIR, world);
+        console.log(`[World] 时钟已对齐现实：第${world.clock.day}日 ${world.clock.hour}时`);
+        return sendJson(res, 200, { ok: true, clock: world.clock });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
@@ -1323,7 +1342,7 @@ server.listen(PORT, '0.0.0.0', () => {
     startWorldClock(DATA_DIR, {
       enabled: config.world?.enabled !== false,
       intervalMs: Number(config.world?.tickIntervalMs) || 2 * 60 * 1000,
-      msPerWorldHour: Number(config.world?.msPerWorldHour) || 2.5 * 60 * 1000,
+      msPerWorldHour: Number(config.world?.msPerWorldHour) || 60 * 60 * 1000,
       onAfterTick: fillProactiveTexts,
     });
   } catch (err) {
