@@ -769,6 +769,11 @@ export class PetService {
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        const acts = Object.values(wHere.actors || {})
+          .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId && a.activity?.text)
+          .map((a) => `${a.name}正在${a.activity.text}`)
+          .slice(0, 4);
+        if (acts.length) bits.push(`他们手头的事：${acts.join('；')}（他们说自己的话时，要跟他们正在做的事对得上）`);
         if (hereNames.length) bits.push('玩家点了谁的名字，就必须由那个人开口应声，不许沉默、不许换别人答');
         try {
           const rootDir2 = path.dirname(this.dataDir);
@@ -1438,6 +1443,9 @@ export class PetService {
               );
               if (spouse) {
                 promiseFacts.push(`${spouse.name}是${herName || '她'}的丈夫，与你无关——你心里不可能装着他`);
+              }
+              if (mePost?.activity?.text) {
+                promiseFacts.push(`她眼下正${mePost.activity.text}`);
               }
             } catch { /* 忽略 */ }
 

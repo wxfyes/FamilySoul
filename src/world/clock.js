@@ -401,11 +401,14 @@ function runSchedules(world) {
   for (const actor of Object.values(world.actors || {})) {
     if (!Array.isArray(actor.schedule)) continue;
     for (const slot of actor.schedule) {
-      if (slot.at === world.clock.hour && slot.place && actor.location !== slot.place) {
+      if (slot.at === world.clock.hour && slot.place) {
+        actor.activity = { text: String(slot.do || ''), at: world.clock.hour, day: world.clock.day };
+        if (actor.location === slot.place) continue;
         // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来
         if (actor.intimacy?.ritual === 'unlocked') continue;
         if (actor.away && Number(actor.away.untilDay) >= Number(world.clock.day)) continue;
         actor.location = slot.place;
+        actor.activity = { text: String(slot.do || ''), at: world.clock.hour, day: world.clock.day };
         // 主子（不含正妻本人）走到相公所在之处 → 主动来见
         if (
           husbandPlace &&
