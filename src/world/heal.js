@@ -108,6 +108,23 @@ export function healWorld(world) {
     fixes.push(`清理 ${stale.length} 条逾期两天以上的旧约定`);
   }
 
+  // ⑦.5 承诺/暗涌的日期不能离谱（曾出现「还有 118 天」这种）
+  const today = Number(world.clock?.day) || 1;
+  for (const pr of world.promises || []) {
+    const d = Number(pr.due);
+    if (!Number.isFinite(d) || d < 0 || d > today + 30) {
+      fixes.push(`承诺日期 ${pr.due} → ${today + 3}（${String(pr.text || '').slice(0, 10)}）`);
+      pr.due = today + 3;
+    }
+  }
+  for (const pd of world.pending || []) {
+    const d = Number(pd.due);
+    if (!Number.isFinite(d) || d < 0 || d > today + 30) {
+      fixes.push(`暗涌日期 ${pd.due} → ${today + 7}`);
+      pd.due = today + 7;
+    }
+  }
+
   // ⑧ 记忆里空文本
   if (Array.isArray(world.memories)) {
     const before = world.memories.length;

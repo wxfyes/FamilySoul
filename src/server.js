@@ -571,6 +571,55 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.29 全库替换旧名 POST /api/admin/text/replace {from, to}（改名漏网时用）
+    if (req.method === 'POST' && pathname === '/api/admin/text/replace') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const from = String(body.from || '').trim();
+        const to = String(body.to || '').trim();
+        if (!from || !to) return sendJson(res, 400, { ok: false, error: '需要 from 与 to' });
+        const world = peek(DATA_DIR);
+        const repl = (s) => String(s || '').split(from).join(to);
+        let n = 0;
+        const hit = (s) => {
+          if (String(s || '').includes(from)) {
+            n += 1;
+            return true;
+          }
+          return false;
+        };
+        for (const m of world.memories || []) if (hit(m.text)) m.text = repl(m.text);
+        for (const q of world.quotes || []) {
+          if (hit(q.text)) q.text = repl(q.text);
+          if (q.name === from) q.name = to;
+        }
+        for (const ap of world.appointments || []) {
+          if (ap.name === from) ap.name = to;
+          if (hit(ap.text)) ap.text = repl(ap.text);
+        }
+        for (const pr of world.promises || []) if (hit(pr.text)) pr.text = repl(pr.text);
+        for (const pd of world.pending || []) if (hit(pd.desc)) pd.desc = repl(pd.desc);
+        for (const a of Object.values(world.actors || {})) {
+          if (a?.name === from) a.name = to;
+          if (a?.secret) a.secret = repl(a.secret);
+        }
+        try {
+          const evFile = path.join(DATA_DIR, 'world', 'events.jsonl');
+          if (fs.existsSync(evFile)) {
+            const lines = fs.readFileSync(evFile, 'utf8').split('\n').filter(Boolean);
+            fs.writeFileSync(evFile, lines.map((l) => repl(l)).join('\n') + '\n', 'utf8');
+          }
+        } catch (err) {
+          console.warn('[Replace] 事件替换失败：', err.message);
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Replace] 「${from}」→「${to}」，命中 ${n} 处`);
+        return sendJson(res, 200, { ok: true, from, to, hits: n });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.30 给世界人物改名 POST /api/admin/actor/rename {id, name}
     if (req.method === 'POST' && pathname === '/api/admin/actor/rename') {
       try {
@@ -593,6 +642,8 @@ const STARTED_AT = Date.now();
           if (q.actor === id) q.name = newName;
         }
         for (const ap of world.appointments || []) if (ap.actorId === id || ap.name === oldName) ap.name = newName;
+        for (const pr of world.promises || []) pr.text = repl(pr.text);
+        for (const pd of world.pending || []) pd.desc = repl(pd.desc);
         for (const k of Object.keys(world.flags?.partner || {})) {
           if (world.flags.partner[k] === oldName) world.flags.partner[k] = newName;
         }
