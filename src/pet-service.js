@@ -9,6 +9,7 @@ import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { ensurePresence } from './world/scene.js';
 import { applySummon, applyNpcDeparture } from './world/summon.js';
 import { auditReply } from './world/audit.js';
+import { buildMemberCard } from './world/member-card.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -143,10 +144,13 @@ export class PetService {
       lines.push('【你要演的人】');
       lines.push(this._actorPersonaOverride);
       lines.push('');
-      const own = buildStateSummary(this.dataDir, { roleName: '傲娇助手', memberKey: 'husband', viewer: this._viewerActorId });
+      const own = buildMemberCard(this.dataDir, this._viewerActorId);
       lines.push('');
       lines.push('【你此刻知道的实况（只有这些）】');
       lines.push(own);
+      lines.push('');
+      lines.push('');
+      lines.push('【再说一遍】' + own.split('\n').slice(0, 3).map((x) => x.replace(/。$/, '')).join(' ｜ ') + '。');
       lines.push('');
       lines.push('- 以上是你自己知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
       lines.push('- 用第一人称说话，符合你的身份与处境。');
@@ -738,6 +742,15 @@ export class PetService {
           bits.push(`王甯此刻在「${hp}」，有人找他就照实说他在那儿`);
         }
         contextHint += `（【此间铁律】${bits.join('；')}。名单之外的人一律不在此处，**绝不许虚构管账先生、新来的伙计、小翠姐之类的人物或职位**；有人问掌柜/东家，就按这里写的答。**王甯就是王掌柜、这店东家、你的相好，不许说"不认识王甯""没这个人"**；他若不在跟前，只说他此刻不在这儿。）\n`;
+        // 问钱就报账本上的数，省得它自己编
+        if (/(进多少|日入|收入|赚多少|多少钱|几两)/.test(String(say || ''))) {
+          const myProps = (wHere.assets?.properties || []).filter((p) => p && p.keeper === this._viewerActorId);
+          const daily = myProps.reduce((sum, p) => sum + (Number(p.incomePerDay) || 0), 0);
+          const wallet = Number(wHere.wallets?.[this._viewerActorId]) || 0;
+          const detail = myProps.map((p) => `${p.name}${Number(p.incomePerDay) || 0}两`).join('、') || '名下没有产业';
+          contextHint += `（【钱的准数】现银${wallet.toFixed(2)}两，日入${daily.toFixed(2)}两；${detail}。问钱就照这个答，不许自己编数。）\n`;
+        }
+
       }
     } catch {
       /* 忽略 */
