@@ -89,6 +89,16 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
     return { moved: [], summoned: [], visited: null, left: false, alreadyHome: true };
   }
 
+  // 「去找王甯」：她去找相公，就真的走到他所在的地方
+  if (selfId && selfId !== 'husband' && /(找|去|寻|见)/.test(say) && /(王甯|王掌柜|少掌柜|相公)/.test(say)) {
+    const hus = world.actors?.husband;
+    if (hus?.location && hus.location !== me.location) {
+      me.location = hus.location;
+      saveState(dataDir, world);
+      return { moved: [me.name], summoned: [], visited: hus.location, left: false };
+    }
+  }
+
   // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
   if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
     const placeHit = findPlace(world, say);

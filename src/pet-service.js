@@ -732,6 +732,11 @@ export class PetService {
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        const hus = Object.values(wHere.actors || {}).find((a) => a && a.id === 'husband');
+        if (hus && hus.location !== locId) {
+          const hp = String(wHere.places?.[hus.location]?.name || '别处');
+          bits.push(`王甯此刻在「${hp}」，有人找他就照实说他在那儿`);
+        }
         contextHint += `（【此间铁律】${bits.join('；')}。名单之外的人一律不在此处，**绝不许虚构管账先生、新来的伙计、小翠姐之类的人物或职位**；有人问掌柜/东家，就按这里写的答。**王甯就是王掌柜、这店东家、你的相好，不许说"不认识王甯""没这个人"**；他若不在跟前，只说他此刻不在这儿。）\n`;
       }
     } catch {
@@ -1323,8 +1328,16 @@ export class PetService {
           if (joined2) {
             reply = joined2;
           } else if (segs2.length > 0) {
-            const bare = segs2.map((s) => s.replace(/^【[^】\n]{1,12}】[:：]?\s*/, "")).join("").trim();
-            if (bare) reply = bare;
+            // 全被过滤掉：不让她替自己或不在场的人说话；但"人在哪"这种事实要照实答
+            const askHusband = /(王掌柜|王甯|少掌柜|相公)/.test(String(say || ''));
+            const hus2 = Object.values(wB.actors || {}).find((a) => a && a.id === 'husband');
+            if (askHusband && hus2) {
+              const hp2 = String(wB.places?.[hus2.location]?.name || '别处');
+              reply = `【旁白】：王甯此刻在「${hp2}」，不在这儿。`;
+            } else {
+              reply = '……';
+            }
+          }
           // ③ 不在场的人，不许被写成"就在跟前"
           try {
             const absent = Object.values(wB.actors || {}).filter(
@@ -1352,7 +1365,6 @@ export class PetService {
             }
           } catch {
             /* 忽略 */
-          }
           }
         } catch {
           /* 忽略 */
