@@ -102,6 +102,19 @@ export function createInitialState(dataDir) {
 
     places: {
       husband_room: { name: '正房', exits: ['tea_house', 'backyard'], owner: 'husband' },
+    // ── 街市：一条街该有的铺子 ──
+    brothel: { name: '万花楼', exits: ['street'], owner: 'suyingxue', kind: '青楼' },
+    casino: { name: '聚宝赌坊', exits: ['street'], owner: 'zhaoxing', kind: '赌坊' },
+    inn: { name: '临江客栈', exits: ['street'], owner: 'sunjin', kind: '客栈' },
+    candy_shop: { name: '甜记糖铺', exits: ['street'], owner: 'tangpo', kind: '糖铺' },
+    cloth_shop: { name: '锦绣衣庄', exits: ['street'], owner: 'jinniang', kind: '衣铺' },
+    rice_shop: { name: '恒丰米行', exits: ['street'], owner: 'milaoban', kind: '米铺' },
+    smithy: { name: '周家铁铺', exits: ['street'], owner: 'zhoutie', kind: '铁匠铺' },
+    pawnshop: { name: '永昌当', exits: ['street'], owner: 'danglaoban', kind: '当铺' },
+    noodle_stall: { name: '王婆面摊', exits: ['street'], owner: 'wangpo', kind: '面摊' },
+    butcher: { name: '张屠户肉铺', exits: ['street'], owner: 'zhangtu', kind: '肉铺' },
+    pharmacy: { name: '回春堂药铺', exits: ['street'], owner: 'chenlangzhong', kind: '药铺' },
+    teahouse_shop: { name: '临江茶坊', exits: ['street', 'backyard', 'husband_room'], owner: 'husband' },
     tea_house: { name: '临江茶坊', exits: ['street', 'backyard', 'husband_room'], owner: 'husband' },
       backyard: { name: '后院暖阁', exits: ['tea_house'], owner: 'husband' },
       wine_shop: { name: '于家酒肆', exits: ['street'], dynamic: false, owner: 'liuwenxia' },
@@ -123,6 +136,17 @@ export function createInitialState(dataDir) {
         relations: {},
         intimacy: {},
       },
+      suyingxue: { id: 'suyingxue', name: '苏映雪', role: '万花楼老鸨', gender: 'female', home: 'brothel', location: 'brothel', goals: ['把万花楼撑住', '寻个靠得住的贵人'], secret: '楼里有官面上的暗股', relations: { husband: { trust: 35, desire: 20, fear: 10, grievance: 0 } }, schedule: [{ at: 14, do: '在楼上招呼客人', place: 'brothel' }, { at: 2, do: '收档算账', place: 'brothel' }] },
+      zhaoxing: { id: 'zhaoxing', name: '赵兴', role: '聚宝赌坊东家', gender: 'male', home: 'casino', location: 'casino', goals: ['把赌坊开到码头'], secret: '他欠了漕帮一笔印子钱', relations: { husband: { trust: 30, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 12, do: '坐庄', place: 'casino' }] },
+      sunjin: { id: 'sunjin', name: '孙进', role: '临江客栈掌柜', gender: 'male', home: 'inn', location: 'inn', goals: ['把客栈做成南来北往第一站'], relations: { husband: { trust: 32, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 6, do: '开门迎客', place: 'inn' }] },
+      tangpo: { id: 'tangpo', name: '唐婆', role: '甜记糖铺', gender: 'female', home: 'candy_shop', location: 'candy_shop', goals: ['给孙子攒钱'], relations: { husband: { trust: 30, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 7, do: '熬糖', place: 'candy_shop' }] },
+      jinniang: { id: 'jinniang', name: '锦娘', role: '锦绣衣庄掌柜', gender: 'female', home: 'cloth_shop', location: 'cloth_shop', goals: ['做成城里第一衣庄'], secret: '她给官眷私下改过衣裳', relations: { husband: { trust: 34, desire: 15, fear: 0, grievance: 0 } }, schedule: [{ at: 8, do: '裁衣量体', place: 'cloth_shop' }] },
+      milaoban: { id: 'milaoban', name: '米老板', role: '恒丰米行', gender: 'male', home: 'rice_shop', location: 'rice_shop', goals: ['囤粮待价'], relations: { husband: { trust: 30, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 6, do: '看仓', place: 'rice_shop' }] },
+      zhoutie: { id: 'zhoutie', name: '周铁', role: '铁匠', gender: 'male', home: 'smithy', location: 'smithy', goals: ['打出一把好刀'], relations: { husband: { trust: 28, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 7, do: '打铁', place: 'smithy' }] },
+      danglaoban: { id: 'danglaoban', name: '曹当', role: '永昌当老板', gender: 'male', home: 'pawnshop', location: 'pawnshop', goals: ['收尽城中急当的好东西'], secret: '他手里压着几张来路不明的契', relations: { husband: { trust: 28, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 9, do: '验当', place: 'pawnshop' }] },
+      wangpo: { id: 'wangpo', name: '王婆', role: '面摊', gender: 'female', home: 'noodle_stall', location: 'noodle_stall', goals: ['守着摊子过活'], relations: { husband: { trust: 33, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '下面', place: 'noodle_stall' }] },
+      zhangtu: { id: 'zhangtu', name: '张屠户', role: '肉铺', gender: 'male', home: 'butcher', location: 'butcher', goals: ['多攒几亩田'], relations: { husband: { trust: 26, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '开案', place: 'butcher' }] },
+      chenlangzhong: { id: 'chenlangzhong', name: '陈郎中', role: '回春堂郎中', gender: 'male', home: 'pharmacy', location: 'pharmacy', goals: ['把回春堂传下去'], relations: { husband: { trust: 35, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 8, do: '坐堂问诊', place: 'pharmacy' }] },
       waner: {
         id: 'waner', gender: 'female', home: 'backyard',
         name: '沈婉儿',
@@ -824,7 +848,13 @@ function __loadStateInner(dataDir) {
   // 轻量补全：老文件缺字段时不报错，按初始值补齐（不做破坏性迁移）
   const base = createInitialState(dataDir);
   // 人物逐个合并：新版本补进来的目标/秘密/日程要能生效，同时保留线上已有的位置与关系
-  const mergedActors = { ...base.actors };
+  // 线上已经有人叫这个名字（比如天道造过「陈郎中」），就别再塞一个预设的同名
+  const liveNames = new Set(Object.values(raw.actors || {}).map((a) => String(a?.name || '')).filter(Boolean));
+  const mergedActors = {};
+  for (const [id, a] of Object.entries(base.actors || {})) {
+    if (!raw.actors?.[id] && liveNames.has(String(a?.name || ''))) continue;
+    mergedActors[id] = a;
+  }
   for (const [id, actor] of Object.entries(raw.actors || {})) {
     mergedActors[id] = { ...(base.actors?.[id] || {}), ...actor };
   }
