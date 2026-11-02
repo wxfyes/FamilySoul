@@ -206,7 +206,25 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           origin: 'spawned', // 标记：天道自己长出来的人
           gender: String(args.gender || 'female'),
           role: String(args.role || '城中人'),
-          location: resolvePlace(world, args.place) || 'street',
+          location: (() => {
+            const asked = resolvePlace(world, args.place);
+            if (asked) return asked;
+            // 按行当给个自己的地方：郎中开药铺、稳婆有家、绣娘有绣坊
+            const r = String(args.role || '');
+            let placeName = '';
+            if (/郎中|大夫|医/.test(r)) placeName = `${name}的药铺`;
+            else if (/稳婆|接生/.test(r)) placeName = `${name}家`;
+            else if (/媒婆|牙婆/.test(r)) placeName = `${name}家`;
+            else if (/绣娘|绣/.test(r)) placeName = `${name}的绣坊`;
+            else if (/仵作|衙役|更夫/.test(r)) return 'yamen';
+            else if (/掌柜|东家/.test(r)) placeName = `${name}的铺子`;
+            else if (/道士|尼姑/.test(r)) placeName = `${name}的道观`;
+            if (!placeName) return 'street';
+            world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+            const pid = `place_${world.flags.placeSeq}`;
+            world.places[pid] = { name: placeName.slice(0, 20), exits: ['street'], owner: id, dynamic: true };
+            return pid;
+          })(),
           goals: String(args.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
           secret: String(args.secret || '').trim() || undefined,
           relations: { husband: { trust: 50, desire: 30, fear: 0, grievance: 0 } },

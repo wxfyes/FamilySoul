@@ -890,6 +890,33 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26g 把某人挪到某处（没有就建）POST /api/admin/actor/move {id, place}
+    if (req.method === 'POST' && pathname === '/api/admin/actor/move') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const id = String(body.id || '');
+        const placeName = String(body.place || '').trim().slice(0, 20);
+        const actor = world.actors?.[id];
+        if (!actor || !placeName) return sendJson(res, 400, { ok: false, error: '参数不全' });
+        world.places = world.places || {};
+        let pid = Object.keys(world.places).find((k) => world.places[k]?.name === placeName);
+        if (!pid) {
+          world.flags = world.flags || {};
+          world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+          pid = `place_${world.flags.placeSeq}`;
+          world.places[pid] = { name: placeName, exits: ['street'], owner: id, dynamic: true };
+        }
+        actor.location = pid;
+        if (!actor.home || actor.home === 'street') actor.home = pid;
+        saveState(DATA_DIR, world);
+        console.log(`[Actor] ${actor.name} → ${placeName}`);
+        return sendJson(res, 200, { ok: true, place: placeName });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
