@@ -216,9 +216,10 @@ function runLocalEconomy(world, events) {
 /** 每 5 天开一次朝议：朝廷要自己下旨，不是只会围剿 */
 function markCourtDecree(world) {
   const day = Number(world.clock?.day) || 1;
-  if (day % 5 !== 0) return;
   world.court = world.court || {};
   if (world.court.pendingDecree) return;
+  const last = Number(world.court.lastDecreeDay) || 0;
+  if (day - last < 5) return;
   world.court.pendingDecree = true;
 }
 
@@ -243,6 +244,7 @@ export function applyDecree(world, events, d) {
   }
   world.court = world.court || {};
   world.court.decisions = Array.isArray(world.court.decisions) ? world.court.decisions : [];
+  world.court.lastDecreeDay = world.clock?.day || 1;
   world.court.decisions.push({ day: world.clock?.day || 1, text: String(d?.decree || ''), action: kind, amount });
   if (world.court.decisions.length > 30) world.court.decisions = world.court.decisions.slice(-30);
   if (Array.isArray(events)) {
@@ -447,7 +449,6 @@ function onNewDay(world, events) {
 /** NPC 按日程移动（只改位置，不产生噪音事件）*/
 function markNpcArcs(world) {
   const day = Number(world.clock?.day) || 1;
-  if (day % 3 !== 0) return;
   world.npcArcs = world.npcArcs || {};
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead || a.id === 'husband') continue;
@@ -456,8 +457,11 @@ function markNpcArcs(world) {
     if (!a.role && !a.schedule?.length) continue;
     const arc = world.npcArcs[a.id] || {};
     if (arc.pendingStep) continue;
+    const lastDay = Number(arc.day) || 0;
+    if (lastDay && day - lastDay < 3) continue;
     arc.stage = (Number(arc.stage) || 0) + 1;
     arc.pendingStep = true;
+    arc.day = day;
     world.npcArcs[a.id] = arc;
   }
 }
@@ -776,11 +780,7 @@ function advanceHour(world, events, nowMs) {
 
   ensureActivity(world);
   runSchedules(world);
-  try {
-    markNpcArcs(world);
-  } catch (err) {
-    console.warn('[NpcArc] 标记失败：', err.message);
-  }
+
   runNPCInitiatives(world, events, (opts) => queueProactive(world, { type: 'proactive', ...opts }));
   fireAppointments(world, events);
   fireDue(world, events);
@@ -797,6 +797,14 @@ export function tick(dataDir, { now = Date.now(), msPerWorldHour = DEFAULT_MS_PE
     world.lastRealAt = now;
   }
 
+  // 每次心跳都检查：不依赖"跨点"，重启也不会错过
+  try {
+    markNpcArcs(world);
+    markCourtDecree(world);
+  } catch (err) {
+    console.warn('[World] 标记失败：', err.message);
+  }
+
   const elapsed = Math.max(0, now - world.lastRealAt);
   const rawSteps = Math.floor(elapsed / msPerWorldHour);
   const steps = Math.min(Math.max(0, rawSteps), MAX_STEPS_PER_TICK);
@@ -804,8 +812,8 @@ export function tick(dataDir, { now = Date.now(), msPerWorldHour = DEFAULT_MS_PE
   const events = [];
   for (let i = 0; i < steps; i += 1) advanceHour(world, events, now);
 
-  if (steps > 0) {
-    world.lastRealAt += steps * msPerWorldHour; // 只吃掉已结算的时间，剩余欠账留到下次
+  if (steps > 0 || world.court?.pendingDecree || Object.keys(world.npcArcs || {}).length) {
+    if (steps > 0) world.lastRealAt += steps * msPerWorldHour; // 只吃掉已结算的时间，剩余欠账留到下次
     world.clock.season = seasonOf(world.clock.day);
     world.clock.weather = weatherOf(world.clock.day, world.clock.season);
     world.version = world.version || 1;
