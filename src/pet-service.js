@@ -1362,7 +1362,7 @@ export class PetService {
         });
 
         // 只有真的换了地方，才说"到了"；原地不动时不许胡说
-        const movedNow = Boolean(summonResult && ((summonResult.moved || []).length > 0 || summonResult.left));
+        const movedNow = Boolean(typeof summonResult !== 'undefined' && summonResult && ((summonResult.moved || []).length > 0 || summonResult.left));
         if (/没人应声/.test(String(reply))) {
           const placeNow = String(wPost.places?.[locPost]?.name || '');
           if (movedNow && placeNow) reply = `【${placeNow}】：（你到了${placeNow}。）`;
@@ -1507,12 +1507,15 @@ export class PetService {
             console.warn('[Proxy] 代演失败：', err.message);
           }
 
+        }
+
         // 任何被点名的在场者，若主模型不肯写他，就单独代演一句
         try {
           const namedPresent = Object.values(wPost.actors || {}).filter(
             (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband'
               && a.location === locPost && a.name && String(say || '').includes(a.name),
           );
+          console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
           for (const npc of namedPresent.slice(0, 2)) {
             const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
             if (already) continue;
@@ -1547,7 +1550,6 @@ export class PetService {
           }
         } catch (err) {
           console.warn('[Proxy] 点名代演失败：', err.message);
-        }
         }
       } catch (err) {
         console.warn('[Member] 回复规范化失败：', err.message);
