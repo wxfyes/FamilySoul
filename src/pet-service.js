@@ -1612,6 +1612,11 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 回执标签绝不能出现在回复里
+    try {
+      if (reply) reply = String(reply).replace(/\[\[world:[\s\S]*?\]\]/g, '').replace(/\n{2,}/g, '\n').trim();
+    } catch { /* 忽略 */ }
+
     // 有人应过声，就别再留"没人接话"
     try {
       if (reply && /【[^】]+】/.test(reply)) {
@@ -1778,6 +1783,18 @@ export class PetService {
       if (!reply) reply = '……';
     const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps, { selfId: this._viewerActorId }) : [];
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
+      // 新人必须真的落进世界：被后续存档冲掉就补一次
+      try {
+        const spawnNames = applied.filter((x) => /^新人物:/.test(String(x))).map((x) => String(x).slice(4));
+        if (spawnNames.length) {
+          const wChk = loadState(this.dataDir);
+          const missing = spawnNames.filter((n) => !Object.values(wChk.actors || {}).some((a) => a && a.name === n));
+          if (missing.length) {
+            applyWorldTags(this.dataDir, missing.map((n) => ({ kind: 'spawn', args: { name: n, role: '城中人' } })), { selfId: this._viewerActorId });
+            console.log('[World] 新人补落账：' + missing.join('、'));
+          }
+        }
+      } catch { /* 忽略 */ }
 
       // 兜底记账：付了钱却没记 → 按"上一句报价 + 这一句答应买"两段式对账
       // 五道闸门：①这一句有购买动作 ②上一句报了价 ③不是"免了/回头再给" ④金额不离谱 ⑤这轮还没记过花销
@@ -1823,6 +1840,20 @@ export class PetService {
             if (applied2.length > 0) {
               markReceiptHit(this.dataDir);
               console.log(`[World] 记账员补登 ${applied2.length} 条：${applied2.join('、')}`);
+              // 新人落账后再核一次：别被并发的存档冲掉
+              const names = applied2.filter((x) => /^新人物:/.test(String(x))).map((x) => String(x).slice(4));
+              if (names.length) {
+                setTimeout(() => {
+                  try {
+                    const wc = loadState(this.dataDir);
+                    const miss = names.filter((n) => !Object.values(wc.actors || {}).some((a) => a && a.name === n));
+                    if (miss.length) {
+                      applyWorldTags(this.dataDir, miss.map((n) => ({ kind: 'spawn', args: { name: n, role: '城中人' } })), { selfId: this._viewerActorId });
+                      console.log('[World] 新人补落账：' + miss.join('、'));
+                    }
+                  } catch { /* 忽略 */ }
+                }, 1200);
+              }
             }
           })
           .catch(() => {});
