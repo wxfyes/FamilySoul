@@ -18,7 +18,16 @@ fi
 mkdir -p data/chat data/voice
 
 echo "[*] 正在启动 SurfCore 小娘子服务端..."
-nohup node src/server.js > "$LOG_FILE" 2>&1 &
+# 日志改为追加，并在启动时轮转（避免重启就把证据冲掉）
+if [ -f "$LOG_FILE" ]; then
+    tail -n 800 "$LOG_FILE" > "$LOG_FILE.prev" 2>/dev/null || true
+    SIZE=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
+    if [ "$SIZE" -gt 2000000 ]; then
+        tail -n 2000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+    fi
+fi
+
+nohup node src/server.js >> "$LOG_FILE" 2>&1 &
 NEW_PID=$!
 echo "$NEW_PID" > "$PID_FILE"
 

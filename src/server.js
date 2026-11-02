@@ -460,7 +460,7 @@ const STARTED_AT = Date.now();
       try {
         if (fs.existsSync(logFile)) {
           const raw = fs.readFileSync(logFile, 'utf8');
-          lines = raw.split('\n').filter(Boolean).slice(-100);
+          lines = raw.split('\n').filter(Boolean).slice(-300);
         }
       } catch (_) {}
       return sendJson(res, 200, { ok: true, logs: lines });

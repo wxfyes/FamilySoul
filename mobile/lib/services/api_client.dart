@@ -21,8 +21,9 @@ class SurfCoreApiClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: config.apiPrefix,
-        // 一轮对话要跑两次大模型（正文 + 记账员），10 秒太短，会把正常回复判成超时
-        connectTimeout: const Duration(seconds: 60),
+        // 连接（握手）要快失败：手机掉一下网不该干等 60 秒
+        connectTimeout: const Duration(seconds: 8),
+        // 但「等模型开口」要够久：正文 + 记账员两次调用
         receiveTimeout: const Duration(seconds: 120),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
@@ -57,15 +58,33 @@ class SurfCoreApiClient {
     return PetStatus(online: false);
   }
 
-  /// 发送聊天消息
+  /// 发送聊天消息（连接失败自动重试，避免手机掉一下网就整条消息失败）
   Future<ChatMessage> sendMessage(String text, {String modality = 'text'}) async {
-    final response = await _dio.post(
-      '/chat',
-      data: {
-        'text': text,
-        'modality': modality,
-      },
-    );
+    Response? response;
+    Object? lastError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await _dio.post(
+          '/chat',
+          data: {
+            'text': text,
+            'modality': modality,
+          },
+        );
+        lastError = null;
+        break;
+      } on DioException catch (e) {
+        lastError = e;
+        final retriable = e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.receiveTimeout;
+        if (!retriable || attempt == 2) rethrow;
+        await Future.delayed(Duration(milliseconds: 600 * (attempt + 1)));
+      }
+    }
+    if (response == null) {
+      throw lastError ?? Exception('网络连接失败，请检查手机与路由器是否在同一网络');
+    }
 
     if (response.statusCode == 200 && response.data != null) {
       final data = response.data as Map<String, dynamic>;
