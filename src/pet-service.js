@@ -1318,6 +1318,13 @@ export class PetService {
             if (sp.includes('·')) return hereB.has(sp.split('·').pop());
             return hereB.has(sp);
           });
+
+          const joined2 = kept2.join("").trim();
+          if (joined2) {
+            reply = joined2;
+          } else if (segs2.length > 0) {
+            const bare = segs2.map((s) => s.replace(/^【[^】\n]{1,12}】[:：]?\s*/, "")).join("").trim();
+            if (bare) reply = bare;
           // ③ 不在场的人，不许被写成"就在跟前"
           try {
             const absent = Object.values(wB.actors || {}).filter(
@@ -1346,13 +1353,6 @@ export class PetService {
           } catch {
             /* 忽略 */
           }
-
-          const joined2 = kept2.join("").trim();
-          if (joined2) {
-            reply = joined2;
-          } else if (segs2.length > 0) {
-            const bare = segs2.map((s) => s.replace(/^【[^】\n]{1,12}】[:：]?\s*/, "")).join("").trim();
-            if (bare) reply = bare;
           }
         } catch {
           /* 忽略 */
