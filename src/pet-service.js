@@ -580,6 +580,20 @@ export class PetService {
     if (summonedNames.length > 0) {
       contextHint += `（【已到场】：${summonedNames.join('、')} 现在就在相公面前。本轮必须由她亲自开口应声（按分角格式写她的台词），你不许替她回答，也不许说她不在。若相公直接对她说"过来"，她必须应声上前。）\n`;
     }
+
+    // 相公点名找谁，就由谁开口——绝不许别人抢答
+    try {
+      const wNamed = loadState(this.dataDir);
+      const named = Object.values(wNamed.actors || {})
+        .filter((a) => a?.name && a.id !== 'husband' && a.kind !== 'human')
+        .map((a) => ({ id: a.id, name: a.name, short: a.name.length > 2 ? a.name.slice(-2) : a.name }))
+        .filter((x) => say.includes(x.name) || say.includes(x.short));
+      if (named.length === 1 && summonedNames.length === 0) {
+        contextHint += `（【点名】：相公这轮是在找「${named[0].name}」。**必须由她本人开口应话**，其余在场的人不许抢答，也不许写成别人出来接待。）\n`;
+      }
+    } catch {
+      /* 忽略 */
+    }
     const lastAssistantMsg = recent.filter(m => m.role === 'assistant').slice(-1)[0]?.text || '';
 
     // 记忆纠偏：上一轮把府里已有的人当成生客问来历，本轮必须自然纠正
