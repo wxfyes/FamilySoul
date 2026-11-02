@@ -18,7 +18,17 @@ export function detectRitual(text) {
   return { unlock: UNLOCK_RE.test(t), finish: FINISH_RE.test(t) };
 }
 
-export function resolveRitualActor(world, roleName) {
+export function resolveRitualActor(world, roleName, memberKey = 'husband') {
+  // ① 你正在跟谁说话，就解禁谁（对话对象优先）
+  const partner = (world.chatPartners || {})[memberKey];
+  if (partner && world.actors?.[partner] && partner !== 'husband') return partner;
+  // ② 屋里只有一位主子，那就是她
+  const place = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
+  const here = Object.entries(world.actors || {}).filter(
+    ([id, a]) => a && !a.dead && a.location === place && id !== 'husband' && id !== memberKey && !a.servant,
+  );
+  if (here.length === 1) return here[0][0];
+  // ③ 退回角色名
   if (roleName === '傲娇助手') return 'waner';
   for (const [id, a] of Object.entries(world.actors || {})) {
     if (a?.role === roleName) return id;
@@ -35,7 +45,7 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
   if (!hit.unlock && !hit.finish) return null;
 
   const world = loadState(dataDir);
-  const actorId = resolveRitualActor(world, roleName);
+  const actorId = resolveRitualActor(world, roleName, memberKey);
   if (!actorId || !world.actors?.[actorId]) return null;
 
   // 公开场合铁律：只要还有别的真人在同一处，暗号一律不生效（私密绝不可外露）
