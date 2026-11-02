@@ -2484,6 +2484,7 @@ export class PetService {
         '免债：[[world:forgive who=liuwenxia]] —— 相公说"那钱不用还了/算我送她"时用它：钱不收回，凭证作废。',
         '雇人：[[world:hire property="运河码头三层大酒楼" count=3]] —— 说"雇几个伙计/添人手"时用；每人每日工钱 0.12 两。',
         '关系：[[world:bond a=aji b=wangpo type=母子 score=40]] —— 剧情里出现认亲、拜把子、结仇时用；score 正为亲近、负为仇怨。',
+        '外交：[[world:diplomacy to=beidi action=pay]] —— 对邻国纳贡/通商/拒使/和亲时用；action 取 pay|trade|refuse|marry。',
         '结盟：[[world:ally a=husband b=liuwenxia]] —— 两人合兵，攻城时盟友各出一半兵力。',
         '**杀天子不准直接写 [[world:kill who=emperor]] 就算完**——先写它，会得到"天道示警"；相公若仍执意，才用 [[world:regicide]]。',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',

@@ -723,6 +723,33 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (!pid) continue;
         world.places[pid].kind = kindName;
         applied.push(`场所:${world.places[pid].name}=${kindName}`);
+      } else if (kind === 'diplomacy') {
+        // 对邻国表态：纳贡/通商/拒使/和亲
+        const who = String(args.to || args.country || args.who || '').trim();
+        const act = String(args.action || args.act || '').trim();
+        const list = Object.values(world.foreign || {});
+        const n = list.find((x) => x && (x.id === who || x.name === who || String(x.name).includes(who)));
+        if (!n || !act) continue;
+        const rel = Number(n.relation) || 50;
+        if (act === 'pay' || act === 'tribute') {
+          const cost = Math.max(10, Math.round((Number(n.army) || 100) * 0.02));
+          if ((Number(world.assets.silver) || 0) < cost) { applied.push(`纳贡失败:需${cost}两`); continue; }
+          world.assets.silver = round2((Number(world.assets.silver) || 0) - cost);
+          n.relation = Math.min(100, rel + 15);
+          applied.push(`纳贡${cost}两→${n.name}，关系+15`);
+        } else if (act === 'trade') {
+          n.relation = Math.min(100, rel + 8);
+          world.flags = world.flags || {};
+          world.flags.tradeBonus = (Number(world.flags.tradeBonus) || 0) + 0.02;
+          applied.push(`与${n.name}通商，关系+8`);
+        } else if (act === 'refuse') {
+          n.relation = Math.max(0, rel - 12);
+          applied.push(`拒${n.name}使，关系-12`);
+        } else if (act === 'marry') {
+          n.relation = Math.min(100, rel + 20);
+          applied.push(`与${n.name}和亲，关系+20`);
+        }
+        if (world.envoy && world.envoy.from === n.id) world.envoy.decided = true;
       } else if (kind === 'march') {
         // 行军：分兵去某城，若干日后到
         const to = String(args.to || args.city || '').trim();

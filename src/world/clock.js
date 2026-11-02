@@ -509,6 +509,41 @@ function runTreasury(world, events) {
   world.flags.grainPressure = pressure;
 }
 
+/** 外交：邻国有自己的算盘 */
+function runForeign(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  const f = world.foreign || {};
+  const list = Object.values(f).filter(Boolean);
+  if (!list.length) return;
+  for (const n of list) {
+    n.relation = Math.max(0, Math.min(100, (Number(n.relation) || 50) + (Math.random() < 0.5 ? -1 : 1)));
+  }
+  // 边患：关系差的国家会来抢边城
+  if (day % 3 === 0) {
+    const foe = list.filter((n) => (Number(n.relation) || 50) < 40).sort((a, b) => a.relation - b.relation)[0];
+    if (foe && Math.random() < 0.5) {
+      const cities = Object.values(world.cities || {}).filter(Boolean);
+      const edge = cities[Math.floor(Math.random() * cities.length)];
+      if (edge) {
+        const loss = Math.round((Number(edge.wealth) || 30) * 0.08 * 100) / 100;
+        edge.wealth = Math.max(0, Math.round(((Number(edge.wealth) || 30) - loss) * 100) / 100);
+        edge.unrest = Math.min(100, (Number(edge.unrest) || 0) + 5);
+        events.push(nextEvent(world, { action: 'border_raid', actor: 'court', place: edge.region || null, payload: { text: `${foe.name}犯边，${edge.name}被掠` }, isPublic: true }));
+        queuePush?.({ to: 'husband', reason: 'court', facts: { 边患: foe.name }, fallback: `${foe.name}犯边，${edge.name}被抢了。`, force: true });
+      }
+    }
+  }
+  // 使节：每 20 天可能来一个
+  if (day % 20 === 0 && !world.envoy) {
+    const who = list[Math.floor(Math.random() * list.length)];
+    const demands = ['纳贡', '通商', '和亲', '借道'];
+    const demand = demands[Math.floor(Math.random() * demands.length)];
+    world.envoy = { from: who.id, name: who.name, demand, arriveDay: day + 1, decided: false };
+    events.push(nextEvent(world, { action: 'envoy', actor: 'court', place: null, payload: { text: `${who.name}遣使，求${demand}` }, isPublic: true }));
+    queuePush?.({ to: 'husband', reason: 'court', facts: { 使节: who.name }, fallback: `${who.name}的使节到了，说是要${demand}。`, force: true });
+  }
+}
+
 /**
  * 朝廷围剿：通缉高、占城多，朝廷就会真的派兵来。
  * 这是"造反"的另一半——你占了城，朝廷不会装看不见。
@@ -737,6 +772,11 @@ function onNewDay(world, events) {
     runImperialCrackdown(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
   } catch (err) {
     console.warn('[Court] 围剿失败：', err.message);
+  }
+  try {
+    runForeign(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
+  } catch (err) {
+    console.warn('[Foreign] 外交失败：', err.message);
   }
   consumeSupplies(world);
   try {

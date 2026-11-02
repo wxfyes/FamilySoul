@@ -397,6 +397,13 @@ export function createInitialState(dataDir) {
       yahang: { id: 'yahang', name: '牙行', head: 'danglaoban', headName: '曹当', dues: 5, power: 40, note: '买卖居间、当铺赎当都过牙行' },
     },
 
+    // ── 邻国：中原之外，还有别人 ──
+    foreign: {
+      beidi: { id: 'beidi', name: '北狄', relation: 45, army: 800, kind: '游牧', wants: '绢帛与铁器' },
+      nanzhao: { id: 'nanzhao', name: '南诏', relation: 60, army: 400, kind: '山地', wants: '盐与茶' },
+      dongying: { id: 'dongying', name: '东瀛', relation: 55, army: 200, kind: '海邦', wants: '书籍与瓷器' },
+    },
+
     powers: {
       court: { name: '大乾朝廷', kind: '朝廷', power: 90, relation: 0, troops: 200000, note: '名义上统御天下' },
       wangjia: { name: '王家', kind: '商帮', power: 5, relation: 100, troops: 0, note: '你自己', ownerActor: 'husband' },
