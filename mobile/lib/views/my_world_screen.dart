@@ -384,7 +384,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     decoration: InputDecoration(
                       isDense: true,
-                      hintText: '搜名字或身份',
+                      hintText: '搜名字或身份（默认只显示相识的人）',
                       hintStyle: const TextStyle(color: _muted, fontSize: 12),
                       filled: true,
                       fillColor: const Color(0xFF1B2029),
@@ -414,7 +414,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                         ),
                       Expanded(
                         child: Text(
-                          '${w['name']}  ${w['role'] ?? ''}',
+                          '${w['name']}  ${w['role'] ?? ''}${w['human'] == true ? '  · 真人' : ''}',
                           style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5),
                           overflow: TextOverflow.ellipsis,
                         ),

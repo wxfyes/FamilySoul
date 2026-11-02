@@ -526,18 +526,29 @@ const STARTED_AT = Date.now();
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '无效令牌' });
       const q = String(url.searchParams.get('q') || '').trim();
+      const all = String(url.searchParams.get('all') || '') === '1';
       const world = peek(DATA_DIR);
       const actorId = member.actor || null;
       const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
+      const cfg = getFamilyProfiles();
+      const humanActors = new Set(Object.values(cfg || {}).map((x) => x?.actor).filter(Boolean));
       const rows = Object.values(world.actors || {})
         .filter((a) => a && !a.dead && a.id !== actorId && a.id !== 'husband')
-        .filter((a) => (q ? String(a.name || '').includes(q) || String(a.role || '').includes(q) : true))
+        .filter((a) => {
+          if (q) return String(a.name || '').includes(q) || String(a.role || '').includes(q);
+          if (all) return true;
+          const rel = a.relations?.husband || {};
+          const here = a.location && me?.location && a.location === me.location;
+          const close = (Number(rel.trust) || 0) >= 20 || (Number(rel.grievance) || 0) >= 10;
+          return here || close || humanActors.has(a.id);
+        })
         .map((a) => ({
           name: a.name,
           role: a.role || '',
           place: String(world.places?.[a.location]?.name || '不知去向'),
           here: a.location && me?.location ? a.location === me.location : false,
           trust: Number(a.relations?.husband?.trust) || 0,
+          human: humanActors.has(a.id),
         }))
         .sort((x, y) => (y.here - x.here) || (y.trust - x.trust))
         .slice(0, 60);
