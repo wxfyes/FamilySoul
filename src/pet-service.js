@@ -619,7 +619,7 @@ export class PetService {
         [...(this.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
       const summonResult = applySummon(this.dataDir, say, lastBotSaid, actorId && actorId !== 'husband' ? actorId : 'husband');
       summonedNames = summonResult?.summoned || [];
-      if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
+      if (summonResult?.moved?.length || summonResult?.wentTo) engineMovedHusband = true;
       leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);
       if (summonResult?.wentTo && summonResult.moved?.length) {
         contextHintEarly += `（【已到场】：相公已经走到${summonResult.wentTo}了。本轮以新地点为主场，由这里的人开口；刚才那处的人最多送到门口说一句，不能继续占着戏。）\n`;
