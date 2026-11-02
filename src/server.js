@@ -917,6 +917,48 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.24 世界回滚 POST /api/admin/world/rewind {day, hour, trim}
+    if (req.method === 'POST' && pathname === '/api/admin/world/rewind') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const w = peek(DATA_DIR);
+        const day = Math.max(1, Number(body.day) || 1);
+        const hour = Math.max(0, Math.min(23, Number(body.hour) || 0));
+        const trim = body.trim !== false;
+        w.clock.day = day;
+        w.clock.hour = hour;
+        w.lastRealAt = Date.now();
+        let trimmed = 0;
+        if (trim) {
+          const before = (w.cases || []).length + (w.rumors || []).length + (w.memorials || []).length;
+          w.cases = (w.cases || []).filter((c) => Number(c.day) <= day);
+          w.rumors = (w.rumors || []).filter((r) => Number(r.day) <= day);
+          w.memorials = (w.memorials || []).filter((m) => Number(m.day) <= day);
+          if (w.court) {
+            w.court.decisions = (w.court.decisions || []).filter((d) => Number(d.day) <= day);
+            w.court.lastDecreeDay = Math.min(Number(w.court.lastDecreeDay) || 0, day);
+          }
+          const after = w.cases.length + w.rumors.length + w.memorials.length;
+          trimmed = before - after;
+          w.flags = w.flags || {};
+          w.flags.pendingCase = null;
+          w.flags.crimeCheckedDay = day;
+          w.history = (w.history || []).filter((h) => Number(h.day) <= day);
+        }
+        // 主线退回关口之前
+        for (const arc of Object.values(w.arcs || {})) {
+          if (!arc) continue;
+          if (Number(arc.stage) > 3) arc.stage = 3;
+          arc.atEdge = false;
+        }
+        saveState(DATA_DIR, w);
+        console.log(`[World] 回滚到第${day}日${hour}时（清掉 ${trimmed} 条后续记录）`);
+        return sendJson(res, 200, { ok: true, clock: w.clock, trimmed });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.25 世界步进 POST /api/admin/world/step {days}
     if (req.method === 'POST' && pathname === '/api/admin/world/step') {
       try {
