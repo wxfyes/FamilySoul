@@ -1626,24 +1626,25 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 兜底：回复里出现了账本没有的"某婆子/某货郎"，天道就让他存在
+    // 兜底造人：只认"叫某某"这种明确说法，避免把动词当名字
     try {
       if (reply) {
-        const pat = /([\u4e00-\u9fa5]{2,4})(婆子|娘子|老汉|汉子|货郎|船夫|郎中|秀才|掌柜|妇人|脚夫|绣娘|花子|屠户|车夫)/g;
+        const pat = /(?:叫|名叫|唤作|唤做)\s*([\u4e00-\u9fa5]{2,3})/g;
         const wNow2 = loadState(this.dataDir);
         const known = new Set(Object.values(wNow2.actors || {}).map((a) => a && a.name).filter(Boolean));
         const fresh = [];
         let m2;
         while ((m2 = pat.exec(String(reply))) !== null) {
           const nm = m2[1];
-          if (known.has(nm) || /(自己|我们|他们|你们|咱们|人家)/.test(nm)) continue;
+          if (known.has(nm)) continue;
+          if (/(什么|怎样|如何|谁|哪里|哪儿)/.test(nm)) continue;
           if (fresh.some((x) => x.name === nm)) continue;
           if (fresh.length >= 2) break;
-          fresh.push({ name: nm, role: m2[2] });
+          fresh.push({ name: nm, role: '城中人' });
         }
         if (fresh.length) {
           applyWorldTags(this.dataDir, fresh.map((f) => ({ kind: 'spawn', args: { name: f.name, role: f.role } })), { selfId: this._viewerActorId });
-          console.log('[World] 天道造人：' + fresh.map((f) => f.name + '(' + f.role + ')').join('、'));
+          console.log('[World] 天道造人：' + fresh.map((f) => f.name).join('、'));
         }
       }
     } catch { /* 忽略 */ }
