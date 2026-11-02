@@ -2170,6 +2170,7 @@ server.listen(PORT, '0.0.0.0', () => {
 
   // 县衙判案：只依据事实（原告、被告、人证、双方关系），由天道裁定
   async function judgeCases() {
+    const { addRumor } = await import('./world/rumors.js');
     try {
       const w = peek(DATA_DIR);
       const c = (w.cases || []).find((x) => x && x.status === 'hearing');
@@ -2251,6 +2252,15 @@ server.listen(PORT, '0.0.0.0', () => {
           other.relations.husband = rel;
           console.log(`[Court] ${other.name}替${w3.actors[culpritId]?.name}叫屈（怨怼+4）`);
         }
+      } catch { /* 忽略 */ }
+
+      try {
+        addRumor(w3, {
+          text: `${cc.against}因${cc.claim}被断${cc.verdict === 'guilty' ? '有罪' : '无罪'}`,
+          about: [cc.againstId, cc.whoId].filter(Boolean),
+          tone: cc.verdict === 'guilty' ? -1 : 1,
+          weight: 4,
+        });
       } catch { /* 忽略 */ }
 
       saveState(DATA_DIR, w3);

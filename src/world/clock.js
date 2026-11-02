@@ -18,6 +18,7 @@ import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
 import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
+import { spreadRumors } from './rumors.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
 export const DEFAULT_TICK_INTERVAL_MS = 2 * 60 * 1000; // 2 分钟心跳：世界推进更细，不用干等 10 分钟
@@ -523,6 +524,12 @@ function consumeSupplies(world) {
 }
 
 function onNewDay(world, events) {
+  try {
+    const spread = spreadRumors(world);
+    if (spread.length) console.log(`[Rumor] 传开 ${spread.length} 次`);
+  } catch (err) {
+    console.warn('[Rumor] 扩散失败：', err.message);
+  }
   consumeSupplies(world);
   try {
     runTreasury(world, events);

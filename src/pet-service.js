@@ -14,6 +14,7 @@ import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
 import { resolveTurnTarget } from './world/turn-target.js';
 import { describeBonds } from './world/bonds.js';
+import { rumorsKnownBy } from './world/rumors.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
 import { buildProxyPrompt, wrapProxyLine } from './world/proxy-actor.js';
 
@@ -789,6 +790,10 @@ export class PetService {
           .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId)
           .map((a) => a.id);
         const bondLines = describeBonds(wHere, hereIds);
+        const rumorLines = rumorsKnownBy(wHere, hereIds);
+        if (rumorLines.length) {
+          bits.push(`街上在传：${rumorLines.join('；')}（他们可能主动提起，也可能拿这个说事）`);
+        }
         if (bondLines.length) {
           bits.push(`他们彼此：${bondLines.join('；')}（他们之间有自己的情分和恩怨，不只围着你转）`);
           console.log(`[Bonds] 在场关系 ${bondLines.length} 条：${bondLines.slice(0, 3).join('；')}`);
