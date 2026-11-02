@@ -288,6 +288,22 @@ export function applyWorldTags(dataDir, ops) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'property') {
+        // 新开产业：天道可以真的给世界添一间铺子
+        const name = String(args.name || '').trim().slice(0, 20);
+        if (!name) continue;
+        world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
+        if (world.assets.properties.some((x) => x.name === name)) continue;
+        world.flags.propSeq = (Number(world.flags.propSeq) || 0) + 1;
+        world.assets.properties.push({
+          id: `prop_${world.flags.propSeq}`,
+          name,
+          kind: String(args.kind || 'shops').slice(0, 12),
+          incomePerDay: Math.max(0, Number(args.set ?? args.income ?? 0) || 0),
+          status: String(args.status || '筹备开张').slice(0, 12),
+          openedDay: world.clock.day,
+        });
+        applied.push(`新产业:${name} 日入${Number(args.set ?? args.income ?? 0) || 0}两`);
       } else if (kind === 'income') {
         // 产业营收：天道可以直接改（酒楼开张、扩店面、涨价），不再受 3 两封顶限制
         const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];

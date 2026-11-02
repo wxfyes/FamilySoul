@@ -1670,9 +1670,22 @@ export class PetService {
       if (!bizWord) return [];
       const named = props.find((p) => { const nm = String(p.name || ""); for (let n = nm.length; n >= 2; n--) { for (let i = 0; i + n <= nm.length; i++) { if (say.includes(nm.slice(i, i + n))) return true; } } return false; });
       const openedWord = /开张|营业|开业/.test(say);
-      if (!named && !openedWord) return []; // 光说个数字，不记账
+      const newShop = /(开|新开|盘下|置办)[^，。]{0,6}(店|铺|庄|楼|行|坊|号)/.test(say);
+      if (!named && !openedWord && !newShop) return []; // 光说个数字，不记账
       const expense = /(花|用掉|喝|吃|买|付给|欠|还了|赏|赌|输)/.test(say);
       if (expense && !openedWord) return []; // 花销类的话，不改成营收
+      // 没有对得上的产业，又是在开新店 → 真的新开一间
+      if (!named && newShop) {
+        const nm = ((say.match(/(?:开|新开|盘下|置办)[^，。]{0,6}?([\u4e00-\u9fa5]{2,8}(?:店|铺|庄|楼|行|坊|号))/) || [])[1] || "").replace(/^(?:一间|一家|一个|一座|一|间|家|个|座|条|处)/, "");
+        if (nm && !props.some((x) => x.name === nm)) {
+          world.flags.propSeq = (Number(world.flags.propSeq) || 0) + 1;
+          world.assets.properties = props;
+          props.push({ id: `prop_${world.flags.propSeq}`, name: nm, kind: "shops", incomePerDay: value, status: "已开张", openedDay: world.clock.day });
+          saveState(this.dataDir, world);
+          console.log(`[Ledger] 新开产业：${nm} 日入 ${value} 两`);
+          return [`新产业:${nm}`];
+        }
+      }
       const target = named || props.find((p) => !(Number(p.incomePerDay) > 0)) || props[0];
       if (!target) return [];
       const before = Number(target.incomePerDay) || 0;
@@ -1766,6 +1779,7 @@ export class PetService {
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
         '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算）',
         '产业：[[world:income id=canal_restaurant set=18 status="已开张"]] —— **凡是"开张/日入多少/生意变好变差"，一律用这个改产业营收，绝不许拿 [[world:asset]] 加一笔银子代替。**',
+        '新开店：[[world:property name="城南布庄" set=10 status="已开张"]] —— 相公说要开一间以前没有的铺子时用它。',
         '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
         '**对话里第一次出现有名有姓、有身份的新人物，必须 spawn**，否则她只是嘴上说说、不会活在世上。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',
