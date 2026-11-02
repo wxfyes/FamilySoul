@@ -684,6 +684,7 @@
       <button class="tab-btn" onclick="switchTab('sandbox')">💬 私密试炼</button>
       <button class="tab-btn" onclick="switchTab('logs')">📜 黑匣子日志</button>
       <button class="tab-btn" onclick="switchTab('settings')">🌐 视觉与代理</button>
+      <button class="tab-btn" onclick="openDashboard()" title="世界状态 / 人物数值 / 花费 / 体检">📊 世界看板</button>
     </nav>
 
     <div class="header-actions">
@@ -909,6 +910,14 @@
       t.innerText = msg;
       t.classList.add('show');
       setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // 打开世界看板：把当前令牌带过去，免二次输入
+    function openDashboard() {
+      const tk = localStorage.getItem('surfcore_husband_token')
+        || localStorage.getItem('fs_admin_token') || '';
+      const url = '/dashboard' + (tk ? ('?token=' + encodeURIComponent(tk.trim())) : '');
+      window.open(url, '_blank');
     }
 
     function switchTab(tabId) {

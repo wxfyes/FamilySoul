@@ -114,7 +114,7 @@ function saveToken(){
 function token(){
   const fromUrl = new URLSearchParams(location.search).get('token');
   if (fromUrl) { localStorage.setItem('fs_admin_token', fromUrl); return fromUrl; }
-  return localStorage.getItem('fs_admin_token') || '';
+  return localStorage.getItem('fs_admin_token') || localStorage.getItem('surfcore_husband_token') || '';
 }
 function human(sec){
   if (!sec) return '—';
