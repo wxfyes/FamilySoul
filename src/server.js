@@ -599,6 +599,11 @@ const STARTED_AT = Date.now();
         }
         for (const pr of world.promises || []) if (hit(pr.text)) pr.text = repl(pr.text);
         for (const pd of world.pending || []) if (hit(pd.desc)) pd.desc = repl(pd.desc);
+        for (const cl of world.clues || []) if (hit(cl.text)) cl.text = repl(cl.text);
+        for (const arc of Object.values(world.arcs || {})) {
+          if (hit(arc.hook)) arc.hook = repl(arc.hook);
+          for (const lg of arc.log || []) if (hit(lg.text)) lg.text = repl(lg.text);
+        }
         for (const a of Object.values(world.actors || {})) {
           if (a?.name === from) a.name = to;
           if (a?.secret) a.secret = repl(a.secret);
