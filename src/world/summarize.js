@@ -101,10 +101,64 @@ function describeEvent(e) {
  * 生成给相公端（丈夫）看的状态摘要。
  * 女主人端与孩子端不出这段，避免王家账本串味（见 docs/world-engine.md 第 13 节）。
  */
-export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband' } = {}) {
+export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband', viewer = null } = {}) {
   try {
     const world = loadState(dataDir);
     const lines = [];
+
+    // ── 真人扮演某个世界里的人物：只给她自己该知道的视角 ──
+    if (viewer && viewer !== 'husband' && world.actors?.[viewer]) {
+      const meV = world.actors[viewer];
+      const dayV = world.clock?.day ?? 1;
+      const hourV = world.clock?.hour ?? 0;
+      const wdV = worldDate(world);
+      const placeV = world.places?.[meV.location]?.name || meV.location || '';
+      lines.push(
+        `【天机】${world.era || '乾宁三年'}·${seasonCN(world.clock?.season || 'spring')} ${wdV ? `${wdV.month}月${wdV.day}日` : `第${dayV}日`}${wdV?.lunar ? `（农历${wdV.lunar.text}）` : ''} ${shichenOf(hourV)}`,
+      );
+      lines.push(`【你是谁】${meV.name}，${meV.role || ''}。${(meV.goals || []).length ? `你心里惦记的事：${meV.goals.join('、')}。` : ''}`);
+      lines.push(`【所在】${placeV}`);
+      // 同处的人（不透露别人对你的好感数值，只给人名与身份）
+      const othersV = Object.values(world.actors || {}).filter(
+        (a) => a && a.id !== viewer && a.id !== 'husband' && a.kind !== 'human' && a.location === meV.location,
+      );
+      const husbandHere = world.actors?.husband?.location === meV.location;
+      const presentNames = [
+        ...(husbandHere ? ['相公（王甯，茶坊少掌柜）'] : []),
+        ...othersV.map((a) => `${a.name}（${a.role || ''}）`),
+      ];
+      lines.push(`【在场】${presentNames.length ? presentNames.join('、') : '只你一人'}`);
+      // 你自己的心事（以你的感受表述，不给数字）
+      const relV = meV.relations?.husband;
+      if (relV) {
+        const feel = [];
+        if (Number(relV.grievance) >= 40) feel.push('心里有气还没消');
+        else if (Number(relV.grievance) >= 15) feel.push('心里有点疙瘩');
+        if (Number(relV.desire) >= 60) feel.push('对他有情意');
+        else if (Number(relV.desire) >= 35) feel.push('对他有些意动');
+        if (Number(relV.trust) >= 60) feel.push('信得过他');
+        else if (Number(relV.trust) < 35) feel.push('对他还留着心');
+        lines.push(`【你此刻的心事】${feel.length ? feel.join('；') : '说不上来'}`);
+      }
+      if (meV.pregnancy) lines.push(`【身孕】你已有身孕约${Math.floor((Number(meV.pregnancy.days) || 0) / 30)}个月`);
+      // 只有你自己的孩子
+      const myKids = Object.values(world.actors || {}).filter(
+        (k) => k?.bornDay && String(k.role || '').includes(meV.name),
+      );
+      if (myKids.length) lines.push(`【你的孩子】${myKids.map((k) => `${k.name}（${Math.max(0, dayV - Number(k.bornDay))}天）`).join('、')}`);
+      // 只有你自己的约定
+      const myAppts = (world.appointments || []).filter(
+        (a) => a && (a.actorId === viewer || a.name === meV.name),
+      );
+      if (myAppts.length) {
+        lines.push(`【你应下的事】${myAppts.map((a) => `第${a.day}日${a.hour}时 在${world.places?.[a.place]?.name || '老地方'}${a.text ? `（${a.text}）` : ''}`).join('；')}`);
+      }
+      // 只有与她有关的旧事
+      const myMem = (world.memories || []).filter((m) => m && String(m.text || '').includes(meV.name));
+      if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
+      lines.push('【提醒】你只知道你亲眼见过、亲耳听过的事。别人的银钱、产业、与他人私下的往来，你一概不知，也不许"忽然懂了"。');
+      return lines.join('\n');
+    }
 
     const day = world.clock?.day ?? 1;
     const hour = world.clock?.hour ?? 0;

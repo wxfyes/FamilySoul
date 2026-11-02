@@ -113,7 +113,9 @@ export class PetService {
   }
 
   buildSystemPrompt(roleName, modality = 'text', memberKey = 'husband', currentEpoch = 'ancient', history = null) {
-    const persona = this.rolesManager.getRolePersona(roleName);
+    let persona = this.rolesManager.getRolePersona(roleName);
+    // 若这名成员绑定的是世界里的人物（如刘文霞本人登录），就用她自己的身份说话
+    if (this._actorPersonaOverride) persona = this._actorPersonaOverride;
     const lines = [];
     const timeCtx = this.getTemporalContext();
 
@@ -297,9 +299,25 @@ export class PetService {
 
     lines.push('- 绝不要提你是 AI、模型、提示词或程序！永远全情沉浸在你的专属角色身份中。');
 
+    // 绑定世界人物的成员（如刘文霞本人登录）：只注入她自己视角的那段，走独立分支
+    if (this._viewerActorId && this._actorPersonaOverride) {
+      const own = buildStateSummary(this.dataDir, { roleName, memberKey, viewer: this._viewerActorId });
+      lines.push('');
+      lines.push('【你此刻知道的实况（只有这些）】');
+      lines.push(own);
+      lines.push('');
+      lines.push('- 以上是你自己知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
+      lines.push('- 用第一人称说话，符合你的身份与处境。');
+      return lines.join('\n');
+    }
+
     // 世界引擎：把当前世界状态压成一段「天机」摘要放到末尾（相公端专属，女主/孩子端不注入）
     if (memberKey === 'husband' || roleName === '傲娇助手') {
-      const summary = buildStateSummary(this.dataDir, { roleName, memberKey });
+      const summary = buildStateSummary(this.dataDir, {
+      roleName,
+      memberKey,
+      viewer: this._viewerActorId || null,
+    });
 
       // 【省 token】易变的内容统一放最后：前面的人格卡与规则保持逐字不变，
       // 才能命中 DeepSeek 的上下文缓存（缓存价约为未命中的十分之一）。
@@ -601,6 +619,33 @@ export class PetService {
     } catch (err) {
       console.warn('[Ritual] 状态推进失败：', err.message);
     }
+    // 绑定世界人物的成员：给她自己的身份卡，而不是配置里的角色卡
+    this._actorPersonaOverride = null;
+    this._viewerActorId = actorId && actorId !== 'husband' ? actorId : null;
+    if (actorId && actorId !== 'husband') {
+      try {
+        const wA = loadState(this.dataDir);
+        const a = wA.actors?.[actorId];
+        if (a) {
+          const spouse = Object.values(wA.actors || {}).find(
+            (x) => x && x.id !== actorId && x.id !== 'husband' && x.gender === 'male' && x.home && a.home && x.home === a.home,
+          );
+          this._actorPersonaOverride = [
+            `你是${a.name}，${a.role || ''}。`,
+            (a.goals || []).length ? `你心里惦记的事：${a.goals.join('、')}。` : '',
+            a.secret ? `你不愿让人知道的：${a.secret}。` : '',
+            spouse ? `你的丈夫是${spouse.name}（${spouse.role || ''}）。` : '',
+            '你只知道你亲眼见过、亲耳听过的事；相公在别处的银钱、产业、与旁人的往来，你一概不知。',
+            '说话用第一人称，符合你的身份与处境，不要自称"妾身"以外的称呼方式。',
+          ]
+            .filter(Boolean)
+            .join('\n');
+        }
+      } catch {
+        this._actorPersonaOverride = null;
+      }
+    }
+
     const history = this.readHistory(profileKey);
     // 上下文过滤：把「把府里人当成生客」的旧回复剔掉，否则模型会顺着自己的错继续错
     let householdForFilter = [];
