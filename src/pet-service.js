@@ -526,10 +526,12 @@ export class PetService {
     // 召唤与走动：把「叫谁过来 / 我去谁那儿」落到账本上（只改位置，不写台词）
     let summonedNames = [];
     let contextHintEarly = '';
+    let engineMovedHusband = false; // 引擎这轮已经决定过相公去哪，模型无权再改
     try {
       const lastBotSaid = [...(history.messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
       const summonResult = applySummon(this.dataDir, say, lastBotSaid);
       summonedNames = summonResult?.summoned || [];
+      if (summonResult?.moved?.includes('相公')) engineMovedHusband = true;
       if (summonResult?.left) {
         contextHintEarly += '（【已离场】：相公已经离开刚才那个地方，回到茶坊了。本轮必须先写出转场（【天道·地点·临江茶坊】），**不许再写道别、不许让原处的人继续说"相公慢走"**。）\n';
       }
@@ -994,7 +996,7 @@ export class PetService {
         /* 花名补全失败不影响回复 */
       }
       // 硬对齐：叙事里的场景标记优先于模型是否记得写回执
-      const sceneSync = this.syncSceneFromReply(reply);
+      const sceneSync = this.syncSceneFromReply(reply, { skipHusbandMove: engineMovedHusband });
       if (sceneSync) {
         console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
       }
@@ -1158,7 +1160,7 @@ export class PetService {
    * 硬对齐：天道常在开头写「【天道·运河码头大酒楼·后院账房】」这样的场景标记。
    * 只要出现这个标记，就把相公与本轮开口的人一起挪过去——不依赖模型是否记得写回执。
    */
-  syncSceneFromReply(text) {
+  syncSceneFromReply(text, { skipHusbandMove = false } = {}) {
     try {
       const m = String(text || '').match(/【天道[·:：]\s*([^】]{2,24})】/);
       if (!m) return null;
@@ -1204,7 +1206,10 @@ export class PetService {
       }
 
       const moved = [];
-      if (me.location !== placeId) {
+      // 优先级铁律：引擎这轮已经决定过相公去哪（比如他说"我走了"），模型的场景标记不得再改
+      if (skipHusbandMove) {
+        moved.push('（相公位置已由引擎决定，忽略场景标记）');
+      } else if (me.location !== placeId) {
         me.location = placeId;
         moved.push('相公');
       }
