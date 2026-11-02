@@ -217,9 +217,9 @@ export function auditAll(world) {
   return {
     ledger,
     memory,
+    ownership,
     reply,
     counts: {
-      ledger: ledger.length,
       memory: memory.length,
       ownership: ownership.length,
       reply: reply.length,

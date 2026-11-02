@@ -355,7 +355,7 @@ export function createInitialState(dataDir) {
     // 天下势力：朝廷、藩镇、义军、商帮、山匪
     powers: {
       court: { name: '大乾朝廷', kind: '朝廷', power: 90, relation: 0, troops: 200000, note: '名义上统御天下' },
-      wangjia: { name: '王家', kind: '商帮', power: 5, relation: 100, troops: 0, note: '你自己' },
+      wangjia: { name: '王家', kind: '商帮', power: 5, relation: 100, troops: 0, note: '你自己', ownerActor: 'husband' },
     },
     // 城池：谁占着、守备多少、富不富、民心稳不稳
     cities: {},
