@@ -232,9 +232,16 @@ function runPettyCrimes(world, events) {
   const avgUnrest = cities.length ? cities.reduce((s, c) => s + (Number(c.unrest) || 0), 0) / cities.length : 0;
   const p = 0.25 + Math.min(0.4, avgUnrest / 200);
   if (Math.random() > p) return;
-  const pool = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && !a.jailed && !a.playerControlled);
+  // 做贼的不会是知府老爷：先把官身、主子、真人排掉
+  const notCrook = /(知府|县令|知县|尚书|宰相|天子|巡抚|统领|相公|正妻|如夫人|千金)/;
+  const pool = Object.values(world.actors || {}).filter(
+    (a) => a && !a.dead && a.id !== 'husband' && !a.jailed && !a.playerControlled && !notCrook.test(String(a.role || '')),
+  );
+  // 混街面的更容易犯事：伙计、摊贩、屠户、铁匠、游民
+  const likely = pool.filter((a) => /(伙计|摊|屠|铁匠|脚夫|车夫|花子|游民|闲汉|小厮|丫鬟)/.test(String(a.role || '')));
+  const crooks = likely.length ? likely : pool;
   if (pool.length < 2) return;
-  const culprit = pool[Math.floor(Math.random() * pool.length)];
+  const culprit = crooks[Math.floor(Math.random() * crooks.length)];
   const victim = pool[Math.floor(Math.random() * pool.length)];
   if (culprit === victim) return;
   const crimes = ['偷了邻居的鸡', '当街斗殴', '赌输了钱动手抢', '酒后砸了铺子', '私贩盐铁', '失火烧了半间屋'];
