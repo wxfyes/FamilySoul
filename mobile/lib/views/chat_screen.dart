@@ -10,6 +10,7 @@ import '../providers/chat_provider.dart';
 import '../services/offline_asr_service.dart';
 import '../widgets/message_bubble.dart';
 import 'settings_screen.dart';
+import 'my_world_screen.dart';
 import 'video_call_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -683,6 +684,20 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          // 我的世界：时辰、家底、待办、线索（只看自己那一份）
+          IconButton(
+            tooltip: '我的世界',
+            icon: const Icon(Icons.public_rounded, size: 21),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => MyWorldScreen(api: provider.api),
+                  fullscreenDialog: true,
+                ),
+              );
+            },
+          ),
           // 豆包同款语音播报开关（开启才请求火山TTS，关闭省额度）
           IconButton(
             icon: Icon(

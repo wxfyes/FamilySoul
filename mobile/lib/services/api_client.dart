@@ -35,6 +35,19 @@ class SurfCoreApiClient {
     );
   }
 
+  /// 我的世界：只看自己那一份（时辰/家底/待办/线索/主线）
+  Future<Map<String, dynamic>?> fetchMyWorld() async {
+    try {
+      final res = await _dio.get('/api/me', queryParameters: {'token': config.token.trim()});
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return res.data as Map<String, dynamic>;
+      }
+    } catch (_) {
+      /* 交由界面显示重试 */
+    }
+    return null;
+  }
+
   /// 检查服务连通性与健康状态
   Future<bool> checkHealth() async {
     for (var attempt = 0; attempt < 2; attempt++) {

@@ -21,6 +21,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   late ServerConfig _config;
   late SurfCoreApiClient _apiClient;
+
+  /// 供「我的世界」等页面直接取数据
+  SurfCoreApiClient get api => _apiClient;
   List<ChatMessage> _messages = [];
   PetStatus _petStatus = PetStatus(online: false);
   bool _isConnected = false;

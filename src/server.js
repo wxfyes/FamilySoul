@@ -387,6 +387,51 @@ const STARTED_AT = Date.now();
     });
   }
 
+  // ── 个人世界看板（每个账号只看自己的）────────────────────────
+  if (req.method === 'GET' && pathname === '/api/me') {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '无效令牌' });
+      const world = peek(DATA_DIR);
+      const actorId = member.actor || null;
+      const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
+      const isHusband = !actorId;
+      const place = me?.location ? world.places?.[me.location] : null;
+      const wd = worldDate(world);
+      const todos = [];
+      for (const ap of world.appointments || []) {
+        if (ap.actorId && actorId && ap.actorId !== actorId) continue;
+        todos.push({ kind: '约定', text: ap.text || ap.desc || '', day: ap.day, hour: ap.hour });
+      }
+      for (const pr of world.promises || []) {
+        if (pr.done) continue;
+        todos.push({ kind: '承诺', text: pr.text || '', day: pr.due });
+      }
+      const props = (world.assets?.properties || []).filter((p) => (isHusband ? true : p.keeper === actorId));
+      const arc = actorId ? world.arcs?.[actorId] : null;
+      const f = actorId ? world.forces?.[actorId] : world.military;
+      const troops = f ? (Number(f.guards) || 0) + (Number(f.militia) || 0) + (Number(f.army) || 0) : 0;
+      return sendJson(res, 200, {
+        ok: true,
+        self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
+        date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
+        assets: {
+          silver: isHusband ? Number(world.assets?.silver) || 0 : null,
+          properties: props.map((p) => ({ name: p.name, income: Number(p.incomePerDay) || 0, status: p.status || '', staff: p.staff || 0, city: p.city || '' })),
+          daily: props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0),
+        },
+        todos: todos.slice(0, 12),
+        clues: (world.clues || []).slice(-8).map((c) => ({ text: c.text, day: c.day })),
+        arc: arc ? { title: arc.title, stage: arc.stage, done: Boolean(arc.done), outcome: arc.outcome || '', atEdge: Boolean(arc.atEdge) } : null,
+        military: troops > 0 ? { guards: f.guards || 0, militia: f.militia || 0, army: f.army || 0, supplies: f.supplies || 0 } : null,
+        standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
+      });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
   // ── 管理控制台专属 API ──────────────────────────────────────
   if (pathname.startsWith('/api/admin')) {
     // 鉴权校验：只有相公专属通行证才可调度家庭后宫
@@ -1668,7 +1713,7 @@ const STARTED_AT = Date.now();
   return sendJson(res, 404, { ok: false, error: `未找到对应接口: ${pathname}` });
 });
 
-const PORT = config.port || 3088;
+const PORT = Number(process.env.PORT) || config.port || 3088;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('========================================================');
   console.log(`  FamilySoul 家庭数字灵魂伴侣中枢启动成功！              `);
