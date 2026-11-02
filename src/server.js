@@ -2560,11 +2560,11 @@ server.listen(PORT, '0.0.0.0', () => {
   async function stepWorld(days = 1) {
     const { tick } = await import('./world/clock.js');
     const msPerHour = Number(config.world?.msPerWorldHour) || 60 * 60 * 1000;
-    const base = Date.now();
     const done = [];
     for (let i = 0; i < Math.max(1, Math.min(30, days)); i += 1) {
       const before = peek(DATA_DIR).clock?.day || 1;
-      tick(DATA_DIR, { now: base + (i + 1) * 24 * msPerHour, msPerWorldHour: msPerHour });
+      const last = Number(peek(DATA_DIR).lastRealAt) || Date.now();
+      tick(DATA_DIR, { now: last + 24 * msPerHour, msPerWorldHour: msPerHour });
       // 没有模型密钥时，只跑规则部分，不让请求卡死
       const aiReady = (() => { try { return petService.llmClient.isReady(); } catch { return false; } })();
       if (aiReady) {

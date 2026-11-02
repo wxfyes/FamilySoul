@@ -254,7 +254,11 @@ function runPettyCrimes(world, events) {
       events.push(nextEvent(world, { action: 'released', actor: a.id, place: a.location, payload: { text: `${a.name}刑满出狱` }, isPublic: true }));
     }
   }
-  if (hour !== 6) return; // 每天卯时
+  // 每天只查一次（卯时或之后第一次到）；步进/补算也能触发
+  if (hour < 6) return;
+  world.flags = world.flags || {};
+  if (Number(world.flags.crimeCheckedDay) === day) return;
+  world.flags.crimeCheckedDay = day;
   const cities = Object.values(world.cities || {}).filter(Boolean);
   if (!cities.length) return;
   const avgUnrest = cities.reduce((s, c) => s + (Number(c.unrest) || 0), 0) / cities.length;
