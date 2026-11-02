@@ -871,6 +871,25 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26f 删除一个 NPC POST /api/admin/actor/delete {id}
+    if (req.method === 'POST' && pathname === '/api/admin/actor/delete') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const id = String(body.id || '');
+        if (!id || id === 'husband') return sendJson(res, 400, { ok: false, error: '不能删这个' });
+        const a = world.actors?.[id];
+        if (!a) return sendJson(res, 404, { ok: false, error: '没有这个人' });
+        delete world.actors[id];
+        if (world.npcArcs) delete world.npcArcs[id];
+        saveState(DATA_DIR, world);
+        console.log(`[Actor] 已删除 ${a.name}(${id})`);
+        return sendJson(res, 200, { ok: true, name: a.name });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {

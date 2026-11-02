@@ -178,8 +178,14 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         });
         applied.push(`承诺:${text.slice(0, 16)}（第${due}日）`);
       } else if (kind === 'spawn') {
-        const name = String(args.name || '').trim();
+        let name = String(args.name || '').trim();
         if (!name) continue;
+        // 名字不能像一句话（"先去请个""是新请的"这种）
+        const looksLikeSentence = /(的|了|是|请|个|去|来|叫|新|这|那|把|被|给|要|得|着|过|您|你|我|他|她)/.test(name) || name.length > 4;
+        if (looksLikeSentence) {
+          const roleWord = String(args.role || '').trim();
+          name = roleWord && roleWord.length <= 4 && !/的|了|是/.test(roleWord) ? roleWord : '城中人';
+        }
         const dup = buildIndex(world).has(name);
         if (dup) continue;
         world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
