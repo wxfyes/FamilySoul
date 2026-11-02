@@ -1359,10 +1359,10 @@ export class PetService {
 
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
         const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
-        const askedHim = /(王甯|王掌柜|少掌柜|相公)/.test(String(say || ''))
-          || /(王甯|王掌柜|少掌柜)/.test(lastTurns)
-          || /(你|您)/.test(String(say || ''))
-          || /(那你|你是谁|谁啊|在吗)/.test(String(say || ''));
+        const said = String(say || '');
+        const askedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said)
+          || /(你|您)/.test(said)
+          || /(那你|你是谁|谁啊|在吗)/.test(said);
         if (askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';
@@ -1572,6 +1572,26 @@ export class PetService {
       }
     } catch (err) {
       console.warn('[Arc] 生成下一步失败：', err.message);
+    }
+
+    // 问进账：数字必须准确，模型没给就由引擎直接报
+    try {
+      if (this._viewerActorId && /(进多少|日入|收入|赚多少|多少钱|几两)/.test(String(say || ''))) {
+        const wM = loadState(this.dataDir);
+        const meM = wM.actors?.[this._viewerActorId];
+        const props = (wM.assets?.properties || []).filter((p) => p && p.keeper === this._viewerActorId);
+        const daily = props.reduce((sum, p) => sum + (Number(p.incomePerDay) || 0), 0);
+        const wallet = Number(wM.wallets?.[this._viewerActorId]) || 0;
+        const nums = String(reply).match(/\d+(?:\.\d+)?/g) || [];
+        const alreadyRight = nums.some((n) => Math.abs(Number(n) - daily) < 0.01 || Math.abs(Number(n) - wallet) < 0.01);
+        if (!alreadyRight) {
+          const placeName = String(wM.places?.[meM?.location]?.name || '这里');
+          reply = `【${placeName}】：日入${daily.toFixed(2)}两，账上现银${wallet.toFixed(2)}两。`;
+          console.log('[Money] 引擎直接报数：日入' + daily.toFixed(2) + ' 现银' + wallet.toFixed(2));
+        }
+      }
+    } catch (err) {
+      console.warn('[Money] 报数失败：', err.message);
     }
 
     // 她一开口就算"在行动"，主线不会因为躺平被世界替她定夺
