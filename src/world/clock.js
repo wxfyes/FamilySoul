@@ -15,6 +15,7 @@ import {
   round2,
 } from './state.js';
 import { runNPCInitiatives } from './actors.js';
+import { healWorld } from './heal.js';
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
 export const DEFAULT_TICK_INTERVAL_MS = 2 * 60 * 1000; // 2 分钟心跳：世界推进更细，不用干等 10 分钟
@@ -265,6 +266,16 @@ function advanceHour(world, events, nowMs) {
   if (world.clock.hour >= 24) {
     world.clock.hour = 0;
     world.clock.day += 1;
+    // 世界日翻篇时自愈一次：账本坏了它自己修，不靠人管
+    try {
+      const fixes = healWorld(world);
+      if (fixes.length > 0) {
+        console.log(`[Heal] 自动修复 ${fixes.length} 处：`);
+        fixes.slice(0, 8).forEach((f) => console.log(`  - ${f}`));
+      }
+    } catch (err) {
+      console.warn('[Heal] 自愈失败：', err.message);
+    }
     onNewDay(world, events);
   }
 

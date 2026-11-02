@@ -14,6 +14,7 @@ import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld } from './world/audit.js';
+import { healWorld } from './world/heal.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1203,6 +1204,18 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('========================================================');
 
   // 账本体检：启动跑一次，之后每 24 小时一次（纯代码，零 token）
+  // 启动时先自愈一次（上次崩溃/断电留下的脏账，开机就修好）
+  try {
+    const w0 = peek(DATA_DIR);
+    const fixes = healWorld(w0);
+    if (fixes.length > 0) {
+      saveState(DATA_DIR, w0);
+      console.log(`[Heal] 启动自愈 ${fixes.length} 处：${fixes.slice(0, 5).join('；')}`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 启动自愈失败：', err.message);
+  }
+
   const runAudit = () => {
     try {
       const issues = auditWorld(peek(DATA_DIR));
