@@ -509,6 +509,58 @@ function runTreasury(world, events) {
   world.flags.grainPressure = pressure;
 }
 
+/**
+ * 朝廷围剿：通缉高、占城多，朝廷就会真的派兵来。
+ * 这是"造反"的另一半——你占了城，朝廷不会装看不见。
+ */
+function runImperialCrackdown(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  world.flags = world.flags || {};
+  const wanted = Number(world.flags.wanted) || 0;
+  const pressure = Number(world.flags.courtPressure) || 0;
+  const myCities = Object.entries(world.cities || {}).filter(([, c]) => c && c.owner === 'wangjia');
+  const threat = wanted * 20 + pressure + myCities.length * 15;
+
+  // 已经在路上的朝廷兵马
+  if (world.imperialArmy) {
+    const ia = world.imperialArmy;
+    if (day < Number(ia.arriveDay || 0)) return;
+    const ct = world.cities?.[ia.target];
+    if (!ct) { world.imperialArmy = null; return; }
+    const mil = world.military || {};
+    const gar = Number(world.garrisons?.[ia.target]) || 0;
+    const ours = (Number(mil.army) || 0) + (Number(mil.militia) || 0) * 0.6 + gar;
+    const oursPower = ours * (1 + (Number(mil.morale) || 0) / 200) * (1 + (Number(mil.quality) || 0) / 200);
+    const theirPower = ia.count * (1 + Math.random() * 0.2);
+    if (oursPower > theirPower) {
+      world.flags.wanted = Math.max(0, wanted - 1);
+      world.flags.courtPressure = Math.max(0, pressure - 20);
+      mil.morale = Math.min(100, (Number(mil.morale) || 50) + 5);
+      events.push(nextEvent(world, { action: 'defend_win', actor: 'husband', place: ct.region || null, payload: { text: `击退朝廷${ia.count}兵马` }, isPublic: true }));
+      queuePush?.({ to: 'husband', reason: 'court', facts: { 官军: '已退' }, fallback: `官军${ia.count}人来攻${ia.target}，被你打退了。`, force: true });
+    } else {
+      ct.owner = 'court';
+      world.flags.wanted = wanted + 1;
+      mil.army = Math.max(0, Math.round((Number(mil.army) || 0) * 0.7));
+      mil.morale = Math.max(0, (Number(mil.morale) || 50) - 15);
+      world.garrisons = world.garrisons || {};
+      world.garrisons[ia.target] = 0;
+      events.push(nextEvent(world, { action: 'defend_lose', actor: 'husband', place: ct.region || null, payload: { text: `${ia.target}被官军夺回` }, isPublic: true }));
+      queuePush?.({ to: 'husband', reason: 'court', facts: { 官军: '城破' }, fallback: `官军破了${ia.target}，你的兵折了大半。`, force: true });
+    }
+    world.imperialArmy = null;
+    return;
+  }
+
+  if (threat < 60) return;
+  if (Math.random() > Math.min(0.6, threat / 200)) return;
+  const target = myCities.length ? myCities[0][0] : '临江府';
+  const count = 40 + Math.round(threat * 0.8);
+  world.imperialArmy = { count, target, arriveDay: day + 2 };
+  events.push(nextEvent(world, { action: 'imperial_march', actor: 'court', place: null, payload: { text: `朝廷点${count}兵马来剿` }, isPublic: true }));
+  queuePush?.({ to: 'husband', reason: 'court', facts: { 官军: '将至' }, fallback: `朝廷点了${count}兵马，两日后到${target}。`, force: true });
+}
+
 /** 行军到达：把兵驻进目标城 */
 function runMarches(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -680,6 +732,11 @@ function onNewDay(world, events) {
     runMarches(world, events);
   } catch (err) {
     console.warn('[March] 行军失败：', err.message);
+  }
+  try {
+    runImperialCrackdown(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
+  } catch (err) {
+    console.warn('[Court] 围剿失败：', err.message);
   }
   consumeSupplies(world);
   try {
