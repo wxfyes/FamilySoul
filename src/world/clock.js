@@ -289,6 +289,32 @@ function runCourtReaction(world, events, queuePush) {
   }
 }
 
+function runLoanDues(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  for (const pr of world.promises || []) {
+    if (!pr || !pr.loan || pr.done) continue;
+    const due = Number(pr.due) || 0;
+    if (!due || day <= due) continue;
+    const borrower = pr.loan.to;
+    const name = world.actors?.[borrower]?.name || borrower;
+    if (!pr.overdueDay) {
+      pr.overdueDay = day;
+      world.reputation = Math.max(0, (Number(world.reputation) || 50) - 3);
+      events.push(nextEvent(world, { action: 'loan_overdue', actor: borrower, place: world.actors?.[borrower]?.location || null, payload: { text: `${name}借的银子过了期没还` }, isPublic: false }));
+      queuePush?.({ to: borrower, reason: 'loan', facts: { 借款: '已逾期' }, fallback: `借的银子到期了还没还——名声会受影响。`, force: true });
+      continue;
+    }
+    if (day - Number(pr.overdueDay) >= 3 && !pr.failed) {
+      pr.failed = true;
+      pr.done = true;
+      world.memories = Array.isArray(world.memories) ? world.memories : [];
+      world.memories.push({ text: `${name}赖了一笔账没还`, day, at: Date.now(), about: [borrower], visible: 'private' });
+      events.push(nextEvent(world, { action: 'loan_default', actor: borrower, place: null, payload: { text: `${name}赖账` }, isPublic: false }));
+      queuePush?.({ to: borrower, reason: 'loan', facts: { 借款: '已赖账' }, fallback: `那笔银子到底没还上，街面上开始有人说了。`, force: true });
+    }
+  }
+}
+
 function consumeSupplies(world) {
   const mil = world.military;
   if (!mil) return;
@@ -305,6 +331,11 @@ function consumeSupplies(world) {
 
 function onNewDay(world, events) {
   consumeSupplies(world);
+  try {
+    runLoanDues(world, events, (o) => queueProactive(world, { type: 'loan', ...o }));
+  } catch (err) {
+    console.warn('[Loan] 借还款结算失败：', err.message);
+  }
   try {
     runLocalEconomy(world, events);
     runCourtReaction(world, events, (o) => queueProactive(world, { type: 'court', ...o }));

@@ -344,6 +344,27 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.memories = Array.isArray(world.memories) ? world.memories : [];
         world.memories.push({ text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两`, day: world.clock.day, at: Date.now(), about: [toId], visible: 'private' });
         applied.push(`借款:${amount}两 已到账（${world.actors[toId]?.name || toId}）`);
+      } else if (kind === 'repay') {
+        // 还钱：钱回到出借人手里，承诺作废
+        const who = resolveActor(world, args.who || args.from);
+        const amount = round2(Number(args.amount) || 0);
+        if (!who || amount <= 0) continue;
+        world.wallets = world.wallets || {};
+        const have = Number(world.wallets[who]) || 0;
+        if (have < amount) {
+          applied.push(`还钱失败:${world.actors[who]?.name || who}只有${have}两`);
+          continue;
+        }
+        world.wallets[who] = round2(have - amount);
+        const loan = (world.promises || []).find((pr) => !pr.done && pr.loan && pr.loan.to === who);
+        const lender = loan?.loan?.from || 'husband';
+        if (lender === 'husband') world.assets.silver = round2((Number(world.assets.silver) || 0) + amount);
+        else world.wallets[lender] = round2((Number(world.wallets[lender]) || 0) + amount);
+        if (loan) {
+          loan.done = true;
+          loan.doneDay = world.clock.day;
+        }
+        applied.push(`还款:${amount}两 已到账`);
       } else if (kind === 'spend') {
         // 花钱：买东西、付账、打赏。文与两都认（1000 文 = 1 两）
         const who = String(args.who || 'husband');
