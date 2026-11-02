@@ -321,12 +321,29 @@ function render(w){
   // ── 天下 ──────────────────────────────
   const powers = w.powers || {};
   const cities = w.cities || {};
-  const cityRows = Object.entries(cities).map(([name, c]) => {
-    const owner = powers[c.owner]?.name || c.owner;
-    const mine = c.owner === 'wangjia';
-    return `<div class="row"><span>${name} ${mine ? '<span class="good">（你的）</span>' : ''}</span><span class="muted">${owner} · 守备${c.defense} · 民心${c.unrest}</span></div>`;
+  const byRegion = {};
+  Object.entries(cities).forEach(([name, c]) => {
+    const r = c.region || '未分道';
+    (byRegion[r] = byRegion[r] || []).push([name, c]);
   });
-  $('cities').innerHTML = cityRows.length ? cityRows.join('') : '<div class="muted">还没有城池数据</div>';
+  const fold = (el, r) => {
+    const parent = el.parentElement;
+    Array.from(parent.children).forEach((e) => {
+      if (e !== el && e.dataset.r === r) e.style.display = e.style.display === 'none' ? '' : 'none';
+    });
+  };
+  const regionHtml = Object.keys(byRegion).sort().map((r) => {
+    const list = byRegion[r];
+    const mineCount = list.filter(([, c]) => c.owner === 'wangjia').length;
+    const head = `<div class="row" style="border-top:1px solid #2a2f3a;margin-top:6px;cursor:pointer" onclick="foldRegion(this,'${r}')"><span><b>${r}</b> <span class="muted">${list.length} 城${mineCount ? ' · 你的 ' + mineCount : ''}（点击折叠）</span></span><span></span></div>`;
+    const rows = list.map(([name, c]) => {
+      const owner = powers[c.owner]?.name || c.owner;
+      const mine = c.owner === 'wangjia';
+      return `<div class="row" data-r="${r}" style="padding-left:14px"><span>${name} ${mine ? '<span class="good">（你的）</span>' : ''}</span><span class="muted">${owner} · 守备${c.defense} · ${(c.goods || []).join('/') || '—'} · 税${c.tax ?? 10}% · 民心${c.unrest}</span></div>`;
+    }).join('');
+    return head + rows;
+  }).join('');
+  $('cities').innerHTML = regionHtml || '<div class="muted">还没有城池数据</div>';
 
   // ── 兵力 / 基建 ──────────────────────────────
   const mil = w.military || {};
@@ -448,6 +465,15 @@ function render(w){
     const txt = p.text||p.desc||p.goal||p.name||'';
     return `<div class="ev"><b>第${e.day}日${e.hour}时</b> [${e.action}] ${txt}</div>`;
   }).join('') || '<div class="muted">暂无</div>';
+}
+
+function foldRegion(el, r) {
+  const parent = el.parentElement;
+  Array.from(parent.children).forEach((e) => {
+    if (e !== el && e.dataset && e.dataset.r === r) {
+      e.style.display = e.style.display === 'none' ? '' : 'none';
+    }
+  });
 }
 
 async function doRename() {
