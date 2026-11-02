@@ -656,9 +656,9 @@ export class PetService {
       this._knownNames = Object.values(wk.actors || {})
         .flatMap((a) => [a?.name, a?.name && a.name.length > 2 ? a.name.slice(-2) : null, a?.label])
         .filter(Boolean)
-        .concat(['王甯', '相公']);
+        .concat(['王甯', '相公', '王掌柜', '少东家']);
     } catch {
-      this._knownNames = ['王甯', '相公'];
+      this._knownNames = ['王甯', '相公', '王掌柜', '少东家'];
     }
 
     this._actorPersonaOverride = null;

@@ -174,6 +174,13 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       // 只有与她有关的旧事
       const myMem = (world.memories || []).filter((m) => m && String(m.text || '').includes(meV.name));
       if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
+      // 她认得的人：至少有相公/东家这一层关系，别装作不认识
+      try {
+        lines.push('【你认得的人】王甯（相公，临江茶坊少东家，你与他相好）——有人叫「王掌柜」「王甯」，说的就是他。');
+      } catch {
+        /* 忽略 */
+      }
+
       // 她此刻所在的这间铺子，东家是谁（别把别人的铺子当成自己的）
       try {
         const myLoc = world.actors?.[viewer]?.location;
