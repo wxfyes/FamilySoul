@@ -34,6 +34,16 @@ function attitudeOf(actor) {
   const d = Number(actor?.relations?.husband?.desire ?? 0);
   const t = Number(actor?.relations?.husband?.trust ?? 0);
   const g = Number(actor?.relations?.husband?.grievance ?? 0);
+
+  // 已进门的妻妾侍女：是自己人，绝不会真拒绝，最多闹闹小脾气
+  if (actor?.household) {
+    if (g >= 60) return '心里有气，会闹一场、要哄，但仍是你的妻妾';
+    if (d >= 60) return '心里有你，主动迎合';
+    if (d >= 30) return '愿意服侍，但会撒撒娇、拿你两句';
+    return '虽有些倦，仍会应下';
+  }
+
+  // 外人 / 有夫之妇：这里才是真阻力
   if (g >= 60) return '心里有怨，轻易不松口';
   if (d >= 70 && t >= 55) return '心里已有你，半推半就';
   if (d >= 45) return '有点意动，但要给足由头与体面';
