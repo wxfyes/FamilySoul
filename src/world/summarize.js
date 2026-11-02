@@ -145,11 +145,19 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       /* 忽略 */
     }
 
-    const present = Object.values(world.actors || {})
-      .filter((a) => a && a.id !== 'husband' && a.kind !== 'human' && a.location === here && !SERVANT_IDS.has(a.id))
-      .map(relationLine)
-      .filter(Boolean);
-    if (present.length > 0) lines.push(`【在场】${present.join('、')}`);
+    const presentActors = Object.values(world.actors || {})
+      .filter((a) => a && a.id !== 'husband' && a.kind !== 'human' && a.location === here && !SERVANT_IDS.has(a.id));
+    const present = presentActors.map(relationLine).filter(Boolean);
+    if (present.length > 0) {
+      lines.push(`【在场】${present.join('、')}`);
+      // 在场的人各有自己的店/家：她在这儿说的"下楼招呼客人"，不是指自己的铺子
+      const away = presentActors
+        .filter((a) => a.home && a.home !== here && world.places?.[a.home])
+        .map((a) => `${a.name}的铺子/家在${world.places[a.home].name}`);
+      if (away.length > 0) {
+        lines.push(`【各自的去处】${away.join('；')} —— 她此刻在${placeName}，要说"回自己铺子"才算离开。`);
+      }
+    }
 
     const moneyText = money(world.assets || {});
     const propsText = propsLine(world.assets || {});
