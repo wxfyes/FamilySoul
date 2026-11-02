@@ -230,7 +230,7 @@
   </section>
 
   <section class="card full">
-    <h2>人物（数值 + 她此刻的态度）</h2>
+    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志</span></h2>
     <table>
       <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
       <tbody id="actors"></tbody>
@@ -489,7 +489,7 @@ function render(w){
       const mine = c.owner === "wangjia";
       const goods = (c.goods || []).join("/");
       const tip = `${c.region || ""}｜守备${c.defense}｜${goods || "无特产"}｜物价${c.price ?? 100}｜税${c.tax ?? 10}%｜民心${c.unrest}`;
-      return `<span class="chip${mine ? " mine" : ""}" title="${tip}">${name}</span>`;
+      return `<span class="chip${mine ? " mine" : ""}" title="${tip}" style="cursor:pointer" onclick="openCity('${name}')">${name}</span>`;
     }).join("");
     return `<div class="geo-region">${head}<div class="geo-chips">${chips}</div></div>`;
   }).join("");
@@ -594,6 +594,7 @@ function render(w){
       <span>${r.when}${(r.kind==='承诺'||r.kind==='暗涌')?` <span class="todo-del" data-kind="${r.kind==='暗涌'?'pending':'promise'}" data-text="${String(r.title||'').replace(/"/g,'&quot;')}">✕</span>`:''}</span>
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
+  window.__lastWorld = w;
   try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); } catch (e) {}
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
   const shown = window.__actorExpand ? list : list.slice(0, 10);
@@ -650,6 +651,27 @@ async function renderNpcArcs(list) {
   el.innerHTML = rows.length
     ? rows.map((x) => `<div class="row"><span><b>${x.name}</b></span><span class="muted" style="max-width:70%;text-align:right">${x.text}</span></div>`).join('')
     : '暂时还没有动静（每 3 天各人自有一桩事）';
+}
+
+function openCity(name) {
+  const w = window.__lastWorld || {};
+  const c = (w.cities || {})[name];
+  if (!c) return;
+  const mine = c.owner === 'wangjia';
+  const gar = (w.garrisons || {})[name] || 0;
+  const props = (w.assets?.properties || []).filter((p) => p && (p.city === name || String(p.name || '').includes(name)));
+  const propHtml = props.length
+    ? props.map((p) => `${p.name}（日入 ${Number(p.incomePerDay || 0).toFixed(2)}·${p.staff || 0}人）`).join('<br>')
+    : '这城还没你的产业';
+  $('amName').textContent = `${name}　${c.region || ''}`;
+  $('amBody').innerHTML = `
+    <div>归属：${mine ? '<b style="color:#7BD88F">你的</b>' : c.owner === 'court' ? '朝廷' : (c.owner || '不明')}</div>
+    <div>民心不安：<b>${c.unrest ?? 0}</b>　税率：<b>${c.tax ?? 10}%</b>　物价：<b>${c.price ?? 100}</b></div>
+    <div>守备：${c.defense ?? 0}　驻军：${gar}　财富：${Number(c.wealth || 0).toFixed(1)}</div>
+    <div>特产：${(c.goods || []).join('、') || '无'}</div>
+    <div style="margin-top:6px"><b>这里的产业</b><br>${propHtml}</div>
+    <div style="margin-top:8px;color:#888;font-size:12px">民心 ≥85 会民变；税越高民心掉得越快；驻军能挡流寇与官军</div>`;
+  $('actorModal').style.display = 'block';
 }
 
 async function openActor(id) {
