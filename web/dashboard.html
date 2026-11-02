@@ -569,7 +569,8 @@ function render(w){
 
   try { renderDecrees(w.court); } catch (e) {}
   const list = (w.actors||[]).slice().sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
-  $('actors').innerHTML = list.map(a=>{
+  const shown = window.__actorExpand ? list : list.slice(0, 10);
+  $('actors').innerHTML = shown.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};
     const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
@@ -582,7 +583,9 @@ function render(w){
       <td>${a.id==='husband'?'—':attitude({...a, household:a.household, consummated:im.consummated, relations:r})}</td>
       <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
     </tr>`;
-  }).join('');
+  }).join('') + (list.length > 10
+    ? `<tr><td colspan="9" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__actorExpand=!window.__actorExpand;load();" style="color:#7fb4ff">${window.__actorExpand ? '收起' : '展开全部（共 ' + list.length + ' 人）'}</a></td></tr>`
+    : '');
 
   $('summary').textContent = w.summary || '—';
 
