@@ -19,6 +19,7 @@ import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
 import { ensureCities, ensureCourt, ensureTerrain } from './world/state.js';
 import { auditAll } from './world/audit.js';
+import { ARC_HINT } from './world/arcs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -433,7 +434,10 @@ const STARTED_AT = Date.now();
           properties: props.map((p) => ({ name: p.name, income: Number(p.incomePerDay) || 0, status: p.status || '', staff: p.staff || 0, city: p.city || '' })),
           daily: props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0),
         },
-        todos: todos.slice(0, 12),
+        todos: todos
+          .map((t) => ({ ...t, overdue: Number(t.day) < (Number(world.clock?.day) || 1) }))
+          .sort((a, b) => (Number(a.day) || 0) - (Number(b.day) || 0))
+          .slice(0, 12),
         clues: (world.clues || [])
           .filter((c) => {
             if (isHusband) return true;
@@ -450,6 +454,7 @@ const STARTED_AT = Date.now();
               done: Boolean(arc.done),
               outcome: arc.outcome || '',
               atEdge: Boolean(arc.atEdge),
+              hint: ARC_HINT,
               step: (() => {
                 try {
                   const steps = (arc.log || []).map((l) => l.text);

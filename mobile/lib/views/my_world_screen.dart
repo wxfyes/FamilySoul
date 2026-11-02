@@ -246,6 +246,13 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                   fontSize: 12.5,
                 ),
               ),
+              if (arc['done'] != true && (arc['hint'] as String?)?.isNotEmpty == true) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${arc['hint']}',
+                  style: const TextStyle(color: Color(0xFF6E7A8F), fontSize: 11.5, height: 1.5),
+                ),
+              ],
             ],
           ),
         ),
@@ -280,8 +287,14 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                                 style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5, height: 1.45)),
                           ),
                           if (t['day'] != null)
-                            Text('第${t['day']}日',
-                                style: const TextStyle(color: _muted, fontSize: 11)),
+                            Text(
+                              t['overdue'] == true ? '逾期' : '第${t['day']}日',
+                              style: TextStyle(
+                                color: t['overdue'] == true ? const Color(0xFFFF7A7A) : _muted,
+                                fontSize: 11,
+                                fontWeight: t['overdue'] == true ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
                         ],
                       ),
                     ),
