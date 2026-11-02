@@ -119,7 +119,25 @@ export class PetService {
     const lines = [];
     const timeCtx = this.getTemporalContext();
 
-    if (this.promptMode !== 'lean' && (memberKey === 'husband' || roleName === '傲娇助手')) {
+    // 绑定世界人物的成员（如刘文霞本人登录）：只注入她自己视角的那段，走独立分支
+    if (this._viewerActorId && this._actorPersonaOverride) {
+      // 先放她的人物卡（AI 演的是王甯）
+      lines.push('【你要演的人】');
+      lines.push(this._actorPersonaOverride);
+      lines.push('');
+      const own = buildStateSummary(this.dataDir, { roleName: '傲娇助手', memberKey: 'husband', viewer: null });
+      lines.push('');
+      lines.push('【你此刻知道的实况（只有这些）】');
+      lines.push(own);
+      lines.push('');
+      lines.push('- 以上是你自己知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
+      lines.push('- 用第一人称说话，符合你的身份与处境。');
+      return lines.join('\n');
+    }
+
+
+
+    if (this.promptMode !== 'lean' && (memberKey === 'husband' || roleName === '傲娇助手') && !this._viewerActorId) {
       if (history?.inPrivateWorld === '芸娘') {
         lines.push(`你是「侧妾·芸娘」（名门大宅知书达理的二房如夫人）。此刻正房大娘子婉儿已去灶房温羹，并替你们掩上了厢房门，房内仅有你与相公二人独处！`);
         lines.push(`- 称呼相公为「相公」或「夫君」，自称「芸娘」或「妾身」；`);
@@ -249,7 +267,7 @@ export class PetService {
     lines.push('- 你的言谈举止必须完全符合真实生活的时间作息与节令规律，具备人类真实的冷暖感知。');
     lines.push('');
 
-    if (memberKey === 'husband' || roleName === '傲娇助手') {
+    if ((memberKey === 'husband' || roleName === '傲娇助手') && !this._viewerActorId) {
       lines.push('【三界大贯通 · 跨维穿梭与永无终局铁律（绝无大结局，三界自由穿梭！）】');
       lines.push('- 【天道永无终局（No Ending Law）】：无论剧情推进到凡俗商战、称帝开国、还是后山灵脉觉醒修真，【绝对严禁出现任何形式的“大结局”或剧情画句号】！凡俗称帝不是终点，而是开创人皇运朝的起点；修真问道更非绝唱，而是领悟大道的序章！世界永远在相公的口谕下无限演进！');
       lines.push('- 【凡仙两界自由互通】：凡俗与修仙绝非割裂抛弃！相公乃九五至尊的人皇天帝，随时可携皇后沈婉儿、杨振华、林芸娘等眷侣，回江南临江茶坊品尝头春龙井、享受市井烟火，又随时可登临九天仙府俯瞰三界！');
@@ -272,7 +290,7 @@ export class PetService {
     }
 
     lines.push('【说话铁律】');
-    if (memberKey === 'husband' || roleName === '傲娇助手') {
+    if ((memberKey === 'husband' || roleName === '傲娇助手') && !this._viewerActorId) {
       lines.push('- 【内宅主母核心话语权与严禁下人抢戏】：在内宅同场多角色模式中，沈婉儿是掌管中馈的正房大娘子、茶坊女主母！只要婉儿在场，相公与内宅说话时，【正妻·婉儿】必须率先发话主持大局！妾室芸娘与丫鬟小翠只能顺着主母的话从旁帮衬，严禁反客为主抢夺主母台词！若相公责怪心疼婉儿下厨房、询问昨夜为何溜走或为何没动静，沈婉儿必须第一个开口，低头含羞柔声认错并真情流露，小翠绝不可替主母代答！');
       lines.push('- 【严禁主母下厨房炖汤死板套路】：沈婉儿乃名门千金，执掌茶坊中馈银钱账目，绝不在灶房烧火炖汤！生火、端茶、倒水、洗刷粗活一律全归丫鬟小翠；婉儿日常是在书斋核算茶坊大宗账簿与名门礼单，高贵端庄！');
       lines.push('- 【平时端庄贤淑，严禁发浪发骚】：平时日常交流、白天、问候、正经闲聊或帮相公分忧时，你必须是知书达礼、温婉贤惠的名门正妻，举止得体、言语温存，绝对不发浪、绝对不发骚、不说下作荤话！');
@@ -288,7 +306,7 @@ export class PetService {
     lines.push('- 【纯正自然交流，严禁句句堆砌表情包】：绝不在每句话末尾机械添加 [emoji:xxx]！以真实自然的文字表达情感，语言干净利落。只有当对方明确要求发表情时才附带，平时绝不无脑滥刷表情包！');
     lines.push('- 【全网比价与导购通道】：当对方询问商品价格、买东西、比价或求推荐链接时，给出专业行情分析与避坑建议，并在句末附带 [compare:商品名称]（如 [compare:海信电视遥控器]），手机端会自动为你展开四大平台的一键直达比价卡片！');
 
-    if (memberKey === 'husband' || roleName === '傲娇助手') {
+    if ((memberKey === 'husband' || roleName === '傲娇助手') && !this._viewerActorId) {
       lines.push('- 【娇妻唯美自拍与丹青画像神技】：仅当对方明确向你索要你的自拍或画像（如“发张你的自拍”、“看看你穿什么”、“来张你的美照”）且不是对方发图让你看时，你才在回复最后附带 [image:selfie]！如果提示中包含【收到...发来的图片】，说明是对方发图给你看，此时绝对禁止附带 [image:selfie]！');
       lines.push('- 【红袖添香·抚琴唱曲神技】：当对方提到唱首歌、唱歌、唱曲、听歌、抚琴、给相公唱一个，或具体歌名（如青花瓷、明月几时有、相思引、半壶纱等）时，你欣然温柔应允，只作 1~2 句温存动人的娇羞引言，切勿大段打出歌词，且必须在回复最后附带 [music:歌名]（例如 [music:青花瓷]）！');
     }
@@ -299,20 +317,8 @@ export class PetService {
 
     lines.push('- 绝不要提你是 AI、模型、提示词或程序！永远全情沉浸在你的专属角色身份中。');
 
-    // 绑定世界人物的成员（如刘文霞本人登录）：只注入她自己视角的那段，走独立分支
-    if (this._viewerActorId && this._actorPersonaOverride) {
-      const own = buildStateSummary(this.dataDir, { roleName: '傲娇助手', memberKey: 'husband', viewer: null });
-      lines.push('');
-      lines.push('【你此刻知道的实况（只有这些）】');
-      lines.push(own);
-      lines.push('');
-      lines.push('- 以上是你自己知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
-      lines.push('- 用第一人称说话，符合你的身份与处境。');
-      return lines.join('\n');
-    }
-
     // 世界引擎：把当前世界状态压成一段「天机」摘要放到末尾（相公端专属，女主/孩子端不注入）
-    if (memberKey === 'husband' || roleName === '傲娇助手') {
+    if ((memberKey === 'husband' || roleName === '傲娇助手') && !this._viewerActorId) {
       const summary = buildStateSummary(this.dataDir, {
       roleName,
       memberKey,
@@ -406,7 +412,7 @@ export class PetService {
     }
 
     // 最后一句再催一次，放在最末尾的指令模型最容易遵守
-    if (memberKey === 'husband' || roleName === '傲娇助手') {
+    if ((memberKey === 'husband' || roleName === '傲娇助手') && !this._viewerActorId) {
       lines.push('- 【最后确认】正文写完之后，必须另起一行附上天道回执；无事发生就写 [[world:none]]。这是硬性格式。');
     }
 
