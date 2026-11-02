@@ -65,6 +65,28 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
   actor.intimacy = actor.intimacy || { level: 2, tone: 0, lastAt: 0, ritual: 'solemn' };
   const events = [];
 
+  // 她可以不愿意：信任不够、心里有怨，就不接这个暗号
+  if (hit.unlock) {
+    const rel = actor.relations?.husband || {};
+    const trust = Number(rel.trust ?? 30);
+    const grievance = Number(rel.grievance ?? 0);
+    if (trust < 55 || grievance >= 30) {
+      rel.grievance = Math.min(100, grievance + 3);
+      actor.relations = actor.relations || {};
+      actor.relations.husband = rel;
+      events.push(nextEvent(world, { actor: actorId, action: 'ritual_refused', payload: { actorId, trust }, isPublic: false }));
+      saveState(dataDir, world);
+      appendEvents(dataDir, events);
+      return {
+        unlock: false,
+        finish: false,
+        refused: true,
+        actorId,
+        reason: `${actor.name}不愿意（信任 ${Math.round(trust)}，怨怼 ${Math.round(grievance)}）`,
+      };
+    }
+  }
+
   if (hit.unlock) {
     actor.intimacy.ritual = 'unlocked';
     actor.intimacy.tone = 3;
