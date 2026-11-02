@@ -59,7 +59,10 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
   const me = world.actors?.[selfId] || world.actors?.husband;
   if (!me) return null;
 
-  const mentioned = findMentioned(world, say);
+  // 光提名字不算"去找"：必须有动作词才算
+  const hasMoveVerb = /(去|往|找|寻|见|到|过来|叫|请|来|上|回)/.test(say);
+  const mentioned = hasMoveVerb ? findMentioned(world, say) : [];
+
 
   const moved = [];
   const summoned = [];

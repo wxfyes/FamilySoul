@@ -382,6 +382,8 @@ function render(w){
     + '<div class="muted" style="margin:8px 0 4px">记忆自检</div>' + memHtml
     + '<div class="muted" style="margin:8px 0 4px">台词自检</div>' + repHtml;
 
+  try { whoSearch(); } catch (e) {}
+
   // ── 成员绑定 ──────────────────────────────
   try {
     const members = w.members || [];
@@ -607,6 +609,20 @@ function foldRegion(el, r) {
       e.style.display = e.style.display === 'none' ? '' : 'none';
     }
   });
+}
+
+async function whoSearch() {
+  const tk = token();
+  const q = ($('whoQ')?.value || '').trim();
+  if (!tk) return;
+  try {
+    const r = await fetch(`/api/who?token=${encodeURIComponent(tk)}&q=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    const rows = j.rows || [];
+    $('who').innerHTML = rows.length
+      ? rows.map((x) => `<div class="row"><span>${x.here ? '📍 ' : ''}<b>${x.name}</b> <span class="muted">${x.role}</span></span><span class="muted">${x.place}</span></div>`).join('')
+      : '<div class="muted">没找到</div>';
+  } catch (e) { $('who').innerHTML = '<div class="muted">查询失败</div>'; }
 }
 
 async function todoRemove(kind, el) {

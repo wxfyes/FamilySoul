@@ -725,6 +725,22 @@ export class PetService {
     const recentTextJoined = recent.map(m => m.text || '').join('\n');
 
     let contextHint = contextHintEarly;
+    // 问"某人在哪"：直接给准确位置
+    try {
+      const mWhere = String(say || '').match(/([\u4e00-\u9fa5]{2,4})\s*(?:在哪儿|在哪|在何处|何处)/);
+      if (mWhere) {
+        const wW2 = loadState(this.dataDir);
+        const who = String(mWhere[1]);
+        const hit = Object.values(wW2.actors || {}).find((a) => a && !a.dead && a.name && (a.name === who || a.name.includes(who) || who.includes(a.name)));
+        if (hit) {
+          const placeName2 = String(wW2.places?.[hit.location]?.name || '别处');
+          contextHint += `（【位置】${hit.name}此刻在「${placeName2}」——问他在哪就照这个答，别说不知道。）\n`;
+        }
+      }
+    } catch {
+      /* 忽略 */
+    }
+
     // 她此刻所在：东家、掌柜、在场名单——压到最后，防止模型凭空造人
     try {
       if (this._viewerActorId) {

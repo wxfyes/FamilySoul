@@ -518,6 +518,33 @@ const STARTED_AT = Date.now();
         return sendJson(res, 500, { ok: false, error: err.message });
       }
     }
+  // ── 行踪簿：谁在哪（只给名字/身份/所在，不给私事）──────
+  if (req.method === 'GET' && pathname === '/api/who') {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '无效令牌' });
+      const q = String(url.searchParams.get('q') || '').trim();
+      const world = peek(DATA_DIR);
+      const actorId = member.actor || null;
+      const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
+      const rows = Object.values(world.actors || {})
+        .filter((a) => a && !a.dead && a.id !== actorId && a.id !== 'husband')
+        .filter((a) => (q ? String(a.name || '').includes(q) || String(a.role || '').includes(q) : true))
+        .map((a) => ({
+          name: a.name,
+          role: a.role || '',
+          place: String(world.places?.[a.location]?.name || '不知去向'),
+          here: a.location && me?.location ? a.location === me.location : false,
+          trust: Number(a.relations?.husband?.trust) || 0,
+        }))
+        .sort((x, y) => (y.here - x.here) || (y.trust - x.trust))
+        .slice(0, 60);
+      return sendJson(res, 200, { ok: true, myPlace: String(world.places?.[me?.location]?.name || ''), rows });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
   // ── 管理控制台专属 API ──────────────────────────────────────
   if (pathname.startsWith('/api/admin')) {
     // 鉴权校验：只有相公专属通行证才可调度家庭后宫
