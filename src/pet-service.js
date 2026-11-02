@@ -1896,7 +1896,22 @@ export class PetService {
         const pNow = String(wHome.places?.[wHome.actors?.husband?.location]?.name || '');
         reply = engineMovedHusband && pNow ? `【${pNow}】：（你到了${pNow}。）` : '……';
       }
+    // 记下相公原本位置：她走动不该把他一起搬走
+    const husBefore = (() => { try { return loadState(this.dataDir).actors?.husband?.location || null; } catch { return null; } })();
     const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps, { selfId: this._viewerActorId }) : [];
+    try {
+      if (this._viewerActorId && this._viewerActorId !== 'husband' && husBefore) {
+        const calledHim = /(王甯|王掌柜|少掌柜|相公)/.test(String(say || ''));
+        const w1 = loadState(this.dataDir);
+        const hus1 = w1.actors?.husband;
+        const me1 = w1.actors?.[this._viewerActorId];
+        if (!calledHim && hus1 && me1 && hus1.location !== husBefore && hus1.location === me1.location) {
+          hus1.location = husBefore;
+          saveState(this.dataDir, w1);
+          console.log(`[Scene] 还原：${me1.name}走动不该带走相公（他仍在原处）`);
+        }
+      }
+    } catch { /* 忽略 */ }
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
       // 新人必须真的落进世界：被后续存档冲掉就补一次
       try {

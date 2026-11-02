@@ -52,6 +52,27 @@ function findMentioned(world, text) {
  * @returns {{moved:string[], summoned:string[], visited:string|null}|null}
  */
 export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband') {
+  // 记住相公原本在哪：她走动时绝不顺带把他挪走
+  const __husbandHome = (() => {
+    try { return loadState(dataDir)?.actors?.husband?.location || null; } catch { return null; }
+  })();
+  const __result = __applySummonInner(dataDir, text, lastBotSaid, selfId);
+  try {
+    if (selfId && selfId !== 'husband' && __husbandHome) {
+      const w2 = loadState(dataDir);
+      const hus = w2.actors?.husband;
+      const me = w2.actors?.[selfId];
+      if (hus && me && hus.location !== __husbandHome && hus.location === me.location) {
+        hus.location = __husbandHome;
+        saveState(dataDir, w2);
+        console.log(`[Scene] 守住：${me.name}走动没有把相公带走（相公仍在原处）`);
+      }
+    }
+  } catch { /* 忽略 */ }
+  return __result;
+}
+
+function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband') {
   const say = String(text || '').trim();
   if (!say) return null;
 
