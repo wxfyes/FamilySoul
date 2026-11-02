@@ -845,6 +845,31 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26e 补一条线索 POST /api/admin/clue {text, owner, source}
+    if (req.method === 'POST' && pathname === '/api/admin/clue') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const text = String(body.text || '').slice(0, 80);
+        if (!text) return sendJson(res, 400, { ok: false, error: '缺 text' });
+        world.clues = Array.isArray(world.clues) ? world.clues : [];
+        if (world.clues.some((c) => String(c?.text || '') === text)) {
+          return sendJson(res, 200, { ok: true, duplicated: true });
+        }
+        world.clues.push({
+          text,
+          day: Number(world.clock?.day) || 1,
+          source: String(body.source || '街面风声').slice(0, 20),
+          owner: String(body.owner || 'husband'),
+        });
+        saveState(DATA_DIR, world);
+        console.log(`[Clue] 补一条：${text.slice(0, 20)}（owner=${String(body.owner || 'husband')}）`);
+        return sendJson(res, 200, { ok: true });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
