@@ -511,6 +511,51 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 9.5 把人物挪回该在的地方 POST /api/admin/relocate（清理位置污染用）
+    if (req.method === 'POST' && pathname === '/api/admin/relocate') {
+      try {
+        const body = await parseJsonBody(req, 256 * 1024);
+        const world = peek(DATA_DIR);
+        const moves = Array.isArray(body.moves) ? body.moves : [];
+        const done = [];
+        for (const m of moves) {
+          const id = String(m?.id || '').trim();
+          const to = String(m?.to || '').trim();
+          if (!world.actors?.[id] || !world.places?.[to]) continue;
+          world.actors[id].location = to;
+          done.push(`${world.actors[id].name}→${world.places[to].name}`);
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Scene] 人工归位：${done.join('、')}`);
+        return sendJson(res, 200, { ok: true, moved: done });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.6 覆盖长期记忆 / 承诺 POST /api/admin/memories/replace（清理污染用）
+    if (req.method === 'POST' && pathname === '/api/admin/memories/replace') {
+      try {
+        const body = await parseJsonBody(req, 2 * 1024 * 1024);
+        const world = peek(DATA_DIR);
+        if (Array.isArray(body.memories)) {
+          world.memories = body.memories
+            .filter((m) => m && String(m.text || '').trim())
+            .map((m) => ({ text: String(m.text).slice(0, 100), day: Number(m.day) || world.clock.day, at: Date.now() }));
+        }
+        if (Array.isArray(body.promises)) {
+          world.promises = body.promises
+            .filter((p) => p && String(p.text || '').trim())
+            .map((p) => ({ text: String(p.text).slice(0, 120), due: Number(p.due) || world.clock.day + 3, done: !!p.done, at: world.clock.day }));
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Memory] 已覆盖：记忆 ${(world.memories || []).length} 条，承诺 ${(world.promises || []).length} 条`);
+        return sendJson(res, 200, { ok: true, memories: (world.memories || []).length, promises: (world.promises || []).length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.7 直接写入长期记忆 POST /api/admin/remember（一句话，永久保存）
     if (req.method === 'POST' && pathname === '/api/admin/remember') {
       try {
