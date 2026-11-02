@@ -334,7 +334,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.flags.loanSeq = (Number(world.flags.loanSeq) || 0) + 1;
         const dueDay = Number(args.due) > 0 ? Number(args.due) : (Number(world.clock.day) || 1) + 30;
         world.promises.push({
-          text: `${world.actors[toId]?.name || '她'}借${world.actors[fromId]?.name || '相公'}${amount}两，约定第${dueDay}日归还`,
+          text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两（${world.actors[toId]?.name || '她'}欠${world.actors[fromId]?.name || '相公'}），第${dueDay}日还清`,
           due: dueDay,
           at: world.clock.day,
           done: false,
@@ -342,7 +342,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           loan: { from: fromId, to: toId, amount },
         });
         world.memories = Array.isArray(world.memories) ? world.memories : [];
-        world.memories.push({ text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两`, day: world.clock.day, at: Date.now(), about: [toId], visible: 'private' });
+        world.memories.push({ text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两，${world.actors[toId]?.name || '她'}欠着`, day: world.clock.day, at: Date.now(), about: [toId], visible: 'private' });
         applied.push(`借款:${amount}两 已到账（${world.actors[toId]?.name || toId}）`);
       } else if (kind === 'repay') {
         // 还钱：钱回到出借人手里，承诺作废

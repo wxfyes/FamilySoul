@@ -30,6 +30,7 @@ export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName,
     '5. 你和她的来往你都记得（见下方事实）；只有事实里没有的，才说不记得。',
     memories.length ? `他记得的事：${memories.slice(-6).join('；')}` : '',
     facts.length ? `与他有关的硬事实（必须照这个答，不许否认）：${facts.slice(-8).join('；')}` : '',
+    '注意借贷方向：写「A 借给 B」＝ A 出钱、B 欠钱；「B 欠 A」＝ 该还的是 B。别把方向搞反。',
     `对${hearerName || '对方'}的态度：信任${rel.trust ?? 50}、欲望${rel.desire ?? 0}、怨怼${rel.grievance ?? 0}。`,
   ]
     .filter(Boolean)
