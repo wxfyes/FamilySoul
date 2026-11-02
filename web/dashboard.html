@@ -622,7 +622,7 @@ async function renderDecrees(court) {
     : '最近旨意：暂无';
 }
 
-function whoSearch() {
+async function whoSearch() {
   const tk = token();
   const q = ($('whoQ')?.value || '').trim();
   if (!tk) return;
