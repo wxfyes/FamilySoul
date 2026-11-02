@@ -186,8 +186,18 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           const roleWord = String(args.role || '').trim();
           name = roleWord && roleWord.length <= 4 && !/的|了|是/.test(roleWord) ? roleWord : '城中人';
         }
-        const dup = buildIndex(world).has(name);
-        if (dup) continue;
+        const idx = buildIndex(world);
+        if (idx.has(name)) continue;
+        // 同一个人别再长一遍：名字互相包含（陈郎中 / 郎中）也算重复
+        const similar = Object.values(world.actors || {}).find((a) => {
+          const an = String(a?.name || '');
+          if (!an) return false;
+          return an.includes(name) || name.includes(an);
+        });
+        if (similar) {
+          applied.push(`已有此人:${similar.name}`);
+          continue;
+        }
         world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
         const id = `npc_${world.flags.npcSeq}`;
         world.actors[id] = {
