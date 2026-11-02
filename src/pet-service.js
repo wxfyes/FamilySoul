@@ -367,6 +367,7 @@ export class PetService {
         lines.push('');
         lines.push(summary);
         lines.push('- 【天机用法】：以上是幕后实况，只用来决定你的处境判断、说话时机与措辞分寸，严禁逐字复述给相公听。');
+        lines.push('- 【符号规矩】：`【】`只用于角色名开头（如 `【正妻·婉儿】：`）；动作、神态、旁白一律用圆括号 `（）`，不要用方括号。');
         lines.push('- 【有孕要记账】：若剧情明确她怀上了（她自己说、大夫诊出、你确认），必须记 [[world:pregnant who=她的id]]，否则这件事聊完就没、世界不会记。**没被记下的怀孕等于没发生。**');
         lines.push('- 【离开要说清去哪】：她若要离开，必须说清"回自己铺子/回家/去某处"，不许含混地说"下楼招呼客人"——除非她人真的在自己的铺子里。在别人的地方，她招不了自己的客。');
         lines.push('- 【关系即阻力】：【在场】里每个人后面那句「态度」就是她此刻的底线。她若"提防着/只是相识"，第一次勾引必须真拒绝，不许一勾就成；要靠给由头、给好处、反复周旋才松动；硬来会被记怨怼，甚至翻脸。她若"半推半就"，也不许立刻全应，要有推有就。**成不成由你演，但难度必须真实。**');
@@ -1160,6 +1161,17 @@ export class PetService {
       if (intruders.length > 0) {
         console.log(`[Scene] ⚠ 不在场却被写进来：${intruders.join('、')}（相公此刻在${wChk.places?.[hereNow]?.name || hereNow}）`);
       }
+    } catch {
+      /* 忽略 */
+    }
+
+    // 方括号是「角色名」专用；模型拿它写动作会看得人发懵 → 一律改成中文圆括号
+    try {
+      reply = String(reply).replace(/【([^】\n]{1,40})】(?![:：])/g, (all, inner) => {
+        const nm = String(inner).trim();
+        const known = (this._knownNames || []).some((n) => n && (nm === n || nm.endsWith(n) || n.endsWith(nm)));
+        return known ? all : `（${nm}）`;
+      });
     } catch {
       /* 忽略 */
     }
