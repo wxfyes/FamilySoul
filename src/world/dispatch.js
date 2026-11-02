@@ -293,6 +293,15 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.memories.push({ text: text.slice(0, 100), day: world.clock.day, at: Date.now() });
         if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         applied.push(`记忆:${text.slice(0, 14)}`);
+      } else if (kind === 'ally') {
+        // 结盟：合兵打仗
+        const a = resolveActor(world, args.a || args.who);
+        const b = resolveActor(world, args.b || args.with);
+        if (!a || !b || a === b) continue;
+        world.allies = world.allies || {};
+        world.allies[a] = Array.from(new Set([...(world.allies[a] || []), b]));
+        world.allies[b] = Array.from(new Set([...(world.allies[b] || []), a]));
+        applied.push(`结盟:${world.actors[a]?.name}↔${world.actors[b]?.name}`);
       } else if (kind === 'kill') {
         // 杀一个人：人没了，官位空出来，等人顶上
         const id = resolveActor(world, args.who || args.name);
@@ -397,10 +406,21 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           const an = world.actors?.[who]?.name || who;
           world.powers[ownerId] = { name: `${an}的部曲`, kind: '私兵', power: 3, relation: 0, troops: 0, note: '' };
         }
+        // 盟友的兵来助战（各出一半）
+        let allyPower = 0;
+        const allyNames = [];
+        for (const allyId of world.allies?.[who] || []) {
+          const af = world.forces?.[allyId] || (allyId === 'husband' ? world.military : null);
+          if (!af) continue;
+          allyPower += ((Number(af.army) || 0) + (Number(af.militia) || 0) * 0.6) * 0.5;
+          if (world.actors?.[allyId]?.name) allyNames.push(world.actors[allyId].name);
+        }
+        if (allyPower > 0) applied.push(`合兵:${allyNames.join('、')}`);
         const ours =
           (Number(mil.army) || 0) +
           (Number(mil.militia) || 0) * 0.6 +
-          (Number(mil.guards) || 0) * 0.3;
+          (Number(mil.guards) || 0) * 0.3 +
+          allyPower;
         if (ours <= 0) {
           applied.push('攻城:无兵可战');
           continue;

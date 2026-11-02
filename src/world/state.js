@@ -329,6 +329,8 @@ export function createInitialState(dataDir) {
     },
     // 城池：谁占着、守备多少、富不富、民心稳不稳
     cities: {},
+    // 盟友：合兵打仗用
+    allies: {},
     // 各人的兵力（真人各自起兵，互不隶属）；丈夫用 military 这一份
     forces: {},
     // 兵力：私兵→乡勇→起义军，一步一步
@@ -729,6 +731,7 @@ export function loadState(dataDir) {
     cities: { ...base.cities, ...(raw.cities || {}) },
     military: { ...base.military, ...(raw.military || {}) },
     forces: { ...base.forces, ...(raw.forces || {}) },
+    allies: { ...base.allies, ...(raw.allies || {}) },
     court: { ...base.court, ...(raw.court || {}) },
     reputation: Number.isFinite(Number(raw.reputation)) ? Number(raw.reputation) : 50,
     wanted: Number.isFinite(Number(raw.wanted)) ? Number(raw.wanted) : 0,

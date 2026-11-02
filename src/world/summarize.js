@@ -320,6 +320,13 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       }
       lines.push(`【名声】士绅口碑${world.reputation ?? 50} · 官府通缉${world.wanted ?? 0}`);
       try {
+        const key = viewer || 'husband';
+        const allies = (world.allies?.[key] || []).map((id) => world.actors?.[id]?.name).filter(Boolean);
+        if (allies.length) lines.push(`【盟友】${allies.join('、')}（可合兵）`);
+      } catch {
+        /* 忽略 */
+      }
+      try {
         const st = standingOf(world);
         lines.push(`【身份】${st.level}（${st.note}）${st.next ? `，距「${st.next.name}」还差 ${Math.max(0, st.next.at - st.score)} 分` : ''}`);
       } catch {

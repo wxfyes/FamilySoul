@@ -246,7 +246,14 @@ function runCourtReaction(world, events, queuePush) {
   const owner = ct.owner;
   const ownerActor = owner.startsWith('actor_') ? owner.slice(6) : 'husband';
   const f = forceOf(world, ownerActor);
-  const defensePower = (Number(ct.defense) || 10) * 30 + ((Number(f.army) || 0) + (Number(f.militia) || 0) * 0.6) + (Number(world.infra?.workshop) || 0) * 50;
+  // 盟友协防（各出四成）
+  let allyDef = 0;
+  for (const allyId of world.allies?.[ownerActor] || []) {
+    const af = world.forces?.[allyId] || (allyId === 'husband' ? world.military : null);
+    if (!af) continue;
+    allyDef += ((Number(af.army) || 0) + (Number(af.militia) || 0) * 0.6) * 0.4;
+  }
+  const defensePower = (Number(ct.defense) || 10) * 30 + ((Number(f.army) || 0) + (Number(f.militia) || 0) * 0.6) + (Number(world.infra?.workshop) || 0) * 50 + allyDef;
 
   if (defensePower >= attackerPower) {
     // 守住
