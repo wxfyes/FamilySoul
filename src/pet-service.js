@@ -626,6 +626,17 @@ export class PetService {
       console.warn('[Ritual] 状态推进失败：', err.message);
     }
     // 绑定世界人物的成员：给她自己的身份卡，而不是配置里的角色卡
+    // 收集「真有人名」白名单，供在场过滤与标签改写判断
+    try {
+      const wk = loadState(this.dataDir);
+      this._knownNames = Object.values(wk.actors || {})
+        .flatMap((a) => [a?.name, a?.name && a.name.length > 2 ? a.name.slice(-2) : null, a?.label])
+        .filter(Boolean)
+        .concat(['王甯', '相公']);
+    } catch {
+      this._knownNames = ['王甯', '相公'];
+    }
+
     this._actorPersonaOverride = null;
     this._viewerActorId = actorId && actorId !== 'husband' ? actorId : null;
     if (actorId && actorId !== 'husband') {
@@ -648,7 +659,18 @@ export class PetService {
           ].join('\n');
         }
       } catch {
-        this._actorPersonaOverride = null;
+        // 收集「真有人名」白名单，供在场过滤与标签改写判断
+    try {
+      const wk = loadState(this.dataDir);
+      this._knownNames = Object.values(wk.actors || {})
+        .flatMap((a) => [a?.name, a?.name && a.name.length > 2 ? a.name.slice(-2) : null, a?.label])
+        .filter(Boolean)
+        .concat(['王甯', '相公']);
+    } catch {
+      this._knownNames = ['王甯', '相公'];
+    }
+
+    this._actorPersonaOverride = null;
       }
     }
 
@@ -1144,7 +1166,11 @@ export class PetService {
 
     // 真人扮演世界人物时：她的历史里可能残留旧的"婉儿口吻"标签，一律改成本人名字
     if (this._viewerActorId) {
-      reply = String(reply).replace(/【[^】\n]{1,12}】/g, '【王甯】');
+      reply = String(reply).replace(/【([^】\n]{1,12})】/g, (all, inner) => {
+        const nm = String(inner).trim();
+        const known = (this._knownNames || []).some((n) => n && (nm === n || nm.endsWith(n) || n.endsWith(nm)));
+        return known ? '【王甯】' : all;
+      });
     }
 
     // 她说要走了，就真的走（否则人会永远钉在原地）
@@ -1473,6 +1499,14 @@ export class PetService {
         continue;
       }
       const speaker = m[1].trim();
+      // 只有「账本里真有的人」才算说话人；【压着声道】这种动作描写不能当人名删
+      const known = (this._knownNames || []).some(
+        (n) => n && (speaker === n || speaker.endsWith(n) || n.endsWith(speaker)),
+      );
+      if (!known) {
+        kept.push(seg);
+        continue;
+      }
       const ok = (allowedNames || []).some(
         (n) => n && (speaker === n || speaker.includes(n) || n.includes(speaker)),
       );
