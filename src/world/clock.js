@@ -214,6 +214,30 @@ function runLocalEconomy(world, events) {
  * 只算"阻力与代价"，不写台词。
  */
 /** 每 5 天开一次朝议：朝廷要自己下旨，不是只会围剿 */
+/** 到日子就传人：原告被告押到县衙，开审 */
+function runHearings(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  const hour = Number(world.clock?.hour) || 0;
+  for (const c of world.cases || []) {
+    if (!c || c.status !== 'summoned') continue;
+    if (day < Number(c.hearDay || 0)) continue;
+    if (day === Number(c.hearDay) && hour < Number(c.hearHour || 9)) continue;
+    const p1 = world.actors?.[c.whoId];
+    const p2 = world.actors?.[c.againstId];
+    // 真人被告不硬拽，等他自己去；超过两天缺席审
+    const husbandParty = c.whoId === 'husband' || c.againstId === 'husband';
+    const lateDays = day - Number(c.hearDay || day);
+    if (husbandParty && lateDays < 2) {
+      const hus = world.actors.husband;
+      if (!hus || hus.location !== 'yamen') continue;
+    }
+    if (p1 && p1.id !== 'husband') p1.location = 'yamen';
+    if (p2 && p2.id !== 'husband') p2.location = 'yamen';
+    c.status = 'hearing';
+    events.push(nextEvent(world, { action: 'hearing', actor: c.againstId, place: 'yamen', payload: { text: `县衙开审：${c.who}告${c.against}` }, isPublic: true }));
+  }
+}
+
 /** 民间案子：民心越乱，案子越多。只记事实，不写过程。 */
 function runPettyCrimes(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -828,6 +852,7 @@ function advanceHour(world, events, nowMs) {
   }
 
   try {
+    runHearings(world, events);
     runPettyCrimes(world, events);
   } catch (err) {
     console.warn('[Case] 民间案子失败：', err.message);

@@ -173,10 +173,13 @@ export function auditReply(reply, world) {
   }
 
   const cityNames = Object.keys(world.cities || {});
-  for (const c of new Set(text.match(/([一-龥]{2}府)/g) || [])) {
-    if (!cityNames.includes(c)) {
-      issues.push({ kind: 'reply', level: 'warn', text: `她提到了「${c}」，疆域里没有这座府` });
-    }
+  const BAD_WORDS = /(知|到|是|了|回|去|本|该|官|县|州|王|李|张|刘|陈|这|那|一|两|三)/;
+  // 只在"去/往/到/在/回/至 + X府"这种明确说法里查，且排除官名与虚词
+  for (const m of text.matchAll(/(?:去|往|到|在|回|至)([一-龥]{2}府)/g)) {
+    const c = m[1];
+    if (cityNames.includes(c)) continue;
+    if (BAD_WORDS.test(c)) continue;
+    issues.push({ kind: 'reply', level: 'warn', text: `她提到了「${c}」，疆域里没有这座府` });
   }
   return issues;
 }

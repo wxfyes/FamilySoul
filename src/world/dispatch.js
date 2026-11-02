@@ -257,7 +257,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           place: world.actors[who]?.location || null,
           who: world.actors[who]?.name || who, whoId: who,
           against: world.actors[against]?.name || against, againstId: against,
-          claim, witnesses, status: 'filed', verdict: null,
+          claim, witnesses, status: 'summoned', hearDay: (Number(world.clock.day) || 1) + 1, hearHour: 9, verdict: null,
         });
         events.push(nextEvent(world, { actor: who, action: 'report', place: 'yamen', payload: { text: `${world.actors[who]?.name}到县衙告${world.actors[against]?.name}` }, isPublic: true }));
         applied.push(`报官:${world.actors[who]?.name}告${world.actors[against]?.name}`);

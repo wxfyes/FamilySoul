@@ -2160,7 +2160,7 @@ server.listen(PORT, '0.0.0.0', () => {
   async function judgeCases() {
     try {
       const w = peek(DATA_DIR);
-      const c = (w.cases || []).find((x) => x && x.status === 'filed');
+      const c = (w.cases || []).find((x) => x && x.status === 'hearing');
       if (!c) return;
       const w2 = peek(DATA_DIR);
       const mag = Object.values(w2.actors || {}).find((a) => a && /县令/.test(String(a.role || '')));
@@ -2168,6 +2168,8 @@ server.listen(PORT, '0.0.0.0', () => {
         '你是天道，扮演临江县令周文达断案。',
         `原告：${c.who}。被告：${c.against}。所告：${c.claim}。`,
         `现场人证：${(c.witnesses || []).join('、') || '无'}。`,
+        '先写堂上情形：原告怎么陈词、被告怎么辩、人证怎么说（各一句，共 2~3 句）。',
+        '再写判词。',
         `县令本人收过钱通海的礼（这条是秘密，他判的时候会偏向有钱有势的一方）。`,
         c.petty ? `这是一桩民间小案（${c.claim}）。` : '',
         '只输出 JSON：{"verdict":"guilty|false","reason":"一句话判词(20字内)","penalty":{"silver":0,"wanted":0,"rep":0,"jail":0}}',
@@ -2188,6 +2190,7 @@ server.listen(PORT, '0.0.0.0', () => {
       const cc = (w3.cases || []).find((x) => x && x.id === c.id);
       if (!cc) return;
       cc.status = 'judged';
+      cc.hearing = String(d.hearing || '').slice(0, 160);
       cc.verdict = d.verdict;
       cc.reason = String(d.reason || '').slice(0, 40);
       const pen = d.penalty || {};
