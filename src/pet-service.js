@@ -873,12 +873,6 @@ export class PetService {
 相公此刻明确呼唤大娘子沈婉儿（相公口谕：“${say}”）！
 大娘子沈婉儿闻声立刻自书斋或正轩掀帘而入、笑盈盈归场！【绝对严禁】芸娘再找借口推脱说姐姐在厨房！
 正妻婉儿正式现身归场，端庄温存，主动倾听相公心意与大计，顺着相公的话往下走！）`;
-      } else if (history.inPrivateWorld === '芸娘') {
-        currentEpoch = 'ancient';
-        contextHint = '（【相公与侧妾·芸娘的专属二人世界】：正妻婉儿已去书斋核账并掩上厢房门回避，此刻房内只有你（侧妾·芸娘）与相公二人独处！你必须 100% 以「侧妾·芸娘」第一人称回话（自称芸娘或妾身，称呼相公），满面娇羞温存，柔声顺从服侍相公更衣、捶腿、斟茶或依偎承欢，开启甜蜜二人世界！【绝对严禁】出现婉儿的台词！）';
-      } else if (history.inPrivateWorld === '柳儿') {
-        currentEpoch = 'ancient';
-        contextHint = '（【相公与侍妾·柳儿的专属二人世界】：正妻婉儿已退出回避，房内只有你（侍妾·柳儿）与相公二人独处！以柳儿第一人称娇俏活泼依偎侍奉相公！）';
       } else if (epochNotice) {
         contextHint = epochNotice;
       } else if (isPendingYunGreeting || /芸娘怎么不说话|芸娘说话|叫芸娘说话|让芸娘说话|芸娘快磕头|芸娘快敬茶/i.test(say)) {
