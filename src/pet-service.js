@@ -1359,7 +1359,9 @@ export class PetService {
             });
             const line = wrapProxyLine(husPost?.name || '王甯', r?.text);
             if (line) {
-              reply = `${line}\n${reply}`;
+              reply = `${line}\n${String(reply).split('\n').filter((x) => !/没人应声/.test(x)).join('\n')}`
+                .replace(/\n{2,}/g, '\n')
+                .trim();
               console.log('[Proxy] 代演王甯：' + line.slice(0, 40));
             }
           } catch (err) {
