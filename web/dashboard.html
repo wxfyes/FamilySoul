@@ -181,7 +181,7 @@ async function load(){
 
 function render(w){
   const d = w.date;
-  const dateText = d ? `${d.month}月${d.day}日 ` : '';
+  const dateText = d ? (d.month + '月' + d.day + '日' + (d.lunar ? '（农历' + d.lunar.text + '）' : '') + ' ') : '';
   $('h-clock').textContent = `${dateText}${w.clock.hour}时（${w.clock.shichen||''}）· 第${w.clock.day}日`;
   $('h-epoch').textContent = w.epoch === 'modern' ? '现代' : '古代';
   const audit = w.audit || [];
