@@ -509,6 +509,37 @@ function runTreasury(world, events) {
   world.flags.grainPressure = pressure;
 }
 
+/** 行会：同行抽成、会首说话有分量 */
+function runGuilds(world, events) {
+  world.guilds = world.guilds || {};
+  for (const g of Object.values(world.guilds)) {
+    if (!g) continue;
+    let head = world.actors?.[g.head];
+    if (!head && g.headName) {
+      head = Object.values(world.actors || {}).find((a) => a && a.name === g.headName);
+      if (head) g.head = head.id;
+    }
+    if (head) {
+      const rel = head.relations?.husband || {};
+      // 会首对相公越亲近，行会对他的铺子越客气
+      g.attitude = (Number(rel.trust) || 30) >= 50 ? 'friendly' : (Number(rel.grievance) || 0) >= 30 ? 'hostile' : 'neutral';
+    }
+    g.power = Math.max(0, Math.min(100, (Number(g.power) || 30) + (g.attitude === 'friendly' ? 0 : 0.2)));
+  }
+  // 茶行每月抽一次：茶坊日入的 dues% 归茶行
+  const day = Number(world.clock?.day) || 1;
+  if (day % 30 !== 0) return;
+  for (const g of Object.values(world.guilds)) {
+    if (!g) continue;
+    const props = (world.assets?.properties || []).filter((p) => p && new RegExp(String(g.name).replace('行', '')).test(String(p.name || '')));
+    if (!props.length) continue;
+    const dues = props.reduce((s, p) => s + (Number(p.incomePerDay) || 0) * (Number(g.dues) || 3) / 100, 0);
+    if (dues <= 0) continue;
+    world.assets.silver = round2(Math.max(0, (Number(world.assets.silver) || 0) - dues));
+    events.push(nextEvent(world, { action: 'guild_dues', actor: g.head, place: null, payload: { text: `${g.name}抽成 ${dues.toFixed(2)} 两` }, isPublic: false }));
+  }
+}
+
 function consumeSupplies(world) {
   const mil = world.military;
   if (!mil) return;
@@ -529,6 +560,11 @@ function onNewDay(world, events) {
     if (spread.length) console.log(`[Rumor] 传开 ${spread.length} 次`);
   } catch (err) {
     console.warn('[Rumor] 扩散失败：', err.message);
+  }
+  try {
+    runGuilds(world, events);
+  } catch (err) {
+    console.warn('[Guild] 行会结算失败：', err.message);
   }
   consumeSupplies(world);
   try {

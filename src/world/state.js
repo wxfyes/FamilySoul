@@ -150,6 +150,7 @@ export function createInitialState(dataDir) {
       wangpo: { id: 'wangpo', name: '王婆', role: '面摊', gender: 'female', home: 'noodle_stall', location: 'noodle_stall', goals: ['守着摊子过活'], relations: { husband: { trust: 33, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '下面', place: 'noodle_stall' }] },
       zhangtu: { id: 'zhangtu', name: '张屠户', role: '肉铺', gender: 'male', home: 'butcher', location: 'butcher', goals: ['多攒几亩田'], relations: { husband: { trust: 26, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 5, do: '开案', place: 'butcher' }] },
       chenlangzhong: { id: 'chenlangzhong', name: '陈郎中', role: '回春堂郎中', gender: 'male', home: 'pharmacy', location: 'pharmacy', goals: ['把回春堂传下去'], relations: { husband: { trust: 35, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 8, do: '坐堂问诊', place: 'pharmacy' }] },
+      leiqi: { id: 'leiqi', name: '雷七', role: '漕帮帮主', gender: 'male', home: 'dock', location: 'dock', goals: ['码头只归漕帮说话'], secret: '他与县衙书吏有旧账往来', relations: { husband: { trust: 25, desire: 0, fear: 0, grievance: 5 } }, schedule: [{ at: 7, do: '在码头点船', place: 'dock' }] },
       county_magistrate: { id: 'county_magistrate', name: '周文达', role: '临江县令', gender: 'male', home: 'yamen', location: 'yamen', goals: ['三年考绩升迁', '把这县的案子判清楚'], secret: '他收过钱通海一份年礼', relations: { husband: { trust: 30, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 9, do: '升堂理事', place: 'yamen' }, { at: 17, do: '退堂', place: 'yamen' }] },
       coroner: { id: 'coroner', name: '老宋', role: '仵作', gender: 'male', home: 'yamen', location: 'yamen', goals: ['少惹事'], relations: { husband: { trust: 25, desire: 0, fear: 0, grievance: 0 } }, schedule: [{ at: 8, do: '在衙里待命', place: 'yamen' }] },
       waner: {
@@ -383,6 +384,15 @@ export function createInitialState(dataDir) {
     reputation: 50,
     wanted: 0,
     // 天下势力：朝廷、藩镇、义军、商帮、山匪
+    // ── 行会：同行的规矩，不是朝廷立的，是行里人自己立的 ──
+    guilds: {
+      chahang: { id: 'chahang', name: '茶行', head: 'qiantonghai', headName: '钱通海', dues: 4, power: 60, note: '茶价由茶行说了算，不入行的茶卖不上价' },
+      caobang: { id: 'caobang', name: '漕帮', head: '', headName: '雷七', dues: 3, power: 75, note: '码头水运都归漕帮，过船要交例钱' },
+      tuhang: { id: 'tuhang', name: '屠行', head: 'zhangtu', headName: '张屠户', dues: 2, power: 30, note: '肉案的价格与地盘' },
+      xiuhang: { id: 'xiuhang', name: '绣行', head: '', headName: '苏娘', dues: 2, power: 25, note: '绣活派给谁，由绣行分' },
+      yahang: { id: 'yahang', name: '牙行', head: 'danglaoban', headName: '曹当', dues: 5, power: 40, note: '买卖居间、当铺赎当都过牙行' },
+    },
+
     powers: {
       court: { name: '大乾朝廷', kind: '朝廷', power: 90, relation: 0, troops: 200000, note: '名义上统御天下' },
       wangjia: { name: '王家', kind: '商帮', power: 5, relation: 100, troops: 0, note: '你自己', ownerActor: 'husband' },
