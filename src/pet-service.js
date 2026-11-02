@@ -1049,7 +1049,25 @@ export class PetService {
         /* 花名补全失败不影响回复 */
       }
       // 硬对齐：叙事里的场景标记优先于模型是否记得写回执
-      // 事后检查：回复里出现了不在场的人（容易被"提一句"就拉进来）
+      // 硬性在场过滤：不在场的人写进来的段落，直接掐掉（提示词管不住，就用代码管）
+    try {
+      const wP = loadState(this.dataDir);
+      const hereP = wP.actors?.husband?.location;
+      const allowed = Object.values(wP.actors || {})
+        .filter((a) => a?.name && a.location === hereP)
+        .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name, a.label].filter(Boolean));
+      // 相公本轮明确要请/叫的人，也放行
+      for (const n of summonedNames) allowed.push(n);
+      const res = this.enforcePresence(reply, allowed);
+      if (res.dropped.length > 0) {
+        console.log(`[Scene] 已掐掉不在场的段落：${[...new Set(res.dropped)].join('、')}`);
+        reply = res.text;
+      }
+    } catch (err) {
+      console.warn('[Scene] 在场过滤失败：', err.message);
+    }
+
+    // 事后检查：回复里出现了不在场的人（容易被"提一句"就拉进来）
     try {
       const wChk = loadState(this.dataDir);
       const hereNow = wChk.actors?.husband?.location;
@@ -1352,6 +1370,32 @@ export class PetService {
       out.push(line);
     }
     return out.join('\n');
+  }
+
+  /**
+   * 硬性在场过滤：不在场的人，其分角段落直接从回复里删掉。
+   * 只放行「此刻就在相公所在之处」的人，以及相公明说要请/叫的人。
+   */
+  enforcePresence(text, allowedNames) {
+    const segs = String(text || '').split(/(?=【[^】\n]{1,12}】)/);
+    const kept = [];
+    const dropped = [];
+    for (const seg of segs) {
+      if (!seg) continue;
+      const m = seg.match(/^【([^】\n]{1,12})】/);
+      if (!m) {
+        kept.push(seg);
+        continue;
+      }
+      const speaker = m[1].trim();
+      const ok = (allowedNames || []).some(
+        (n) => n && (speaker === n || speaker.includes(n) || n.includes(speaker)),
+      );
+      if (ok) kept.push(seg);
+      else dropped.push(speaker);
+    }
+    const out = kept.join('').trim();
+    return { text: out || String(text || ''), dropped };
   }
 
   /**
