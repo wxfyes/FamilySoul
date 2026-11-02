@@ -1,8 +1,12 @@
 /**
  * 世界账本体检 —— 纯代码，零 LLM 调用，零 token
  *
- * 只回答一个问题：账本本身有没有坏（越界、失效、堆积、非法数值）。
- * 不判断剧情好坏，也不判断模型说得对不对。
+ * 三道自检：
+ * ① 账本本身有没有坏（越界、失效、堆积、非法数值）
+ * ② 记忆里提到的事，和账本对不对得上
+ * ③ 台词里的数字/日期/地名，和账本差多少
+ *
+ * 铁律：只报告，不擅自改世界。要改必须人来点头。
  */
 
 function walkNumbers(obj, pathStr, out, depth = 0) {
@@ -65,4 +69,109 @@ export function auditWorld(world) {
   walkNumbers(world, 'world', issues);
 
   return [...new Set(issues)];
+}
+
+function toNum(s) {
+  const m = String(s || '').match(/(\d+(?:\.\d+)?)/);
+  return m ? Number(m[1]) : null;
+}
+
+/** ② 记忆自检：记忆说的事，账本里对不对得上 */
+export function auditMemories(world) {
+  const issues = [];
+  const memories = Array.isArray(world.memories) ? world.memories : [];
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+
+  for (const m of memories) {
+    const text = String(m?.text || '');
+    if (!text) {
+      issues.push({ kind: 'memory', level: 'warn', text: '有一条空记忆' });
+      continue;
+    }
+    for (const p of props) {
+      if (!p?.name) continue;
+      const short = String(p.name).slice(-3);
+      if (!text.includes(short)) continue;
+      const saysPreparing = /筹备|未开张|还没开/.test(text);
+      const saysOpen = /开张|营业|开业/.test(text);
+      const isOpen = /开张|营业|开业/.test(String(p.status || ''));
+      if (saysPreparing && isOpen) {
+        issues.push({ kind: 'memory', level: 'bad', text: `记忆说「${short}筹备」，账本已是「${p.status}」` });
+      }
+      if (saysOpen && !isOpen) {
+        issues.push({ kind: 'memory', level: 'bad', text: `记忆说「${short}已开张」，账本还是「${p.status || '未知'}」` });
+      }
+    }
+  }
+
+  const seen = new Map();
+  for (const m of memories) {
+    const key = String(m?.text || '').slice(0, 20);
+    if (!key) continue;
+    if (seen.has(key)) issues.push({ kind: 'memory', level: 'warn', text: `记忆重复：「${key}…」` });
+    else seen.set(key, true);
+  }
+  return issues;
+}
+
+/** ③ 台词自检：这一句回复里的数字/日期/地名，和账本差多少 */
+export function auditReply(reply, world) {
+  const issues = [];
+  const text = String(reply || '');
+  if (!text) return issues;
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+
+  for (const seg of text.match(/日入[^\d]{0,6}(\d+(?:\.\d+)?)\s*两/g) || []) {
+    const v = toNum(seg);
+    if (v == null) continue;
+    if (!props.some((p) => Math.abs(Number(p.incomePerDay) - v) < 0.01)) {
+      const real = props.map((p) => `${p.name}${p.incomePerDay}两`).join('、');
+      issues.push({ kind: 'reply', level: 'warn', text: `她说了「${seg}」，账本对不上（${real || '无产业'}）` });
+    }
+  }
+
+  const silverM = text.match(/现银[^\d]{0,4}(\d+(?:\.\d+)?)\s*两/) || text.match(/(\d+(?:\.\d+)?)\s*两现银/);
+  if (silverM) {
+    const v = Number(silverM[1]);
+    const real = Number(world.assets?.silver) || 0;
+    if (Math.abs(v - real) > Math.max(1, real * 0.05)) {
+      issues.push({ kind: 'reply', level: 'bad', text: `她说了「${v}两现银」，账本是 ${real} 两` });
+    }
+  }
+
+  const dayM = text.match(/第\s*(\d+)\s*日/);
+  if (dayM) {
+    const v = Number(dayM[1]);
+    const real = Number(world.clock?.day) || 1;
+    if (Math.abs(v - real) > 1) {
+      issues.push({ kind: 'reply', level: 'warn', text: `她说了「第${v}日」，世界是第${real}日` });
+    }
+  }
+
+  const cityNames = Object.keys(world.cities || {});
+  for (const c of new Set(text.match(/([\u4e00-\u9fa5]{2,4}府)/g) || [])) {
+    if (!cityNames.includes(c)) {
+      issues.push({ kind: 'reply', level: 'warn', text: `她提到了「${c}」，疆域里没有这座府` });
+    }
+  }
+  return issues;
+}
+
+/** 全量自检 */
+export function auditAll(world) {
+  const ledger = auditWorld(world).map((t) => ({ kind: 'ledger', level: 'bad', text: t }));
+  const memory = auditMemories(world);
+  const reply = Array.isArray(world.auditIssues) ? world.auditIssues.slice(-12) : [];
+  const all = [...ledger, ...memory, ...reply];
+  return {
+    ledger,
+    memory,
+    reply,
+    counts: {
+      ledger: ledger.length,
+      memory: memory.length,
+      reply: reply.length,
+      bad: all.filter((x) => x.level === 'bad').length,
+    },
+  };
 }

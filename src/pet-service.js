@@ -1267,6 +1267,25 @@ export class PetService {
       }
     }
 
+    // 台词自检：她说的数字/日期/地名和账本对不对得上（只记录，不改世界）
+    try {
+      if (!this._viewerActorId) {
+        const wA2 = loadState(this.dataDir);
+        const iss = auditReply(reply, wA2);
+        if (iss.length > 0) {
+          wA2.auditIssues = Array.isArray(wA2.auditIssues) ? wA2.auditIssues : [];
+          for (const x of iss) {
+            wA2.auditIssues.push({ ...x, day: wA2.clock.day, hour: wA2.clock.hour, at: Date.now() });
+            console.log(`[Audit] ${x.level === 'bad' ? '✗' : '⚠'} ${x.text}`);
+          }
+          wA2.auditIssues = wA2.auditIssues.slice(-50);
+          saveState(this.dataDir, wA2);
+        }
+      }
+    } catch (err) {
+      console.warn('[Audit] 台词自检失败：', err.message);
+    }
+
     // 记住本轮是谁在跟你说话，下一轮锁定她，避免模型自己换人
     try {
       const firstSpk = String(reply).match(/^【([^】\n]{1,12})】/);

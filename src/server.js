@@ -18,6 +18,7 @@ import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
 import { ensureCities, ensureCourt, ensureTerrain } from './world/state.js';
+import { auditAll } from './world/audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -567,6 +568,16 @@ const STARTED_AT = Date.now();
         saveState(DATA_DIR, world);
         console.log(`[World] 时钟已对齐现实：第${world.clock.day}日 ${world.clock.hour}时`);
         return sendJson(res, 200, { ok: true, clock: world.clock });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.27 三道自检 GET /api/admin/audit
+    if (req.method === 'GET' && pathname === '/api/admin/audit') {
+      try {
+        const world = peek(DATA_DIR);
+        return sendJson(res, 200, { ok: true, result: auditAll(world) });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
@@ -1168,6 +1179,8 @@ const STARTED_AT = Date.now();
           powers: world.powers || null,
           court: world.court || null,
           chosen: world.flags?.chosenName || null,
+          memAudit: auditAll(world).memory,
+          replyAudit: auditAll(world).reply,
           terrain: world.terrain || [],
           courtPressure: Number(world.flags?.courtPressure) || 0,
           cities: world.cities || null,
