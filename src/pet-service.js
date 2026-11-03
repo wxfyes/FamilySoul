@@ -672,6 +672,23 @@ export class PetService {
             who.intimacy = who.intimacy || {};
             who.intimacy.consummated = true;
             if (!(who.intimacy.level > 0)) who.intimacy.level = 1;
+            // 会不会怀上：看身子、年龄、缘分（不是每次都中）
+            try {
+              const age = Number(who.age) || 22;
+              const fertile = who.gender !== 'male' && age >= 16 && age <= 42;
+              const already = Boolean(who.pregnancy && !who.pregnancy.born);
+              if (fertile && !already) {
+                const chance = age <= 30 ? 0.55 : 0.35;
+                if (Math.random() < chance) {
+                  who.pregnancy = { days: 0, father: 'husband', sinceDay: wr.clock?.day || 1, born: false };
+                  wr.memories = Array.isArray(wr.memories) ? wr.memories : [];
+                  wr.memories.push({ text: `${who.name}有了身孕`, day: wr.clock?.day || 1, at: Date.now(), about: [who.id, 'husband'], visible: 'private' });
+                  console.log(`[Ritual] ${who.name}有喜了（${age}岁）`);
+                } else {
+                  console.log(`[Ritual] ${who.name}这次没中`);
+                }
+              }
+            } catch { /* 忽略 */ }
             saveState(this.dataDir, wr);
             console.log(`[Ritual] 关系结算：${who.name} 欲望+8→${rel.desire} 信任+5→${rel.trust}（已标为相好）`);
           }
