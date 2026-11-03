@@ -2320,7 +2320,7 @@ export class PetService {
         const named = saidA.includes(a.name) || (short && saidA.includes(short));
         return named && a.location !== meA2?.location;
       });
-      if (absent) {
+      if (absent && !String(reply || '').includes(String(wAbs.places?.[absent.location]?.name || ''))) {
         const whereA = String(wAbs.places?.[absent.location]?.name || '别处');
         const hereA = String(wAbs.places?.[meA2?.location]?.name || '这里');
         reply = `【${hereA}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
@@ -2386,6 +2386,29 @@ export class PetService {
           if (lineL) {
             reply = lineL;
             console.log('[Proxy] 旁白兜底 → ' + pickL.name + '：' + lineL.slice(0, 24));
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
+
+    // 问旧事：账本里没有，就不许编
+    try {
+      const askPast = /(还记得|记不记得|记得吗|以前|上次|那回|从前|当年|旧事)/.test(String(say || ''));
+      if (askPast) {
+        const wP2 = loadState(this.dataDir);
+        const meP = this._viewerActorId ? wP2.actors?.[this._viewerActorId] : wP2.actors?.husband;
+        const hereP = Object.values(wP2.actors || {}).filter((a) => a && !a.dead && a.location === meP?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
+        const names = hereP.map((a) => a.name);
+        const pool = (wP2.memories || []).filter((m) => {
+          const t = String(m?.text || '');
+          return names.some((n) => t.includes(n)) || t.includes('相公') || m.visible === 'public';
+        });
+        if (!pool.length) {
+          const speaker = String(reply || '').match(/^【([^】\n]{1,12})】/);
+          const who = speaker ? speaker[1] : (hereP[0]?.name || '');
+          if (who) {
+            reply = `【${who}】：（想了想，摇头）这事我记不得了。`;
+            console.log('[Memory] 账本无旧事，已拦住编造');
           }
         }
       }
