@@ -928,6 +928,24 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 清理不合生理的怀孕（年龄过大/过小，或身份明确不该有的）
+  try {
+    let cleared = 0;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || !a.pregnancy || a.pregnancy.born) continue;
+      const age = Number(a.age) || 0;
+      const role = String(a.role || '');
+      const tooOld = age > 48;
+      const tooYoung = age > 0 && age < 14;
+      const sterile = /老鸨|鸨母|嬷嬷|婆婆|尼|道姑/.test(role);
+      if (tooOld || tooYoung || sterile) {
+        delete a.pregnancy;
+        cleared += 1;
+        console.log(`[Life] ${a.name}（${age}岁·${role}）的怀孕记录不合生理，已清除`);
+      }
+    }
+    if (cleared) console.log(`[Life] 共清除 ${cleared} 条不合生理的怀孕`);
+  } catch { /* 忽略 */ }
   // 清掉错误的主仆关系：对方不是同宅主家的，一律断开
   try {
     let removed = 0;
@@ -1056,7 +1074,9 @@ export function migrateOwnership(world) {
       if (/天子/.test(role)) a.age = 42;
       else if (/宰相|尚书|巡抚/.test(role)) a.age = 52 + (id.length % 6);
       else if (/知府|知县/.test(role)) a.age = 44 + (id.length % 8);
-      else if (/先生|老鸨|婆|老夫子/.test(role)) a.age = 55 + (id.length % 10);
+      else if (/老鸨|鸨母/.test(role)) a.age = 38 + (id.length % 8);
+      else if (/先生|老夫子|夫子/.test(role)) a.age = 58 + (id.length % 8);
+      else if (/婆/.test(role)) a.age = 48 + (id.length % 10);
       else if (/寡妇|妇人/.test(role)) a.age = 28 + (id.length % 8);
       else if (/丫鬟|小厮|伙计/.test(role)) a.age = 16 + (id.length % 6);
       else a.age = 20 + (id.length % 25);

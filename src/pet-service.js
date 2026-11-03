@@ -709,7 +709,8 @@ export class PetService {
             // 会不会怀上：看身子、年龄、缘分（不是每次都中）
             try {
               const age = Number(who.age) || 22;
-              const fertile = who.gender !== 'male' && age >= 16 && age <= 42;
+              const sterileRole = /老鸨|鸨母|嬷嬷|婆婆|尼|道姑/.test(String(who.role || ''));
+              const fertile = who.gender !== 'male' && age >= 16 && age <= 45 && !sterileRole;
               const already = Boolean(who.pregnancy && !who.pregnancy.born);
               const onPeriod = Boolean(who.menses?.on);
               if (fertile && !already && !onPeriod) {
