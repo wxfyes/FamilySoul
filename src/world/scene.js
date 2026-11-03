@@ -78,17 +78,23 @@ export function whoIsHere(world, placeId, exceptMemberKey = null) {
 }
 
 /**
- * 同场判定：**只要还有其他真人站在同一处，这场对话就是公开的**。
+ * 同场判定：**只要还有其他成人真人在同一处，这场对话就是公开的**。
  * 独处 = 私密；有人 = 公开，暗号与亲密一律不得外露。
  */
 export function sceneAudience(world, placeId, selfKey) {
   const { humans, npcs } = whoIsHere(world, placeId, selfKey);
+  // 排除 kid（全能导师/探索导师）：作为学习与家庭工具账号，绝不作为相公古风后宫或卧室的围观第三者
+  const adultHumans = humans.filter((h) => h.id !== 'kid' && !/导师|孩子|kid/i.test(String(h.role || '')));
+  // 凡内宅、私房、暖阁、卧室，属于天然私密空间，绝非大街公开场合
+  const isPrivateChamber = /正房|暖阁|卧房|闺房|husband_room|backyard|warm_pavilion|ling_room/.test(
+    String(placeId) + String(world.places?.[placeId]?.name || '')
+  );
   return {
     placeId,
     placeName: world.places?.[placeId]?.name || placeId,
-    otherHumans: humans,
+    otherHumans: adultHumans,
     npcs,
-    isPublic: humans.length > 0,
+    isPublic: !isPrivateChamber && adultHumans.length > 0,
   };
 }
 

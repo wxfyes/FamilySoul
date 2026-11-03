@@ -1,3 +1,4 @@
+import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPartyMembers } from './party.js';
 /**
  * 召唤与走动 —— 把"叫谁过来""我去谁那儿"落到世界账本上
  *
@@ -5,6 +6,7 @@
  * 人到位之后，怎么开口由天道当场裁定。
  */
 import { loadState, saveState } from './state.js';
+import { isValidPlaceName } from './intent.js';
 
 const SUMMON_VERBS = /(叫|请|唤|传|让|召|叫来|喊)/;
 const COME_WORDS = /(过来|来一趟|来一下|来我这儿|来这里|来这儿|过来一趟|过来一趟|来见|来一趟|来|到这)/;
@@ -13,6 +15,8 @@ const GO_WORDS = /(我去|去|上|往|到)/;
 function namesOf(actor) {
   const list = [actor.name];
   if (actor.name && actor.name.length > 2) list.push(actor.name.slice(-2));
+  if (actor.id === 'liuwenxia' || actor.name === '刘文霞') list.push('紫嫣');
+  if (actor.label) list.push(actor.label);
   return list.filter(Boolean);
 }
 
@@ -48,6 +52,82 @@ function findMentioned(world, text) {
   return hits;
 }
 
+/** 寻找与当前行动者同行的伴侣（必须满足在场前置：同处一地） */
+function findCompanions(world, selfId, say) {
+  const me = world.actors?.[selfId] || world.actors?.husband;
+  if (!me) return [];
+  const companions = [];
+  const isHusband = !selfId || selfId === 'husband';
+  const text = String(say || '');
+
+  // 0. 排除明确拒绝/排斥同行的口令："我自己去"、"你留在这"、"看好铺子"、"别跟来"
+  if (/(我自己|独自|一个人|你留|你在|别跟|看好|不用陪)/.test(text)) {
+    return [];
+  }
+
+  // 1. 文本明确指明同行：比如"我们/咱们/同去/一块/一起/带上/一道/陪我/走吧/跟我来/随我"
+  const isTogether = /(我们|咱们|一起|一块|同去|同行|带上|陪我|一道|走吧|跟我|随我)/.test(text);
+
+  // 2. 显式点名同行：文本明确提到具体某人（"和紫嫣/带紫嫣/跟婉儿"）
+  const explicitlyMentioned = [];
+  for (const [id, a] of Object.entries(world.actors || {})) {
+    if (!a || a.dead || id === selfId || (isHusband && id === 'husband')) continue;
+    if (namesOf(a).some((n) => text.includes(n))) {
+      explicitlyMentioned.push(a);
+    }
+  }
+
+  if (explicitlyMentioned.length > 0) {
+    for (const a of explicitlyMentioned) {
+      // ① 缺口一【在场判定】：必须同处一地！不在场坚决不走同行
+      if (a.location === me.location) {
+        companions.push(a);
+      }
+    }
+    // 既然显式点名了具体人，无论她在不在场，绝不再顺手抓别人同行！
+    return companions;
+  }
+
+  // 2.5 队伍持久伴随：已经在队里的在场成员，只要没被脱队排除，默认继续跟随！
+  if (isHusband) {
+    const pMembers = getPartyMembers(world, 'husband');
+    for (const pId of pMembers) {
+      const pActor = world.actors?.[pId];
+      if (pActor && !pActor.dead && pActor.location === me.location) {
+        if (!companions.some((c) => c.id === pId)) {
+          companions.push(pActor);
+        }
+      }
+    }
+  }
+
+  // 3. 伴侣同场默契：相公没有点具体人名，但明确表达了同行意向（"我们/咱们/一起/走吧/一块"）
+  if (isHusband && isTogether) {
+    const curLoc = me.location;
+    for (const [id, a] of Object.entries(world.actors || {})) {
+      if (!a || a.dead || id === 'husband') continue;
+      // ① 缺口一：必须同处一地
+      if (a.location !== curLoc) continue;
+      if (['liuwenxia', 'yunnia', 'yangcaiyun', 'zhanjing'].includes(id) || a.household || a.gender === 'female') {
+        companions.push(a);
+        break; // 默契同行只带当前跟前那一位，避免整屋人捆绑
+      }
+    }
+  }
+
+  // 4. ④ 缺口四：女眷带相公反向同步（"跟我去医馆"、"随我来后院"）
+  if (!isHusband) {
+    const hus = world.actors?.husband;
+    if (hus && hus.location === me.location) {
+      if (isTogether || /(相公|王掌柜|少掌柜|王甯)/.test(text)) {
+        companions.push(hus);
+      }
+    }
+  }
+
+  return companions;
+}
+
 /**
  * @returns {{moved:string[], summoned:string[], visited:string|null}|null}
  */
@@ -58,7 +138,8 @@ export function applySummon(dataDir, text, lastBotSaid = '', selfId = 'husband')
   })();
   const __result = __applySummonInner(dataDir, text, lastBotSaid, selfId);
   try {
-    if (selfId && selfId !== 'husband' && __husbandHome) {
+    const calledHusband = /(王甯|相公|少掌柜|王掌柜|我们|咱们|一起|一块|同去)/.test(text);
+    if (selfId && selfId !== 'husband' && __husbandHome && !calledHusband) {
       const w2 = loadState(dataDir);
       const hus = w2.actors?.husband;
       const me = w2.actors?.[selfId];
@@ -79,6 +160,14 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
   const world = loadState(dataDir);
   const me = world.actors?.[selfId] || world.actors?.husband;
   if (!me) return null;
+
+  // 同步队伍意图（加队 / 脱队）
+  if (selfId === 'husband') {
+    syncPartyIntent(world, say, 'husband');
+  } else {
+    // 成员自己单独行动：脱队
+    onMemberSelfAction(world, selfId);
+  }
 
   // 光提名字不算"去找"：必须有动作词才算
   const hasMoveVerb = /(去|往|找|寻|见|到|过来|叫|请|来|上|回)/.test(say);
@@ -126,118 +215,171 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
-  // 提到一个世上没有的地方：天道现造一处（医馆、茶楼、银楼、镖局…）
-  if (mentioned.length === 0) {
-    const mPlace = say.match(/(?:去|往|到|上|回|进)([一-龥]{1,6}?(?:馆|铺|楼|坊|堂|店|院|阁|斋|局|行|庄|园|寺|庵|祠|码头|渡口|桥|街|巷|市|集|仓|监|牢|营|寨))/);
-    if (mPlace) {
-      const wantName = mPlace[1];
-      const exists = Object.entries(world.places || {}).find(([, pl]) => String(pl?.name || '').replace(/·.*$/, '').includes(wantName));
-      if (exists) {
-        const [pid, pl] = exists;
-        if (me.location !== pid) {
-          me.location = pid;
-          saveState(dataDir, world);
-        }
-        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: pl.name };
-      }
-      // 没造过 → 造一处，落在长街上，能进能出
-      world.flags = world.flags || {};
-      world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
-      const pid = `place_${world.flags.placeSeq}`;
-      world.places[pid] = {
-        name: wantName, exits: ['street'], dynamic: true, createdDay: world.clock?.day || 1,
-      };
-      me.location = pid;
-      // 顺手配个人：造了铺子就得有掌柜/郎中/镖头，别是空屋
-      try {
-        const KEEPER = [
-          { re: /医馆|药铺|药堂|医/, role: '郎中', given: ['郎中', '大夫', '先生'] },
-          { re: /银楼|金铺|当铺/, role: '掌柜', given: ['掌柜'] },
-          { re: /镖局/, role: '镖头', given: ['镖头'] },
-          { re: /酒楼|饭庄|客栈|茶楼|茶馆/, role: '掌柜', given: ['掌柜'] },
-          { re: /布庄|衣庄|绣坊|绣楼/, role: '掌柜', given: ['掌柜'] },
-          { re: /铁铺|铁匠|银楼/, role: '匠人', given: ['师傅'] },
-          { re: /赌坊|青楼/, role: '管事', given: ['管事'] },
-        ];
-        const hitK = KEEPER.find((x) => x.re.test(wantName));
-        const SUR = '陈王李周柳秦赵钱孙吴郑冯褚卫蒋沈韩杨朱许何吕施张孔曹严华金魏陶姜苏潘葛范彭鲁韦马方任袁柳唐薛雷贺倪汤罗毕郝安常傅齐康伍余顾孟黄萧尹姚邵汪毛戴宋庞熊纪舒项董梁杜阮蓝闵季麻贾路娄江童颜郭梅盛林钟徐邱骆高夏蔡田樊胡凌霍虞万柯卢莫房裘解应宗丁邓单杭洪包左石崔龚程邢裴陆荣翁荀惠甄曲封芮储靳段富巫乌焦巴牧山谷车侯全班秋仲伊宫宁仇甘厉祖武符刘景詹龙叶黎薄印宿白怀蒲从鄂索咸赖卓蔺屠蒙池乔翟谭贡劳姬申扶冉雍桑桂牛边燕浦尚温庄晏柴瞿阎慕连茹艾鱼容向古易慎戈廖庾终居衡步都耿满弘匡国文寇广禄阙东欧沃利越师巩聂晁敖冷辛简饶曾沙鞠丰巢关蒯查后荆红游竺权盖益桓';
-        const sur = SUR[Math.floor(Math.random() * SUR.length)];
-        const given = hitK ? hitK.given[Math.floor(Math.random() * hitK.given.length)] : '掌柜';
-        const nm = `${sur}${given}`;
-        const dup = Object.values(world.actors || {}).some((a) => a && a.name === nm);
-        if (!dup) {
-          world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
-          const kid = `npc_${world.flags.npcSeq}`;
-          world.actors[kid] = {
-            id: kid, name: nm, role: `${wantName}${hitK ? hitK.role : '掌柜'}`,
-            gender: 'male', origin: 'spawned', age: 40 + Math.floor(Math.random() * 15),
-            home: pid, location: pid, activity: { text: '守铺子', at: world.clock?.hour || 0, day: world.clock?.day || 1 },
-            relations: { husband: { trust: 25, desire: 0, fear: 0, grievance: 0 } }, schedule: [],
-          };
-          console.log(`[World] 顺手造了个人「${nm}」（${world.actors[kid].role}）`);
-        }
-      } catch (err) { console.warn('[World] 配人失败：', err.message); }
+  // ② 待确认邀约处理：检测伴侣提议、消费与清空（防止连续说"好"重复造景）
+  // 严格地名后缀：排除单字"行"，避免"就行/不行"误伤；增加合法地名校验
+  const PLACE_SUFFIXES = '(?:馆|铺|楼|坊|堂|店|院|阁|斋|局|商行|车马行|营造行|布行|钱行|洋行|庄|园|寺|庵|祠|码头|渡口|桥|街|巷|市|集|仓|监|牢|营|寨|摊|亭|棚|舍|榭|居|筑|别苑|别院|小筑|雅间|厢房|客房|雅座|雅阁|画舫|渡船|酒肆|茶肆|小摊|茶摊|药铺)';
+  const mPlace = say.match(new RegExp(`(?:去|往|到|上|回|进|移步|转到)([一-龥]{1,6}?${PLACE_SUFFIXES})`));
+  let wantName = (mPlace && isValidPlaceName(mPlace[1])) ? mPlace[1] : null;
+
+  // 对方上一句若有提议，且尚未记录待确认邀约，挂载之
+  const mPrev = String(lastBotSaid || '').match(new RegExp(`(?:去|到|往|上|移步|转到)([一-龥]{1,6}?${PLACE_SUFFIXES})`));
+  if (mPrev && isValidPlaceName(mPrev[1]) && !world.pendingInvitation) {
+    world.pendingInvitation = {
+      placeName: mPrev[1],
+      atDay: world.clock?.day || 1,
+      atHour: world.clock?.hour || 0,
+    };
+  }
+
+  // 用户回复同意 vs 拒绝
+  const isAccept = /^(好|好的|行|走|走吧|成|去吧|听你的|好啊|嗯|成啊|好嘞|走着)[。！!~\s]*$/.test(say);
+  const isReject = /^(不去|算了|改日|改天|不去了|改期|下次|先不去|没空|不走)[。！!~\s]*$/.test(say);
+
+  if (world.pendingInvitation) {
+    if (isAccept) {
+      wantName = world.pendingInvitation.placeName;
+      delete world.pendingInvitation; // 消费后立刻清空
       saveState(dataDir, world);
-      console.log(`[World] 天道造了一处「${wantName}」`);
-      return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: wantName, created: wantName };
+    } else if (isReject) {
+      delete world.pendingInvitation; // 拒绝后立刻清空，不造景、不转场
+      saveState(dataDir, world);
+      console.log(`[Party] 相公推脱了同行提议，待确认邀约已清空`);
+      return { moved: [], summoned: [], visited: null, rejected: true };
     }
+  }
+
+  // 提到一个要去的地方（医馆、茶楼、小茶摊、银楼、镖局、画舫…）：天道就地造景或前往
+  if (wantName && isValidPlaceName(wantName)) {
+    // 找到同行伴侣（如紫嫣、芸娘），共同转场
+    const companions = findCompanions(world, selfId, say);
+    const exists = Object.entries(world.places || {}).find(([, pl]) => String(pl?.name || '').replace(/·.*$/, '').includes(wantName));
+    if (exists) {
+      const [pid, pl] = exists;
+      me.location = pid;
+      const comers = [];
+      for (const c of companions) {
+        if (c && !c.dead && c.id !== me.id) {
+          c.location = pid;
+          c.activity = { text: `随相公移步${pl.name}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+          comers.push(c.name);
+        }
+      }
+      saveState(dataDir, world);
+      // 观测点打点
+      const party = [me.name || '相公', ...comers];
+      console.log(`[Party] 同行名单：${party.join(' + ')}`);
+      console.log(`[Move] ${me.name || '相公'} → ${pl.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+      return { moved: party, summoned: [], visited: null, wentTo: pl.name };
+    }
+    // 没造过 → 现造一处新景，落在长街或沿江上，能进能出
+    // 【军规铁律】：严禁代码正则硬塞造人！新人物必须由天道大模型根据因果自然长出！
+    world.flags = world.flags || {};
+    world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+    const pid = `place_${world.flags.placeSeq}`;
+    world.places[pid] = {
+      name: wantName, exits: ['street'], dynamic: true, createdDay: world.clock?.day || 1,
+    };
+    me.location = pid;
+    const comers = [];
+    for (const c of companions) {
+      if (c && !c.dead && c.id !== me.id) {
+        c.location = pid;
+        c.activity = { text: `随相公前往${wantName}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+        comers.push(c.name);
+      }
+    }
+    saveState(dataDir, world);
+    // 观测点打点
+    const party = [me.name || '相公', ...comers];
+    console.log(`[Party] 同行名单：${party.join(' + ')}`);
+    console.log(`[Move] ${me.name || '相公'} → ${wantName}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+    return { moved: party, summoned: [], visited: null, wentTo: wantName, created: wantName };
   }
 
   // 「去X家 / X的绣坊」：认到那个人真实所在，别另建一处
-  if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
+  if (/(去|往|到|上|回)/.test(say)) {
     const homeHit = Object.values(world.actors || {}).find((a) => {
-      if (!a || !a.name || a.id === selfId || a.id === 'husband') return false;
-      return new RegExp(`${a.name}(家|的|处)`).test(say);
+      if (!a || !a.name || a.id === selfId || (selfId === 'husband' && a.id === 'husband')) return false;
+      return new RegExp(a.name + '(?:的)?(?:家|那儿|屋里|房里|处|那|住处|铺子|绣坊)').test(say);
     });
-    if (homeHit && world.places?.[homeHit.location]) {
-      if (me.location !== homeHit.location) {
-        me.location = homeHit.location;
-        saveState(dataDir, world);
-        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: world.places[homeHit.location].name };
+    if (homeHit) {
+      const targetLoc = (homeHit.home && world.places?.[homeHit.home]) ? homeHit.home : homeHit.location;
+      if (targetLoc && world.places?.[targetLoc]) {
+        if (me.location !== targetLoc) {
+          me.location = targetLoc;
+          saveState(dataDir, world);
+          return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: world.places[targetLoc].name };
+        }
+        return { moved: [], summoned: [], visited: null, wentTo: world.places[targetLoc].name, alreadyThere: true };
       }
-      return { moved: [], summoned: [], visited: null, wentTo: world.places[homeHit.location].name, alreadyThere: true };
     }
   }
 
-  // 客栈开房：要一间上房，付房钱，两个人进房，外人进不来
-  if (/(开房|开间房|要间房|要一间|住店|住一晚|开个房|上房)/.test(say)) {
-    const innEntry = Object.entries(world.places || {}).find(([, pl]) => /客栈/.test(String(pl?.name || '')));
-    if (innEntry) {
-      const [innId, innPl] = innEntry;
-      const meAtInn = me.location === innId || me.location === `${innId}_room`;
-      if (!meAtInn) {
-        me.location = innId;
-      }
-      const roomId = `${innId}_room`;
-      if (!world.places[roomId]) {
-        world.places[roomId] = { name: `${innPl.name}·上房`, exits: [innId], dynamic: true, private: true };
-      }
-      // 房钱：上房三两一晚，钱不够就住普通房一钱
-      world.assets = world.assets || {};
-      let paid = 0;
-      let roomName = world.places[roomId].name;
-      if ((Number(world.assets.silver) || 0) >= 3) {
-        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - 3) * 100) / 100;
-        paid = 3;
-      } else if ((Number(world.assets.silver) || 0) >= 0.2) {
-        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - 0.2) * 100) / 100;
-        paid = 0.2;
-        roomName = `${innPl.name}·通铺`;
-        world.places[roomId].name = roomName;
-      }
-      // 同行的人一起进房
-      const partnerId = String((world.chatPartners || {})[selfId || 'husband'] || '');
-      const partner = world.actors?.[partnerId];
-      const comers = [];
-      if (partner && !partner.dead && partner.id !== selfId) {
-        partner.location = roomId;
-        partner.activity = { text: '进房歇息', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
-        comers.push(partner.name);
-      }
-      me.location = roomId;
-      saveState(dataDir, world);
-      return { moved: [me.name || '相公', ...comers], summoned: [], visited: null, wentTo: roomName, room: roomName, paid };
+  // 客栈开房：要一间上房/上方/开房/住店，支持错别字“上方”，付房钱，男女主一同进房
+  if (/(?:开|要|订|定|住|歇)[一1个间条]*?(?:上[房方]|客房|厢房|雅间|房间|房|客栈|通铺)|(?:住[一1]?晚|开房|打尖住店|睡觉)/i.test(say)) {
+    // 优先找现有客栈，没有就动态创建临江客栈
+    let innEntry = Object.entries(world.places || {}).find(([, pl]) => /客栈|客舍|旅店|客房/.test(String(pl?.name || '')));
+    if (!innEntry) {
+      world.places = world.places || {};
+      world.places.inn = { name: '临江客栈', exits: ['street'], dynamic: true };
+      innEntry = ['inn', world.places.inn];
     }
+    const [innId, innPl] = innEntry;
+    const roomId = `${innId}_room`;
+    if (!world.places[roomId]) {
+      world.places[roomId] = { name: `${innPl.name}·天字上房`, exits: [innId], dynamic: true, private: true };
+    }
+
+    // 房钱：扣除 3 两现银（若用户说“王甯付钱”或相公付，扣相公资产；否则扣真人钱包）
+    world.assets = world.assets || {};
+    let paid = 0;
+    const roomName = world.places[roomId].name;
+    const isHusbandPay = /王甯|相公|王掌柜|少掌柜|王东家/.test(say) || selfId === 'husband';
+    if (isHusbandPay) {
+      const curSilver = Number(world.assets.silver) || 0;
+      if (curSilver >= 3) {
+        world.assets.silver = Math.round((curSilver - 3) * 100) / 100;
+        paid = 3;
+      } else if (curSilver > 0) {
+        paid = curSilver;
+        world.assets.silver = 0;
+      }
+    } else {
+      world.wallets = world.wallets || {};
+      const curW = Number(world.wallets[selfId]) || 0;
+      if (curW >= 3) {
+        world.wallets[selfId] = Math.round((curW - 3) * 100) / 100;
+        paid = 3;
+      }
+    }
+
+    // 同行伴侣一起进房（支持当前在场红颜紫嫣/芸娘，或真人提及相公）
+    const companions = findCompanions(world, selfId, say);
+    const comers = [];
+    for (const c of companions) {
+      if (c && !c.dead && c.id !== me.id) {
+        c.location = roomId;
+        c.activity = { text: '上房歇息相伴', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+        comers.push(c.name);
+      }
+    }
+    const partnerId = /(王甯|相公|少掌柜)/.test(say) && selfId !== 'husband'
+      ? 'husband'
+      : String((world.chatPartners || {})[selfId || 'husband'] || '');
+    const partner = world.actors?.[partnerId];
+    if (partner && !partner.dead && partner.id !== me.id && !comers.includes(partner.name)) {
+      partner.location = roomId;
+      partner.activity = { text: '上房歇息相伴', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+      comers.push(partner.name);
+    }
+    me.location = roomId;
+    me.activity = { text: '上房歇息', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+    saveState(dataDir, world);
+    // 观测点打点
+    const party = [me.name || '相公', ...comers];
+    console.log(`[Party] 同行名单：${party.join(' + ')}`);
+    console.log(`[Move] ${me.name || '相公'} → ${roomName}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+    return { moved: party, summoned: [], visited: null, wentTo: roomName, room: roomName, paid };
   }
 
   // 别名：口语里的地方，对上世界里真有的地方（医馆→回春堂药铺 之类）
@@ -264,11 +406,21 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
         const hit = Object.entries(world.places || {}).find(([, pl]) => String(pl?.name || '').includes(kw));
         if (hit) {
           const [pid, pl] = hit;
-          if (me.location !== pid) {
-            me.location = pid;
-            saveState(dataDir, world);
+          const companions = findCompanions(world, selfId, say);
+          me.location = pid;
+          const comers = [];
+          for (const c of companions) {
+            if (c && !c.dead && c.id !== me.id) {
+              c.location = pid;
+              c.activity = { text: `随相公移步${pl.name}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+              comers.push(c.name);
+            }
           }
-          return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: pl.name };
+          saveState(dataDir, world);
+          const party = [me.name || '相公', ...comers];
+          console.log(`[Party] 同行名单：${party.join(' + ')}`);
+          console.log(`[Move] ${me.name || '相公'} → ${pl.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+          return { moved: party, summoned: [], visited: null, wentTo: pl.name };
         }
       }
     }
@@ -287,16 +439,25 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
         const gov = Object.keys(world.places || {}).find((k) => String(k).startsWith('gov_') && String(world.places[k]?.name || '').includes(cityHit));
         world.places[pid] = { name: streetName, exits: ['street', ...(gov ? [gov] : [])], dynamic: true, city: cityHit };
       }
-      if (me.location !== pid) {
-        me.location = pid;
-        saveState(dataDir, world);
-        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: streetName, city: cityHit };
+      const companions = findCompanions(world, selfId, say);
+      me.location = pid;
+      const comers = [];
+      for (const c of companions) {
+        if (c && !c.dead && c.id !== me.id) {
+          c.location = pid;
+          c.activity = { text: `随相公前往${streetName}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+          comers.push(c.name);
+        }
       }
-      return { moved: [], summoned: [], visited: null, wentTo: streetName, alreadyThere: true, city: cityHit };
+      saveState(dataDir, world);
+      const party = [me.name || '相公', ...comers];
+      console.log(`[Party] 同行名单：${party.join(' + ')}`);
+      console.log(`[Move] ${me.name || '相公'} → ${streetName}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+      return { moved: party, summoned: [], visited: null, wentTo: streetName, city: cityHit };
     }
   }
 
-  // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公挪过去
+  // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公与同行伴侣挪过去
   if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
     // "回我房间/去正房"这类说法：先按别名认
     const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 回房: 'husband_room', 回屋: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
@@ -304,35 +465,40 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     if (aliasKey && world.places?.[roomAlias[aliasKey]]) {
       const pid = roomAlias[aliasKey];
       const p = world.places[pid];
-      if (me.location !== pid) {
-        me.location = pid;
-        // 到了从没去过的城 → 让天道把这条街补出来
-        try {
-          const cityName = Object.keys(world.cities || {}).find((c) => String(p.name || '').includes(c) || String(c).includes(String(p.name || '')));
-          if (cityName) {
-            world.cityShops = world.cityShops || {};
-            const rec = world.cityShops[cityName];
-            const count = typeof rec === 'number' ? rec : (rec && rec.count) || 0;
-            if (count < 12) {
-              world.flags = world.flags || {};
-              world.flags.pendingCityShop = cityName;
-            }
-          }
-        } catch { /* 忽略 */ }
-        saveState(dataDir, world);
-        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: p.name };
+      const companions = findCompanions(world, selfId, say);
+      me.location = pid;
+      const comers = [];
+      for (const c of companions) {
+        if (c && !c.dead && c.id !== me.id) {
+          c.location = pid;
+          c.activity = { text: `随相公回房`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+          comers.push(c.name);
+        }
       }
-      return { moved: [], summoned: [], visited: null, wentTo: p.name, alreadyThere: true };
+      saveState(dataDir, world);
+      const party = [me.name || '相公', ...comers];
+      console.log(`[Party] 同行名单：${party.join(' + ')}`);
+      console.log(`[Move] ${me.name || '相公'} → ${p.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+      return { moved: party, summoned: [], visited: null, wentTo: p.name };
     }
     const placeHit = findPlace(world, say);
     if (placeHit) {
       const [pid, p] = placeHit;
-      if (me.location !== pid) {
-        me.location = pid;
-        saveState(dataDir, world);
-        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: p.name };
+      const companions = findCompanions(world, selfId, say);
+      me.location = pid;
+      const comers = [];
+      for (const c of companions) {
+        if (c && !c.dead && c.id !== me.id) {
+          c.location = pid;
+          c.activity = { text: `随相公前往${p.name}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+          comers.push(c.name);
+        }
       }
-      return { moved: [], summoned: [], visited: null, wentTo: p.name, alreadyThere: true };
+      saveState(dataDir, world);
+      const party = [me.name || '相公', ...comers];
+      console.log(`[Party] 同行名单：${party.join(' + ')}`);
+      console.log(`[Move] ${me.name || '相公'} → ${p.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+      return { moved: party, summoned: [], visited: null, wentTo: p.name };
     }
   }
 
@@ -342,7 +508,7 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
   const hasGoVerb = GO_WORDS.test(say) && /(那|那里|那儿|房里|屋|处)/.test(say);
 
   // 「让/叫/派 X 去 Y」→ 把 X 派到 Y，并给她一天的"外派"豁免，免得日程立刻把她拉回
-  const sendMatch = String(say).match(/(?:让|叫|派|打发)?\s*([^\s，。]{1,8}?)\s*[，,]?\s*你?\s*(?:去|往|到|回)\s*([^\s，。]{1,10})/);
+  const sendMatch = String(say).match(/^(?:让|叫|派|打发)\s*([^\s，。]{1,8}?)\s*[，,]?\s*你?\s*(?:去|往|到|回)\s*([^\s，。]{1,10})/);
   if (sendMatch) {
     const whoName = sendMatch[1];
     const destName = sendMatch[2];
@@ -384,8 +550,8 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
       }
       summoned.push(a.name);
     }
-  } else if (mentioned.length === 1) {
-    // 「找 X / X 在吗 / 我去 X 那」→ 相公挪到 X 所在处（而不是把 X 凭空叫来）
+  } else if (mentioned.length === 1 && /(?:去找|去见|去寻|去看|特意找|找找)\s*[^，,。！？!\s]{1,4}/.test(say)) {
+    // 必须有明确「去找X/去见X」句式才位移，严禁日常闲聊提第三人（如"小翠胡言乱语"）误瞬移相公
     const target = world.actors[mentioned[0]];
     if (target) {
       summoned.push(target.name);

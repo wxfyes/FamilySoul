@@ -9,7 +9,7 @@ import { LlmClient } from './llm-client.js';
 import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
-import { startWorldClock, peek } from './world/clock.js';
+import { startWorldClock, peek, buildMorningReport } from './world/clock.js';
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
@@ -54,7 +54,7 @@ function loadConfig() {
       pitch: '+0Hz',
     },
     prompt: {
-      historyTurns: 8,
+      historyTurns: 4,
       mode: 'full',
     },
     world: {
@@ -123,9 +123,9 @@ function getFamilyProfiles() {
       key: 'husband',
       token: husbandToken,
       role: '傲娇助手',
-      title: '温柔小娘子',
-      presence: '在线守候相公',
-      description: '名门正妻 · 贴身娇妻',
+      title: '天命相公 · 王甯',
+      presence: '临江少掌柜 · 执掌乾坤',
+      description: '江南临江茶坊少掌柜 · 运河大酒楼东家',
     },
     wife: {
       key: 'wife',
@@ -233,7 +233,7 @@ function saveRoutineConfig(patch = {}) {
 }
 
 const rolesManager = new RolesManager(config.activeRole || '傲娇助手');
-const llmClient = new LlmClient(config.deepseek);
+const llmClient = new LlmClient({ deepseek: config.deepseek, qwen: config.qwen, llmMode: config.llmMode || 'deepseek' });
 const ttsService = new EdgeTtsService({
   voiceDir: path.join(DATA_DIR, 'voice'),
   defaultVoice: config.tts.voice,
@@ -427,6 +427,8 @@ const STARTED_AT = Date.now();
       const troops = f ? (Number(f.guards) || 0) + (Number(f.militia) || 0) + (Number(f.army) || 0) : 0;
       return sendJson(res, 200, {
         ok: true,
+        version: Number(world.version) || 1,
+        party: isHusband ? { members: Array.isArray(world.party?.husband) ? world.party.husband : [] } : { leading: (world.party?.husband || []).includes(actorId) ? 'husband' : null },
         self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
         date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
         assets: {
@@ -519,6 +521,53 @@ const STARTED_AT = Date.now();
     }
   }
 
+
+    // 9.9b 大模型通道连通性与测速 (GET/POST /api/admin/llm/test 或 /api/llm/test，免token直测)
+    if ((pathname === '/api/admin/llm/test' || pathname === '/api/llm/test') && (req.method === 'GET' || req.method === 'POST')) {
+      try {
+        let testMode = url.searchParams.get('mode') || '';
+        let customDeepseek = null;
+        let customQwen = null;
+        let customMessages = null;
+        if (req.method === 'POST') {
+          try {
+            const body = await parseJsonBody(req, 16 * 1024);
+            if (body.mode) testMode = body.mode;
+            if (body.deepseek) customDeepseek = body.deepseek;
+            if (body.qwen) customQwen = body.qwen;
+            if (Array.isArray(body.messages)) customMessages = body.messages;
+          } catch (_) {}
+        }
+
+        const t0 = Date.now();
+        let clientToUse = petService.llmClient;
+        if (customDeepseek || customQwen || testMode) {
+          clientToUse = new LlmClient({
+            deepseek: customDeepseek || config.deepseek,
+            qwen: customQwen || config.qwen,
+            llmMode: testMode || config.llmMode || 'deepseek',
+            proxy: config.gemini?.proxy,
+            useProxy: config.gemini?.useProxy,
+          });
+        }
+
+        const llmResult = await clientToUse.complete({
+          messages: customMessages || [{ role: 'user', content: '相公下令，速速娇羞回答四个字！' }],
+          maxTokens: 30,
+        });
+
+        return sendJson(res, 200, {
+          ok: true,
+          channel: llmResult.channel,
+          model: llmResult.model,
+          llmMode: llmResult.llmMode,
+          elapsedMs: Date.now() - t0,
+          reply: llmResult.text,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
 
     // 9.25 把成员绑定到世界人物 POST /api/admin/bind {member, actor}
     if (req.method === 'POST' && pathname === '/api/admin/bind') {
@@ -671,10 +720,21 @@ const STARTED_AT = Date.now();
       return sendJson(res, 200, { ok: true, logs: lines });
     }
 
-    // 7. 读取系统配置与视觉代理设置 GET /api/admin/config
+    // 7. 读取系统配置与视觉/模型设置 GET /api/admin/config
     if (req.method === 'GET' && pathname === '/api/admin/config') {
       return sendJson(res, 200, {
         ok: true,
+        llmMode: config.llmMode || 'auto',
+        deepseek: {
+          apiKey: config.deepseek?.apiKey || '',
+          baseUrl: config.deepseek?.baseUrl || 'https://api.deepseek.com/v1',
+          model: config.deepseek?.model || 'deepseek-chat',
+        },
+        qwen: {
+          apiKey: config.qwen?.apiKey || 'sk-ws-H.YLYIHYI.H9tm.MEUCIQDs397_NkoVhAW6M1g8T0iNRkKMpuIdCQEWQBcvbUZDEAIgLegR5m4SrL7vNmRI4RxrcSvFB1RWTvCq13eyEw3U1o8',
+          baseUrl: config.qwen?.baseUrl || 'https://ws-5ov9z4mrw5xcq2fp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+          model: config.qwen?.model || 'qwen-plus',
+        },
         gemini: {
           enabled: config.gemini?.enabled !== false,
           apiKey: config.gemini?.apiKey || '',
@@ -685,29 +745,63 @@ const STARTED_AT = Date.now();
       });
     }
 
-    // 8. 保存系统配置与视觉代理设置 POST /api/admin/config/save
+    // 8. 保存系统配置与视觉/模型设置 POST /api/admin/config/save
     if (req.method === 'POST' && pathname === '/api/admin/config/save') {
       try {
         const body = await parseJsonBody(req);
-        if (!config.gemini) config.gemini = {};
+        let updated = false;
+
+        // 大模型通道模式与配置
+        if (body.llmMode) {
+          config.llmMode = String(body.llmMode).trim();
+          updated = true;
+        }
+        if (body.deepseek && typeof body.deepseek === 'object') {
+          if (!config.deepseek) config.deepseek = {};
+          if (body.deepseek.apiKey !== undefined) config.deepseek.apiKey = String(body.deepseek.apiKey).trim();
+          if (body.deepseek.baseUrl !== undefined) config.deepseek.baseUrl = String(body.deepseek.baseUrl).trim();
+          if (body.deepseek.model !== undefined) config.deepseek.model = String(body.deepseek.model).trim();
+          updated = true;
+        }
+        if (body.qwen && typeof body.qwen === 'object') {
+          if (!config.qwen) config.qwen = {};
+          if (body.qwen.apiKey !== undefined) config.qwen.apiKey = String(body.qwen.apiKey).trim();
+          if (body.qwen.baseUrl !== undefined) config.qwen.baseUrl = String(body.qwen.baseUrl).trim();
+          if (body.qwen.model !== undefined) config.qwen.model = String(body.qwen.model).trim();
+          updated = true;
+        }
+
+        // 视觉与代理配置
         if (body.gemini && typeof body.gemini === 'object') {
+          if (!config.gemini) config.gemini = {};
           config.gemini.enabled = body.gemini.enabled !== false;
           config.gemini.proxy = String(body.gemini.proxy || '').trim();
           config.gemini.useProxy = Boolean(body.gemini.useProxy);
           if (body.gemini.model) config.gemini.model = body.gemini.model;
           if (body.gemini.apiKey) config.gemini.apiKey = body.gemini.apiKey;
 
-          // 动态热重载到正在运行的 visionService 实例
           visionService.proxy = config.gemini.proxy;
           visionService.useProxy = config.gemini.useProxy;
           visionService.enabled = config.gemini.enabled;
           visionService.model = config.gemini.model;
           if (config.gemini.apiKey) visionService.apiKey = config.gemini.apiKey;
           visionService.detectedProxy = null;
-
-          fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
-          console.log(`[Admin] 🌐 视觉与代理配置已更新: useProxy=${visionService.useProxy}, proxy="${visionService.proxy}", model="${visionService.model}"`);
+          updated = true;
         }
+
+        if (updated) {
+          // 热更新大模型调度器
+          if (petService && petService.llmClient) {
+            petService.llmClient.updateConfig({
+              deepseek: config.deepseek,
+              qwen: config.qwen,
+              llmMode: config.llmMode || 'auto',
+            });
+            console.log('[Admin] 🧠 大模型通道已热重载: 模式=' + (config.llmMode || 'auto') + ', DeepSeek=' + (config.deepseek?.apiKey ? '已配置' : '未配置') + ', 通义=' + (config.qwen?.apiKey ? '已配置' : '未配置'));
+          }
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+        }
+
         return sendJson(res, 200, { ok: true, message: '配置已成功保存并即时热重载生效！' });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
@@ -1604,6 +1698,8 @@ const STARTED_AT = Date.now();
       }
     }
 
+
+
     // 9.9 提示词体检 GET /api/admin/prompt（看天道到底收到了什么）
     if (req.method === 'GET' && pathname === '/api/admin/prompt') {
       try {
@@ -1651,6 +1747,68 @@ const STARTED_AT = Date.now();
         // 成本：看缓存命中率，而不是只看字数
         const usage = world.flags?.aiUsage || null;
         const hitRate = usage && usage.prompt > 0 ? Math.round((usage.hit / usage.prompt) * 100) : null;
+
+        // 妻妾名分与家宅谱系
+        const marriagesList = Array.isArray(world.marriages) ? [...world.marriages] : [];
+        const knownMarriages = new Set(marriagesList.map((m) => m.who));
+        if (!knownMarriages.has('waner') && world.actors?.waner) {
+          marriagesList.unshift({
+            who: 'waner',
+            name: world.actors.waner.name || '沈婉儿',
+            rank: '正妻·大娘子',
+            dowry: 0,
+            day: 1,
+          });
+          knownMarriages.add('waner');
+        }
+        if (!knownMarriages.has('yunniang') && world.actors?.yunniang) {
+          marriagesList.push({
+            who: 'yunniang',
+            name: world.actors.yunniang.name || '林芸娘',
+            rank: world.actors.yunniang.role || '二房如夫人',
+            dowry: 0,
+            day: 1,
+          });
+          knownMarriages.add('yunniang');
+        }
+        const marriages = marriagesList.map((m) => {
+          const a = world.actors?.[m.who] || {};
+          return {
+            id: m.id || m.who,
+            who: m.who,
+            name: m.name || a.name,
+            rank: m.rank || a.role || '如夫人',
+            location: a.location || 'backyard',
+            placeName: world.places?.[a.location]?.name || '后院暖阁',
+            pregnancy: a.pregnancy || null,
+            pregnancyMonth: a.pregnancy && !a.pregnancy.born ? Math.floor((a.pregnancy.days || 0) / 30) : null,
+            children: a.children || [],
+            intimacy: a.intimacy || null,
+            day: m.day || 1,
+          };
+        });
+
+        // 派系
+        const factions = world.factions || {
+          yamen: { name: '临江府衙', relation: 0, power: 45 },
+          court: { name: '朝廷权贵', relation: -10, power: 90 },
+        };
+
+        // 粮草与物价
+        const grainPrice = Number(world.cities?.linjiang?.price || 100);
+        const grainStock = Math.round(Number(world.court?.treasury?.grain) || 0);
+        const grain = { price: grainPrice, stock: grainStock };
+
+        // 一句话概览
+        const hus = world.actors?.husband;
+        const husLocName = world.places?.[hus?.location]?.name || '临江茶坊';
+        const silverVal = Number(world.assets?.silver || 0).toFixed(1);
+        const propList = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+        const dailyInc = propList.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0).toFixed(1);
+        const digest = `大明江南 · 第${world.clock?.day || 1}日${shichenOf(world.clock?.hour ?? 8)}（${world.clock?.hour ?? 8}时），相公身在【${husLocName}】，现存白银 ${silverVal} 两，产业日入 ${dailyInc} 两。`;
+
+        // 今日晨报
+        const morningReport = world.flags?.lastMorningReport || (typeof buildMorningReport === 'function' ? buildMorningReport(world) : '');
 
         return sendJson(res, 200, {
           ok: true,
@@ -1779,6 +1937,11 @@ const STARTED_AT = Date.now();
             ).slice(-12);
           })(),
           summary: buildStateSummary(DATA_DIR),
+          marriages,
+          factions,
+          grain,
+          digest,
+          morningReport,
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });

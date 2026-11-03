@@ -108,24 +108,45 @@ function advancePregnancies(world, events) {
       pg.born = true;
       world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
       const id = `npc_${world.flags.npcSeq}`;
-      // 性别 50/50 真随机；孩子随父姓（王家）
       const boy = Math.random() < 0.5;
       const GIVEN_BOY = ['承宗', '景行', '念祖', '守拙', '明远', '亦安'];
       const GIVEN_GIRL = ['念慈', '柔嘉', '清婉', '静姝', '如珍', '亦宁'];
       const pool = boy ? GIVEN_BOY : GIVEN_GIRL;
       const given = pool[Math.floor(Math.random() * pool.length)];
-      const babyName = `王${given}`;
+
+      // 判定母亲是否王宅内眷（沈婉儿、林芸娘、小翠等）
+      const isWangHousehold = Boolean(a.household) || ['husband_room', 'backyard', 'tea_house'].includes(a.home);
+      let surname = '王';
+      let socialFather = 'husband';
+      let socialFatherName = '相公王甯';
+
+      if (!isWangHousehold) {
+        // 查母亲的合法丈夫（如紫嫣/刘文霞配偶为于子归/yujie）
+        const spouseId = a.spouse || (a.id === 'liuwenxia' ? 'yujie' : null);
+        const spouse = spouseId ? world.actors?.[spouseId] : null;
+        if (spouse) {
+          socialFather = spouse.id;
+          socialFatherName = spouse.name;
+          surname = spouse.name ? spouse.name[0] : '于';
+        } else {
+          surname = a.name ? a.name[0] : '王';
+        }
+      }
+
+      const babyName = `${surname}${given}`;
       world.actors[id] = {
         id,
         name: babyName,
         role: `${a.name}${boy ? '所生之子' : '所生之女'}`,
         gender: boy ? 'male' : 'female',
         origin: 'spawned',
-        household: Boolean(a.household),
+        household: isWangHousehold,
         home: a.home || a.location,
         location: a.location,
         bornDay: world.clock.day,
         goals: ['长大成人'],
+        fatherSocial: socialFather,
+        fatherBlood: pg.father || 'husband',
         relations: { husband: { trust: 50, desire: 0, fear: 0, grievance: 0 } },
         schedule: [],
       };
@@ -140,21 +161,80 @@ function advancePregnancies(world, events) {
         }),
       );
       world.memories = Array.isArray(world.memories) ? world.memories : [];
-      world.memories.push({
-        text: `第${world.clock.day}日，${a.name}为相公诞下${boy ? '一子' : '一女'}，取名${babyName}`,
-        day: world.clock.day,
-        at: Date.now(),
-      });
+      if (isWangHousehold) {
+        world.memories.push({
+          text: `第${world.clock.day}日，${a.name}为王家诞下${boy ? '一子' : '一女'}，取名${babyName}，入王家族谱`,
+          day: world.clock.day,
+          at: Date.now(),
+          about: [a.id, 'husband', id],
+          visible: 'public',
+        });
+      } else {
+        // 社会明面：归夫家
+        world.memories.push({
+          text: `第${world.clock.day}日，${a.name}为${socialFatherName}诞下${boy ? '一子' : '一女'}，取名${babyName}，随夫姓归于家`,
+          day: world.clock.day,
+          at: Date.now(),
+          about: [a.id, socialFather, id],
+          visible: 'public',
+        });
+        // 天道暗面：相公血脉
+        world.memories.push({
+          text: `第${world.clock.day}日，${a.name}所诞${babyName}（归${socialFatherName}名下），实为相公暗中骨血`,
+          day: world.clock.day,
+          at: Date.now(),
+          about: [a.id, 'husband', id],
+          visible: 'private',
+        });
+      }
       if (world.memories.length > 120) world.memories = world.memories.slice(-120);
-      console.log(`[World] ${a.name}临盆，孩子入世：${babyName}（${boy ? '子' : '女'}）`);
+      console.log(`[World] ${a.name}临盆，孩子入世：${babyName}（${boy ? '子' : '女'}，社会父亲:${socialFatherName}，暗父:相公）`);
     }
   }
 }
 
-/**
- * 地方经济与税收：物价浮动、天灾、抽税、民心
- * 税高→民心散→民变；税低→民心归→但收入少。这就是"王朝好坏"的根。
- */
+export function buildMorningReport(world) {
+  const day = world.clock?.day || 1;
+  // ⑦ 优先从真实流言/事件提取风闻
+  let gossip = '';
+  if (Array.isArray(world.rumors) && world.rumors.length > 0) {
+    const freshRumor = world.rumors.slice().reverse().find(r => r && (r.text || r.title));
+    if (freshRumor) gossip = freshRumor.text || freshRumor.title;
+  }
+  if (!gossip) {
+    gossip = dailyGossip(day);
+  }
+
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+  let incomeTotal = 0;
+  for (const p of props) {
+    if (p.owner === 'husband' || p.keeper === 'husband') {
+      incomeTotal += Number(p.incomePerDay || 0);
+    }
+  }
+  incomeTotal = Math.round(incomeTotal * 100) / 100;
+
+  // 身孕喜讯汇报
+  const pregs = Object.values(world.actors || {}).filter((a) => a?.pregnancy && !a.pregnancy.born);
+  let pregText = '';
+  if (pregs.length > 0) {
+    pregText = `，后院${pregs.map(a => `${a.name}娘子已有喜${Math.floor((a.pregnancy.days || 0) / 30)}个月`).join('、')}`;
+  }
+
+  // ⑧ 婉儿早膳动态：婉儿在府且无怨怼才备早膳，否则不假借其名
+  const waner = world.actors?.waner;
+  const wanerGrievance = Number(waner?.relations?.husband?.grievance || 0);
+  const wanerInHome = ['husband_room', 'backyard', 'tea_house'].includes(waner?.location);
+  let wifeAction = '伙计已备下洗漱热水，请相公梳洗！';
+  if (wanerInHome && wanerGrievance < 20) {
+    wifeAction = '正房大娘子已吩咐备下早膳，请相公洗漱！';
+  } else if (wanerInHome) {
+    wifeAction = '大娘子正在书斋核账，吩咐备了清粥小菜，请相公洗漱。';
+  }
+
+  return `相公早！阿吉给相公请安！昨儿咱们运河大酒楼与茶坊老店流水共进账 ${incomeTotal} 两白银${pregText}；城里风闻说：${gossip}；${wifeAction}`;
+}
+
 function runLocalEconomy(world, events) {
   const day = world.clock?.day ?? 1;
   const season = world.clock?.season || 'spring';
@@ -1361,20 +1441,22 @@ function advanceHour(world, events, nowMs) {
 
   // 每日辰时开市：阿吉报送市井风闻（世界不必等午夜才有动静）
   if (world.clock.hour === GOSSIP_HOUR) {
-    events.push(
-      nextEvent(world, {
-        action: 'gossip',
-        place: 'street',
-        payload: { text: dailyGossip(world.clock.day) },
-        isPublic: true,
-      }),
-    );
-    queueProactive(world, {
-      reason: 'gossip',
-      facts: { gossip: dailyGossip(world.clock.day) },
-      fallback: `相公，阿吉方才从外头回来，说：${dailyGossip(world.clock.day)}。`,
-      type: 'proactive',
-    });
+      const reportText = buildMorningReport(world);
+      events.push(
+        nextEvent(world, {
+          action: 'morning_report',
+          place: 'tea_house',
+          payload: { text: reportText },
+          isPublic: true,
+        }),
+      );
+      queueProactive(world, {
+        reason: 'morning_report',
+        facts: { report: reportText },
+        fallback: reportText,
+        type: 'proactive',
+        force: true,
+      });
   }
 
   // 未时（14 点）：手里没事、也没有约在身 → 世界主动递一件要你决断的事，免得无事可做

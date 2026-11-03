@@ -67,8 +67,12 @@ function resolveActor(world, who) {
 function resolvePlace(world, to) {
   if (!to) return null;
   const raw = String(to).trim();
-  const alias = { 我房间: 'husband_room', 我的房间: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room', 房里: 'husband_room', 我房里: 'husband_room' };
-  const key = alias[raw] && world.places?.[alias[raw]] ? alias[raw] : raw;
+  const alias = {
+    我房间: 'husband_room', 我的房间: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room', 房里: 'husband_room', 我房里: 'husband_room',
+    clinic: '医馆', 药铺: '医馆', 药堂: '医馆', 医馆: '医馆',
+    workshop: '匠作坊', school: '学堂', dock: 'dock', granary: '粮仓', inn: 'inn',
+  };
+  const key = alias[raw] && world.places?.[alias[raw]] ? alias[raw] : (alias[raw] || raw);
   if (world.places?.[key]) return key;
   for (const [id, p] of Object.entries(world.places || {})) {
     if (p?.name && (p.name.includes(key) || key.includes(p.name))) return id;
@@ -203,20 +207,13 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
             { re: /吏|书办|差役|衙役/, suffix: '书办' },
           ];
           let nm = String(args.name || '').trim();
-          const bad = /[啥什谁哪怎吗呢吧啊哦呀]|什么|怎么|干嘛|这个|那个|一个|一下|收拾|拾掇/;
-          const verbHead = /^(收拾|拾掇|打量|伺候|回话|禀报|应声|起身|退下|领着|跟着|出来|进去|过来|上来|去|来|说|做)/;
+          const bad = /[啥什谁哪怎吗呢吧啊哦呀]|什么|怎么|干嘛|这个|那个|一个|一下|收拾|拾掇|妾身|奴婢|相公|娘子|大娘子|老奴|小人|贫道|我们|你们|他们|自己/;
+          const verbHead = /^(收拾|拾掇|打量|伺候|回话|禀报|应声|起身|退下|领着|跟着|出来|进去|过来|上来|去|来|说|做|想|看)/;
           const looksLikeName = nm && nm.length >= 2 && nm.length <= 3 && !bad.test(nm) && !verbHead.test(nm) && SURNAMES.includes(nm[0]);
           if (!looksLikeName) {
-            const role = String(args.role || '城中人');
-            const hit = ROLE_SUFFIX.find((x) => x.re.test(role));
-            const sn = SURNAMES[Math.floor(Math.random() * SURNAMES.length)];
-            const givenPool = ['大', '二', '三', '福', '安', '喜', '顺', '春'];
-            const tail = hit ? (Array.isArray(hit.given) ? hit.given[Math.floor(Math.random() * hit.given.length)] : hit.suffix) : givenPool[Math.floor(Math.random() * givenPool.length)];
-            const fixed = `${sn}${tail}`;
-            console.log(`[Spawn] 名字不规范「${nm}」→ 按身份改名「${fixed}」（${role}）`);
-            applied.push(`改名:${nm || '(空)'}→${fixed}`);
-            args.name = fixed;
-            nm = fixed;
+            // 严禁胡乱造人：名字不规范或包含代词自称，直接放弃，绝不再随机拼姓造假人
+            applied.push(`忽略非人名造人:「${nm}」`);
+            continue;
           }
         }
         let name = String(args.name || '').trim();
@@ -309,21 +306,71 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         }
         let place = resolvePlace(world, args.to);
         if (!place && args.to) {
-          // 天道叙事里出现了账本没有的去处 → 就地建一个，
-          // 避免「故事在酒肆、账本还写着茶坊」的错位
-          world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
-          place = `place_${world.flags.placeSeq}`;
-          const fromPlace = world.actors[id]?.location;
-          world.places[place] = {
-            name: String(args.to).slice(0, 20),
-            exits: fromPlace ? [fromPlace] : [],
-            owner: id === 'husband' ? 'husband' : 'public',
-            dynamic: true,
+          let toName = String(args.to).trim();
+          const EN_MAP = {
+            clinic: '医馆',
+            workshop: '匠作坊',
+            school: '学堂',
+            dock: '运河码头',
+            granary: '常平仓',
+            roads: '官道',
+            inn: '临江客栈',
           };
+          if (EN_MAP[toName]) toName = EN_MAP[toName];
+          else if (/^[a-zA-Z_-]+$/.test(toName)) toName = '长街';
+
+          // 再次尝试从现有地点找
+          const matched = Object.entries(world.places || {}).find(([, pl]) => pl?.name && (pl.name.includes(toName) || toName.includes(pl.name)));
+          if (matched) {
+            place = matched[0];
+          } else {
+            world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+            place = `place_${world.flags.placeSeq}`;
+            const fromPlace = world.actors[id]?.location;
+            world.places[place] = {
+              name: toName.slice(0, 20),
+              exits: fromPlace ? [fromPlace] : ['street'],
+              owner: id === 'husband' ? 'husband' : 'public',
+              dynamic: true,
+            };
+          }
         }
         if (!place) continue;
         world.actors[id].location = place;
         applied.push(`移动:${world.actors[id].name}→${world.places[place]?.name || place}`);
+      } else if (kind === 'companion_consent') {
+        const whoId = resolveActor(world, args.who);
+        const consent = String(args.consent || '').toLowerCase() === 'yes';
+        const reason = String(args.reason || '');
+        if (whoId && world.actors[whoId]) {
+          const cActor = world.actors[whoId];
+          const hus = world.actors.husband;
+          if (consent && hus?.location) {
+            cActor.location = hus.location;
+            applied.push(`同行应允:${cActor.name}随相公移步至${world.places?.[hus.location]?.name || hus.location}`);
+            console.log(`[Party] 同行名单：${hus.name || '相公'} + ${cActor.name}`);
+            console.log(`[Move] ${hus.name || '相公'} → ${world.places?.[hus.location]?.name || hus.location} (同行: ${cActor.name})`);
+          } else {
+            applied.push(`同行推脱:${cActor.name}留在原地（理由:${reason || '有事'}）`);
+            console.log(`[Party] 同行名单：${hus?.name || '相公'} (${cActor.name}婉拒留在原地)`);
+            console.log(`[Move] ${hus?.name || '相公'} → ${world.places?.[hus?.location]?.name || hus?.location} (同行: 独自一人)`);
+          }
+        }
+      } else if (kind === 'invite') {
+        const whoId = resolveActor(world, args.who || opts?.selfId);
+        const target = String(args.target || args.place || '').trim();
+        if (whoId && target) {
+          world.pendingInvitation = {
+            from: whoId,
+            to: 'husband',
+            target,
+            day: world.clock?.day || 1,
+            hour: world.clock?.hour || 12,
+            createdAt: Date.now(),
+          };
+          applied.push(`发起邀约:${world.actors[whoId]?.name || whoId}相邀前往【${target}】`);
+          console.log(`[Invite] 伴侣【${world.actors[whoId]?.name || whoId}】挂起待确认邀约: 前往【${target}】`);
+        }
       } else if (kind === 'arrive') {
         // 被派去请的人到场：由天道点名，引擎只负责按时送达
         const id = resolveActor(world, args.who);
@@ -383,6 +430,47 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.clues.push({ text: text.slice(0, 80), day: world.clock.day, source: String(args.source || '').slice(0, 20), owner: String(args.who || selfId || 'husband') });
         if (world.clues.length > 60) world.clues = world.clues.slice(-60);
         applied.push(`线索:${text.slice(0, 14)}`);
+      } else if (kind === 'marriage') {
+        // 🌟 纳妾 / 迎娶 / 晋升名分：天道裁决达成共识后的真实契约落地
+        const whoId = resolveActor(world, args.who);
+        const actor = whoId ? world.actors[whoId] : null;
+        if (actor) {
+          const rank = String(args.rank || '三房如夫人').trim();
+          const dowry = Number(args.dowry) || 0;
+          if (dowry > 0) {
+            world.assets = world.assets || { silver: 0 };
+            const currentSilver = Number(world.assets.silver) || 0;
+            const actualDowry = Math.min(currentSilver, dowry);
+            world.assets.silver = round2(currentSilver - actualDowry);
+          }
+          actor.household = true;
+          actor.role = rank;
+          actor.home = 'backyard';
+          if (!world.marriages) world.marriages = [];
+          world.marriages.push({
+            id: `m_${Date.now()}`,
+            who: whoId,
+            name: actor.name,
+            rank,
+            day: world.clock?.day || 1,
+            dowry,
+          });
+          world.milestones = Array.isArray(world.milestones) ? world.milestones : [];
+          const mText = `【大婚迎纳${actor.name}】：相公明礼迎纳${actor.name}为${rank}，正式进门同住后院暖阁，内宅和睦添喜。`;
+          if (!world.milestones.includes(mText)) {
+            world.milestones.push(mText);
+          }
+          world.memories = Array.isArray(world.memories) ? world.memories : [];
+          world.memories.push({
+            text: `相公与大娘子婉儿商定，正式迎纳${actor.name}为${rank}，进门奉茶`,
+            day: world.clock?.day || 1,
+            at: Date.now(),
+            about: [whoId, 'waner'],
+            visible: 'public',
+          });
+          applied.push(`大婚迎纳:${actor.name} 为【${rank}】`);
+          console.log(`[Marriage] 喜报！${actor.name} 正式进门册封为【${rank}】！`);
+        }
       } else if (kind === 'pregnant') {
         // 有孕：由天道判定，落进账本后就按月推进，不会聊完就没
         const id = resolveActor(world, args.who);

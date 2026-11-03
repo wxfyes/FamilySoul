@@ -76,21 +76,25 @@ export class VisionGeminiService {
     }
     const startTime = Date.now();
     try {
-      const respData = await this._requestViaProxy({
+      const res = await this._requestViaProxy({
         proxyUrl: targetProxy,
         targetHost: 'generativelanguage.googleapis.com',
-        path: `/v1beta/models?key=${encodeURIComponent(this.apiKey)}`,
+        path: `/v1beta/models?key=${encodeURIComponent(this.apiKey || 'test')}`,
         method: 'GET',
         headers: {},
         body: '',
-        timeoutMs: 5000,
+        timeoutMs: 6000,
       });
       const latencyMs = Date.now() - startTime;
-      const parsed = JSON.parse(respData);
-      if (parsed.models || parsed.name) {
-        return { ok: true, latencyMs, message: `代理握手成功！Google 官方响应延迟: ${latencyMs}ms` };
+      const status = typeof res === 'object' && res.statusCode ? res.statusCode : 200;
+
+      if (status === 200) {
+        return { ok: true, latencyMs, message: `⚡ 代理握手成功！成功直达 Google 官方服务器（延迟: ${latencyMs}ms），API 密钥完全有效！` };
       }
-      return { ok: false, error: parsed.error?.message || 'Google 接口响应异常' };
+      if (status === 400 || status === 403) {
+        return { ok: true, latencyMs, message: `⚡ 代理链路 100% 畅通！（已成功直达 Google 官方服务器，延迟: ${latencyMs}ms）。下方填入正式 Gemini API 密钥即可！` };
+      }
+      return { ok: true, latencyMs, message: `⚡ 代理握手成功！Google 官方服务器响应状态: ${status}（延迟: ${latencyMs}ms）` };
     } catch (err) {
       return { ok: false, error: `代理连接失败: ${err.message}。请检查局域网 IP 与端口，并确认代理软件已勾选【允许来自局域网的连接】。` };
     }
@@ -356,7 +360,7 @@ export class VisionGeminiService {
               if (finished) return;
               finished = true;
               clearTimeout(timer);
-              if (tlsRes.statusCode === 200) resolve(respData);
+              if (tlsRes.statusCode === 200 || tlsRes.statusCode === 400 || tlsRes.statusCode === 403) resolve({ respData, statusCode: tlsRes.statusCode });
               else reject(new Error(`Google API status: ${tlsRes.statusCode}`));
             });
           }

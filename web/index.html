@@ -683,7 +683,7 @@
       <button class="tab-btn" onclick="switchTab('family')">🛡️ 家庭通行证</button>
       <button class="tab-btn" onclick="switchTab('sandbox')">💬 私密试炼</button>
       <button class="tab-btn" onclick="switchTab('logs')">📜 黑匣子日志</button>
-      <button class="tab-btn" onclick="switchTab('settings')">🌐 视觉与代理</button>
+      <button class="tab-btn" onclick="switchTab('settings')">⚙️ 脑中枢与网络设置</button>
       <button class="tab-btn" onclick="openDashboard()" title="世界状态 / 人物数值 / 花费 / 体检">📊 世界看板</button>
     </nav>
 
@@ -805,6 +805,132 @@
 
     <!-- 5. 视觉与网络代理设置 Tab -->
     <section id="tab-settings" class="tab-panel">
+      <!-- 1. 大模型对话大脑中枢 · 双通道容灾调度台 -->
+      <div class="card" style="max-width: 860px; margin: 0 auto 24px auto;">
+        <div class="sidebar-header" style="margin-bottom: 20px;">
+          <div>
+            <span class="section-title">🧠 大模型对话大脑中枢 · 智能多通道调度台</span>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
+              ⚡ <strong>高可用双通道热备</strong>：支持 <strong>DeepSeek 官方</strong> 与 <strong>阿里通义千问（百炼）</strong> 双通道无缝容灾。晚高峰 DeepSeek 发生 503 拥堵时秒级自愈！可在下方直接修改保存 API Key 与模式，即刻热重载，无需到后台修改配置文件。
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- 运行模式选择卡片组 -->
+          <div>
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--text-muted);">
+              🎯 对话与推演调度模式（点击即选）：
+            </label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;" id="llmModeGroup">
+              <!-- 自适应容灾 -->
+              <div class="mode-card active" data-mode="auto" onclick="selectLlmMode('auto')" style="padding: 14px 16px; border-radius: var(--radius-md); border: 2px solid var(--primary); background: rgba(139, 92, 246, 0.12); cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-weight: 700; font-size: 14px; color: #fff;">⚡ 自适应智能容灾</span>
+                  <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10B981; font-size: 11px; padding: 2px 6px; border-radius: 4px;">推荐</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+                  默认优先 DeepSeek 官方通道。遇到 503 拥堵/超时自动秒切阿里通义千问，故障时互为后备。
+                </div>
+              </div>
+
+              <!-- 强制锁定 DeepSeek -->
+              <div class="mode-card" data-mode="deepseek" onclick="selectLlmMode('deepseek')" style="padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: rgba(255, 255, 255, 0.02); cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-weight: 700; font-size: 14px; color: #93C5FD;">🔵 强制锁定 DeepSeek</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+                  固定仅走 DeepSeek 官方原生通道，不调用阿里通义千问备用。
+                </div>
+              </div>
+
+              <!-- 强制锁定 阿里通义千问 -->
+              <div class="mode-card" data-mode="qwen" onclick="selectLlmMode('qwen')" style="padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: rgba(255, 255, 255, 0.02); cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-weight: 700; font-size: 14px; color: #F472B6;">🟣 强制锁定 备用/自定义通道</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+                  固定走右侧配置的备用/第三方通道（Groq / 硅基流动 / 阿里通义 / 中转等），支持标准 OpenAI 格式。
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="settingLlmMode" value="auto">
+          </div>
+
+          <!-- 双通道参数配置栅格 -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+            <!-- DeepSeek 配置块 -->
+            <div style="padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span style="font-weight: 600; font-size: 14px; color: #93C5FD;">🔹 DeepSeek 官方通道配置</span>
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(59, 130, 246, 0.15); color: #60A5FA;">主脑通道</span>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 4px; color: var(--text-muted);">API Key (密钥)</label>
+                <input type="text" id="settingDsKey" placeholder="sk-..." style="width: 100%; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 12px;">
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 4px; color: var(--text-muted);">Base URL (接口地址)</label>
+                <input type="text" id="settingDsUrl" placeholder="https://api.deepseek.com/v1" style="width: 100%; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 12px;">
+              </div>
+
+              <div>
+                <label style="display: block; font-size: 12px; margin-bottom: 4px; color: var(--text-muted);">Model (模型名称)</label>
+                <input type="text" id="settingDsModel" placeholder="deepseek-chat" style="width: 100%; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 12px;">
+              </div>
+            </div>
+
+            <!-- 阿里通义千问 配置块 -->
+            <div style="padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span style="font-weight: 600; font-size: 14px; color: #F472B6;">🔸 备用 / 自定义高速通道配置</span>
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(236, 72, 153, 0.15); color: #F472B6;">支持 Groq / 硅基流动 / 任意 OpenAI 兼容模型</span>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 4px; color: var(--text-muted);">API Key (密钥，如 gsk_... / sk-...)</label>
+                <input type="text" id="settingQwenKey" value="sk-ws-H.YLYIHYI.H9tm.MEUCIQDs397_NkoVhAW6M1g8T0iNRkKMpuIdCQEWQBcvbUZDEAIgLegR5m4SrL7vNmRI4RxrcSvFB1RWTvCq13eyEw3U1o8" placeholder="sk-ws-..." style="width: 100%; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 12px;">
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 4px; color: var(--text-muted);">Base URL (接口地址，如 https://api.groq.com/openai/v1 或硅基流动)</label>
+                <input type="text" id="settingQwenUrl" placeholder="https://ws-5ov9z4mrw5xcq2fp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" style="width: 100%; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 12px;">
+              </div>
+
+              <div>
+                <label style="display: block; font-size: 12px; margin-bottom: 4px; color: var(--text-muted);">Model (模型名称)</label>
+                <input type="text" id="settingQwenModel" placeholder="qwen-plus" style="width: 100%; padding: 8px 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: #fff; font-family: var(--font-mono); font-size: 12px;">
+              </div>
+            </div>
+          </div>
+
+          <!-- 保存与体检操作栏 -->
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary" id="btnTestLlm" onclick="testLlmChannel()">🚀 一键连通性与测速体检</button>
+            </div>
+            <button class="btn btn-primary" id="btnSaveLlm" onclick="saveLlmSettings()">💾 保存通道配置并即刻热重载</button>
+          </div>
+
+          <!-- 测速结果实时面板 -->
+          <div id="llmTestResult" style="display: none; padding: 14px 16px; border-radius: var(--radius-md); background: rgba(19, 23, 36, 0.9); border: 1px solid var(--border-subtle);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="testStatusDot" style="width: 10px; height: 10px; border-radius: 50%; background: #10B981;"></span>
+                <span id="testChannelBadge" style="font-weight: 700; font-size: 13px; color: #fff;">-</span>
+                <span id="testModelBadge" style="font-size: 12px; color: var(--text-dim); font-family: var(--font-mono);">-</span>
+              </div>
+              <span id="testElapsedBadge" style="font-size: 12px; color: #F59E0B; font-weight: 600;">- ms</span>
+            </div>
+            <div id="testReplyBox" style="font-size: 13px; color: var(--text-main); background: rgba(0,0,0,0.25); padding: 10px 12px; border-radius: var(--radius-sm); border-left: 3px solid var(--primary); font-style: italic;">
+              测试输出对白...
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="card" style="max-width: 860px; margin: 0 auto;">
         <div class="sidebar-header" style="margin-bottom: 20px;">
           <div>
@@ -930,6 +1056,7 @@
         fetchLogs();
         if (!logAutoInterval) logAutoInterval = setInterval(fetchLogs, 3000);
       } else if (tabId === 'settings') {
+        loadLlmConfig();
         loadGeminiConfig();
         if (logAutoInterval) {
           clearInterval(logAutoInterval);
@@ -1405,6 +1532,146 @@
       }
     }
 
+    
+    // ── 大模型通道调度逻辑 ──────────────────────────────
+    function selectLlmMode(mode) {
+      const modeInput = document.getElementById('settingLlmMode');
+      if (modeInput) modeInput.value = mode;
+      document.querySelectorAll('#llmModeGroup .mode-card').forEach(card => {
+        if (card.getAttribute('data-mode') === mode) {
+          card.style.border = '2px solid var(--primary)';
+          card.style.background = 'rgba(139, 92, 246, 0.12)';
+        } else {
+          card.style.border = '1px solid var(--border-subtle)';
+          card.style.background = 'rgba(255, 255, 255, 0.02)';
+        }
+      });
+    }
+
+    async function loadLlmConfig() {
+      try {
+        const res = await fetch('/api/admin/config?token=' + encodeURIComponent(getStoredToken()));
+        const data = await res.json();
+        if (data.ok) {
+          const mode = data.llmMode || 'auto';
+          selectLlmMode(mode);
+          if (data.deepseek) {
+            if (document.getElementById('settingDsKey')) document.getElementById('settingDsKey').value = data.deepseek.apiKey || '';
+            if (document.getElementById('settingDsUrl')) document.getElementById('settingDsUrl').value = data.deepseek.baseUrl || 'https://api.deepseek.com/v1';
+            if (document.getElementById('settingDsModel')) document.getElementById('settingDsModel').value = data.deepseek.model || 'deepseek-chat';
+          }
+          if (data.qwen) {
+            if (document.getElementById('settingQwenKey')) document.getElementById('settingQwenKey').value = data.qwen.apiKey || 'sk-ws-H.YLYIHYI.H9tm.MEUCIQDs397_NkoVhAW6M1g8T0iNRkKMpuIdCQEWQBcvbUZDEAIgLegR5m4SrL7vNmRI4RxrcSvFB1RWTvCq13eyEw3U1o8';
+            if (document.getElementById('settingQwenUrl')) document.getElementById('settingQwenUrl').value = data.qwen.baseUrl || 'https://ws-5ov9z4mrw5xcq2fp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
+            if (document.getElementById('settingQwenModel')) document.getElementById('settingQwenModel').value = data.qwen.model || 'qwen-plus';
+          }
+        }
+      } catch (err) {
+        console.warn('加载大模型配置失败:', err);
+      }
+    }
+
+    async function saveLlmSettings() {
+      const btn = document.getElementById('btnSaveLlm');
+      try {
+        btn.disabled = true;
+        btn.innerText = '⏳ 正在热重载...';
+        const llmMode = document.getElementById('settingLlmMode').value || 'auto';
+        const deepseek = {
+          apiKey: document.getElementById('settingDsKey').value.trim(),
+          baseUrl: document.getElementById('settingDsUrl').value.trim(),
+          model: document.getElementById('settingDsModel').value.trim(),
+        };
+        const qwen = {
+          apiKey: document.getElementById('settingQwenKey').value.trim(),
+          baseUrl: document.getElementById('settingQwenUrl').value.trim(),
+          model: document.getElementById('settingQwenModel').value.trim(),
+        };
+
+        const res = await fetch('/api/admin/config/save?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ llmMode, deepseek, qwen })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast('💾 大模型通道设置已保存并即刻热重载！');
+        } else {
+          showToast('❌ 保存失败: ' + (data.error || '未知错误'));
+        }
+      } catch (err) {
+        showToast('❌ 保存异常: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '💾 保存通道配置并即刻热重载';
+      }
+    }
+
+    async function testLlmChannel() {
+      const btn = document.getElementById('btnTestLlm');
+      const box = document.getElementById('llmTestResult');
+      const dot = document.getElementById('testStatusDot');
+      const chBadge = document.getElementById('testChannelBadge');
+      const modBadge = document.getElementById('testModelBadge');
+      const elapBadge = document.getElementById('testElapsedBadge');
+      const repBox = document.getElementById('testReplyBox');
+
+      try {
+        btn.disabled = true;
+        btn.innerText = '⏳ 正在进行全链路测速...';
+        box.style.display = 'block';
+        dot.style.background = '#F59E0B';
+        chBadge.innerText = '正在呼叫通道中枢...';
+        modBadge.innerText = '';
+        elapBadge.innerText = '测速中';
+        repBox.innerText = '正在向软路由与大模型通道发起请求，请稍候...';
+
+        const mode = document.getElementById('settingLlmMode').value || 'auto';
+        const dsKey = document.getElementById('settingDsKey').value.trim();
+        const dsUrl = document.getElementById('settingDsUrl').value.trim();
+        const dsModel = document.getElementById('settingDsModel').value.trim();
+        const qwenKey = document.getElementById('settingQwenKey').value.trim();
+        const qwenUrl = document.getElementById('settingQwenUrl').value.trim();
+        const qwenModel = document.getElementById('settingQwenModel').value.trim();
+
+        const res = await fetch('/api/admin/llm/test?token=' + encodeURIComponent(getStoredToken()), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode,
+            deepseek: { apiKey: dsKey, baseUrl: dsUrl, model: dsModel },
+            qwen: { apiKey: qwenKey, baseUrl: qwenUrl, model: qwenModel },
+          })
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          dot.style.background = '#10B981';
+          chBadge.innerText = '✅ 通道响应: ' + (data.channel || '未知');
+          modBadge.innerText = '[' + (data.model || 'model') + ']';
+          elapBadge.innerText = '⚡ ' + (data.elapsedMs || 0) + ' ms';
+          repBox.innerText = '“' + (data.reply || '') + '”';
+          showToast('⚡ 测速成功！由【' + data.channel + '】在 ' + data.elapsedMs + 'ms 内响应');
+        } else {
+          dot.style.background = '#EF4444';
+          chBadge.innerText = '❌ 通道调用失败';
+          modBadge.innerText = '';
+          elapBadge.innerText = '异常';
+          repBox.innerText = '错误原因: ' + (data.error || '未知通道错误');
+          showToast('❌ 测速失败: ' + (data.error || '通道错误'));
+        }
+      } catch (err) {
+        dot.style.background = '#EF4444';
+        chBadge.innerText = '❌ 请求异常';
+        elapBadge.innerText = '失败';
+        repBox.innerText = '请求软路由发生异常: ' + err.message;
+        showToast('❌ 请求失败: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🚀 一键连通性与测速体检';
+      }
+    }
+
     // ── 视觉与代理设置逻辑 ──────────────────────────────
     function updateProxyBadge(enabled) {
       const badge = document.getElementById('settingProxyBadge');
@@ -1524,6 +1791,7 @@
       document.getElementById('adminTokenInput').value = getStoredToken();
       loadRoles();
       loadFamily();
+      loadLlmConfig();
       loadGeminiConfig();
     });
   </script>

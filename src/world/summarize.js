@@ -338,10 +338,14 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       if (powers.length) lines.push(`【天下】${powers.join('、')}`);
       // 朝中：谁坐着什么位子，哪个位子空着
       try {
-        const offs = Object.entries(world.court?.offices || {}).map(([k, o]) => {
-          const holder = o.holder ? world.actors?.[o.holder]?.name : null;
-          return `${o.title}${holder ? ':' + holder : '（空缺）'}`;
-        });
+        const coreOffices = ['宰相', '户部尚书', '兵部尚书', '江南巡抚', '临江知府', '临江府', '天子'];
+        const offs = Object.entries(world.court?.offices || {})
+          .filter(([k, o]) => coreOffices.some((co) => (o.title || '').includes(co) || k.includes(co)))
+          .slice(0, 6)
+          .map(([k, o]) => {
+            const holder = o.holder ? world.actors?.[o.holder]?.name : null;
+            return `${o.title}${holder ? ':' + holder : '（空缺）'}`;
+          });
         if (offs.length) lines.push(`【朝中】${offs.join('、')}`);
         const mnd = world.court?.mandate || {};
         if (mnd.quality) {
@@ -527,9 +531,9 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
 
     // 长期记忆：不受 14 条对话窗口限制，一直跟着她
     try {
-      const mems = Array.isArray(world.memories) ? world.memories.slice(-12) : [];
+      const mems = Array.isArray(world.memories) ? world.memories.slice(-5) : [];
       if (mems.length > 0) {
-        lines.push(`【旧事】${mems.map((m) => String(m.text || '').slice(0, 40)).join('；')}`);
+        lines.push(`【旧事】${mems.map((m) => String(m.text || '').slice(0, 36)).join('；')}`);
       }
     } catch {
       /* 忽略 */

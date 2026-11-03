@@ -1,0 +1,146 @@
+{
+  "version": 5,
+  "clock": {
+    "day": 1,
+    "hour": 10
+  },
+  "assets": {
+    "silver": 19.8
+  },
+  "actors": {
+    "husband": {
+      "id": "husband",
+      "name": "王甯",
+      "location": "street"
+    },
+    "liuwenxia": {
+      "id": "liuwenxia",
+      "name": "紫嫣",
+      "location": "wine_shop",
+      "home": "place_jiusi",
+      "relations": {
+        "husband": {
+          "trust": 80,
+          "desire": 50,
+          "grievance": 0
+        }
+      },
+      "activity": {
+        "text": "闲坐沏茶"
+      }
+    },
+    "waner": {
+      "id": "waner",
+      "name": "沈婉儿",
+      "location": "clinic",
+      "home": "husband_room",
+      "relations": {
+        "husband": {
+          "trust": 90,
+          "grievance": 0
+        }
+      }
+    },
+    "busy_npc": {
+      "id": "busy_npc",
+      "name": "小翠",
+      "location": "husband_room",
+      "relations": {
+        "husband": {
+          "trust": 50,
+          "grievance": 0
+        }
+      },
+      "activity": {
+        "text": "正核账核对流水"
+      }
+    }
+  },
+  "places": {
+    "husband_room": {
+      "id": "husband_room",
+      "name": "正房"
+    },
+    "clinic": {
+      "id": "clinic",
+      "name": "回春堂药铺"
+    },
+    "tea_stall": {
+      "id": "tea_stall",
+      "name": "城南小茶摊"
+    },
+    "inn": {
+      "id": "inn",
+      "name": "临江客栈"
+    },
+    "street": {
+      "id": "street",
+      "name": "青石板长街"
+    },
+    "wine_shop": {
+      "id": "wine_shop",
+      "name": "于家酒肆"
+    }
+  },
+  "pendingInvitation": null,
+  "appliedActions": {
+    "act_mw0sm7nm_qht64": {
+      "time": 1793716710467,
+      "verb": "MOVE",
+      "actor": "husband",
+      "event": {
+        "actionId": "act_mw0sm7nm_qht64",
+        "type": "move",
+        "actor": "王甯",
+        "from": "husband_room",
+        "to": "临江客栈",
+        "targetId": "inn",
+        "companions": [
+          "紫嫣"
+        ],
+        "timestamp": 1793716710467
+      }
+    },
+    "act_mw0sm7no_e8n7x": {
+      "time": 1793716710468,
+      "verb": "MOVE",
+      "actor": "husband",
+      "event": {
+        "actionId": "act_mw0sm7no_e8n7x",
+        "type": "move",
+        "actor": "王甯",
+        "from": "inn",
+        "to": "青石板长街",
+        "targetId": "street",
+        "companions": [
+          "紫嫣"
+        ],
+        "timestamp": 1793716710468
+      }
+    },
+    "act_mw0sm7np_vkypk": {
+      "time": 1793716710469,
+      "verb": "CHAT",
+      "actor": "husband",
+      "event": null
+    },
+    "act_mw0sm7nq_q2qmj": {
+      "time": 1793716710471,
+      "verb": "MOVE",
+      "actor": "liuwenxia",
+      "event": {
+        "actionId": "act_mw0sm7nq_q2qmj",
+        "type": "move",
+        "actor": "紫嫣",
+        "from": "street",
+        "to": "于家酒肆",
+        "targetId": "wine_shop",
+        "companions": [],
+        "timestamp": 1793716710471
+      }
+    }
+  },
+  "party": {
+    "husband": []
+  }
+}

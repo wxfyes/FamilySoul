@@ -10,8 +10,8 @@ import { loadState, saveState, appendEvents, nextEvent } from './state.js';
 import { sceneAudience } from './scene.js';
 
 // 只认 12345 / 123456 这种独立出现的暗号，避免误伤普通数字
-const UNLOCK_RE = /(?:^|[^0-9])123456?(?:[^0-9]|$)/;
-const FINISH_RE = /(?:做完了|完事了|收兵|穿衣服|擦干净|下山了|下山|打完了|结束了|歇息吧|收拾一下|好了)/;
+const UNLOCK_RE = /(?:^|[^0-9])123456?(?:[^0-9]|$)|脱衣服|上床|双飞|三飞|三个一起|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|一起伺候|同榻|加入|全都过来/;
+const FINISH_RE = /(?:做完了|完事了|收兵|穿衣服|擦干净|下山了|下山|打完了|结束了|歇息吧|收拾一下|好了|射了)/;
 
 export function detectRitual(text) {
   const t = String(text || '');
@@ -49,7 +49,22 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
   if (!actorId || !world.actors?.[actorId]) return null;
 
   // 公开场合铁律：只要还有别的真人在同一处，暗号一律不生效（私密绝不可外露）
-  const myPlace = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
+  // 闺房欢好：相公发起暗号/侍寝/欢好时，相公与当事妾室理所当然移步回后院正房寝榻
+  let myPlace = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
+  const isChamber = /正房|暖阁|卧房|闺房|husband_room|backyard|warm_pavilion|ling_room/.test(
+    String(myPlace) + String(world.places?.[myPlace]?.name || '')
+  );
+  if (hit.unlock && !isChamber) {
+    const targetRoom = world.places?.husband_room ? 'husband_room' : (world.places?.backyard ? 'backyard' : myPlace);
+    if (world.actors?.[memberKey]) world.actors[memberKey].location = targetRoom;
+    if (world.actors?.husband) world.actors.husband.location = targetRoom;
+    if (world.actors?.[actorId]) world.actors[actorId].location = targetRoom;
+    if (/小翠/.test(text) && world.actors?.xiaocui) world.actors.xiaocui.location = targetRoom;
+    if (/芸娘|二房/.test(text) && world.actors?.yunnia) world.actors.yunnia.location = targetRoom;
+    if (/婉儿|大娘子/.test(text) && world.actors?.waner) world.actors.waner.location = targetRoom;
+    myPlace = targetRoom;
+    console.log('[Ritual] 相公携诸娘子移步寝榻');
+  }
   const audience = myPlace ? sceneAudience(world, myPlace, memberKey) : { isPublic: false, otherHumans: [] };
   if (hit.unlock && audience.isPublic) {
     return {

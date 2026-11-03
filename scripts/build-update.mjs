@@ -22,7 +22,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'update.tar.gz');
 
 // 默认打包运行所需的所有代码与世界数据账本；config.json 永远不进包（各家真实令牌与 Key 都在里面）
-const TARGETS = ['src', 'roles', 'web', 'data', 'start.sh', 'stop.sh', 'status.sh', 'package.json'];
+const TARGETS = ['src', 'roles', 'web', 'data', 'scripts', 'start.sh', 'stop.sh', 'status.sh', 'package.json'];
 
 // 只排除「线上会自己长大」的运行时文件，避免更新时把路由器的真实状态冲掉。
 // 【必须保留】data/world/milestones.json（王家世界大事记与产业账本）——不在排除表里，照常打包！
@@ -60,6 +60,9 @@ function makeHeader({ name, size = 0, mode = 0o644, type = '0', mtime = Math.flo
 
 function collect(rel, out) {
   if (EXCLUDE_PREFIXES.some((p) => rel === p || rel.startsWith(p + '/'))) return;
+  // 临时/一次性脚本不进包（以 _ 开头的文件）
+  const base = path.posix.basename(rel);
+  if (base.startsWith('_')) return;
   const abs = path.join(ROOT, rel);
   if (!fs.existsSync(abs)) {
     console.warn(`[!] 跳过不存在的路径：${rel}`);

@@ -195,8 +195,8 @@ export function createInitialState(dataDir) {
       xiaocui: {
         id: 'xiaocui', gender: 'female', servant: true, home: 'backyard',
         name: '小翠',
-        role: '贴身丫鬟',
-        label: '丫鬟',
+        role: '通房大丫鬟',
+        label: '通房丫鬟',
         household: true,
         location: 'backyard',
         goals: ['把差事办利索', '讨大娘子点头开脸'],
@@ -272,7 +272,7 @@ export function createInitialState(dataDir) {
         ],
       },
       liuwenxia: {
-        id: 'liuwenxia', gender: 'female', home: 'wine_shop',
+        id: 'liuwenxia', gender: 'female', home: 'wine_shop', spouse: 'yujie',
         name: '刘文霞',
         role: '于家酒肆老板娘',
         location: 'street',
@@ -634,6 +634,10 @@ function ensureGovPlace(world, cityName) {
 }
 
 export function ensureCourt(world) {
+  try {
+    if (world.actors?.liuwenxia && !world.actors.liuwenxia.spouse) world.actors.liuwenxia.spouse = 'yujie';
+    if (world.actors?.yujie && !world.actors.yujie.spouse) world.actors.yujie.spouse = 'liuwenxia';
+  } catch (_) {}
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};
   const seed = [
@@ -841,7 +845,30 @@ export function migrateOwnership(world) {
       return true;
     });
   } catch { /* 忽略 */ }
-  // 位置必须是真的地方：指到不存在的 id（clinic 这种）就挪回住处或街上
+  // 强力清除所有 clinic / workshop 等英文幽灵地名，全员位置自愈归位
+  try {
+    delete world.places?.clinic;
+    delete world.places?.workshop;
+    delete world.places?.school;
+
+    for (const [aid, a] of Object.entries(world.actors || {})) {
+      if (!a) continue;
+      const isGhost = a.location === 'clinic' || a.location === 'workshop' || !world.places?.[a.location] || /^[a-zA-Z_-]+$/.test(String(world.places?.[a.location]?.name || ''));
+      if (isGhost) {
+        if (aid === 'waner') {
+          a.location = 'backyard';
+          console.log(`[State] 正妻沈婉儿位置自愈归位 → 后院暖阁`);
+        } else if (aid === 'husband') {
+          a.location = world.places?.inn_room ? 'inn_room' : 'tea_house';
+          console.log(`[State] 相公位置自愈归位 → ${a.location}`);
+        } else {
+          a.location = a.home && world.places?.[a.home] ? a.home : 'street';
+          console.log(`[State] ${a.name} 位置自愈归位 → ${a.location}`);
+        }
+      }
+    }
+  } catch (e) { console.warn('[State] 幽灵地点清理异常:', e.message); }
+
   try {
     const fallback = world.places?.street ? 'street' : (world.places?.backyard ? 'backyard' : Object.keys(world.places || {})[0]);
     for (const a of Object.values(world.actors || {})) {
@@ -917,6 +944,56 @@ export function migrateOwnership(world) {
         if (a && a.location === pid) a.location = 'husband_room';
       }
     }
+  }
+
+  // 强力清除所有 clinic / workshop 等英文幽灵地名，全员位置自愈归位
+  try {
+    const EN_GHOSTS = {
+      clinic: '医馆',
+      workshop: '匠作坊',
+      school: '学堂',
+      dock: '运河码头',
+      granary: '常平仓',
+      roads: '官道',
+      inn: '临江客栈',
+    };
+    for (const [pid, pl] of Object.entries(world.places || {})) {
+      const pName = String(pl?.name || '');
+      const isEnglish = pid in EN_GHOSTS || /^[a-zA-Z_-]+$/.test(pName) || pName.toLowerCase() === 'clinic';
+      if (isEnglish) {
+        let realName = EN_GHOSTS[pid] || EN_GHOSTS[pName.toLowerCase()] || '长街';
+        const targetEntry = Object.entries(world.places).find(([k, p]) => k !== pid && p?.name === realName);
+        let targetId = targetEntry ? targetEntry[0] : null;
+        if (!targetId) {
+          pl.name = realName;
+        } else {
+          delete world.places[pid];
+          for (const a of Object.values(world.actors || {})) {
+            if (a && a.location === pid) a.location = targetId;
+            if (a && a.home === pid) a.home = targetId;
+          }
+        }
+      }
+    }
+    let yiguan = Object.entries(world.places).find(([, pl]) => /医馆|药铺|药堂/.test(String(pl?.name || '')));
+    if (!yiguan) {
+      world.places.place_yiguan = { name: '医馆', exits: ['street'], dynamic: true };
+      yiguan = ['place_yiguan', world.places.place_yiguan];
+    }
+    const yiguanId = yiguan[0];
+
+    for (const a of Object.values(world.actors || {})) {
+      if (!a) continue;
+      if (a.location === 'clinic' || a.location === 'workshop' || !world.places?.[a.location]) {
+        if (a.id === 'waner') a.location = world.places?.backyard ? 'backyard' : 'tea_house';
+        else if (a.household) a.location = world.places?.backyard ? 'backyard' : 'tea_house';
+        else if (/郎中|大夫/.test(String(a.role || ''))) a.location = yiguanId;
+        else if (a.home && world.places?.[a.home]) a.location = a.home;
+        else a.location = yiguanId;
+      }
+    }
+  } catch (err) {
+    console.warn('[State] 幽灵地名自愈异常:', err.message);
   }
 
   if (!world || typeof world !== 'object') return world;
