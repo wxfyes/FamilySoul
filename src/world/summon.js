@@ -126,6 +126,34 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 提到一个世上没有的地方：天道现造一处（医馆、茶楼、银楼、镖局…）
+  if (mentioned.length === 0) {
+    const mPlace = say.match(/(?:去|往|到|上|回|进)([一-龥]{1,6}?(?:馆|铺|楼|坊|堂|店|院|阁|斋|局|行|庄|园|寺|庵|祠|码头|渡口|桥|街|巷|市|集|仓|监|牢|营|寨))/);
+    if (mPlace) {
+      const wantName = mPlace[1];
+      const exists = Object.entries(world.places || {}).find(([, pl]) => String(pl?.name || '').replace(/·.*$/, '').includes(wantName));
+      if (exists) {
+        const [pid, pl] = exists;
+        if (me.location !== pid) {
+          me.location = pid;
+          saveState(dataDir, world);
+        }
+        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: pl.name };
+      }
+      // 没造过 → 造一处，落在长街上，能进能出
+      world.flags = world.flags || {};
+      world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+      const pid = `place_${world.flags.placeSeq}`;
+      world.places[pid] = {
+        name: wantName, exits: ['street'], dynamic: true, createdDay: world.clock?.day || 1,
+      };
+      me.location = pid;
+      saveState(dataDir, world);
+      console.log(`[World] 天道造了一处「${wantName}」`);
+      return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: wantName, created: wantName };
+    }
+  }
+
   // 「去X家 / X的绣坊」：认到那个人真实所在，别另建一处
   if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
     const homeHit = Object.values(world.actors || {}).find((a) => {
@@ -144,9 +172,7 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
 
   // 别名：口语里的地方，对上世界里真有的地方（医馆→回春堂药铺 之类）
   const SYNONYMS = {
-    医馆: ['药铺', '药堂', '回春堂', '医'],
     药铺: ['回春堂', '药堂'],
-    药房: ['回春堂', '药铺'],
     酒楼: ['酒楼', '大酒楼'],
     客栈: ['客栈'],
     赌坊: ['赌坊'],
