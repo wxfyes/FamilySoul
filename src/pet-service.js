@@ -2309,6 +2309,25 @@ export class PetService {
 
     this.saveHistory(profileKey, history);
 
+    // 点了一个不在场的人 → 直接报他在哪，别让在场的人对着他说话
+    try {
+      const wAbs = loadState(this.dataDir);
+      const saidA = String(say || '');
+      const meA2 = this._viewerActorId ? wAbs.actors?.[this._viewerActorId] : wAbs.actors?.husband;
+      const absent = Object.values(wAbs.actors || {}).find((a) => {
+        if (!a || a.dead || !a.name || a.id === this._viewerActorId) return false;
+        const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+        const named = saidA.includes(a.name) || (short && saidA.includes(short));
+        return named && a.location !== meA2?.location;
+      });
+      if (absent) {
+        const whereA = String(wAbs.places?.[absent.location]?.name || '别处');
+        const hereA = String(wAbs.places?.[meA2?.location]?.name || '这里');
+        reply = `【${hereA}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
+        console.log(`[Scene] 点名不在场：${absent.name}@${whereA}`);
+      }
+    } catch { /* 忽略 */ }
+
     // 问到府里的人：引擎先把事实顶在最前面，模型再编也编不过这一行
     try {
       const wHouse = loadState(this.dataDir);
@@ -2323,6 +2342,8 @@ export class PetService {
         const whereH = String(wHouse.places?.[houseActor.location]?.name || '宅中');
         const factLine = `【府中】${houseActor.name}是${houseActor.role || '府里人'}，就住「${whereH}」。`;
         const roleOk = new RegExp(String(houseActor.role || '府里人').slice(0, 2)).test(String(reply || ''));
+        // 先把旁白行剔掉，别让"就站在…"跟着事实一起出现
+        reply = String(reply || '').split('\n').filter((x) => !/就站在|四下冷清|你到了/.test(x)).join('\n').trim();
         const contradicted = /(么？|么\?|听说|提过一嘴|哪家|外头|不认识|不认得|从哪儿听来)/.test(String(reply || ''));
         if (!roleOk && contradicted) {
           // 模型把府里人当外人 → 换成她本人口吻的更正
