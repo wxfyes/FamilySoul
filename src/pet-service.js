@@ -764,10 +764,12 @@ export class PetService {
         const mePH = this._viewerActorId ? wPH.actors?.[this._viewerActorId] : wPH.actors?.husband;
         const herePH = Object.values(wPH.actors || {}).filter((a) => a && !a.dead && a.location === mePH?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
         const namesPH = herePH.map((a) => a.name);
-        const poolPH = (wPH.memories || []).filter((m) => {
-          const t = String(m?.text || '');
-          return namesPH.some((n) => t.includes(n)) || t.includes('相公') || m.visible === 'public';
-        });
+        const poolPH = namesPH.length
+          ? (wPH.memories || []).filter((m) => {
+            const t = String(m?.text || '');
+            return namesPH.some((n) => t.includes(n)) || m.visible === 'public';
+          })
+          : (wPH.memories || []).filter((m) => m.visible === 'public');
         if (poolPH.length) {
           contextHint += `（【账本·旧事】${poolPH.slice(-4).map((m) => m.text).join('；')}\n`;
           contextHint += '——她要问这些，就照这条说；账本里没有的，只说记不得。）\n';
@@ -2422,10 +2424,12 @@ export class PetService {
         const meR = this._viewerActorId ? wR.actors?.[this._viewerActorId] : wR.actors?.husband;
         const hereR = Object.values(wR.actors || {}).filter((a) => a && !a.dead && a.location === meR?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
         const namesR = hereR.map((a) => a.name);
-        const poolR = (wR.memories || []).filter((m) => {
-          const t = String(m?.text || '');
-          return namesR.some((n) => t.includes(n)) || t.includes('相公') || m.visible === 'public';
-        });
+        const poolR = namesR.length
+          ? (wR.memories || []).filter((m) => {
+            const t = String(m?.text || '');
+            return namesR.some((n) => t.includes(n)) || m.visible === 'public';
+          })
+          : (wR.memories || []).filter((m) => m.visible === 'public');
         if (poolR.length === 0) {
           const speaker = (String(reply || '').match(/^【([^】\n]{1,12})】/) || [])[1] || (hereR[0]?.name || '她');
           const rr = await this.llmClient.complete({

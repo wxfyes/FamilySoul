@@ -1026,6 +1026,39 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.23 自更新 POST /api/admin/self-update {url} —— 只覆盖代码，绝不动 data/
+    if (req.method === 'POST' && pathname === '/api/admin/self-update') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const url = String(body.url || 'http://192.168.1.112:8089/update.tar.gz');
+        const root = process.cwd();
+        const script = [
+          'set -e',
+          'TMP=/tmp/fs-update-$$',
+          'mkdir -p $TMP',
+          `wget -q -O $TMP/u.tgz '${url}'`,
+          'tar -xzf $TMP/u.tgz -C $TMP',
+          // 只同步代码与脚本，data/ 世界数据一律不动
+          `for d in src web scripts docs mobile; do if [ -d $TMP/$d ]; then rm -rf '${root}'/$d && cp -r $TMP/$d '${root}'/$d; fi; done`,
+          `for f in package.json index.html '*.sh'; do true; done`,
+          `cp -f $TMP/package.json '${root}'/package.json 2>/dev/null || true`,
+          `cp -f $TMP/*.sh '${root}'/ 2>/dev/null || true`,
+          `chmod +x '${root}'/*.sh 2>/dev/null || true`,
+          `cd '${root}'`,
+          './stop.sh || true',
+          'sleep 1',
+          './start.sh',
+        ].join(' && ');
+        const { spawn } = await import('node:child_process');
+        const child = spawn('sh', ['-c', script], { detached: true, stdio: 'ignore', cwd: '/tmp' });
+        child.unref();
+        console.log(`[SelfUpdate] 已启动自更新（不含 data/）：${url}`);
+        return sendJson(res, 200, { ok: true, started: true, note: '约 10 秒后重启，只更新代码不动世界数据' });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.27 三道自检 GET /api/admin/audit
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
