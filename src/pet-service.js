@@ -2271,6 +2271,35 @@ export class PetService {
 
     this.saveHistory(profileKey, history);
 
+    // 问到府里的人：引擎先把事实顶在最前面，模型再编也编不过这一行
+    try {
+      const wHouse = loadState(this.dataDir);
+      const saidH = String(say || '');
+      const houseActor = Object.values(wHouse.actors || {}).find((a) => {
+        if (!a || a.dead || a.id === 'husband') return false;
+        if (!(a.household || ['waner', 'yunnia', 'xiaocui'].includes(a.id))) return false;
+        const short = a.name && a.name.length > 2 ? a.name.slice(-2) : a.name;
+        return a.name && (saidH.includes(a.name) || (short && saidH.includes(short)));
+      });
+      if (houseActor) {
+        const whereH = String(wHouse.places?.[houseActor.location]?.name || '宅中');
+        const factLine = `【府中】${houseActor.name}是${houseActor.role || '府里人'}，就住「${whereH}」。`;
+        const roleOk = new RegExp(String(houseActor.role || '府里人').slice(0, 2)).test(String(reply || ''));
+        const contradicted = /(么？|么\?|听说|提过一嘴|哪家|外头|不认识|不认得|从哪儿听来)/.test(String(reply || ''));
+        if (!roleOk && contradicted) {
+          // 模型把府里人当外人 → 换成她本人口吻的更正
+          const mSpeak = String(reply || '').match(/^【([^】\n]{1,12})】/);
+          const speaker = mSpeak ? mSpeak[1] : '府中';
+          const core = `${houseActor.name}是${houseActor.role || '府里人'}，就住在「${whereH}」`;
+          reply = `【${speaker}】：（一时语塞）妾身糊涂了——${core}。`;
+          console.log(`[Scene] 模型把${houseActor.name}当外人，已改成更正口吻`);
+        } else if (!roleOk) {
+          reply = `${factLine}\n${String(reply || '').trim()}`.trim();
+          console.log(`[Scene] 先给事实：${houseActor.name}·${houseActor.role || ''}`);
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 最后一道：所有后处理改的是 reply，这里同步回 assistantMsg
     try {
       if (assistantMsg && typeof reply === 'string' && reply !== assistantMsg.text) {
