@@ -12,3 +12,4 @@ for k, v in cfg.items():
         print(k, ": ***")
     else:
         print(k, ":", type(v))
+
