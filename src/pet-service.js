@@ -431,7 +431,7 @@ export class PetService {
         lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]  [[world:move who=qiantonghai to=dock]]');
         lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
         lines.push('  [[world:appointment who=liuwenxia day=世界日+1 hour=12 text="提两坛茶酒样来茶坊"]]');
-        lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君"]]');
+        lines.push('  [[world:remember text="那夜大被同眠，婉儿第一次唤相公为夫君" about=waner]]');
         lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
         lines.push('  [[world:pregnant who=liuwenxia]]');
         lines.push('  [[world:troops field=guards delta=10]]  [[world:infra name=granary delta=1]]  [[world:spend amount=32 unit=文]]');
@@ -804,6 +804,24 @@ export class PetService {
           .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId)
           .map((a) => a.id);
         const bondLines = describeBonds(wHere, hereIds);
+        // 旧事：写进账本的永久记忆（亲密、承诺、翻脸）——别让它们随时间消失
+        try {
+          const myId2 = this._viewerActorId;
+          const olds = (wHere.memories || [])
+            .filter((m) => {
+              if (!m || !m.text) return false;
+              const about = Array.isArray(m.about) ? m.about : [];
+              if (m.visible === 'public') return true;
+              if (about.includes(myId2) || about.includes('husband')) return true;
+              return /(紫嫣|文霞)/.test(String(m.text)) && String(m.text).includes(String(meA?.name || '紫嫣'));
+            })
+            .slice(-8)
+            .map((m) => String(m.text));
+          if (olds.length) {
+            bits.push(`你记得的旧事：${olds.join('；')}（提起来要照这些说，别说不记得）`);
+            console.log(`[Memory] 旧事 ${olds.length} 条进上下文：${olds[0].slice(0, 24)}`);
+          }
+        } catch { /* 忽略 */ }
         const rumorLines = rumorsKnownBy(wHere, hereIds);
         if (rumorLines.length) {
           bits.push(`街上在传：${rumorLines.join('；')}（他们可能主动提起，也可能拿这个说事）`);
