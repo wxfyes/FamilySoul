@@ -470,8 +470,8 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.bonds = world.bonds || {};
         world.bonds[aId] = world.bonds[aId] || {};
         world.bonds[bId] = world.bonds[bId] || {};
-        world.bonds[aId][bId] = { type, score };
-        world.bonds[bId][aId] = { type, score };
+        world.bonds[aId][bId] = { type, score, manual: true };
+        world.bonds[bId][aId] = { type, score, manual: true };
         applied.push(`关系:${world.actors[aId]?.name}↔${world.actors[bId]?.name} ${type}(${score})`);
       } else if (kind === 'hire') {
         // 雇人/辞人：staff 增减，工钱按日结
