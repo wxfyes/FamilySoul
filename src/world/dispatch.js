@@ -173,8 +173,16 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
       } else if (kind === 'asset') {
         const delta = Number(args.delta);
         if (!Number.isFinite(delta)) continue;
-        world.assets.silver = round2((world.assets.silver || 0) + delta);
-        applied.push(`银两${delta >= 0 ? '+' : ''}${delta}`);
+        const targetActor = String(args.who || (selfId !== 'husband' ? selfId : 'husband'));
+        if (targetActor === 'husband') {
+          world.assets.silver = round2((world.assets.silver || 0) + delta);
+          applied.push(`公账银两${delta >= 0 ? '+' : ''}${delta}`);
+        } else {
+          world.wallets = world.wallets || {};
+          world.wallets[targetActor] = round2((Number(world.wallets[targetActor]) || 0) + delta);
+          const an = world.actors?.[targetActor]?.name || targetActor;
+          applied.push(`${an}私房${delta >= 0 ? '+' : ''}${delta}两`);
+        }
       } else if (kind === 'promise') {
         const text = String(args.text || '').trim();
         if (!text) continue;
@@ -238,36 +246,51 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         }
         world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
         const id = `npc_${world.flags.npcSeq}`;
+        const assignedLoc = (() => {
+          const asked = resolvePlace(world, args.place);
+          if (asked) return asked;
+          // 按行当给个自己的地方：郎中开药铺、稳婆有家、绣娘有绣坊
+          const r = String(args.role || '');
+          let placeName = '';
+          if (/郎中|大夫|医/.test(r)) placeName = `${name}的药铺`;
+          else if (/稳婆|接生/.test(r)) placeName = `${name}家`;
+          else if (/媒婆|牙婆/.test(r)) placeName = `${name}家`;
+          else if (/绣娘|绣/.test(r)) placeName = `${name}的绣坊`;
+          else if (/仵作|衙役|更夫/.test(r)) return 'yamen';
+          else if (/掌柜|东家/.test(r)) placeName = `${name}的铺子`;
+          else if (/道士|尼姑/.test(r)) placeName = `${name}的道观`;
+          if (!placeName) return 'street';
+          world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+          const pid = `place_${world.flags.placeSeq}`;
+          world.places[pid] = { name: placeName.slice(0, 20), exits: ['street'], owner: id, dynamic: true };
+          return pid;
+        })();
+
+        const assignedHome = assignedLoc !== 'street' && assignedLoc !== 'yamen' ? assignedLoc : 'street';
+
         world.actors[id] = {
           id,
           name,
           origin: 'spawned', // 标记：天道自己长出来的人
-          gender: String(args.gender || 'female'),
+          gender: String(args.gender || (() => {
+          const r = String(args.role || '');
+          if (/郎中|大夫|掌柜|东家|镖头|镖师|先生|夫子|僧|道|捕头|仵作|书办|衙役|工头|船夫|艄公|小二|伙计|小厮|侍卫|门房|账房/.test(r)) return 'male';
+          if (/婆|娘|嫂|姑|妇|女|姐|妹|丫鬟|丫头|嬷嬷|稳婆|媒婆|绣娘|花魁/.test(r)) return 'female';
+          return Math.random() < 0.5 ? 'male' : 'female';
+        })()),
           role: String(args.role || '城中人'),
-          location: (() => {
-            const asked = resolvePlace(world, args.place);
-            if (asked) return asked;
-            // 按行当给个自己的地方：郎中开药铺、稳婆有家、绣娘有绣坊
-            const r = String(args.role || '');
-            let placeName = '';
-            if (/郎中|大夫|医/.test(r)) placeName = `${name}的药铺`;
-            else if (/稳婆|接生/.test(r)) placeName = `${name}家`;
-            else if (/媒婆|牙婆/.test(r)) placeName = `${name}家`;
-            else if (/绣娘|绣/.test(r)) placeName = `${name}的绣坊`;
-            else if (/仵作|衙役|更夫/.test(r)) return 'yamen';
-            else if (/掌柜|东家/.test(r)) placeName = `${name}的铺子`;
-            else if (/道士|尼姑/.test(r)) placeName = `${name}的道观`;
-            if (!placeName) return 'street';
-            world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
-            const pid = `place_${world.flags.placeSeq}`;
-            world.places[pid] = { name: placeName.slice(0, 20), exits: ['street'], owner: id, dynamic: true };
-            return pid;
-          })(),
+          location: assignedLoc,
+          home: assignedHome,
           goals: String(args.goals || '').split(';').map((s) => s.trim()).filter(Boolean),
           secret: String(args.secret || '').trim() || undefined,
           relations: { husband: { trust: 50, desire: 30, fear: 0, grievance: 0 } },
           intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
-          schedule: [],
+          schedule: [
+            { at: 8, do: `在${world.places?.[assignedLoc]?.name || '铺子'}操持营生`, place: assignedLoc },
+            { at: 12, do: '用饭歇晌', place: assignedLoc },
+            { at: 18, do: '收档打烊', place: assignedHome },
+            { at: 22, do: '安歇歇息', place: assignedHome },
+          ],
         };
         events.push(
           nextEvent(world, { action: 'spawn', place: world.actors[id].location, payload: { id, name, role: world.actors[id].role }, isPublic: true }),
@@ -657,7 +680,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         applied.push(`讨债:收回${take}两`);
       } else if (kind === 'spend') {
         // 花钱：买东西、付账、打赏。文与两都认（1000 文 = 1 两）
-        const who = String(args.who || 'husband');
+        const who = String(args.who || (selfId !== 'husband' ? selfId : 'husband'));
         const unit = String(args.unit || '文');
         let amount = Number(args.amount);
         if (!Number.isFinite(amount) || amount <= 0) continue;
@@ -1094,6 +1117,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         const city = wantCity && cities.some((c) => c.includes(wantCity) || wantCity.includes(c))
           ? cities.find((c) => c.includes(wantCity) || wantCity.includes(c))
           : (wantCity || '临江府');
+        const propOwner = String(args.owner || selfId || 'husband');
         world.assets.properties.push({
           id: `prop_${world.flags.propSeq}`,
           name,
@@ -1101,7 +1125,8 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           incomePerDay: Math.max(0, Number(args.set ?? args.income ?? 0) || 0),
           status: String(args.status || '筹备开张').slice(0, 12),
           place: placeId,
-          keeper: keeper?.id || null,
+          keeper: keeper?.id || (propOwner !== 'husband' ? propOwner : null),
+          owner: propOwner,
           staff,
           city,
           note: String(args.note || '').slice(0, 60),

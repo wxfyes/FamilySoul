@@ -29,6 +29,11 @@ export function splitSegments(reply) {
 export function normalizeMemberReply(reply, ctx) {
   const selfName = String(ctx?.selfName || '');
   const selfAliases = new Set([selfName, ...(ctx?.selfAliases || [])].filter(Boolean));
+  if (selfName.includes('刘文霞') || selfName.includes('紫嫣') || ctx?.actorId === 'liuwenxia') {
+    selfAliases.add('紫嫣');
+    selfAliases.add('刘文霞');
+    selfAliases.add('文霞');
+  }
   const present = new Set((ctx?.present || []).filter(Boolean));
   const placeLabel = String(ctx?.placeName || '这里');
 
@@ -46,9 +51,21 @@ export function normalizeMemberReply(reply, ctx) {
       continue;
     }
 
-    const sp = seg.speaker;
-    // 她自己说的话 → 丢掉（她由真人控制）
-    if ([...selfAliases].some((n) => n && (sp === n || sp.endsWith(n) || n.endsWith(sp)))) continue;
+    let sp = seg.speaker;
+    // 若模型把相公对她的叮嘱误标成了她自己的名字（例如把相公说的"紫嫣你在酒肆看着店，我去寻你"标成【紫嫣】）
+    const isSelfSpeaker = [...selfAliases].some((n) => n && (sp === n || sp.endsWith(n) || n.endsWith(sp)));
+    if (isSelfSpeaker) {
+      if (ctx?.husbandPresent || /(去寻你|看着店|等我|等相公|娘子|找你|回酒肆)/.test(body)) {
+        sp = '王甯'; // 智能纠正为相公王甯说话，绝不让玩家自己回复自己
+      } else {
+        continue; // 丢掉由真人控制的角色台词
+      }
+    }
+
+    // 若其他女眷（如沈婉儿、林芸娘）冒出相公口吻称呼"叫娘子"或轻抚手等相公举动，智能纠正为相公王甯
+    if (/^(沈婉儿|婉儿|林芸娘|芸娘|小翠)$/.test(sp) && /(叫娘子|唤你娘子|轻抚.*的手|为夫|耽搁些时日)/.test(body)) {
+      sp = '王甯';
+    }
 
     // 说话人必须在场
     const bare = sp.includes('·') ? sp.split('·').pop() : sp;
@@ -61,9 +78,9 @@ export function normalizeMemberReply(reply, ctx) {
   // 全部被丢：用账本事实兜底，不写任何人台词
   if (kept.length === 0) {
     if (ctx?.askedHusband && ctx?.husbandPlace) {
-      return `【${placeLabel}】：他此刻在「${ctx.husbandPlace}」，眼下不在这屋里。`;
+      return `（王甯此刻人在「${ctx.husbandPlace}」，眼下并不在跟前。）`;
     }
-    return `【${placeLabel}】：（屋里一时没人应声。）`;
+    return `（四下清静，一时无人接话。）`;
   }
 
   return kept.map((s) => `【${s.speaker}】：${s.text}`).join('\n');

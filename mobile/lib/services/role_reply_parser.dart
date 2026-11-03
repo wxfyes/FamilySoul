@@ -73,9 +73,12 @@ class RoleReplyParser {
   static String? _cleanSpeaker(String? name) {
     if (name == null) return null;
     var n = name.trim();
-    // 去掉「主公」「主角」这类泛称，交回主角色处理
-    const generics = {'主角', '你', 'AI', '旁白', '众人', '天道'};
+    // 去掉「主公」「主角」这类泛称，交回主角色处理；地名也绝不作为发言角色
+    const generics = {'主角', '你', 'AI', '旁白', '众人', '天道', '系统', '环境'};
     if (n.isEmpty || generics.contains(n)) return null;
+    if (RegExp(r'(县衙|男牢|女牢|牢房|酒肆|茶坊|酒楼|长街|码头|医馆|药铺|当铺|客栈|正房|后院|这里|此处)$').hasMatch(n)) {
+      return null;
+    }
     // 去掉「跑堂伙计·阿吉」里的前缀，只留人名（保留原名亦可，这里保留全称更适合显示）
     return n;
   }

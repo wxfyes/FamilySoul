@@ -17,7 +17,7 @@ import { auditWorld } from './world/audit.js';
 import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
-import { ensureCities, ensureCourt, ensureTerrain } from './world/state.js';
+import { ensureCities, ensureCourt, ensureTerrain, seedPersonalMoney } from './world/state.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
 
@@ -421,7 +421,14 @@ const STARTED_AT = Date.now();
         }
         todos.push({ kind: pr.loan ? '借款' : '承诺', text: pr.text || '', day: pr.due });
       }
-      const props = (world.assets?.properties || []).filter((p) => (isHusband ? true : p.keeper === actorId));
+      // 产业归属解耦：相公看相公产业，女眷看女眷私产
+      const props = (world.assets?.properties || []).filter((p) => {
+        if (!p) return false;
+        if (isHusband) {
+          return p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper);
+        }
+        return p.keeper === actorId || p.owner === actorId;
+      });
       const arc = actorId ? world.arcs?.[actorId] : null;
       const f = actorId ? world.forces?.[actorId] : world.military;
       const troops = f ? (Number(f.guards) || 0) + (Number(f.militia) || 0) + (Number(f.army) || 0) : 0;
@@ -1734,7 +1741,9 @@ const STARTED_AT = Date.now();
             intimacy: a.intimacy || null,
             household: Boolean(a.household),
             origin: a.origin || 'preset',
-            gender: a.gender || 'female',
+            gender: a.gender || (key === 'husband' ? 'male' : '未知'),
+            money: typeof a.money === 'number' ? a.money : null,
+            debt: Number(a.debt) || 0,
             servant: Boolean(a.servant),
             pregnancy: a.pregnancy || null,
             goals: Array.isArray(a.goals) ? a.goals : [],
@@ -1803,7 +1812,8 @@ const STARTED_AT = Date.now();
         const hus = world.actors?.husband;
         const husLocName = world.places?.[hus?.location]?.name || '临江茶坊';
         const silverVal = Number(world.assets?.silver || 0).toFixed(1);
-        const propList = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+        const allProps = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+        const propList = allProps.filter((p) => p && (p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper)));
         const dailyInc = propList.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0).toFixed(1);
         const digest = `大明江南 · 第${world.clock?.day || 1}日${shichenOf(world.clock?.hour ?? 8)}（${world.clock?.hour ?? 8}时），相公身在【${husLocName}】，现存白银 ${silverVal} 两，产业日入 ${dailyInc} 两。`;
 
@@ -2441,6 +2451,7 @@ server.listen(PORT, '0.0.0.0', () => {
     ensureCities(wA);
     ensureCourt(wA);
     ensureTerrain(wA);
+    try { seedPersonalMoney(wA); } catch { /* 忽略 */ }
     saveState(DATA_DIR, wA);
     console.log(`[Arc] 已播种 ${Object.keys(wA.arcs || {}).length} 条个人主线`);
   } catch (err) {

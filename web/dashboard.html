@@ -177,7 +177,7 @@ main section.card:not(.collapsed) > h2::after { content: '　▾'; opacity: .35;
   <section class="card full">
     <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span></h2>
     <table>
-      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
+      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>私房钱</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
       <tbody id="actors"></tbody>
     </table>
   </section>
@@ -460,17 +460,31 @@ function render(w){
   // ── 💰 账目卡 ──────────────────────────────
   if ($('card-accounts')) {
     const silver = Number(w.assets?.silver ?? 0);
-    const props = (w.assets?.properties || []).filter(p => (Number(p.incomePerDay) || 0) > 0 || p.keeperName);
-    const income = props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0);
+    const allProps = (w.assets?.properties || []).filter(p => (Number(p.incomePerDay) || 0) > 0 || p.keeperName);
+    const husbandProps = allProps.filter(p => p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper));
+    const otherProps = allProps.filter(p => !(p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper)));
+    const income = husbandProps.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0);
     $('a-acc-top').textContent = `现存 ${silver.toFixed(1)} 两 · 日入 ${income.toFixed(1)} 两`;
     let accHtml = '';
-    accHtml += props.map(p => {
+    accHtml += husbandProps.map(p => {
       const keeper = p.keeperName ? ` <span class="muted">(${p.keeperName}当家)</span>` : '';
       return `<div class="row">
         <span>${p.name}${keeper}</span>
         <span class="num good">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
       </div>`;
     }).join('');
+    if (otherProps.length > 0) {
+      accHtml += `<div class="muted" style="margin:8px 0 2px;font-size:12px;">眷属私产（独立核算·不入公账）</div>`;
+      accHtml += otherProps.map(p => {
+        const ownerId = p.owner || p.keeper;
+        const ownerName = p.ownerName || p.keeperName || (w.actors?.[ownerId]?.name) || '眷属';
+        const privatePurse = Number(w.wallets?.[ownerId] ?? 0);
+        return `<div class="row">
+          <span>${p.name} <span class="muted">(${ownerName}私产 · 私房存银 ${privatePurse.toFixed(1)}两)</span></span>
+          <span class="num" style="color:#a78bfa;">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
+        </div>`;
+      }).join('');
+    }
     const debts = w.assets?.debts || 0;
     accHtml += `<div class="row"><span>借贷债务</span><span class="${debts > 0 ? 'bad' : 'muted'}">${debts > 0 ? debts + ' 两' : '无外债'}</span></div>`;
     const expense = (Number(w.military?.supplies) || 0) + (Number(w.assets?.expensePerDay) || 0);
@@ -735,7 +749,7 @@ function render(w){
       <td class="num">${(+p.incomePerDay||0).toFixed(2)} 两</td>
       <td class="muted">${p.status || ""}</td>
       <td class="muted">${p.openedDay ? "第" + p.openedDay + "日" : "—"}</td>
-    </tr>`).join('') : '<tr><td colspan="9" class="muted">还没有产业</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="10" class="muted">还没有产业</td></tr>';
 
   // ── 各自的主线 ──────────────────────────────
   const arcs = w.arcs || {};
@@ -844,6 +858,7 @@ function render(w){
         <td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td>
         <td class="muted">${a.role || '相公'}</td>
         <td class="muted">${a.place || '—'}</td>
+        <td class="num">${_silver.toFixed(0)} <span class="muted">府库</span></td>
         <td class="num muted" colspan="3" style="text-align:left">银 ${_silver.toFixed(0)} 两 · 日入 ${_income.toFixed(1)} · 兵 ${_troops} · 官职 ${_offices}</td>
         <td class="muted">此刻：${a.place || '—'}</td>
         <td><span class="tag">—</span></td>
@@ -854,6 +869,7 @@ function render(w){
     if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
     return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
+      <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + (a.debt ? ' <span class="bad">欠'+a.debt+'</span>' : '') : '—'}</td>
       <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>
       <td class="num">${r.desire??'—'} ${bar(r.desire||0)}</td>
       <td class="num">${r.grievance??0} ${bar(r.grievance||0)}</td>
@@ -861,7 +877,7 @@ function render(w){
       <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
     </tr>`;
   }).join('') + (list.length > 10
-    ? `<tr><td colspan="9" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__actorExpand=!window.__actorExpand;load();" style="color:#7fb4ff">${window.__actorExpand ? '收起' : '展开全部（共 ' + list.length + ' 人）'}</a></td></tr>`
+    ? `<tr><td colspan="10" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__actorExpand=!window.__actorExpand;load();" style="color:#7fb4ff">${window.__actorExpand ? '收起' : '展开全部（共 ' + list.length + ' 人）'}</a></td></tr>`
     : '');
 
   $('summary').textContent = w.summary || '—';

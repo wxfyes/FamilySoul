@@ -135,6 +135,7 @@ export function createInitialState(dataDir) {
         id: 'husband',
         name: '王甯',
         role: '相公',
+        gender: 'male',
         playerControlled: true,
         location: 'tea_house',
         relations: {},
@@ -644,10 +645,54 @@ export function makeOfficialName(seed, fixedSurname = null) {
   const gv = GIVEN[(h >>> 7) % GIVEN.length];
   return { name: `${sn}${gv}`, surname: sn };
 }
+
+/** 按身份给一笔起步私房钱（两）；已有钱的人不动 */
+export function seedPersonalMoney(world) {
+  const MONEY = {
+    掌柜: [8, 30], 东家: [15, 40], 郎中: [4, 12], 镖头: [3, 10], 先生: [2, 6], 夫子: [2, 6],
+    知县: [5, 20], 知府: [15, 40], 尚书: [40, 80], 宰相: [80, 150], 天子: [200, 500],
+    伙计: [0.5, 2], 小二: [0.5, 2], 小厮: [0.3, 1.5], 丫鬟: [0.3, 1.5], 丫头: [0.3, 1.5],
+    妇人: [1, 5], 寡妇: [1, 4], 绣娘: [0.8, 3], 农: [0.3, 1.5], 娘: [1, 5], 婆: [0.5, 2],
+  };
+  let seeded = 0;
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.id === 'husband') continue;
+    if (typeof a.money === 'number') continue;
+    const role = String(a.role || '');
+    let base = [0.8, 3];
+    for (const k of Object.keys(MONEY)) {
+      if (role.includes(k)) { base = MONEY[k]; break; }
+    }
+    const rnd = (a.id || a.name || '').split('').reduce((h, c) => (h * 131 + c.charCodeAt(0)) >>> 0, 7) / 4294967295;
+    a.money = Math.round((base[0] + (base[1] - base[0]) * rnd) * 100) / 100;
+    seeded += 1;
+  }
+  if (seeded) console.log(`[Money] 给 ${seeded} 人补了私房钱`);
+  return seeded;
+}
+
 export function ensureCourt(world) {
   try {
-    if (world.actors?.liuwenxia && !world.actors.liuwenxia.spouse) world.actors.liuwenxia.spouse = 'yujie';
-    if (world.actors?.yujie && !world.actors.yujie.spouse) world.actors.yujie.spouse = 'liuwenxia';
+    // 查明紫嫣名义上的丈夫（于子归/于杰，无论id是npc_2还是yujie）
+    let yujieActor = Object.values(world.actors || {}).find((a) => a && !a.dead && /于子归|于杰/.test(a.name || ''));
+    if (yujieActor) {
+      yujieActor.home = 'wine_shop';
+      yujieActor.spouse = 'liuwenxia';
+      if (!Array.isArray(yujieActor.schedule) || yujieActor.schedule.length === 0) {
+        yujieActor.schedule = [
+          { at: 7, do: '去长街承揽土木活计', place: 'street' },
+          { at: 12, do: '在街边面摊用饭歇脚', place: 'noodle_stall' },
+          { at: 18, do: '回于家酒肆收工歇脚', place: 'wine_shop' },
+          { at: 22, do: '在酒肆后院安歇', place: 'wine_shop' },
+        ];
+      }
+      if (world.actors?.liuwenxia) {
+        world.actors.liuwenxia.spouse = yujieActor.id;
+      }
+    } else {
+      if (world.actors?.liuwenxia && !world.actors.liuwenxia.spouse) world.actors.liuwenxia.spouse = 'yujie';
+      if (world.actors?.yujie && !world.actors.yujie.spouse) world.actors.yujie.spouse = 'liuwenxia';
+    }
     // 物理空间解耦自愈：非王府同住内宅女眷，绝不滞留在正房寝居或后院私宅
     for (const [aId, a] of Object.entries(world.actors || {})) {
       if (!a || a.dead || a.id === 'husband') continue;
@@ -859,6 +904,26 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 按身份修正性别：早年生成的郎中/掌柜/镖头被误标成女
+  try {
+    const MALE_ROLE = /郎中|大夫|掌柜|东家|镖头|镖师|先生|夫子|僧人|道士|捕头|仵作|书办|衙役|工头|船夫|艄公|小二|伙计|小厮|教书/;
+    const FEMALE_ROLE = /婆|娘|嫂|姑|妇|女|氏|姐|妹|丫鬟|丫头|嬷嬷|稳婆|媒婆|绣娘/;
+    let fixed = 0;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || !a.role) continue;
+      const role = String(a.role);
+      if (a.id === 'husband') { a.gender = 'male'; continue; }
+      // 名字里有 娘/婆/姑/嫂/妹/姐 的，一律女（如「锦娘」当掌柜）
+      if (/[娘婆姑嫂妹姐氏]/.test(String(a.name || '')) && !/公|郎|爷|叔|伯|先生/.test(String(a.name || ''))) {
+        if (a.gender !== 'female') { a.gender = 'female'; fixed += 1; }
+        continue;
+      }
+      if (MALE_ROLE.test(role) && !FEMALE_ROLE.test(role)) {
+        if (a.gender !== 'male') { a.gender = 'male'; fixed += 1; }
+      }
+    }
+    if (fixed) console.log(`[State] 性别修正：${fixed} 位（郎中等误标为女）`);
+  } catch { /* 忽略 */ }
   // 旧存档：知县名字是「李知县」这种占位，改成真名
   try {
     for (const a of Object.values(world.actors || {})) {
@@ -957,6 +1022,18 @@ export function migrateOwnership(world) {
       for (const a of Object.values(world.actors || {})) {
         if (a && a.location === 'teahouse_shop') a.location = 'tea_house';
         if (a && a.home === 'teahouse_shop') a.home = 'tea_house';
+      }
+    }
+    // 清掉误建的雅阁等茶坊子地点，把人归并到 tea_house
+    for (const [pid, p] of Object.entries(world.places || {})) {
+      if (pid === 'tea_house') continue;
+      const n = String(p?.name || '');
+      if (/^(雅阁|二楼雅阁|茶坊雅阁|雅间|茶阁)$/.test(n) || (p?.dynamic && /雅阁/.test(n))) {
+        delete world.places[pid];
+        for (const a of Object.values(world.actors || {})) {
+          if (a && a.location === pid) a.location = 'tea_house';
+          if (a && a.home === pid) a.home = 'tea_house';
+        }
       }
     }
   } catch { /* 忽略 */ }

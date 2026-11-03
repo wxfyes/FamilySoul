@@ -168,21 +168,13 @@ export class PetService {
     const lines = [];
     const timeCtx = this.getTemporalContext();
 
-    // 独立绑定人物视角
+    // 独立绑定人物视角（🌟 严格静态在前、动态置后，保障 DeepSeek 前缀缓存 90%+ 命中）
     if (this._viewerActorId && this._actorPersonaOverride) {
+      // ════════════════════════════════════════════════════════════════
+      // 🌟 静态缓存区（绝对不变）：身份、格式、代演铁律、起名回执规矩
+      // ════════════════════════════════════════════════════════════════
       lines.push('【你要演的人】');
       lines.push(this._actorPersonaOverride);
-      lines.push('');
-      const own = buildMemberCard(this.dataDir, this._viewerActorId);
-      lines.push('');
-      lines.push('【你此刻知道的实况（只有这些）】');
-      lines.push(own);
-      lines.push('');
-      lines.push('');
-      lines.push('【再说一遍】' + own.split('\n').slice(0, 3).map((x) => x.replace(/。$/, '')).join(' ｜ ') + '。');
-      lines.push('');
-      lines.push('- 以上是你自己知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
-      lines.push('- 用第一人称说话，符合你的身份与处境。');
       lines.push('');
       lines.push('【输出格式（必须遵守）】每一行都以「【说话人姓名】台词」开头；说话人只能是【眼前】名单里的人；');
       lines.push('不许出现玩家自己的名字，不许出现名单外的人，不许写「楼上」「里间」这种隔开的子地点——在场的人就在这同一间屋里。');
@@ -199,6 +191,16 @@ export class PetService {
       lines.push('- 你提到账本之外的人（街坊、伙计、婆子、货郎…）时，必须在这句后面附一条：');
       lines.push('  [[world:spawn name="张婆子" role="巷口卖菜的" place="street"]]');
       lines.push('  不附，这个人就不存在，下次谁也找不到他。');
+      lines.push('- 用第一人称说话，符合你的身份与处境。');
+      lines.push('');
+
+      // ════════════════════════════════════════════════════════════════
+      // 🌟 动态末尾区（每轮随世界变化）：个人实况与在场账本置于最末尾
+      // ════════════════════════════════════════════════════════════════
+      const own = buildMemberCard(this.dataDir, this._viewerActorId);
+      lines.push('【你此刻知道的实况（随世界变动）】');
+      lines.push(own);
+      lines.push('- 以上是你自己此刻知道的事，不是全知视角。别人私下的银钱、产业、往来，你不知情。');
       return lines.join('\n');
     }
 
@@ -814,14 +816,19 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 诊脉：问到怀孕/喜脉，就把账本上的身子实情摆出来
+    // 诊脉与身孕：把账本上的身子实情摆出来（发起人自己的身孕绝不可遗漏！）
     try {
+      const wQ = loadState(this.dataDir);
+      const meQ = this._viewerActorId ? wQ.actors?.[this._viewerActorId] : wQ.actors?.husband;
+      // 1. 如果发起人本人有孕（如紫嫣怀了相公的孩子），这是至高事实，无论是否专门提问都要让对话者知晓
+      if (meQ && meQ.pregnancy && !meQ.pregnancy.born) {
+        const pDays = Number(meQ.pregnancy.days) || 0;
+        contextHint += `（【天大喜讯·腹中骨肉】${meQ.name}（玩家本人）腹中已确确凿凿怀有相公王甯的亲生骨肉，有喜已有 ${pDays} 天！这是铁打的既定事实，在场相公王甯与众人均完全知晓，必须万分怜惜温柔，绝不许说没有/不知道！）\n`;
+      }
       if (/(诊脉|把脉|怀孕|有喜|喜脉|身子|身孕|怀上)/.test(String(say || ''))) {
-        const wQ = loadState(this.dataDir);
-        const meQ = this._viewerActorId ? wQ.actors?.[this._viewerActorId] : wQ.actors?.husband;
         const hereQ = Object.values(wQ.actors || {}).filter(
-          (a) => a && !a.dead && a.id !== 'husband' && a.id !== this._viewerActorId
-            && (a.location === meQ?.location || a.household),
+          (a) => a && !a.dead && a.id !== 'husband'
+            && (a.location === meQ?.location || a.household || a.id === this._viewerActorId),
         );
         const preg = hereQ.filter((a) => a.pregnancy && !a.pregnancy.born);
         const askedWho = hereQ.find((a) => {
@@ -830,11 +837,11 @@ export class PetService {
           return String(say || '').includes(a.name) || String(say || '').includes(short);
         });
         if (askedWho && askedWho.pregnancy && !askedWho.pregnancy.born) {
-          contextHint += `（【诊脉】${askedWho.name}确有身孕，已 ${askedWho.pregnancy.days} 天。这是账本事实，不许说没有。）\n`;
+          contextHint += `（【诊脉】${askedWho.name}确有身孕，已 ${askedWho.pregnancy.days || 0} 天。这是账本事实，不许说没有。）\n`;
         } else if (askedWho) {
           contextHint += `（【诊脉】${askedWho.name}没有身孕。这是账本事实，不许说有了。）\n`;
         } else if (preg.length) {
-          contextHint += `（【诊脉】府里有孕的：${preg.map((a) => `${a.name}（${a.pregnancy.days} 天）`).join('、')}。这是账本事实。）\n`;
+          contextHint += `（【诊脉】府里/身边有孕的：${preg.map((a) => `${a.name}（${a.pregnancy.days || 0} 天）`).join('、')}。这是账本事实。）\n`;
         } else {
           contextHint += '（【诊脉】府里眼下没有谁有身孕。这是账本事实，不许编一个有孕的。）\n';
         }
@@ -849,8 +856,13 @@ export class PetService {
         const who = String(mWhere[1]);
         const hit = Object.values(wW2.actors || {}).find((a) => a && !a.dead && a.name && (a.name === who || a.name.includes(who) || who.includes(a.name)));
         if (hit) {
-          const placeName2 = String(wW2.places?.[hit.location]?.name || '别处');
-          contextHint += `（【位置】${hit.name}此刻在「${placeName2}」——问他在哪就照这个答，别说不知道。）\n`;
+          const meLoc = wW2.actors?.[this._viewerActorId || 'husband']?.location;
+          if (hit.location && hit.location === meLoc) {
+            contextHint += `（【位置】${hit.name}此刻就在你跟前这间屋里！就在眼前，必须直接迎面开口应声，绝不许说他在别处！）\n`;
+          } else {
+            const placeName2 = String(wW2.places?.[hit.location]?.name || '别处');
+            contextHint += `（【位置】${hit.name}此刻在「${placeName2}」——问他在哪就照这个答，别说不知道。）\n`;
+          }
         }
       }
     } catch {
@@ -1548,7 +1560,7 @@ export class PetService {
           } catch { /* 忽略 */ }
           const placeNow2 = String(wPost.places?.[locPost]?.name || '');
           if (placeNow2) {
-            const head = `【${placeNow2}】：（你到了${placeNow2}。）`;
+            const head = `（你到了${placeNow2}。）`;
             const rest = String(reply || '').split('\n').filter((x) => x && !/你到了|没人应声|没人接话/.test(x));
             reply = [head, ...rest].join('\n').trim();
           }
@@ -1562,8 +1574,8 @@ export class PetService {
           const hereText = hereNow.slice(0, 2).map((a) => `${a.name}${a.activity?.text ? '正' + a.activity.text : ''}`).join('，');
           const lead = movedNow ? `你到了${placeNow}` : `就站在${placeNow}`;
           reply = hereText
-            ? `【${placeNow || '这里'}】：${lead}——${hereText}。`
-            : `【${placeNow || '这里'}】：${lead}，四下冷清，没什么人。`;
+            ? `（${lead}——${hereText}。）`
+            : `（${lead}，四下冷清，没什么人。）`;
         }
 
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
@@ -1578,7 +1590,17 @@ export class PetService {
             && a.location === locPost && a.name && said.includes(a.name),
         );
         const namedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said);
-        const askedHim = namedHim || (!talkingToOther && (partnerIsHusband || !partnerId));
+        const dismissedHim = /(一边去|走开|离我远点|别管我|闭嘴|自己待着|别理我|嫌烦)/.test(said);
+        if (dismissedHim) {
+          try {
+            const wt = loadState(this.dataDir);
+            wt.chatPartners = wt.chatPartners || {};
+            delete wt.chatPartners[this._viewerActorId];
+            saveState(this.dataDir, wt);
+          } catch {}
+        }
+        // 铁律：王甯必须真实在场 (husHere)！不在场严禁千里传音，绝不做狗皮膏药
+        const askedHim = !dismissedHim && (namedHim || (husHere && !talkingToOther && (partnerIsHusband || !partnerId)));
         if (askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';
@@ -1628,6 +1650,10 @@ export class PetService {
             try {
               const relH = mePost?.relations?.husband || {};
               promiseFacts.push(`你和${herName || '她'}是相好（她对你：信任${relH.trust ?? 50}、欲望${relH.desire ?? 0}、怨怼${relH.grievance ?? 0}），她是你的人`);
+              if (mePost?.pregnancy && !mePost.pregnancy.born) {
+                const pDays = Number(mePost.pregnancy.days) || 0;
+                promiseFacts.push(`【天大喜讯·腹中骨肉】：${herName || '紫嫣'}腹中已怀有你（相公王甯）的亲生骨肉（有喜已有${pDays}天）！你对她体贴入微、万分怜惜疼爱，她若问起身体或身孕，必须欣喜温柔应承，绝不可装作不知或否认！`);
+              }
               const spouse = Object.values(wPost.actors || {}).find(
                 (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband' && a.gender === 'male'
                   && a.home && mePost?.home && a.home === mePost.home,
@@ -1710,10 +1736,8 @@ export class PetService {
               }
             } catch { /* 忽略 */ }
             if (line) {
-              reply = `${line}\n${String(reply).split('\n').filter((x) => !/没人应声/.test(x)).join('\n')}`
-                .replace(/\n{2,}/g, '\n')
-                .trim();
-              console.log('[Proxy] 代演王甯：' + line.slice(0, 40));
+              const otherSpeakers = String(reply).split('\n').filter((x) => /^【[^】]+】/.test(x) && !/王甯/.test(x));
+              reply = otherSpeakers.length > 0 ? `${line}\n${otherSpeakers.join('\n')}`.trim() : line;
               try {
                 const wp = loadState(this.dataDir);
                 wp.chatPartners = wp.chatPartners || {};
@@ -1795,7 +1819,8 @@ export class PetService {
             });
             const npLine = wrapProxyLine(npc.name, npRes?.text);
             if (npLine) {
-              reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声|没人接话|就站在|四下冷清|你到了/.test(x)).join('\n')}`.trim();
+              const otherSpeakers = String(reply).split('\n').filter((x) => /^【[^】]+】/.test(x) && !x.includes(npc.name));
+              reply = otherSpeakers.length > 0 ? `${npLine}\n${otherSpeakers.join('\n')}`.trim() : npLine;
               console.log('[Proxy] 代演' + npc.name + '：' + npLine.slice(0, 40));
               try {
                 const wp2 = loadState(this.dataDir);
@@ -2404,7 +2429,7 @@ export class PetService {
       const wEnd = loadState(this.dataDir);
       const sayText = String(say || '');
       const namedHere = Object.values(wEnd.actors || {}).filter(
-        (a) => a && !a.dead && a.name && sayText.includes(a.name),
+        (a) => a && !a.dead && a.name && sayText.includes(a.name) && a.id !== this._viewerActorId,
       );
       if (namedHere.length === 1 && reply && /【[^】]+】/.test(String(reply))) {
         const keepName = namedHere[0].name;
@@ -2812,10 +2837,21 @@ export class PetService {
         headName = placeName;
       }
 
-      let placeId = Object.keys(world.places || {}).find((id) => {
-        const n = world.places[id]?.name || '';
-        return n === placeName || n === headName;
-      });
+      // 「雅阁/二楼雅阁/雅间」是临江茶坊的茶室，归并到 tea_house，严禁另建独立地点
+      let placeId = null;
+      if (/^(雅阁|二楼雅阁|茶坊雅阁|茶阁|雅间)$/.test(headName) || /^(雅阁|二楼雅阁|茶坊雅阁|茶阁|雅间)$/.test(placeName)) {
+        if (world.places?.tea_house) {
+          placeId = 'tea_house';
+          placeName = world.places.tea_house.name || '临江茶坊';
+          headName = placeName;
+        }
+      }
+      if (!placeId) {
+        placeId = Object.keys(world.places || {}).find((id) => {
+          const n = world.places[id]?.name || '';
+          return n === placeName || n === headName;
+        });
+      }
       if (!placeId) {
         for (const [id, p] of Object.entries(world.places || {})) {
           const n = p?.name || '';
@@ -3103,14 +3139,16 @@ export class PetService {
       } catch {
         roster = '';
       }
+      const curSpeaker = (this._viewerActorId && w0?.actors?.[this._viewerActorId]?.name) || (memberKey === 'husband' ? '相公王甯' : '女眷');
       const system = [
         '你是世界账本记账员。判断这一轮有没有改变世界，只输出回执行，不要解释、不要写台词。',
         `在场人物：${roster}`,
         `产业清单：${props}`,
+        this._viewerActorId ? `【重要角色识别】：当前说话者是「${curSpeaker}」（id=${this._viewerActorId}）。当她说自己怀有身孕时，必须记 [[world:pregnant who=${this._viewerActorId}]]，绝不许记给在场的其他女眷！` : '',
         '格式：[[world:relation who=waner field=trust delta=+3]] [[world:asset delta=-12.5 reason="x"]] [[world:promise due=世界日+天数 text="x"]] [[world:move who=husband to=地点]] [[world:remember text="一句话"]]',
         '剧情线：[[world:clue text="沈家旧案的一页卷宗"]] [[world:faction id=yamen delta=+5]]',
         '新人物：[[world:spawn name="苏娘" role="绣坊寡妇" goals="养大幼子;寻个依靠" secret="亡夫留了债"]]',
-        '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算）',
+        '有孕：[[world:pregnant who=liuwenxia]]（她自己说/大夫诊出/相公确认才算；谁说自己有孕就记谁，绝不可张冠李戴）',
         '产业：[[world:income id=canal_restaurant set=18 status="已开张"]] —— **凡是"开张/日入多少/生意变好变差"，一律用这个改产业营收，绝不许拿 [[world:asset]] 加一笔银子代替。**',
         '新开店：[[world:property name="城南布庄" set=10 status="已开张"]] —— 相公说要开一间以前没有的铺子时用它。',
         '招兵：[[world:troops field=guards delta=10]]（护院 guards / 乡勇 militia / 兵马 army）',
@@ -3137,9 +3175,11 @@ export class PetService {
         '**动情/暧昧/答应私会/被撩到心软** → 必须记 [[world:relation who=她的id field=desire delta=+4]]（明显亲密可 +8）；被冷落或受惊则记 delta=-3。',
       ].join('\n');
 
+      const speakerLabel = this._viewerActorId ? `${curSpeaker}说` : '相公说';
+      const replyLabel = this._viewerActorId ? '对方回' : '她回';
       const res = await this.llmClient.complete({
         system,
-        messages: [{ role: 'user', content: `相公说：${userText}\n她回：${replyText}` }],
+        messages: [{ role: 'user', content: `${speakerLabel}：${userText}\n${replyLabel}：${replyText}` }],
         maxTokens: 150,
         temperature: 0.2,
       });
