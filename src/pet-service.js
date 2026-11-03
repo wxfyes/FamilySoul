@@ -2338,6 +2338,38 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 最后兜底：若只剩场景旁白，而在场有人 → 让他开口说一句
+    try {
+      const isNarration = /^(【[^】]+】：)?\s*[^【]*(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
+      if (isNarration) {
+        const wL = loadState(this.dataDir);
+        const meL = this._viewerActorId ? wL.actors?.[this._viewerActorId] : wL.actors?.husband;
+        const hereL = Object.values(wL.actors || {})
+          .filter((a) => a && !a.dead && a.id !== 'husband' && a.id !== this._viewerActorId && a.location === meL?.location)
+          .sort((x, y) => (Number(y.relations?.husband?.trust) || 0) - (Number(x.relations?.husband?.trust) || 0));
+        const pickL = hereL[0];
+        if (pickL) {
+          const pL = buildProxyPrompt({
+            actor: pickL,
+            memories: (wL.memories || []).filter((m) => String(m?.text || '').includes(pickL.name)).map((m) => String(m.text)).slice(-3),
+            facts: wL.npcArcs?.[pickL.id]?.lastStep ? [`你眼下的事：${wL.npcArcs[pickL.id].lastStep}`] : [],
+            hearerName: meL?.name || '相公',
+            hearerPlace: String(wL.places?.[meL?.location]?.name || ''),
+            said: String(say || '').slice(0, 120),
+            recent: '',
+          });
+          const rL = await this.llmClient.complete({
+            system: pL.system, messages: [{ role: 'user', content: pL.user }], maxTokens: 150, temperature: 0.85,
+          });
+          const lineL = wrapProxyLine(pickL.name, rL?.text);
+          if (lineL) {
+            reply = lineL;
+            console.log('[Proxy] 旁白兜底 → ' + pickL.name + '：' + lineL.slice(0, 24));
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 最后一道：所有后处理改的是 reply，这里同步回 assistantMsg
     try {
       if (assistantMsg && typeof reply === 'string' && reply !== assistantMsg.text) {
