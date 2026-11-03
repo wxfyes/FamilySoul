@@ -1562,7 +1562,7 @@ export class PetService {
             try {
               const loans = (wPost.promises || []).filter((pr) => pr && pr.loan && !pr.done);
               if (loans.length === 0) {
-                promiseFacts.push('账本上没有任何未了的借贷（她若说有，先别认，让她把数目和由头说清楚）');
+                promiseFacts.push('账本上没有任何未了的借贷（她若主动提起，你可以问一句；她没提，你就一个字都不许提钱和账）');
               } else {
                 for (const pr of loans) {
                   const fromName = wPost.actors?.[pr.loan.from]?.name || pr.loan.from;
@@ -2496,6 +2496,17 @@ export class PetService {
             console.log('[Proxy] 补' + who.name + '一句：' + lineM.slice(0, 24));
           }
         }
+      }
+    } catch { /* 忽略 */ }
+
+    // 有人说正经台词了，旁白就别再占一行（它会每轮重复同一句）
+    try {
+      const lines = String(reply || '').split('\n');
+      const hasSpeech = lines.some((l) => /^【[^】]+】/.test(l) && !/^【(天道|旁白|)[^】]*】：\s*[^【]*(就站在|四下冷清|你到了|没人接话|没人应声)/.test(l));
+      if (hasSpeech) {
+        const kept = lines.filter((l) => !/(就站在|四下冷清|你到了|没人接话|没人应声)/.test(l));
+        const joined = kept.join('\n').trim();
+        if (joined) reply = joined;
       }
     } catch { /* 忽略 */ }
 

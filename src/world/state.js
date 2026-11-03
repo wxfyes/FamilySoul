@@ -830,6 +830,17 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 旧事去重：同一句记两遍只留一遍
+  try {
+    const seen = new Set();
+    world.memories = (world.memories || []).filter((m) => {
+      const t = String(m?.text || '').trim();
+      if (!t) return false;
+      if (seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+  } catch { /* 忽略 */ }
   // 位置必须是真的地方：指到不存在的 id（clinic 这种）就挪回住处或街上
   try {
     const fallback = world.places?.street ? 'street' : (world.places?.backyard ? 'backyard' : Object.keys(world.places || {})[0]);
