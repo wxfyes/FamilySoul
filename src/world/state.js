@@ -830,6 +830,21 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 位置必须是真的地方：指到不存在的 id（clinic 这种）就挪回住处或街上
+  try {
+    const fallback = world.places?.street ? 'street' : (world.places?.backyard ? 'backyard' : Object.keys(world.places || {})[0]);
+    for (const a of Object.values(world.actors || {})) {
+      if (!a) continue;
+      if (a.location && !world.places?.[a.location]) {
+        const back = world.places?.[a.home] ? a.home : fallback;
+        if (back) {
+          console.log(`[State] ${a.name} 位置失效(${a.location}) → ${world.places[back]?.name || back}`);
+          a.location = back;
+        }
+      }
+      if (a.home && !world.places?.[a.home]) a.home = fallback;
+    }
+  } catch { /* 忽略 */ }
   // 清掉误建的模糊地名（院中/屋里/房中…），人挪回后院暖阁
   try {
     const junk = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外)$/;

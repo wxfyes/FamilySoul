@@ -2363,12 +2363,19 @@ export class PetService {
         return a.name && (saidH.includes(a.name) || (short && saidH.includes(short)));
       });
       if (houseActor) {
-        const whereH = String(wHouse.places?.[houseActor.location]?.name || '宅中');
+        let whereH = String(wHouse.places?.[houseActor.location]?.name || '');
+        if (!whereH || /^[a-z0-9_]+$/i.test(whereH)) whereH = String(wHouse.places?.[houseActor.home]?.name || '宅中');
+        if (!whereH || /^[a-z0-9_]+$/i.test(whereH)) whereH = '宅中';
         const factLine = `【府中】${houseActor.name}是${houseActor.role || '府里人'}，就住「${whereH}」。`;
         const roleOk = new RegExp(String(houseActor.role || '府里人').slice(0, 2)).test(String(reply || ''));
         // 先把旁白行剔掉，别让"就站在…"跟着事实一起出现
         reply = String(reply || '').split('\n').filter((x) => !/就站在|四下冷清|你到了/.test(x)).join('\n').trim();
-        const contradicted = /(么？|么\?|听说|提过一嘴|哪家|外头|不认识|不认得|从哪儿听来)/.test(String(reply || ''));
+        const mSpk = String(reply || '').match(/^【([^】\n]{1,12})】/);
+        const speakerName = mSpk ? mSpk[1] : '';
+        const speakerIsThem = speakerName.includes(houseActor.name) || (houseActor.name.length > 2 && speakerName.includes(houseActor.name.slice(-2)));
+        const deniesHer = /(哪家|不认识|不认得|没听说过|没听过|从哪儿听来|这是谁|是谁)/.test(String(reply || ''));
+        const mentionsHer = String(reply || '').includes(houseActor.name) || (houseActor.name.length > 2 && String(reply || '').includes(houseActor.name.slice(-2)));
+        const contradicted = deniesHer && !mentionsHer && !speakerIsThem;
         if (!roleOk && contradicted) {
           // 模型把府里人当外人 → 换成她本人口吻的更正
           const mSpeak = String(reply || '').match(/^【([^】\n]{1,12})】/);
