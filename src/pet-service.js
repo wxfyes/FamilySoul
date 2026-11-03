@@ -1766,6 +1766,39 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // ① 天道场景标签不许漏到正文
+    try {
+      if (reply) {
+        reply = String(reply)
+          .replace(/【天道[·:：][^】]*】[:：]?/g, '')
+          .replace(/【天道】[:：]?/g, '')
+          .replace(/\n{2,}/g, '\n')
+          .replace(/^\s+/, '')
+          .trim();
+      }
+    } catch { /* 忽略 */ }
+
+    // ② 府里的人不许装不认识（模型偶尔无视名单）
+    try {
+      if (reply) {
+        const wF = loadState(this.dataDir);
+        const house = Object.values(wF.actors || {}).filter(
+          (a) => a && !a.dead && a.id !== 'husband' && (a.household || a.id === 'waner' || a.id === 'yunnia' || a.id === 'xiaocui'),
+        );
+        const saidF = String(say || '');
+        const asked = house.find((a) => {
+          if (!a.name) return false;
+          const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+          return saidF.includes(a.name) || (short && saidF.includes(short));
+        });
+        const denies = /(哪家的姑娘|不认识|没听说过|不认得|从哪儿听来|这是谁)/;
+        if (asked && denies.test(String(reply))) {
+          console.log(`[Scene] ${asked.name}被当成外人，已改正`);
+          reply = `【府中】：${asked.name}是${asked.role || '府里人'}，就住在这宅子里。`;
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 回执标签绝不能出现在回复里
     try {
       if (reply) reply = String(reply).replace(/\[\[world:[\s\S]*?\]\]/g, '').replace(/\n{2,}/g, '\n').trim();
