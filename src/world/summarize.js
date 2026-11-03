@@ -530,7 +530,16 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       if (fs2.length > 0) {
         lines.push(`【势力】${fs2.map((f) => `${f.name} ${Number(f.relation) >= 0 ? '+' : ''}${Math.round(Number(f.relation) || 0)}`).join(' · ')}`);
       }
-      const cls = (world.clues || []).slice(-4);
+      // 线索同样按人过滤：独处时自己全知道；有旁人在场只提与他有关的
+      const aloneC = sceneNames.length <= 1;
+      const cls = (world.clues || [])
+        .filter((c) => {
+          const t = String(c?.text || '');
+          if (!t) return false;
+          if (aloneC) return true;
+          return sceneNames.some((n) => t.includes(n));
+        })
+        .slice(-4);
       if (cls.length > 0) {
         lines.push(`【线索】${cls.map((c) => String(c.text || '').slice(0, 30)).join('；')}`);
       }
