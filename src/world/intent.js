@@ -189,7 +189,17 @@ export function parseIntent({ text = '', actorId = 'husband', world = null, last
         if (hit) {
           foundPersonId = aId;
           if (a.location) {
-            const locName = world.places?.[a.location]?.name || a.location;
+            let locName = world.places?.[a.location]?.name || a.location;
+            // 外妇/客人找相公：若相公身处私密内宅（正房/后院），目标地点必须是公共产业【临江茶坊】
+            if (aId === 'husband' && actor !== 'husband') {
+              const isInner = ['husband_room', 'backyard'].includes(a.location);
+              const meActor = world.actors?.[actor];
+              const isHousehold = Boolean(meActor?.household) || ['waner', 'yunnia', 'xiaocui'].includes(actor);
+              if (isInner && !isHousehold) {
+                locName = '临江茶坊';
+                params.meetHusbandAtTeaHouse = true;
+              }
+            }
             target = locName;
             break;
           }
