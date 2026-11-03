@@ -1625,7 +1625,13 @@ export class PetService {
             .filter(Boolean);
           const replyIsNarration = /(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
           const replyHasPresentSpeaker = !replyIsNarration && presentNamesNow.some((n) => String(reply || '').includes(n));
-          if (!namedPresent.length && !partnerHere.length && !replyHasPresentSpeaker) {
+          // 问的是某个具体的人（可能不在场）→ 不许路人乱插话
+          const askedAnyActor = Object.values(wPost.actors || {}).some((a) => {
+            if (!a || !a.name) return false;
+            const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+            return String(say || '').includes(a.name) || (short && String(say || '').includes(short));
+          });
+          if (!askedAnyActor && !namedPresent.length && !partnerHere.length && !replyHasPresentSpeaker) {
             const here2 = Object.values(wPost.actors || {})
               .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId && a.id !== 'husband')
               .sort((x, y) => (Number(y.relations?.husband?.trust) || 0) - (Number(x.relations?.husband?.trust) || 0));
