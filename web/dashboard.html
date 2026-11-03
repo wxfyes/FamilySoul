@@ -242,28 +242,33 @@
     <div id="diag" class="muted" style="margin-top:6px">—</div>
   </section>
 
-  <section class="card">
-    <h2>运行状态</h2>
+<section class="card" id="card-diag">
+  <h2>🩺 系统诊断</h2>
+  <div class="muted" id="diag-summary" style="margin:4px 0 6px">点开看：运行状态 · 花费 · 体检结果</div>
+  <details>
+    <summary style="cursor:pointer;font-size:12px;opacity:.8">展开明细</summary>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
+      <div class="muted" style="margin-bottom:4px">运行状态</div>
     <div class="row"><span>已运行</span><span id="r-uptime">—</span></div>
     <div class="row"><span>内存占用</span><span id="r-rss">—</span></div>
     <div class="row"><span>Node / PID / 端口</span><span id="r-node">—</span></div>
     <div class="row"><span>回执率（近20轮）</span><span id="r-receipt">—</span></div>
     <div class="row"><span>健康提示</span><span id="r-health">—</span></div>
-  </section>
-
-  <section class="card">
-    <h2>花费</h2>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
+      <div class="muted" style="margin-bottom:4px">花费</div>
     <div class="row"><span>累计轮数</span><span id="c-rounds" class="big">—</span></div>
     <div class="row"><span>平均每轮输入</span><span id="c-avg">—</span></div>
     <div class="row"><span>缓存命中率</span><span id="c-hit">—</span></div>
     <div class="row"><span>估算花费</span><span id="c-cost" class="big">—</span></div>
     <div class="muted" id="c-note" style="margin-top:6px"></div>
-  </section>
-
-  <section class="card">
-    <h2>体检结果</h2>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
+      <div class="muted" style="margin-bottom:4px">体检结果</div>
     <div id="audit-box" class="muted">—</div>
-  </section>
+    </div>
+  </details>
+</section>
 
   <section class="card full">
     <h2>成员绑定（这个账号演谁）</h2>
@@ -404,34 +409,53 @@ function render(w){
     $('morning-banner').style.display = 'none';
   }
 
-  // ── 🏡 家宅卡 ──────────────────────────────
+  // ── 🏡 家宅卡：府内女眷（有名分）与外室（相好，不入府）分开 ----------
   if ($('card-household')) {
-    const marriages = w.marriages || [];
-    let wives = 0, concubines = 0, pregs = 0;
-    marriages.forEach(m => {
-      if (m.rank && m.rank.includes('正妻')) wives++;
-      else concubines++;
-      if (m.pregnancy && !m.pregnancy.born) pregs++;
-    });
-    $('h-family-top').textContent = `正妻 ${wives} · 侧室 ${concubines} · 有孕 ${pregs}`;
-    $('family-detail').innerHTML = marriages.map(m => {
-      const pregTag = m.pregnancy && !m.pregnancy.born
-        ? `<span class="tag good" style="margin-left:4px">孕${m.pregnancyMonth ?? 1}月</span>`
-        : '';
-      const childTag = Array.isArray(m.children) && m.children.length
-        ? `<span class="tag" style="margin-left:4px">育${m.children.length}子</span>`
-        : '';
-      return `<div class="row">
-        <span><b>${m.name}</b> <span class="tag" style="margin-left:4px">${m.rank || '妾室'}</span>${pregTag}${childTag}</span>
-        <span class="muted">${m.placeName || '后院暖阁'}</span>
+    const women = Object.values(w.actors || {}).filter(a => a && a.gender === 'female' && a.id !== 'husband');
+    const inHouse = women.filter(a => a.household);
+    const outHouse = women.filter(a => !a.household && (
+      (a.intimacy && a.intimacy.consummated) || Number(a.relations?.husband?.trust) >= 50
+    ));
+    const isPreg = (a) => Boolean(a.pregnancy && !a.pregnancy.born);
+    const pregCount = (arr) => arr.filter(isPreg).length;
+    const rankOf = (a) => {
+      const r = String(a.role || '');
+      if (/正妻|大娘子/.test(r)) return '正妻';
+      if (/如夫人|二房|侧室|妾/.test(r)) return '二房';
+      if (/通房|丫鬟|婢/.test(r)) return '通房';
+      return '府内';
+    };
+    const ord = { 正妻: 0, 二房: 1, 通房: 2, 府内: 3 };
+    inHouse.sort((x, y) => ord[rankOf(x)] - ord[rankOf(y)]);
+    const mainCnt = (k) => inHouse.filter(a => rankOf(a) === k).length;
+    const outPreg = pregCount(outHouse);
+
+    $('h-family-top').textContent =
+      `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+      + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
+
+    const rowOf = (a, tag) => `<div class="row">
+        <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}</span>
+        <span class="muted">${a.place || ''}</span>
       </div>`;
-    }).join('') || '<div class="muted">府中尚无内眷</div>';
+
+    let html = '';
+    if (inHouse.length) {
+      html += `<div class="muted" style="margin:4px 0 2px">府内</div>`;
+      html += inHouse.map(a => rowOf(a, rankOf(a))).join('');
+    }
+    if (outHouse.length) {
+      html += `<div class="muted" style="margin:8px 0 2px">外室 · 不入府（世人不知）</div>`;
+      html += outHouse.map(a => rowOf(a, '相好')).join('');
+    }
+    $('family-detail').innerHTML = html || '<div class="muted">府中尚无内眷</div>';
   }
+
 
   // ── 💰 账目卡 ──────────────────────────────
   if ($('card-accounts')) {
     const silver = Number(w.assets?.silver ?? 0);
-    const props = w.assets?.properties || [];
+    const props = (w.assets?.properties || []).filter(p => (Number(p.incomePerDay) || 0) > 0 || p.keeperName);
     const income = props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0);
     $('a-acc-top').textContent = `现存 ${silver.toFixed(1)} 两 · 日入 ${income.toFixed(1)} 两`;
     let accHtml = '';
