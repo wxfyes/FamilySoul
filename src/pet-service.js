@@ -2232,7 +2232,51 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 相公号：点了在场的人，模型没写出来 → 单独代演一句（和她的号同等待遇）
+    try {
+      const isHusAcc = !this._viewerActorId || this._viewerActorId === 'husband';
+      const replyEmpty = !String(reply || '').trim() || /^[...…]+$/.test(String(reply || '').trim());
+      if (isHusAcc && replyEmpty) {
+        const wN = loadState(this.dataDir);
+        const husN = wN.actors?.husband;
+        const saidN = String(say || '');
+        const target = Object.values(wN.actors || {}).find(
+          (a) => a && !a.dead && a.id !== 'husband' && a.name && a.location === husN?.location && saidN.includes(a.name),
+        );
+        if (target) {
+          const pN = buildProxyPrompt({
+            actor: target,
+            memories: (wN.memories || []).filter((m) => String(m?.text || '').includes(target.name)).map((m) => String(m.text)).slice(-4),
+            facts: (wN.npcArcs?.[target.id]?.lastStep ? [`你眼下的事：${wN.npcArcs[target.id].lastStep}`] : []),
+            hearerName: husN?.name || '相公',
+            hearerPlace: String(wN.places?.[husN?.location]?.name || ''),
+            said: saidN.slice(0, 120),
+            recent: '',
+          });
+          const resN = await this.llmClient.complete({
+            system: pN.system, messages: [{ role: 'user', content: pN.user }], maxTokens: 150, temperature: 0.85,
+          });
+          const lineN = wrapProxyLine(target.name, resN?.text);
+          if (lineN) {
+            reply = lineN;
+            const wSave = loadState(this.dataDir);
+            wSave.chatPartners = wSave.chatPartners || {};
+            wSave.chatPartners.husband = target.id;
+            saveState(this.dataDir, wSave);
+            console.log('[Proxy] 补代演' + target.name + '：' + lineN.slice(0, 30));
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
+
     this.saveHistory(profileKey, history);
+
+    // 最后一道：所有后处理改的是 reply，这里同步回 assistantMsg
+    try {
+      if (assistantMsg && typeof reply === 'string' && reply !== assistantMsg.text) {
+        assistantMsg.text = reply;
+      }
+    } catch { /* 忽略 */ }
 
     return {
       ok: true,
