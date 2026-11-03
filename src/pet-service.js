@@ -2454,12 +2454,18 @@ export class PetService {
       const wM = loadState(this.dataDir);
       const meM = this._viewerActorId ? wM.actors?.[this._viewerActorId] : wM.actors?.husband;
       const saidM = String(say || '');
-      const named = Object.values(wM.actors || {}).filter((a) => {
+      const namedByText = Object.values(wM.actors || {}).filter((a) => {
         if (!a || a.dead || !a.name || a.id === this._viewerActorId) return false;
         if (a.location !== meM?.location) return false;
         const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
         return saidM.includes(a.name) || (short && saidM.includes(short));
-      }).slice(0, 3);
+      });
+      // 说"你们两个/你们俩/都"这种，就把在场的几位都算上
+      const plural = /(你们两个|你们俩|你俩|你们两|两位|都|大家|一起)/.test(saidM);
+      const presentAll = Object.values(wM.actors || {})
+        .filter((a) => a && !a.dead && a.name && a.id !== this._viewerActorId && a.id !== 'husband' && a.location === meM?.location)
+        .sort((x, y) => (Number(y.relations?.husband?.trust) || 0) - (Number(x.relations?.husband?.trust) || 0));
+      const named = (namedByText.length ? namedByText : (plural ? presentAll.slice(0, 2) : [])).slice(0, 3);
       if (named.length >= 2) {
         for (const who of named) {
           const shortN = String(who.name).length > 2 ? String(who.name).slice(-2) : String(who.name);
