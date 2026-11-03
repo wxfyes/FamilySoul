@@ -1017,7 +1017,7 @@ const STARTED_AT = Date.now();
         const actor = world.actors?.[id];
         if (!actor || !placeName) return sendJson(res, 400, { ok: false, error: '参数不全' });
         world.places = world.places || {};
-        let pid = Object.keys(world.places).find((k) => world.places[k]?.name === placeName);
+        let pid = world.places[placeName] ? placeName : Object.keys(world.places).find((k) => world.places[k]?.name === placeName);
         if (!pid) {
           world.flags = world.flags || {};
           world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;

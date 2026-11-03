@@ -145,3 +145,4 @@ else:
 with open('src/world/summon.js', 'w', encoding='utf-8') as f:
     f.write(text)
 print("Updated src/world/summon.js")
+

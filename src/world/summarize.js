@@ -176,7 +176,11 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
       // 她认得的人：至少有相公/东家这一层关系，别装作不认识
       try {
-        lines.push('【你认得的人】王甯（相公，临江茶坊少东家，你与他相好）——有人叫「王掌柜」「王甯」，说的就是他。');
+                if (viewer === 'liuwenxia') {
+          lines.push('【你认得的人】你的正牌丈夫是「于子归」（营造行工头，你叫他相公/当家的/子归）；王甯只是临江茶坊少东家，是你的地下相好（私下往来，有人叫「王掌柜」「王甯」说的是他，但王甯绝不是你的相公！）。');
+        } else {
+          lines.push('【你认得的人】王甯（相公，临江茶坊少东家）——有人叫「王掌柜」「王甯」，说的就是他。');
+        }
       } catch {
         /* 忽略 */
       }

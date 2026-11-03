@@ -175,15 +175,28 @@ function findCompanions(world, selfId, say) {
   // 4. 女眷带伴侣/同行人同步（"跟我去医馆"、"赶紧弄完一起回家"）
   if (!isHusband) {
     const curLoc = me.location;
-    // 4.1 如果相公在同场，且说了一起或提到相公
-    const hus = world.actors?.husband;
-    if (hus && hus.location === curLoc && (isTogether || /(相公|王掌柜|少掌柜|王甯)/.test(text))) {
-      companions.push(hus);
+    const spouseId = me.spouse;
+    const isWifeOfHusband = !spouseId || spouseId === 'husband';
+    if (isWifeOfHusband) {
+      // 府中妻妾（婉儿、芸娘）：相公是王甯
+      const hus = world.actors?.husband;
+      if (hus && hus.location === curLoc && (isTogether || /(相公|王掌柜|少掌柜|王甯)/.test(text))) {
+        companions.push(hus);
+      }
+    } else {
+      // 外室相好（如紫嫣）：正牌丈夫是于子归，提相公带于子归
+      const realSpouse = world.actors?.[spouseId] || Object.values(world.actors || {}).find((a) => /于子归|于杰/.test(a?.name || ''));
+      if (realSpouse && realSpouse.location === curLoc && (isTogether || /(相公|当家的|丈夫|我男人|子归)/.test(text))) {
+        if (!companions.some((c) => c.id === realSpouse.id)) companions.push(realSpouse);
+      }
+      // 只有明确提到王掌柜/王甯时，才带情郎王甯
+      const hus = world.actors?.husband;
+      if (hus && hus.location === curLoc && /(王掌柜|少掌柜|王甯)/.test(text)) {
+        companions.push(hus);
+      }
     }
-    // 4.2 如果明确说了一起（"一起回家"、"咱们走"、"一道回"），同场的配偶/同行者也一同带走
     if (isTogether) {
       const partnerId = (world.chatPartners || {})[selfId];
-      const spouseId = me.spouse;
       for (const [id, a] of Object.entries(world.actors || {})) {
         if (!a || a.dead || id === selfId || id === 'husband') continue;
         if (a.location !== curLoc) continue;

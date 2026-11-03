@@ -1589,7 +1589,11 @@ export class PetService {
           (a) => a && !a.dead && a.id !== 'husband' && a.id !== this._viewerActorId
             && a.location === locPost && a.name && said.includes(a.name),
         );
-        const namedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said);
+                const isHusbandActor = mePost?.spouse === 'husband' || mePost?.household;
+        // 伦理铁律：紫嫣的正牌丈夫是于子归！只有府内妻妾喊相公才是叫王甯；紫嫣喊相公是叫于子归！
+        const namedHim = isHusbandActor ? /(王甯|王掌柜|少掌柜|相公)/.test(said) : /(王甯|王掌柜|少掌柜)/.test(said);
+        // 若紫嫣喊了相公/当家的/子归，明确记录为找正牌丈夫于子归
+        const namedSpouse = !isHusbandActor && /(相公|当家的|丈夫|我男人|子归|于工头|于子归)/.test(said);
         const dismissedHim = /(一边去|走开|离我远点|别管我|闭嘴|自己待着|别理我|嫌烦)/.test(said);
         if (dismissedHim) {
           try {
@@ -1908,8 +1912,9 @@ export class PetService {
           if (/(王甯|王掌柜)/.test(who)) return true;
           if (/(天道|旁白|众人)/.test(who)) return true;
           const knownActor = Object.values(wLoc.actors || {}).find((a) => a && a.name === who);
-          const samePlaceName = knownActor && wLoc.places?.[knownActor.location]?.name
-            && wLoc.places?.[knownActor.location]?.name === wLoc.places?.[locId2]?.name;
+          const pName1 = String(wLoc.places?.[knownActor?.location]?.name || '');
+          const pName2 = String(wLoc.places?.[locId2]?.name || '');
+          const samePlaceName = knownActor && pName1 && (pName1 === pName2 || (pName1.includes('县衙') && pName2.includes('县衙')) || (pName1.includes('茶坊') && pName2.includes('茶坊')) || (pName1.includes('酒楼') && pName2.includes('酒楼')) || (pName1.includes('酒肆') && pName2.includes('酒肆')) || (pName1.includes('长街') && pName2.includes('长街')));
           if (knownActor && knownActor.location !== locId2 && !samePlaceName) {
             console.log(`[Scene] 掐掉不在场的人：${who}`);
             return false;
