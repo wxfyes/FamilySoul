@@ -633,6 +633,17 @@ function ensureGovPlace(world, cityName) {
   return pid;
 }
 
+/** 给官员起一个像人的名字：姓 + 名（按种子稳定生成，不会每轮变）*/
+export function makeOfficialName(seed, fixedSurname = null) {
+  const SURNAMES = ['王','李','张','刘','陈','杨','赵','周','吴','徐','孙','马','朱','胡','郭','何','高','林','罗','郑','梁','谢','宋','唐','许','韩','冯','邓','曹','彭','曾','萧','田','董','袁','潘','蔡','蒋','余','杜'];
+  const GIVEN = ['元芳','守正','文远','子昂','敬之','国维','怀安','允升','秉忠','士诚','廷玉','孟春','仲元','季常','景行','德昭','仁甫','克明','承宗','明远','守拙','念祖','敬修','文正','思远','茂才','志学','允恭','克勤','清和'];
+  const key = String(seed || '');
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 131 + key.charCodeAt(i)) >>> 0;
+  const sn = fixedSurname || SURNAMES[h % SURNAMES.length];
+  const gv = GIVEN[(h >>> 7) % GIVEN.length];
+  return { name: `${sn}${gv}`, surname: sn };
+}
 export function ensureCourt(world) {
   try {
     if (world.actors?.liuwenxia && !world.actors.liuwenxia.spouse) world.actors.liuwenxia.spouse = 'yujie';
@@ -746,11 +757,16 @@ export function ensureCourt(world) {
       const countyId = `county_${cityName}`;
       if (world.actors?.[countyId]) continue;
       const govPlace = ensureGovPlace(world, cityName);
-      const SURNAMES = ['王', '李', '张', '刘', '陈', '杨', '赵', '周', '吴', '徐'];
-      const sn = SURNAMES[Math.abs(cityName.length + cityName.charCodeAt(0)) % SURNAMES.length];
+      let countyName = makeOfficialName(cityName).name;
+      // 重名就再取一个（最多试 8 次）
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const clash = Object.values(world.actors || {}).some((x) => x && x.name === countyName);
+        if (!clash) break;
+        countyName = makeOfficialName(cityName + '#' + attempt + '#' + countyId).name;
+      }
       world.actors = world.actors || {};
       world.actors[countyId] = {
-        id: countyId, name: `${sn}知县`, role: `${cityName}知县`, gender: 'male',
+        id: countyId, name: countyName, role: `${cityName}知县`, gender: 'male',
         home: govPlace, location: govPlace, origin: 'preset',
         goals: ['三年考满'], relations: { husband: { trust: 28, desire: 0, fear: 0, grievance: 0 } },
         schedule: [{ at: 9, do: '升堂理事', place: govPlace }],
@@ -843,6 +859,17 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 旧存档：知县名字是「李知县」这种占位，改成真名
+  try {
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || !a.name) continue;
+      const m = String(a.name).match(/^([\u4e00-\u9fa5])知县$/);
+      if (!m) continue;
+      const { name } = makeOfficialName(String(a.id || a.role || ''), m[1]);
+      a.name = name;
+      console.log(`[State] 知县改名：${m[1]}知县 → ${name}`);
+    }
+  } catch { /* 忽略 */ }
   // 旧事去重：同一句记两遍只留一遍
   try {
     const seen = new Set();

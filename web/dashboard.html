@@ -646,7 +646,16 @@ function render(w){
     ? `<div class="off-block"><div class="off-title">中枢</div><div class="off-grid">` +
       central.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
       `</div></div><div class="off-block"><div class="off-title">各府父母官（${local.length}）</div><div class="off-grid">` +
-      local.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
+      local.map(([k, o]) => {
+        const cityName = String(k).replace(/^city:/, '');
+        const county = (w.actors || []).find(a => String(a.role || '') === `${cityName}知县`);
+        let sub = '';
+        if (county) {
+          const cr = county.relations || {};
+          sub = `<div class="muted" style="font-size:11px;margin-top:2px">└ 知县 ${county.name} <span style="opacity:.75">信${Number(cr.trust)||0} 怨${Number(cr.grievance)||0} 欲${Number(cr.desire)||0}</span></div>`;
+        }
+        return `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b>${sub}</div>`;
+      }).join('') +
       `</div></div>`
     : '<div class="muted">朝廷未设官</div>';
   $('court').innerHTML = mandateHtml + courtBody;
