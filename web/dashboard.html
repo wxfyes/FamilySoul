@@ -791,7 +791,22 @@ function render(w){
   const list = (w.actors||[])
     .filter((a) => a && !officialIds.has(a.id))
     .slice()
-    .sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
+    .sort((a,b) => {
+      // 相关的人靠前：相公 → 府内 → 相好/高信任 → 其他
+      const rank = (a) => {
+        if (a.id === 'husband') return 0;
+        if (a.household) return 1;
+        const t = Number(a.relations?.trust) || 0;
+        const cons = a.intimacy && a.intimacy.consummated;
+        if (cons || t >= 50) return 2;
+        return 3;
+      };
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      const ta = Number(a.relations?.trust) || 0, tb = Number(b.relations?.trust) || 0;
+      if (tb !== ta) return tb - ta;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+    });
   const shown = window.__actorExpand ? list : list.slice(0, 10);
   $('actors').innerHTML = shown.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};

@@ -1427,12 +1427,24 @@ export class PetService {
         if (!hasMarker && isMainPersona && reply.trim().length > 0) {
           if (this._viewerActorId) {
             // 真人扮演世界人物时，AI 演的是相公王甯，气泡应标「王甯」
-            reply = `【旁白】：${reply}`;
+            reply = `【王甯】：${reply}`;
           } else {
             const w0 = loadState(this.dataDir);
-            const me = w0.actors?.waner;
-            const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : (me?.name || '婉儿');
-            reply = `【${me?.label || '正妻'}·${short}】：${reply}`;
+            const husLoc = w0.actors?.husband?.location;
+            const wanerLoc = w0.actors?.waner?.location;
+            const wanerHere = husLoc && wanerLoc && husLoc === wanerLoc;
+            if (wanerHere) {
+              const me = w0.actors?.waner;
+              const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : (me?.name || '婉儿');
+              reply = `【${me?.label || '正妻'}·${short}】：${reply}`;
+            } else {
+              const hereOthers = Object.values(w0.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && a.location === husLoc);
+              const hit = hereOthers.find((a) => a.gender === 'female') || hereOthers[0];
+              if (hit) {
+                const short = hit.name && hit.name.length > 2 ? hit.name.slice(-2) : hit.name;
+                reply = `【${hit.label || hit.name || short}】：${reply}`;
+              }
+            }
           }
         }
       } catch {
@@ -1566,7 +1578,7 @@ export class PetService {
             && a.location === locPost && a.name && said.includes(a.name),
         );
         const namedHim = /(王甯|王掌柜|少掌柜|相公)/.test(said);
-        const askedHim = namedHim || (!talkingToOther && (partnerIsHusband || !partnerId) && /(你|您)/.test(said));
+        const askedHim = namedHim || (!talkingToOther && (partnerIsHusband || !partnerId));
         if (askedHim && !/【[^】]*王甯/.test(String(reply))) {
           try {
             const herName = mePost?.name || '';

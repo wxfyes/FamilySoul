@@ -637,6 +637,15 @@ export function ensureCourt(world) {
   try {
     if (world.actors?.liuwenxia && !world.actors.liuwenxia.spouse) world.actors.liuwenxia.spouse = 'yujie';
     if (world.actors?.yujie && !world.actors.yujie.spouse) world.actors.yujie.spouse = 'liuwenxia';
+    // 物理空间解耦自愈：非王府同住内宅女眷，绝不滞留在正房寝居或后院私宅
+    for (const [aId, a] of Object.entries(world.actors || {})) {
+      if (!a || a.dead || a.id === 'husband') continue;
+      const isInner = ['husband_room', 'backyard'].includes(a.location);
+      const isHousehold = a.household || ['waner', 'yunnia', 'xiaocui'].includes(aId);
+      if (isInner && !isHousehold) {
+        a.location = (a.home && world.places?.[a.home]) ? a.home : 'wine_shop';
+      }
+    }
   } catch (_) {}
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};

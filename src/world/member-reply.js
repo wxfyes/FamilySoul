@@ -41,7 +41,8 @@ export function normalizeMemberReply(reply, ctx) {
 
     if (!seg.speaker) {
       // 无标签：当旁白，但去掉"她自己"的痕迹
-      kept.push({ speaker: placeLabel, text: body });
+      const defaultSpeaker = ctx?.husbandPresent ? "王甯" : placeLabel;
+      kept.push({ speaker: defaultSpeaker, text: body });
       continue;
     }
 

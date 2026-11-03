@@ -205,17 +205,25 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     return { moved: [], summoned: [], visited: null, left: false, alreadyHome: true };
   }
 
-  // 「去找王甯」：她去找相公，就真的走到他所在的地方
+  // 「去找王甯」：她去找相公，若相公在私密内宅，外人止步于临江茶坊前堂相见
   if (selfId && selfId !== 'husband' && /(找|去|寻|见)/.test(say) && /(王甯|王掌柜|少掌柜|相公)/.test(say)) {
     const hus = world.actors?.husband;
-    if (hus?.location && hus.location !== me.location) {
-      me.location = hus.location;
+    if (hus) {
+      const isInnerHome = ['husband_room', 'backyard'].includes(hus.location);
+      const isHouseholdFemale = me.household || ['waner', 'yunnia', 'xiaocui'].includes(selfId);
+      let targetLoc = hus.location;
+      if (isInnerHome && !isHouseholdFemale) {
+        // 外妇/客人绝不能私闯相公夫妻正房寝居与后院，会面止步于临江茶坊前堂
+        targetLoc = 'tea_house';
+        hus.location = 'tea_house';
+      }
+      if (me.location !== targetLoc) {
+        me.location = targetLoc;
+      }
       saveState(dataDir, world);
-      return { moved: [me.name], summoned: [], visited: hus.location, left: false };
+      return { moved: [me.name], summoned: [], visited: targetLoc, left: false };
     }
   }
-
-  // ② 待确认邀约处理：检测伴侣提议、消费与清空（防止连续说"好"重复造景）
   // 严格地名后缀：排除单字"行"，避免"就行/不行"误伤；增加合法地名校验
   const PLACE_SUFFIXES = '(?:馆|铺|楼|坊|堂|店|院|阁|斋|局|商行|车马行|营造行|布行|钱行|洋行|庄|园|寺|庵|祠|码头|渡口|桥|街|巷|市|集|仓|监|牢|营|寨|摊|亭|棚|舍|榭|居|筑|别苑|别院|小筑|雅间|厢房|客房|雅座|雅阁|画舫|渡船|酒肆|茶肆|小摊|茶摊|药铺)';
   const mPlace = say.match(new RegExp(`(?:去|往|到|上|回|进|移步|转到)([一-龥]{1,6}?${PLACE_SUFFIXES})`));

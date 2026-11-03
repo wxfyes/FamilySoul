@@ -161,7 +161,7 @@ function getFamilyProfiles() {
           presence: v.presence || '随时在线陪伴',
           description: v.description || '自定义受邀成员 / 知心挚友',
           // 绑定世界人物：这名成员登录后就是账本里的那个人（如刘文霞本人）
-          actor: v.actor || null,
+          actor: v.actor || (k !== 'husband' && k !== 'wife' && k !== 'kid' ? k : null) || (/紫嫣|文霞/.test(String(v.title || '')) ? 'liuwenxia' : null),
         };
       }
     }
@@ -1724,7 +1724,7 @@ const STARTED_AT = Date.now();
       try {
         const world = peek(DATA_DIR);
         const actors = Object.entries(world.actors || {})
-          .filter(([key]) => key !== 'husband')
+          // 相公本人也放进列表，看板才能看到他的行踪
           .map(([key, a]) => ({
             id: key,
             name: a.name,
