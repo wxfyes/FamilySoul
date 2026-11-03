@@ -12,3 +12,4 @@ with urllib.request.urlopen(req) as res:
     print("Places referenced by actors:")
     for p in sorted(places_in_actors):
         sys.stdout.buffer.write(f"  {p}\n".encode('utf-8'))
+

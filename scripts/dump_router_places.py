@@ -17,3 +17,4 @@ with urllib.request.urlopen(req) as res:
             for it in v:
                 sys.stdout.buffer.write(f"  {it.get('id')}: {it.get('name')}\n".encode('utf-8'))
             break
+

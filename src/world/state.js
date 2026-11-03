@@ -928,6 +928,26 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 清掉错误的主仆关系：对方不是同宅主家的，一律断开
+  try {
+    let removed = 0;
+    for (const [aId, m] of Object.entries(world.bonds || {})) {
+      const a = world.actors?.[aId];
+      if (!a || !m) continue;
+      for (const [bId, b] of Object.entries(m)) {
+        if (!b || b.type !== '主仆') continue;
+        const other = world.actors?.[bId];
+        const ok = a?.household && (other?.household || other?.id === 'husband');
+        if (!ok) {
+          delete m[bId];
+          const back = world.bonds?.[bId];
+          if (back) delete back[aId];
+          removed += 1;
+        }
+      }
+    }
+    if (removed) console.log(`[Bonds] 清理错误主仆关系 ${removed} 条`);
+  } catch { /* 忽略 */ }
   try { seedMenses(world); } catch { /* 忽略 */ }
   // 按身份修正性别：早年生成的郎中/掌柜/镖头被误标成女
   try {

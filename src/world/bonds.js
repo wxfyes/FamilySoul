@@ -54,9 +54,13 @@ export function ensureBonds(world) {
         addBond(world, ladies[i].id, ladies[j].id, '妻妾', score);
       }
     }
-    // 主仆
-    for (const s of servants) {
-      for (const m of masters) addBond(world, s.id, m.id, '主仆', 35);
+    // 主仆：只连"同宅的主家"（household），且宅内人多半是街上凑一起的，跳过
+    if (group.length <= 12) {
+      const houseMasters = masters.filter((a) => a.household);
+      for (const s of servants) {
+        if (!s.household) continue;      // 街上的小厮不算谁家的仆
+        for (const m of houseMasters) addBond(world, s.id, m.id, '主仆', 35);
+      }
     }
   }
 

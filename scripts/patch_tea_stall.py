@@ -53,3 +53,4 @@ if '\r\n' in s_state:
     s_norm2 = s_norm2.replace('\n', '\r\n')
 io.open(p_state, 'w', encoding='utf-8').write(s_norm2)
 print('patch state.js: success')
+
