@@ -126,6 +126,22 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 「去X家 / X的绣坊」：认到那个人真实所在，别另建一处
+  if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
+    const homeHit = Object.values(world.actors || {}).find((a) => {
+      if (!a || !a.name || a.id === selfId || a.id === 'husband') return false;
+      return new RegExp(`${a.name}(家|的|处)`).test(say);
+    });
+    if (homeHit && world.places?.[homeHit.location]) {
+      if (me.location !== homeHit.location) {
+        me.location = homeHit.location;
+        saveState(dataDir, world);
+        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: world.places[homeHit.location].name };
+      }
+      return { moved: [], summoned: [], visited: null, wentTo: world.places[homeHit.location].name, alreadyThere: true };
+    }
+  }
+
   // 「去某城」：城里没有长街就先修一条（不能把人塞进府衙）
   if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
     const cityHit = Object.keys(world.cities || {}).find((c) => String(say).includes(c));

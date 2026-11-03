@@ -1740,14 +1740,29 @@ export class PetService {
           if (/(王甯|王掌柜)/.test(who)) return true;
           if (/(天道|旁白|众人)/.test(who)) return true;
           const knownActor = Object.values(wLoc.actors || {}).find((a) => a && a.name === who);
-          if (knownActor && knownActor.location !== locId2) {
+          const samePlaceName = knownActor && wLoc.places?.[knownActor.location]?.name
+            && wLoc.places?.[knownActor.location]?.name === wLoc.places?.[locId2]?.name;
+          if (knownActor && knownActor.location !== locId2 && !samePlaceName) {
             console.log(`[Scene] 掐掉不在场的人：${who}`);
             return false;
           }
           return true;
         });
         const joined3 = kept3.join('').trim();
-        reply = joined3 || '';
+        if (joined3) {
+          reply = joined3;
+        } else {
+          // 全被掐掉：点的人不在场 → 照实报他在哪，别剩省略号
+          const named3 = Object.values(wLoc.actors || {}).find((a) => a && a.name && String(say || '').includes(a.name));
+          if (named3) {
+            const where3 = String(wLoc.places?.[named3.location]?.name || '别处');
+            const here3 = String(wLoc.places?.[locId2]?.name || '这里');
+            reply = `【${here3}】：${named3.name}在「${where3}」，眼下不在这儿。`;
+            console.log(`[Scene] ${named3.name}不在场，照实报位置：${where3}`);
+          } else {
+            reply = '';
+          }
+        }
       }
     } catch { /* 忽略 */ }
 
@@ -2157,6 +2172,14 @@ export class PetService {
         });
         const joined = kept.join('').trim();
         if (joined) reply = joined;
+        else {
+          // 全被掐掉：说明她/他不在场，就照实说人在哪，别只剩省略号
+          const abs = namedHere[0];
+          const where = String(wEnd.places?.[abs.location]?.name || '别处');
+          const here = String(wEnd.places?.[this._viewerActorId ? wEnd.actors?.[this._viewerActorId]?.location : wEnd.actors?.husband?.location]?.name || '这里');
+          reply = `【${here}】：${abs.name}在「${where}」，眼下不在这儿。`;
+          console.log(`[Scene] ${abs.name}不在场，照实报位置：${where}`);
+        }
       }
     } catch { /* 忽略 */ }
 
