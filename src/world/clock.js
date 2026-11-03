@@ -766,6 +766,28 @@ function runAllowances(world, events) {
   }
 }
 
+
+/**
+ * 月事：28 天一轮，行经 4~6 天。
+ * 这几天她身子不爽、不愿同房，也怀不上——这不是惩罚，是常识。
+ */
+function runMenses(world) {
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.gender !== 'female' || !a.menses) continue;
+    const m = a.menses;
+    m.cycleDay = ((Number(m.cycleDay) || 0) + 1) % (Number(m.cycle) || 28);
+    const on = m.cycleDay < (Number(m.periodLen) || 5);
+    if (on !== Boolean(m.on)) {
+      m.on = on;
+      const rel = a.relations?.husband;
+      if (rel) {
+        if (on) rel.grievance = Math.min(100, Math.round((Number(rel.grievance) || 0) + 1));
+      }
+      console.log(`[Menses] ${a.name}${on ? '来了月事' : '月事已净'}`);
+    }
+  }
+}
+
 function runPersonalEconomy(world, events) {
   const day = Number(world.clock?.day) || 1;
   let broke = 0;
@@ -1213,6 +1235,7 @@ function onNewDay(world, events) {
   consumeSupplies(world);
   try {
     runTreasury(world, events);
+  runMenses(world);
   runPersonalEconomy(world, events);
   runAllowances(world, events);
   } catch (err) {

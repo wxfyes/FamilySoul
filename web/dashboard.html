@@ -440,7 +440,7 @@ function render(w){
       + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
 
     const rowOf = (a, tag) => `<div class="row">
-        <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}</span>
+        <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}${a.onPeriod ? '<span class="tag" style="margin-left:4px">月事</span>' : ''}</span>
         <span class="muted">${a.place || ''}</span>
       </div>`;
 
@@ -867,6 +867,7 @@ function render(w){
     const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
     if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
+    if (a.onPeriod) intimacy = '月事中';
     return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
       <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + (a.debt ? ' <span class="bad">欠'+a.debt+'</span>' : '') : '—'}</td>

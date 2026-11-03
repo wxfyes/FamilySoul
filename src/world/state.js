@@ -671,6 +671,29 @@ export function seedPersonalMoney(world) {
   return seeded;
 }
 
+
+/** 给女性播种月事周期（28 天一轮，行经 4~6 天）*/
+export function seedMenses(world) {
+  const day = Number(world.clock?.day) || 1;
+  let seeded = 0;
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.gender !== 'female') continue;
+    if (a.menses && typeof a.menses.cycleDay === 'number') continue;
+    const age = Number(a.age) || 24;
+    if (age < 13 || age > 52) continue;
+    const h = String(a.id || a.name || '').split('').reduce((x, c) => (x * 131 + c.charCodeAt(0)) >>> 0, 11);
+    a.menses = {
+      cycle: 28,
+      periodLen: 4 + (h % 3),           // 4~6 天
+      cycleDay: h % 28,                  // 起始点错开
+      sinceDay: day,
+    };
+    seeded += 1;
+  }
+  if (seeded) console.log(`[Menses] 给 ${seeded} 位女性播种月事周期`);
+  return seeded;
+}
+
 export function ensureCourt(world) {
   try {
     // 查明紫嫣名义上的丈夫（于子归/于杰，无论id是npc_2还是yujie）
@@ -904,6 +927,7 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  try { seedMenses(world); } catch { /* 忽略 */ }
   // 按身份修正性别：早年生成的郎中/掌柜/镖头被误标成女
   try {
     const MALE_ROLE = /郎中|大夫|掌柜|东家|镖头|镖师|先生|夫子|僧人|道士|捕头|仵作|书办|衙役|工头|船夫|艄公|小二|伙计|小厮|教书/;
