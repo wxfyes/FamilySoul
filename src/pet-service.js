@@ -756,6 +756,27 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 旧事约束：账本没有，就别编（只给约束，不替它写台词）
+    try {
+      const askPastH = /(还记得|记不记得|记得吗|以前|上次|那回|从前|当年|旧事)/.test(String(say || ''));
+      if (askPastH) {
+        const wPH = loadState(this.dataDir);
+        const mePH = this._viewerActorId ? wPH.actors?.[this._viewerActorId] : wPH.actors?.husband;
+        const herePH = Object.values(wPH.actors || {}).filter((a) => a && !a.dead && a.location === mePH?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
+        const namesPH = herePH.map((a) => a.name);
+        const poolPH = (wPH.memories || []).filter((m) => {
+          const t = String(m?.text || '');
+          return namesPH.some((n) => t.includes(n)) || t.includes('相公') || m.visible === 'public';
+        });
+        if (poolPH.length) {
+          contextHint += `（【账本·旧事】${poolPH.slice(-4).map((m) => m.text).join('；')}\n`;
+          contextHint += '——她要问这些，就照这条说；账本里没有的，只说记不得。）\n';
+        } else {
+          contextHint += '（【账本·旧事】关于这件事，账本里什么都没有。你只能说自己记不得/没这回事，绝不许编细节，也不要编她的身世或往事。）\n';
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 问"某人在哪"：直接给准确位置
     try {
       const mWhere = String(say || '').match(/([\u4e00-\u9fa5]{2,4})\s*(?:在哪儿|在哪|在何处|何处)/);
@@ -2386,29 +2407,6 @@ export class PetService {
           if (lineL) {
             reply = lineL;
             console.log('[Proxy] 旁白兜底 → ' + pickL.name + '：' + lineL.slice(0, 24));
-          }
-        }
-      }
-    } catch { /* 忽略 */ }
-
-    // 问旧事：账本里没有，就不许编
-    try {
-      const askPast = /(还记得|记不记得|记得吗|以前|上次|那回|从前|当年|旧事)/.test(String(say || ''));
-      if (askPast) {
-        const wP2 = loadState(this.dataDir);
-        const meP = this._viewerActorId ? wP2.actors?.[this._viewerActorId] : wP2.actors?.husband;
-        const hereP = Object.values(wP2.actors || {}).filter((a) => a && !a.dead && a.location === meP?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
-        const names = hereP.map((a) => a.name);
-        const pool = (wP2.memories || []).filter((m) => {
-          const t = String(m?.text || '');
-          return names.some((n) => t.includes(n)) || t.includes('相公') || m.visible === 'public';
-        });
-        if (!pool.length) {
-          const speaker = String(reply || '').match(/^【([^】\n]{1,12})】/);
-          const who = speaker ? speaker[1] : (hereP[0]?.name || '');
-          if (who) {
-            reply = `【${who}】：（想了想，摇头）这事我记不得了。`;
-            console.log('[Memory] 账本无旧事，已拦住编造');
           }
         }
       }
