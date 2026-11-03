@@ -11,3 +11,4 @@ with urllib.request.urlopen(req) as res:
     for a in data.get('actors', []):
         if a.get('id') in ['zhanjing', 'husband']:
             sys.stdout.buffer.write(f"{a.get('id')} {a.get('name')} place={a.get('place')}\n".encode('utf-8'))
+
