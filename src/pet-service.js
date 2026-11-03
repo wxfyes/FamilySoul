@@ -764,12 +764,12 @@ export class PetService {
         const mePH = this._viewerActorId ? wPH.actors?.[this._viewerActorId] : wPH.actors?.husband;
         const herePH = Object.values(wPH.actors || {}).filter((a) => a && !a.dead && a.location === mePH?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
         const namesPH = herePH.map((a) => a.name);
-        const poolPH = namesPH.length
-          ? (wPH.memories || []).filter((m) => {
-            const t = String(m?.text || '');
-            return namesPH.some((n) => t.includes(n)) || m.visible === 'public';
-          })
-          : (wPH.memories || []).filter((m) => m.visible === 'public');
+        const idsPH = herePH.map((a) => a.id);
+        const poolPH = (wPH.memories || []).filter((m) => {
+          const t = String(m?.text || '');
+          const about = Array.isArray(m?.about) ? m.about : [];
+          return about.some((id) => idsPH.includes(id)) || namesPH.some((n) => t.includes(n));
+        });
         if (poolPH.length) {
           contextHint += `（【账本·旧事】${poolPH.slice(-4).map((m) => m.text).join('；')}\n`;
           contextHint += '——她要问这些，就照这条说；账本里没有的，只说记不得。）\n';
@@ -2424,12 +2424,14 @@ export class PetService {
         const meR = this._viewerActorId ? wR.actors?.[this._viewerActorId] : wR.actors?.husband;
         const hereR = Object.values(wR.actors || {}).filter((a) => a && !a.dead && a.location === meR?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
         const namesR = hereR.map((a) => a.name);
-        const poolR = namesR.length
-          ? (wR.memories || []).filter((m) => {
-            const t = String(m?.text || '');
-            return namesR.some((n) => t.includes(n)) || m.visible === 'public';
-          })
-          : (wR.memories || []).filter((m) => m.visible === 'public');
+        const idsR = hereR.map((a) => a.id);
+        const poolR = (wR.memories || []).filter((m) => {
+          const t = String(m?.text || '');
+          const about = Array.isArray(m?.about) ? m.about : [];
+          // 只认"关于她本人"的记忆；公开传闻不算她知道的事
+          return about.some((id) => idsR.includes(id)) || namesR.some((n) => t.includes(n));
+        });
+        console.log(`[Memory] 旧事检查 ask=${askP2} fab=${looksFabricated} pool=${poolR.length} speakers=${namesR.join('、')}`);
         if (poolR.length === 0) {
           const speaker = (String(reply || '').match(/^【([^】\n]{1,12})】/) || [])[1] || (hereR[0]?.name || '她');
           const rr = await this.llmClient.complete({
@@ -2445,7 +2447,7 @@ export class PetService {
           }
         }
       }
-    } catch { /* 忽略 */ }
+    } catch (e) { console.warn('[Memory] 重写失败：', e.message); }
 
     // 最后一道：所有后处理改的是 reply，这里同步回 assistantMsg
     try {

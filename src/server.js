@@ -449,6 +449,22 @@ const STARTED_AT = Date.now();
           .slice(-8)
           .map((c) => ({ text: c.text, day: c.day })),
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
+        life: (() => {
+          const meL = actorId ? world.actors?.[actorId] : world.actors?.husband;
+          const house = Object.values(world.actors || {}).filter(
+            (a) => a && !a.dead && a.id !== 'husband' && (a.household || (meL?.home && a.home === meL.home)),
+          );
+          return {
+            age: Number(meL?.age) || null,
+            pregnant: Boolean(meL?.pregnancy && !meL.pregnancy.born),
+            pregnancyDays: Number(meL?.pregnancy?.days) || 0,
+            house: house.slice(0, 12).map((a) => ({
+              name: a.name, role: a.role || '', age: Number(a.age) || null,
+              pregnant: Boolean(a.pregnancy && !a.pregnancy.born),
+              days: Number(a.pregnancy?.days) || 0,
+            })),
+          };
+        })(),
         arc: arc
           ? {
               title: arc.title,
@@ -1054,6 +1070,33 @@ const STARTED_AT = Date.now();
         child.unref();
         console.log(`[SelfUpdate] 已启动自更新（不含 data/）：${url}`);
         return sendJson(res, 200, { ok: true, started: true, note: '约 10 秒后重启，只更新代码不动世界数据' });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.26j 删记忆 POST /api/admin/memory/remove {text}
+    if (req.method === 'POST' && pathname === '/api/admin/memory/remove') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const text = String(body.text || '').slice(0, 60);
+        const before = (world.memories || []).length;
+        world.memories = (world.memories || []).filter((m) => !String(m?.text || '').includes(text));
+        saveState(DATA_DIR, world);
+        const removed = before - world.memories.length;
+        console.log(`[Memory] 删除 ${removed} 条：${text}`);
+        return sendJson(res, 200, { ok: true, removed });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.26k 记忆列表 GET /api/admin/memories
+    if (req.method === 'GET' && pathname === '/api/admin/memories') {
+      try {
+        const world = peek(DATA_DIR);
+        return sendJson(res, 200, { ok: true, memories: (world.memories || []).map((m) => ({ text: m.text, about: m.about || [], visible: m.visible || '', day: m.day })) });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

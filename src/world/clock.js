@@ -248,6 +248,75 @@ function runHearings(world, events) {
   }
 }
 
+/**
+ * 生老病死：会生、会老、会病、会死，死了产业要有人接。
+ * 只给概率与代价，不写台词。
+ */
+function runLifecycle(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  world.flags = world.flags || {};
+
+  // ① 生子：孕期满 280 天
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || !a.pregnancy || a.pregnancy.born) continue;
+    a.pregnancy.days = (Number(a.pregnancy.days) || 0) + 1;
+    if (a.pregnancy.days < 280) continue;
+    a.pregnancy.born = true;
+    const fatherId = a.pregnancy.father || 'husband';
+    world.flags.npcSeq = (Number(world.flags.npcSeq) || 0) + 1;
+    const cid = `npc_${world.flags.npcSeq}`;
+    const isBoy = Math.random() < 0.5;
+    const surnames = ['王', '沈', '林'];
+    const sn = surnames[Math.floor(Math.random() * surnames.length)];
+    world.actors[cid] = {
+      id: cid, name: `${sn}${isBoy ? '郎' : '娘'}`, role: `${a.name}的${isBoy ? '儿子' : '女儿'}`,
+      gender: isBoy ? 'male' : 'female', origin: 'spawned',
+      age: 0, household: true, home: a.home || 'backyard', location: a.home || 'backyard',
+      parents: [a.id, fatherId],
+      relations: { husband: { trust: 40, desire: 0, fear: 0, grievance: 0 } },
+      schedule: [],
+    };
+    world.memories = Array.isArray(world.memories) ? world.memories : [];
+    world.memories.push({ text: `${a.name}生了${isBoy ? '个儿子' : '个女儿'}`, day, at: Date.now(), about: [a.id, 'husband'], visible: 'private' });
+    events.push(nextEvent(world, { action: 'birth', actor: a.id, place: a.location, payload: { text: `${a.name}添了${isBoy ? '个儿子' : '个女儿'}` }, isPublic: true }));
+    queuePush?.({ to: 'husband', reason: 'birth', facts: { 生子: a.name }, fallback: `${a.name}生了，母子平安。`, force: true });
+  }
+
+  // ② 衰老与病亡：一年长一岁；过了五十，日子开始咬人
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || a.id === 'husband') continue;
+    if (day % 360 === 0) a.age = (Number(a.age) || 20) + 1;
+    const age = Number(a.age) || 20;
+    if (age < 45) continue;
+    const p = Math.min(0.5, (age - 45) * 0.01);
+    if (Math.random() > p) continue;
+    a.dead = true;
+    a.deadDay = day;
+    a.pendingDeath = true;
+    events.push(nextEvent(world, { action: 'death', actor: a.id, place: a.location, payload: { text: `${a.name}病故` }, isPublic: true }));
+    world.memories = Array.isArray(world.memories) ? world.memories : [];
+    world.memories.push({ text: `${a.name}病故了`, day, at: Date.now(), about: [a.id, 'husband'], visible: 'private' });
+    queuePush?.({ to: 'husband', reason: 'death', facts: { 丧: a.name }, fallback: `${a.name}去了。`, force: true });
+  }
+
+  // ③ 继承：死人名下的产业，交给配偶或子女
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || !a.pendingDeath) continue;
+    delete a.pendingDeath;
+    const kids = Object.values(world.actors || {}).filter((x) => x && !x.dead && Array.isArray(x.parents) && x.parents.includes(a.id));
+    const heir = kids[0] || Object.values(world.actors || {}).find((x) => x && !x.dead && x.id !== a.id && x.home === a.home && x.id !== 'husband');
+    for (const pr of world.assets?.properties || []) {
+      if (!pr) continue;
+      if (pr.owner === a.id) pr.owner = heir ? heir.id : 'husband';
+      if (pr.keeper === a.id) pr.keeper = heir ? heir.id : 'husband';
+    }
+    if (heir) {
+      events.push(nextEvent(world, { action: 'inherit', actor: heir.id, place: heir.location, payload: { text: `${heir.name}接了${a.name}的产业` }, isPublic: true }));
+      console.log(`[Life] ${a.name}身后，产业归${heir.name}`);
+    }
+  }
+}
+
 /** 民间案子：民心越乱，案子越多。只记事实，不写过程。 */
 function runPettyCrimes(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -899,6 +968,11 @@ function onNewDay(world, events) {
     runAppointments(world, events);
   } catch (err) {
     console.warn('[Court] 补缺失败：', err.message);
+  }
+  try {
+    runLifecycle(world, events, (o) => queueProactive(world, { type: 'life', ...o }));
+  } catch (err) {
+    console.warn('[Life] 生老病死失败：', err.message);
   }
   consumeSupplies(world);
   try {

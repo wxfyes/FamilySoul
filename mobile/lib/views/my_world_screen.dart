@@ -226,7 +226,39 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       ),
 
       if (mil != null) ...[
-        _sectionTitle('我的人马'),
+        // 家中（生老病死）
+      if ((d['life'] as Map?) != null) ...[
+        _sectionTitle('家中'),
+        _cardShell(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if ((d['life'] as Map)['age'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('你今年 ${(d['life'] as Map)['age']} 岁'
+                    '${(d['life'] as Map)['pregnant'] == true ? '　·　身怀六甲（${(d['life'] as Map)['pregnancyDays']} 天）' : ''}',
+                    style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5)),
+                ),
+              for (final h in ((d['life'] as Map)['house'] as List? ?? []))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text('${h['name']}  ${h['role'] ?? ''}', style: const TextStyle(color: Color(0xFFCFD6E4), fontSize: 12))),
+                      Text(
+                        '${h['age'] != null ? '${h['age']}岁' : ''}${h['pregnant'] == true ? '　有孕 ${h['days']}天' : ''}',
+                        style: const TextStyle(color: _muted, fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+
+      _sectionTitle('我的人马'),
         _cardShell(
           child: Row(
             children: [
