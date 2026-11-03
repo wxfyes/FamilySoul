@@ -73,3 +73,4 @@ else:
 with open('src/pet-service.js', 'w', encoding='utf-8') as f:
     f.write(text)
 print("Updated pet-service.js successfully!")
+

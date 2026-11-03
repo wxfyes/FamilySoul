@@ -1760,6 +1760,12 @@ const STARTED_AT = Date.now();
             gender: a.gender || (key === 'husband' ? 'male' : '未知'),
             money: typeof a.money === 'number' ? a.money : null,
             onPeriod: Boolean(a.menses?.on),
+            fertile: (() => {
+              const m = a.menses;
+              if (!m || typeof m.cycleDay !== 'number' || m.on) return false;
+              // 28 天周期：第 9~16 天为易孕期（排卵前后）
+              return m.cycleDay >= 9 && m.cycleDay <= 16;
+            })(),
             debt: Number(a.debt) || 0,
             servant: Boolean(a.servant),
             pregnancy: a.pregnancy || null,

@@ -720,7 +720,8 @@ export class PetService {
               const already = Boolean(who.pregnancy && !who.pregnancy.born);
               const onPeriod = Boolean(who.menses?.on);
               if (fertile && !already && !onPeriod) {
-                const chance = age <= 30 ? 0.55 : 0.35;
+                const inWindow = Number(who.menses?.cycleDay) >= 9 && Number(who.menses?.cycleDay) <= 16;
+                const chance = inWindow ? 0.8 : 0.25;
                 if (Math.random() < chance) {
                   who.pregnancy = { days: 0, father: 'husband', sinceDay: wr.clock?.day || 1, born: false };
                   wr.memories = Array.isArray(wr.memories) ? wr.memories : [];

@@ -440,7 +440,7 @@ function render(w){
       + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
 
     const rowOf = (a, tag) => `<div class="row">
-        <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}${a.onPeriod ? '<span class="tag" style="margin-left:4px">月事</span>' : ''}</span>
+        <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}${a.onPeriod ? '<span class="tag" style="margin-left:4px">月事</span>' : ''}${a.fertile ? '<span class="tag good" style="margin-left:4px">易孕</span>' : ''}</span>
         <span class="muted">${a.place || ''}</span>
       </div>`;
 
