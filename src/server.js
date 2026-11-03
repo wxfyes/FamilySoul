@@ -1766,6 +1766,7 @@ const STARTED_AT = Date.now();
             origin: a.origin || 'preset',
             gender: a.gender || (key === 'husband' ? 'male' : '未知'),
             money: typeof a.money === 'number' ? a.money : null,
+            age: Number(a.age) || null,
             onPeriod: Boolean(a.menses?.on),
             fertile: (() => {
               const m = a.menses;

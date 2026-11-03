@@ -69,6 +69,9 @@ function resolvePlace(world, to) {
   const raw = String(to).trim();
 
   // 1. 核心场所收束（子房间/后堂/公堂统归主建筑，杜绝异次元分裂）
+  if (/(茶摊|小茶摊|茶棚|县衙茶摊|街边茶摊|县衙前茶摊)/.test(raw)) {
+    if (world.places?.tea_stall) return 'tea_stall';
+  }
   if (/(县衙|衙门|公堂|后堂|县衙后堂|后院|县衙后院|偏厅|正堂|大堂|衙内)/.test(raw) && !/(牢|狱)/.test(raw)) {
     if (world.places?.yamen) return 'yamen';
   }

@@ -971,7 +971,7 @@ async function openActor(id) {
     const knows = (j.knows || []).join('<br>') || '—';
     const arc = j.arc ? (j.arc.lastStep || (j.arc.log && j.arc.log.length ? j.arc.log[j.arc.log.length - 1].text : '') || '') : '';
     $('amBody').innerHTML = `
-      <div>${a.origin === 'spawned' ? '天道衍生' : '预设'}　${a.gender === 'male' ? '男' : '女'}　在「${a.place || '不知去向'}」${a.activity ? '，' + a.activity : ''}</div>
+      <div>${a.origin === 'spawned' ? '天道衍生' : '预设'}　${a.gender === 'male' ? '男' : '女'}${a.age ? '　' + a.age + '岁' : ''}　在「${a.place || '不知去向'}」${a.activity ? '，' + a.activity : ''}</div>
       ${a.dead ? '<div style="color:#e05a5a">已故</div>' : ''}
       ${a.jailed ? `<div style="color:#e0a05a">在押（第${a.jailed.untilDay}日出狱）</div>` : ''}
       ${rel && rel.trust != null ? `<div>对相公：信任 ${rel.trust}　欲望 ${rel.desire || 0}　怨怼 ${rel.grievance || 0}</div>` : ''}

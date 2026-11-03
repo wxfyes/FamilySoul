@@ -117,6 +117,7 @@ export function createInitialState(dataDir) {
     smithy: { name: '周家铁铺', exits: ['street'], owner: 'zhoutie', kind: '铁匠铺' },
     pawnshop: { name: '永昌当', exits: ['street'], owner: 'danglaoban', kind: '当铺' },
     noodle_stall: { name: '王婆面摊', exits: ['street'], owner: 'wangpo', kind: '面摊' },
+    tea_stall: { name: '县衙前茶摊', exits: ['yamen', 'street'], owner: 'public', kind: '茶摊' },
     butcher: { name: '张屠户肉铺', exits: ['street'], owner: 'zhangtu', kind: '肉铺' },
     pharmacy: { name: '回春堂药铺', exits: ['street'], owner: 'chenlangzhong', kind: '药铺' },
     tea_house: { name: '临江茶坊', exits: ['street', 'backyard', 'husband_room'], owner: 'husband' },
