@@ -779,6 +779,33 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 诊脉：问到怀孕/喜脉，就把账本上的身子实情摆出来
+    try {
+      if (/(诊脉|把脉|怀孕|有喜|喜脉|身子|身孕|怀上)/.test(String(say || ''))) {
+        const wQ = loadState(this.dataDir);
+        const meQ = this._viewerActorId ? wQ.actors?.[this._viewerActorId] : wQ.actors?.husband;
+        const hereQ = Object.values(wQ.actors || {}).filter(
+          (a) => a && !a.dead && a.id !== 'husband' && a.id !== this._viewerActorId
+            && (a.location === meQ?.location || a.household),
+        );
+        const preg = hereQ.filter((a) => a.pregnancy && !a.pregnancy.born);
+        const askedWho = hereQ.find((a) => {
+          if (!a.name) return false;
+          const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+          return String(say || '').includes(a.name) || String(say || '').includes(short);
+        });
+        if (askedWho && askedWho.pregnancy && !askedWho.pregnancy.born) {
+          contextHint += `（【诊脉】${askedWho.name}确有身孕，已 ${askedWho.pregnancy.days} 天。这是账本事实，不许说没有。）\n`;
+        } else if (askedWho) {
+          contextHint += `（【诊脉】${askedWho.name}没有身孕。这是账本事实，不许说有了。）\n`;
+        } else if (preg.length) {
+          contextHint += `（【诊脉】府里有孕的：${preg.map((a) => `${a.name}（${a.pregnancy.days} 天）`).join('、')}。这是账本事实。）\n`;
+        } else {
+          contextHint += '（【诊脉】府里眼下没有谁有身孕。这是账本事实，不许编一个有孕的。）\n';
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 问"某人在哪"：直接给准确位置
     try {
       const mWhere = String(say || '').match(/([\u4e00-\u9fa5]{2,4})\s*(?:在哪儿|在哪|在何处|何处)/);
