@@ -830,6 +830,21 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 清掉误建的模糊地名（院中/屋里/房中…），人挪回后院暖阁
+  try {
+    const junk = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外)$/;
+    for (const [pid, pl] of Object.entries(world.places || {})) {
+      if (!pl || !junk.test(String(pl.name || ''))) continue;
+      const back = world.places?.backyard ? 'backyard' : (world.places?.tea_house ? 'tea_house' : null);
+      if (!back) continue;
+      delete world.places[pid];
+      for (const a of Object.values(world.actors || {})) {
+        if (a && a.location === pid) a.location = back;
+        if (a && a.home === pid) a.home = back;
+      }
+      console.log(`[State] 垃圾地名「${pl.name}」已并回${world.places[back].name}`);
+    }
+  } catch { /* 忽略 */ }
   // 没写年龄的人给个合理岁数（不然生老病死跑不起来）
   try {
     const FIXED = { waner: 24, yunnia: 21, xiaocui: 17, aji: 19, husband: 26 };

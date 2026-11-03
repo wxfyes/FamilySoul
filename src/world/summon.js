@@ -226,6 +226,22 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 「婉儿、芸娘，都过来」→ 点到的人都真的走过来
+  if (mentioned.length >= 1 && /(过来|都来|叫|唤|请|来一趟|来一下)/.test(say)) {
+    const movedIn = [];
+    for (const id of mentioned.slice(0, 3)) {
+      const a = world.actors[id];
+      if (!a || a.dead || a.location === me.location) continue;
+      a.location = me.location;
+      a.activity = { text: '应声赶来', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+      movedIn.push(a.name);
+    }
+    if (movedIn.length) {
+      saveState(dataDir, world);
+      return { moved: movedIn, summoned: mentioned.map((id) => world.actors[id]?.name).filter(Boolean), visited: null, cameToMe: true };
+    }
+  }
+
   if (hasSummonVerb) {
     // 叫 X 过来 → X 挪到相公所在处
     for (const id of mentioned) {

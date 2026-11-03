@@ -13,7 +13,7 @@
  */
 import { loadState, saveState, appendEvents, nextEvent, round2, forceOf } from './state.js';
 import { queueProactive } from './clock.js';
-import { propagateMood } from './bonds.js';
+import { propagateMood, easeBonds } from './bonds.js';
 
 function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
 
@@ -157,7 +157,14 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         rel[args.field] = Math.max(0, Math.min(100, rel[args.field] + delta));
         applied.push(`关系:${actor.name}.${args.field}${delta >= 0 ? '+' : ''}${delta}`);
         try {
-          if (args.field === 'grievance') propagateMood(world, id, delta);
+          if (args.field === 'grievance') {
+            propagateMood(world, id, delta);
+            // 怨气降了，她和别人的仇也松一点（化解要真的生效）
+            if (delta < 0) {
+              const eased = easeBonds(world, id, Math.abs(delta) * 0.4);
+              if (eased.length) applied.push(`关系缓和:${eased.map((x) => `${world.actors[x.bId]?.name || x.bId}→${x.score}`).join('、')}`);
+            }
+          }
         } catch { /* 忽略 */ }
       } else if (kind === 'asset') {
         const delta = Number(args.delta);

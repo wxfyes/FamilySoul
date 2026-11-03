@@ -2561,7 +2561,19 @@ export class PetService {
         // 「【天道·地点·雅阁】」里的"地点"是格式词，不是地名，必须剥掉
         .filter((s, i) => !(i === 0 && /^(地点|场景|场所|时空|现场)$/.test(s)));
       if (placeNameRaw.length === 0) return null;
-      let placeName = placeNameRaw.join('·'); // 保留「大酒楼·后院账房」这种细位置
+      let placeName = placeNameRaw.join('·');
+      // 「院中/屋里/房中」这类不是地名，归到真实所在，别另建一处
+      const VAGUE = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外)$/;
+      if (VAGUE.test(placeName)) {
+        const meV = world.actors?.[selfId] || world.actors?.husband;
+        const homePlace = meV?.home && world.places?.[meV.home] ? meV.home : null;
+        const back = world.places?.backyard ? 'backyard' : null;
+        const target = homePlace || back || meV?.location;
+        if (target && world.places?.[target]) {
+          console.log(`[Scene] 「${placeName}」不是地名，按${world.places[target].name}算`);
+          return { place: world.places[target].name, moved: [] };
+        }
+      } // 保留「大酒楼·后院账房」这种细位置
       let headName = placeNameRaw[0];
 
       const world = loadState(this.dataDir);

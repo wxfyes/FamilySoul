@@ -24,7 +24,7 @@ function addBond(world, a, b, type, score) {
   world.bonds[a] = world.bonds[a] || {};
   world.bonds[b] = world.bonds[b] || {};
   const cur = world.bonds[a][b];
-  if (cur && Math.abs(cur.score) >= Math.abs(score)) return;
+  if (cur && (cur.manual || Math.abs(cur.score) >= Math.abs(score))) return;
   world.bonds[a][b] = { type, score };
   world.bonds[b][a] = { type, score };
 }
@@ -133,4 +133,31 @@ export function describeBonds(world, ids) {
     }
   }
   return out;
+}
+
+/** 关系可以变：正在化解的仇，分数往上走；新结的怨，往下走 */
+export function shiftBond(world, aId, bId, delta) {
+  if (!aId || !bId || aId === bId) return null;
+  world.bonds = world.bonds || {};
+  world.bonds[aId] = world.bonds[aId] || {};
+  world.bonds[bId] = world.bonds[bId] || {};
+  const cur = world.bonds[aId][bId] || { type: '旧识', score: 0 };
+  const next = Math.max(-100, Math.min(100, (Number(cur.score) || 0) + Number(delta || 0)));
+  const type = cur.type === '仇家' && next > -20 ? '旧识' : cur.type;
+  world.bonds[aId][bId] = { type, score: next, manual: true };
+  world.bonds[bId][aId] = { type, score: next, manual: true };
+  return { aId, bId, type, score: next };
+}
+
+/** 谁跟谁有仇：怨气一消，关系也跟着松 */
+export function easeBonds(world, actorId, amount) {
+  const mine = world.bonds?.[actorId];
+  if (!mine || !amount) return [];
+  const changed = [];
+  for (const [otherId, b] of Object.entries(mine)) {
+    if (!b || Number(b.score) >= 20) continue; // 只化解不好的关系
+    const r = shiftBond(world, actorId, otherId, amount);
+    if (r) changed.push(r);
+  }
+  return changed;
 }
