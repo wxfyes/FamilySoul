@@ -2456,6 +2456,29 @@ export class PetService {
       }
     } catch (e) { console.warn('[Memory] 重写失败：', e.message); }
 
+    // 没点名、也没说"你们俩" → 只留一个说话的人（不许两个人抢话）
+    try {
+      const wS = loadState(this.dataDir);
+      const saidS = String(say || '');
+      const pluralS = /(你们两个|你们俩|你俩|你们两|两位|都来|都过来|一起)/.test(saidS);
+      const anyNamed = Object.values(wS.actors || {}).some((a) => {
+        if (!a || !a.name) return false;
+        const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+        return saidS.includes(a.name) || (short && saidS.includes(short));
+      });
+      if (!pluralS && !anyNamed) {
+        const segs = String(reply || '').split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+        const speech = segs.filter((x) => /^【[^】]+】/.test(x) && !/(就站在|四下冷清|你到了)/.test(x));
+        if (speech.length > 1) {
+          const partnerId = String((wS.chatPartners || {})[this._viewerActorId || 'husband'] || '');
+          const partnerName = wS.actors?.[partnerId]?.name || '';
+          const keep = speech.find((x) => partnerName && x.includes(partnerName)) || speech[0];
+          reply = keep.trim();
+          console.log('[Scene] 没点名：只留' + (partnerName || '第一个人') + '说话');
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 点了好几个人：每人都得应一声，不许只有一个回
     try {
       const wM = loadState(this.dataDir);
@@ -2495,6 +2518,23 @@ export class PetService {
             reply = `${String(reply || '').trim()}\n${lineM}`.trim();
             console.log('[Proxy] 补' + who.name + '一句：' + lineM.slice(0, 24));
           }
+        }
+      }
+    } catch { /* 忽略 */ }
+
+    // 「跟我去/陪我去」→ 她真的跟着走，不许站着讲理由
+    try {
+      const saidG = String(say || '');
+      if (/(跟我去|跟我来|陪我去|随我去|一起去|同去)/.test(saidG)) {
+        const wG = loadState(this.dataDir);
+        const meG = this._viewerActorId ? wG.actors?.[this._viewerActorId] : wG.actors?.husband;
+        const partnerIdG = String((wG.chatPartners || {})[this._viewerActorId || 'husband'] || '');
+        const target = wG.actors?.[partnerIdG];
+        if (target && meG && !target.dead && target.location !== meG.location) {
+          target.location = meG.location;
+          target.activity = { text: '跟着同行', at: wG.clock?.hour || 0, day: wG.clock?.day || 1 };
+          saveState(this.dataDir, wG);
+          console.log(`[Scene] ${target.name}跟着走了`);
         }
       }
     } catch { /* 忽略 */ }

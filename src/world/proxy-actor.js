@@ -44,6 +44,7 @@ export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName,
     recent ? `刚才你们说的：\n${recent}` : '',
     `此刻在「${hearerPlace || '某处'}」。`,
     `${hearerName || '对方'}说：${said}`,
+      '（先正面回应对方这句话；你自己的心事、恩怨只在与这句话有关时提一句，不许自说自话。）',
     `请以「${actor?.name || '王甯'}」的身份，直接说一到两句。`,
   ]
     .filter(Boolean)
