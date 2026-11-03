@@ -142,6 +142,42 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 别名：口语里的地方，对上世界里真有的地方（医馆→回春堂药铺 之类）
+  const SYNONYMS = {
+    医馆: ['药铺', '药堂', '回春堂', '医'],
+    药铺: ['回春堂', '药堂'],
+    药房: ['回春堂', '药铺'],
+    酒楼: ['酒楼', '大酒楼'],
+    客栈: ['客栈'],
+    赌坊: ['赌坊'],
+    青楼: ['万花楼', '青楼'],
+    茶坊: ['茶坊', '茶馆'],
+    茶馆: ['茶坊', '茶馆'],
+    衙门: ['衙门', '县衙'],
+    县衙: ['衙门', '县衙'],
+    书院: ['书院'],
+    庙: ['城隍庙', '庙'],
+    庙会: ['城隍庙', '庙'],
+    当铺: ['当铺'],
+    铁匠铺: ['铁铺', '铁匠'],
+  };
+  if (mentioned.length === 0) {
+    const asked = Object.keys(SYNONYMS).find((k) => say.includes(k));
+    if (asked && !Object.values(world.places || {}).some((pl) => String(pl?.name || '').includes(asked))) {
+      for (const kw of SYNONYMS[asked]) {
+        const hit = Object.entries(world.places || {}).find(([, pl]) => String(pl?.name || '').includes(kw));
+        if (hit) {
+          const [pid, pl] = hit;
+          if (me.location !== pid) {
+            me.location = pid;
+            saveState(dataDir, world);
+          }
+          return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: pl.name };
+        }
+      }
+    }
+  }
+
   // 「去某城」：城里没有长街就先修一条（不能把人塞进府衙）
   if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
     const cityHit = Object.keys(world.cities || {}).find((c) => String(say).includes(c));
