@@ -830,6 +830,22 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 没写年龄的人给个合理岁数（不然生老病死跑不起来）
+  try {
+    const FIXED = { waner: 24, yunnia: 21, xiaocui: 17, aji: 19, husband: 26 };
+    for (const [id, a] of Object.entries(world.actors || {})) {
+      if (!a || a.dead || a.age) continue;
+      if (FIXED[id]) { a.age = FIXED[id]; continue; }
+      const role = String(a.role || '');
+      if (/天子/.test(role)) a.age = 42;
+      else if (/宰相|尚书|巡抚/.test(role)) a.age = 52 + (id.length % 6);
+      else if (/知府|知县/.test(role)) a.age = 44 + (id.length % 8);
+      else if (/先生|老鸨|婆|老夫子/.test(role)) a.age = 55 + (id.length % 10);
+      else if (/寡妇|妇人/.test(role)) a.age = 28 + (id.length % 8);
+      else if (/丫鬟|小厮|伙计/.test(role)) a.age = 16 + (id.length % 6);
+      else a.age = 20 + (id.length % 25);
+    }
+  } catch { /* 忽略 */ }
   // 清掉误建的重复茶坊（teahouse_shop），把人挪回 tea_house
   try {
     if (world.places?.teahouse_shop) {

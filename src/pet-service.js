@@ -2449,6 +2449,43 @@ export class PetService {
       }
     } catch (e) { console.warn('[Memory] 重写失败：', e.message); }
 
+    // 点了好几个人：每人都得应一声，不许只有一个回
+    try {
+      const wM = loadState(this.dataDir);
+      const meM = this._viewerActorId ? wM.actors?.[this._viewerActorId] : wM.actors?.husband;
+      const saidM = String(say || '');
+      const named = Object.values(wM.actors || {}).filter((a) => {
+        if (!a || a.dead || !a.name || a.id === this._viewerActorId) return false;
+        if (a.location !== meM?.location) return false;
+        const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+        return saidM.includes(a.name) || (short && saidM.includes(short));
+      }).slice(0, 3);
+      if (named.length >= 2) {
+        for (const who of named) {
+          const shortN = String(who.name).length > 2 ? String(who.name).slice(-2) : String(who.name);
+          const already = new RegExp(`【[^】]*(?:${String(who.name)}|${shortN})`).test(String(reply || ''));
+          if (already) continue;
+          const pM = buildProxyPrompt({
+            actor: who,
+            memories: (wM.memories || []).filter((m) => String(m?.text || '').includes(who.name)).map((m) => String(m.text)).slice(-3),
+            facts: wM.npcArcs?.[who.id]?.lastStep ? [`你眼下的事：${wM.npcArcs[who.id].lastStep}`] : [],
+            hearerName: meM?.name || '相公',
+            hearerPlace: String(wM.places?.[meM?.location]?.name || ''),
+            said: saidM.slice(0, 120),
+            recent: '',
+          });
+          const rM = await this.llmClient.complete({
+            system: pM.system, messages: [{ role: 'user', content: pM.user }], maxTokens: 150, temperature: 0.85,
+          });
+          const lineM = wrapProxyLine(who.name, rM?.text);
+          if (lineM) {
+            reply = `${String(reply || '').trim()}\n${lineM}`.trim();
+            console.log('[Proxy] 补' + who.name + '一句：' + lineM.slice(0, 24));
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 最后一道：所有后处理改的是 reply，这里同步回 assistantMsg
     try {
       if (assistantMsg && typeof reply === 'string' && reply !== assistantMsg.text) {
