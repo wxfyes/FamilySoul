@@ -466,7 +466,29 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
     }
 
 
-    const promises = (world.promises || []).filter((p) => p && !p.done && !isBogusMarriage(p.text));
+    // 只看与自己有关的：在场的、或点了名的
+    const sceneNames = (() => {
+      const names = [];
+      const vId = viewer || 'husband';
+      const meV2 = world.actors?.[vId];
+      if (meV2?.name) names.push(meV2.name);
+      for (const a of Object.values(world.actors || {})) {
+        if (a && !a.dead && meV2 && a.location === meV2.location && a.name && a.id !== vId) names.push(a.name);
+      }
+      return names;
+    })();
+    const relevant = (text) => {
+      const t = String(text || '');
+      if (!sceneNames.length) return false;
+      // 独处（身边没别人）时，相公的旧账自己都得记得
+      if (sceneNames.length <= 1) return true;
+      // 有旁人在场：只有点了在场者名字的才算他们知道的事
+      return sceneNames.some((n) => t.includes(n));
+    };
+
+    const promises = (world.promises || [])
+      .filter((p) => p && !p.done && !isBogusMarriage(p.text))
+      .filter((p) => relevant(p.text));
     if (promises.length > 0) {
       const items = promises
         .slice(0, 3)
@@ -478,7 +500,11 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
     try {
       const nowHour = day * 24 + hour;
       // 同一人同一时刻只保留最新那条（后写的覆盖先写的），避免自相矛盾的约定堆在一起
-      const raw2 = (world.appointments || []).filter((a) => a && Number(a.day) * 24 + Number(a.hour) >= nowHour);
+      const alone = sceneNames.length <= 1;
+      const raw2 = (world.appointments || []).filter((a) =>
+        a && Number(a.day) * 24 + Number(a.hour) >= nowHour
+        && (alone || sceneNames.includes(String(a.name || ''))),
+      );
       const latest = new Map();
       for (const a of raw2) {
         const key = `${a.day}-${a.hour}-${a.name}`;
@@ -491,7 +517,7 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         lines.push(
           `【约定】${aps
             .map((a) => `第${a.day}日${a.hour}时 ${a.name}${a.text ? `（${a.text}）` : ''}`)
-            .join('；')} —— **在场的那一位必须主动提起这件事**（"明日晌午雅阁，妾身记着呢"）。`,
+            .join('；')} —— **只有当事人本人在场时才可提起；旁人一概不知**（"明日晌午雅阁，妾身记着呢"）。`,
         );
       }
     } catch {
