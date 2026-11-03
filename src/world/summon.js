@@ -199,6 +199,47 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 客栈开房：要一间上房，付房钱，两个人进房，外人进不来
+  if (/(开房|开间房|要间房|要一间|住店|住一晚|开个房|上房)/.test(say)) {
+    const innEntry = Object.entries(world.places || {}).find(([, pl]) => /客栈/.test(String(pl?.name || '')));
+    if (innEntry) {
+      const [innId, innPl] = innEntry;
+      const meAtInn = me.location === innId || me.location === `${innId}_room`;
+      if (!meAtInn) {
+        me.location = innId;
+      }
+      const roomId = `${innId}_room`;
+      if (!world.places[roomId]) {
+        world.places[roomId] = { name: `${innPl.name}·上房`, exits: [innId], dynamic: true, private: true };
+      }
+      // 房钱：上房三两一晚，钱不够就住普通房一钱
+      world.assets = world.assets || {};
+      let paid = 0;
+      let roomName = world.places[roomId].name;
+      if ((Number(world.assets.silver) || 0) >= 3) {
+        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - 3) * 100) / 100;
+        paid = 3;
+      } else if ((Number(world.assets.silver) || 0) >= 0.2) {
+        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - 0.2) * 100) / 100;
+        paid = 0.2;
+        roomName = `${innPl.name}·通铺`;
+        world.places[roomId].name = roomName;
+      }
+      // 同行的人一起进房
+      const partnerId = String((world.chatPartners || {})[selfId || 'husband'] || '');
+      const partner = world.actors?.[partnerId];
+      const comers = [];
+      if (partner && !partner.dead && partner.id !== selfId) {
+        partner.location = roomId;
+        partner.activity = { text: '进房歇息', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+        comers.push(partner.name);
+      }
+      me.location = roomId;
+      saveState(dataDir, world);
+      return { moved: [me.name || '相公', ...comers], summoned: [], visited: null, wentTo: roomName, room: roomName, paid };
+    }
+  }
+
   // 别名：口语里的地方，对上世界里真有的地方（医馆→回春堂药铺 之类）
   const SYNONYMS = {
     药铺: ['回春堂', '药堂'],
