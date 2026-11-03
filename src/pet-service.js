@@ -349,35 +349,28 @@ export class PetService {
         lines.push('- 正妻沈婉儿留在茶坊后院打理中馈账本，【沈婉儿绝不在场，严禁开口插话】！');
         lines.push(`- 此刻在相公面前的人是：【${primaryOutFemale.name}】（${primaryOutFemale.role || ''}）！`);
         const rel = primaryOutFemale.relations?.husband || {};
-        const isDeepRomance = (rel.trust >= 75 && rel.desire >= 55) || primaryOutFemale.intimacy?.level >= 3;
-        if (primaryOutFemale.id === 'zhanjing' || primaryOutFemale.name === '战静') {
-          if (isDeepRomance) {
-            lines.push('- 你的专属身份：县衙书吏之妻【战静】！历经多次试探与相助，已被王掌柜彻底打动芳心，私下满怀深情；称呼王甯「王郎/相公」，言语温柔含蓄。');
+        const spouseId = primaryOutFemale.spouse;
+        const isMarriedToOther = spouseId && spouseId !== 'husband';
+        const hasHusbandBaby = primaryOutFemale.pregnancy && primaryOutFemale.pregnancy.father === 'husband';
+        const isConsummated = primaryOutFemale.intimacy?.consummated || hasHusbandBaby || (rel.trust >= 75 && rel.desire >= 55) || primaryOutFemale.intimacy?.level >= 3;
+
+        lines.push(`- 你的专属身份：【${primaryOutFemale.name}】（${primaryOutFemale.role || '当地女子'}）！性格特征：${primaryOutFemale.personality || '各具风华'}。`);
+        if (isMarriedToOther) {
+          if (hasHusbandBaby) {
+            lines.push('- 【身怀相公骨肉·深情款曲】：你虽有名义上的丈夫，但肚里已真真切切怀着王甯（相公）的亲生骨肉！私下独处时满心依恋柔情、极尽温存托付，称呼「王郎/相公」；但在外人或原夫面前深知世俗大防关乎身家性命，必须隐秘避嫌、维持体面。');
+          } else if (isConsummated) {
+            lines.push('- 【已破心防·私相爱慕】：历经推拉与相助，你芳心早已暗许王甯，私下相会满怀柔情动情；但在外人及原夫面前严守大防、避嫌周全。');
           } else {
-            lines.push('- 你的专属身份：县衙典吏随科之发妻【战静】！知书识礼、端庄矜持，极重妇德名声！视王甯为登门客套的茶商，称呼「王掌柜」，言谈谨守男女之防，带着官眷少妇的生疏与防备，绝不可主动套近乎或自称妾身！');
-          }
-        } else if (primaryOutFemale.id === 'yangcaiyun' || primaryOutFemale.name === '杨采云') {
-          if (isDeepRomance) {
-            lines.push('- 你的专属身份：翟家货栈老板娘【杨采云】！深闺委屈已被王少东抚平，芳心暗许，借采办商茶之名幽会温存。');
-          } else {
-            lines.push('- 你的专属身份：翟家货栈大娘子【杨采云】！精明干练的商贾人妻，言语犀利机敏、公事公办谈茶货，称呼「王少东」，不卑不亢，绝无半分轻浮！');
-          }
-        } else if (primaryOutFemale.id === 'sumuxue' || primaryOutFemale.name === '苏慕雪') {
-          if (isDeepRomance) {
-            lines.push('- 你的专属身份：名门才女人妻【苏慕雪】！才情交融、红袖添香，视王甯为一生难寻的灵魂知己。');
-          } else {
-            lines.push('- 你的专属身份：名门望族才女人妻【苏慕雪】！温婉端庄、知性高雅，恪守礼数，视王甯为茶道文友，言辞清雅疏离、发乎情止乎礼。');
-          }
-        } else if (primaryOutFemale.id === 'liuwenxia' || primaryOutFemale.name === '刘文霞' || primaryOutFemale.name === '紫嫣') {
-          const isPreg = primaryOutFemale.pregnancy && !primaryOutFemale.pregnancy.born;
-          if (isDeepRomance || isPreg) {
-            lines.push(`- 你的专属身份：于家酒肆老板娘【紫嫣/刘文霞】！熟美丰腴、柔媚多情。你与王掌柜私下往来极密${isPreg ? '，肚里已怀有他的骨肉！' : '！'}面对他时娇嗔痴缠，但自知是于家妇，隐秘温存。`);
-          } else {
-            lines.push('- 你的专属身份：于家酒肆老板娘【紫嫣/刘文霞】！丈夫于子归在营造行做工，自己守着酒肆门面，泼辣机敏！因借了王甯银子而有往来，称呼「王掌柜」，带着市井少妇的精明防备与利落，绝不开局投怀送抱！');
+            lines.push('- 【名门名节·未破心防】：身为有夫之妇，世俗礼法与名节大过天！视王甯为登门来访的茶商外客，称呼「王掌柜」或「王少东」；举止端庄矜持、言谈客套生疏、谨守男女之防，绝不主动投怀送抱或自称妾身！');
           }
         } else {
-          lines.push(`- 你必须 100% 以【${primaryOutFemale.name}】（${primaryOutFemale.role || ''}）的独立第一人称或分角直接与相公对话交互，展现其鲜活的性格！`);
+          if (isConsummated) {
+            lines.push('- 【情投意合】：与相公王甯情深意重，私下柔情相待，言语含情脉脉。');
+          } else {
+            lines.push('- 【初见以礼】：知书达礼，依身份正常相待，言语自持得体。');
+          }
         }
+        lines.push(`- 你必须 100% 以【${primaryOutFemale.name}】的独立第一人称或分角直接与相公对话交互，展现其鲜活的性格！`);
         lines.push('- 【绝对禁忌】：你绝不是沈婉儿！绝不要说"妾身这就差小翠去送拜帖"等荒谬出戏台词！你人就在相公面前！');
       } else if (persona) {
         lines.push('【内宅名门主母人格卡】');
@@ -1958,6 +1951,10 @@ export class PetService {
             const here3 = String(wLoc.places?.[locId2]?.name || '这里');
             reply = `【${here3}】：${named3.name}在「${where3}」，眼下不在这儿。`;
             console.log(`[Scene] ${named3.name}不在场，照实报位置：${where3}`);
+          } else if (segs3.length > 0) {
+            // 避免死寂省略号：刚才相公明明在跟对方说话，若因后台瞬移被误杀，宽容放行
+            reply = segs3.join('').trim();
+            console.log(`[Scene] 避免死寂省略号，放行当轮回复：${reply.slice(0, 30)}`);
           } else {
             reply = '';
           }
@@ -3198,7 +3195,7 @@ export class PetService {
         '外交：[[world:diplomacy to=beidi action=pay]] —— 对邻国纳贡/通商/拒使/和亲时用；action 取 pay|trade|refuse|marry。',
         '结盟：[[world:ally a=husband b=liuwenxia]] —— 两人合兵，攻城时盟友各出一半兵力。',
         '**杀天子不准直接写 [[world:kill who=emperor]] 就算完**——先写它，会得到"天道示警"；相公若仍执意，才用 [[world:regicide]]。',
-        '没变化只输出 [[world:none]]。人物换地方记 move（相公也记，who=husband）；值得记一辈子的事记 remember。',
+        '没变化只输出 [[world:none]]。人物跨建筑换地方记 move（相公也记，who=husband；绝对严禁把门口、门外、院中、屋里等微动作记为 move！）；值得记一辈子的事记 remember。',
         '**本轮回复里只要出现账本没有的人名（哪怕是别人嘴里提到的），就要输出 spawn 回执**，格式：',
         '  [[world:spawn name="柳三娘" role="挑担卖花的" place="street"]]',
         '  role 从他做的事推断，place 用对话里说的地点（street/tea_house/dock/wine_shop 等）。不输出就等于这个人不存在。',

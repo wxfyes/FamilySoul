@@ -1013,11 +1013,13 @@ export function migrateOwnership(world) {
     const junk = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外)$/;
     for (const [pid, pl] of Object.entries(world.places || {})) {
       if (!pl || !junk.test(String(pl.name || ''))) continue;
-      const back = world.places?.backyard ? 'backyard' : (world.places?.tea_house ? 'tea_house' : null);
+      const exitPlace = pl.exits && pl.exits[0] && world.places?.[pl.exits[0]] ? pl.exits[0] : null;
+      const defaultBack = world.places?.backyard ? 'backyard' : (world.places?.tea_house ? 'tea_house' : null);
+      const back = exitPlace || defaultBack;
       if (!back) continue;
       delete world.places[pid];
       for (const a of Object.values(world.actors || {})) {
-        if (a && a.location === pid) a.location = back;
+        if (a && a.location === pid) a.location = a.home && world.places?.[a.home] && !exitPlace ? a.home : back;
         if (a && a.home === pid) a.home = back;
       }
       console.log(`[State] 垃圾地名「${pl.name}」已并回${world.places[back].name}`);

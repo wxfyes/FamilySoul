@@ -975,7 +975,8 @@ async function openActor(id) {
       ${a.dead ? '<div style="color:#e05a5a">已故</div>' : ''}
       ${a.jailed ? `<div style="color:#e0a05a">在押（第${a.jailed.untilDay}日出狱）</div>` : ''}
       ${rel && rel.trust != null ? `<div>对相公：信任 ${rel.trust}　欲望 ${rel.desire || 0}　怨怼 ${rel.grievance || 0}</div>` : ''}
-      <div>身上：${Number(j.money || 0).toFixed(2)} 两${a.rank ? '　功名：' + a.rank : ''}${a.study ? '　学识：' + a.study : ''}</div>
+      <div>身上：${a.money == null ? '—' : Number(a.money).toFixed(2) + ' 两'}${a.debt ? '　<span style="color:#e07070">欠 ' + a.debt + ' 两</span>' : ''}${a.rank ? '　功名：' + a.rank : ''}${a.study ? '　学识：' + a.study : ''}</div>
+      ${a.gender === 'female' ? `<div>身子：${a.pregnant ? '有孕 ' + (a.pregnantDays || 0) + ' 天' : ''}${a.onPeriod ? '　月事中' : (a.cycleDay != null ? '　周期第 ' + a.cycleDay + ' 天' : '')}${a.fertile ? '　<span style="color:#7fc98a">易孕</span>' : ''}</div>` : ''}
       <div style="margin-top:6px"><b>关系</b><br>${bonds}</div>
       ${a.goals && a.goals.length ? `<div style="margin-top:6px"><b>想做的事</b><br>${a.goals.join('；')}</div>` : ''}
       ${a.secret ? `<div style="margin-top:6px"><b>秘密</b><br>${a.secret}</div>` : ''}
