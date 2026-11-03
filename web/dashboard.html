@@ -98,33 +98,150 @@
     <div id="morning-full" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); line-height:1.8; color:#d1d5db; font-size:13px; white-space:pre-wrap;"></div>
   </section>
 
-  <!-- 🏡 家宅卡 -->
   <section class="card" id="card-household">
     <h2>🏡 家宅</h2>
     <div class="row" style="padding-bottom:6px;"><span class="big" id="h-family-top" style="color:#f472b6;">正妻 — · 侧室 — · 有孕 —</span></div>
     <div id="family-detail" style="margin-top:6px;"></div>
   </section>
 
-  <!-- 💰 账目卡 -->
   <section class="card" id="card-accounts">
     <h2>💰 账目</h2>
     <div class="row" style="padding-bottom:6px;"><span class="big" id="a-acc-top" style="color:#fbbf24;">现存 — 两 · 日入 — 两</span></div>
     <div id="acc-detail" style="margin-top:6px;"></div>
   </section>
 
-  <!-- 🏛️ 朝堂卡 -->
   <section class="card" id="card-court-core">
     <h2>🏛️ 朝堂</h2>
     <div class="row" style="padding-bottom:6px;"><span class="big" id="c-court-top" style="color:#60a5fa;">官职 — · 派系 —</span></div>
     <div id="court-detail" style="margin-top:6px;"></div>
   </section>
 
-  <!-- ⚔️ 军中卡 -->
   <section class="card" id="card-military-core">
     <h2>⚔️ 军中</h2>
     <div class="row" style="padding-bottom:6px;"><span class="big" id="m-military-top" style="color:#34d399;">兵 — · 士气 —</span></div>
     <div id="military-detail" style="margin-top:6px;"></div>
   </section>
+
+  <section class="card">
+    <h2>城中动静（各人自己的事）</h2>
+    <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>案子</h2>
+    <div id="cases" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>街面风评</h2>
+    <div id="rumors" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>关系网（谁跟谁一伙，谁跟谁有仇）</h2>
+    <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>大事记时间线</h2>
+    <div id="timeline" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>各自的主线（她们自己的人生）</h2>
+    <div id="arcs">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>待办（按时间排序）</h2>
+    <div id="todo"></div>
+  </section>
+
+  <section class="card">
+    <h2>线索（查到的底细）</h2>
+    <div id="clues">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>朝中（官职）</h2>
+    <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
+    <div id="treasury" class="muted" style="margin:0 0 10px">—</div>
+    <div id="court">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span></h2>
+    <table>
+      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
+      <tbody id="actors"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>天下（行会 · 外交 · 驻军）</h2>
+    <div id="realm" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>势力与兵力</h2>
+    <div class="row"><span>护院家丁</span><span id="m-guards" class="big">0</span></div>
+    <div class="row"><span>乡勇团练</span><span id="m-militia">0</span></div>
+    <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
+    <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
+    <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
+    <div class="row"><span>身份</span><span id="m-standing">—</span></div>
+    <div class="row"><span>名声 / 通缉</span><span id="m-rep">—</span></div>
+    <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
+  </section>
+
+  <section class="card full">
+    <h2>天下（城池归属）</h2>
+    <div id="cities">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>山川（地形）</h2>
+    <div id="terrain">—</div>
+  </section>
+
+  <section class="card">
+    <h2>基础设施</h2>
+    <div id="infra">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>产业表（开遍全国）</h2>
+    <table>
+      <thead><tr><th>产业</th><th>东家</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
+      <tbody id="props"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>天机（她每轮看到的实况）</h2>
+    <pre id="summary">—</pre>
+  </section>
+
+  <section class="card">
+    <h2>她们亲口说过的话（原文）</h2>
+    <div id="quotes">—</div>
+  </section>
+
+  <section class="card">
+    <h2>最近事件</h2>
+    <div id="events">—</div>
+  </section>
+
+  <section class="card">
+    <h2>趋势（近 14 日）</h2>
+    <div id="trend" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>盘点（为什么没动静）</h2>
+    <div id="diag" class="muted" style="margin-top:6px">—</div>
+  </section>
+
   <section class="card">
     <h2>运行状态</h2>
     <div class="row"><span>已运行</span><span id="r-uptime">—</span></div>
@@ -144,6 +261,25 @@
   </section>
 
   <section class="card">
+    <h2>体检结果</h2>
+    <div id="audit-box" class="muted">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>成员绑定（这个账号演谁）</h2>
+    <table class="bind-table">
+      <thead><tr><th style="width:200px">成员</th><th style="width:160px">令牌</th><th>绑定到世界人物</th><th style="width:70px"></th></tr></thead>
+      <tbody id="bind"></tbody>
+    </table>
+    <div class="muted" style="margin-top:6px">没绑定的账号，看到的会是「相公」那份数据。</div>
+  </section>
+
+  <section class="card">
+    <h2>真人（谁在用手机登着）</h2>
+    <div id="humans">—</div>
+  </section>
+
+  <section class="card" data-dup="1" style="display:none">
     <h2>家底</h2>
     <div class="row"><span>现银</span><span id="a-silver" class="big">—</span></div>
     <div class="row"><span>日入合计</span><span id="a-income" class="big">—</span></div>
@@ -178,144 +314,6 @@
     <div class="muted" id="renameMsg" style="margin-top:4px"></div>
   </section>
 
-  <section class="card full">
-    <h2>成员绑定（这个账号演谁）</h2>
-    <table class="bind-table">
-      <thead><tr><th style="width:200px">成员</th><th style="width:160px">令牌</th><th>绑定到世界人物</th><th style="width:70px"></th></tr></thead>
-      <tbody id="bind"></tbody>
-    </table>
-    <div class="muted" style="margin-top:6px">没绑定的账号，看到的会是「相公」那份数据。</div>
-  </section>
-
-  <section class="card">
-    <h2>真人（谁在用手机登着）</h2>
-    <div id="humans">—</div>
-  </section>
-
-  <section class="card">
-    <h2>体检结果</h2>
-    <div id="audit-box" class="muted">—</div>
-  </section>
-
-  <section class="card">
-    <h2>势力与兵力</h2>
-    <div class="row"><span>护院家丁</span><span id="m-guards" class="big">0</span></div>
-    <div class="row"><span>乡勇团练</span><span id="m-militia">0</span></div>
-    <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
-    <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
-    <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
-    <div class="row"><span>身份</span><span id="m-standing">—</span></div>
-    <div class="row"><span>名声 / 通缉</span><span id="m-rep">—</span></div>
-    <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
-  </section>
-
-  <section class="card">
-    <h2>城中动静（各人自己的事）</h2>
-    <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>趋势（近 14 日）</h2>
-    <div id="trend" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>盘点（为什么没动静）</h2>
-    <div id="diag" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>大事记时间线</h2>
-    <div id="timeline" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>关系网（谁跟谁一伙，谁跟谁有仇）</h2>
-    <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
-  </section>
-
-  <section class="card">
-    <h2>街面风评</h2>
-    <div id="rumors" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>案子</h2>
-    <div id="cases" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>天下（行会 · 外交 · 驻军）</h2>
-    <div id="realm" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>朝中（官职）</h2>
-    <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
-    <div id="treasury" class="muted" style="margin:0 0 10px">—</div>
-    <div id="court">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>山川（地形）</h2>
-    <div id="terrain">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>天下（城池归属）</h2>
-    <div id="cities">—</div>
-  </section>
-
-  <section class="card">
-    <h2>基础设施</h2>
-    <div id="infra">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>产业表（开遍全国）</h2>
-    <table>
-      <thead><tr><th>产业</th><th>东家</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
-      <tbody id="props"></tbody>
-    </table>
-  </section>
-
-  <section class="card full">
-    <h2>各自的主线（她们自己的人生）</h2>
-    <div id="arcs">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>待办（按时间排序）</h2>
-    <div id="todo"></div>
-  </section>
-
-  <section class="card full">
-    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span></h2>
-    <table>
-      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
-      <tbody id="actors"></tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>天机（她每轮看到的实况）</h2>
-    <pre id="summary">—</pre>
-  </section>
-
-  <section class="card">
-    <h2>线索（查到的底细）</h2>
-    <div id="clues">—</div>
-  </section>
-
-  <section class="card">
-    <h2>她们亲口说过的话（原文）</h2>
-    <div id="quotes">—</div>
-  </section>
-
-  <section class="card">
-    <h2>最近事件</h2>
-    <div id="events">—</div>
-  </section>
 </main>
 
 <script>

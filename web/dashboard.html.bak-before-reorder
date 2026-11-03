@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>天道世界 · 看板</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --line:#2a2f3a;
+    --txt:#e8eaee; --dim:#98a1b0; --good:#39c07a; --warn:#e0a13a; --bad:#e05a5a; --accent:#6ea8fe;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  header{position:sticky;top:0;z-index:9;background:rgba(15,17,21,.96);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  .pill{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--dim)}
+  .pill b{color:var(--txt);font-weight:600}
+  main{padding:14px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));max-width:1400px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .card h2{font-size:13px;margin:0 0 10px;color:var(--dim);font-weight:600;letter-spacing:.04em}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.04)}
+  .row:last-child{border-bottom:0}
+  .row span:first-child{color:var(--dim)}
+  .big{font-size:22px;font-weight:700}
+  .good{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:5px 6px;text-align:left;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
+  th{color:var(--dim);font-weight:500;font-size:12px}
+  td.num{font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;border-radius:6px;padding:0 6px;font-size:11px;border:1px solid var(--line);color:var(--dim)}
+  .tag.bad{border-color:var(--bad);color:var(--bad)}
+  .tag.warn{border-color:var(--warn);color:var(--warn)}
+  .tag.good{border-color:var(--good);color:var(--good)}
+  .bar{height:6px;background:#0c0e12;border-radius:4px;overflow:hidden;min-width:46px}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  pre{white-space:pre-wrap;word-break:break-word;background:#0c0e12;border:1px solid var(--line);border-radius:8px;padding:10px;margin:0;font-size:12.5px;line-height:1.75;max-height:420px;overflow:auto}
+  .full{grid-column:1/-1}
+  button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px}
+  button:hover{border-color:var(--accent)}
+  input{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;width:260px}
+  .ev{font-size:12.5px;color:var(--dim);padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.04)}
+  .ev b{color:var(--txt);font-weight:500}
+  .muted{color:var(--dim);font-size:12px}
+  /* 天下：城池卡片式 */
+  .geo-region { border-top: 1px solid #232833; padding: 6px 0; }
+  .geo-head { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 2px; }
+  .geo-head b { font-size: 13px; }
+  .geo-head .geo-arrow { margin-left: auto; color: #6b7280; transition: transform .15s; }
+  .geo-region.open .geo-arrow { transform: rotate(90deg); }
+  .geo-chips { display: none; flex-wrap: wrap; gap: 6px; padding: 6px 0 2px 4px; }
+  .geo-region.open .geo-chips { display: flex; }
+  .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
+          background: #1b2029; border: 1px solid #2a303c; color: #cfd6e2; font-size: 12px; line-height: 1.4; }
+  .chip.mine { background: #17301f; border-color: #2f6b46; color: #9fe0b8; }
+  /* 朝中 / 天下：横向网格 */
+  .off-block { margin-bottom: 8px; }
+  .off-title { font-size: 12px; color: #8b93a7; margin: 4px 0 6px; }
+  .off-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px; }
+  .off-item { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px;
+              background: #1b2029; border: 1px solid #262c37; border-radius: 6px; font-size: 12px; }
+  .off-item b { font-weight: 600; color: #dfe5ee; }
+  .geo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; align-items: start; }
+  .geo-region { border: 1px solid #232833; border-radius: 8px; padding: 6px 8px; background: #171b22; }
+  .bind-table { width: 100%; border-collapse: collapse; }
+  .bind-table th { text-align: left; font-size: 11.5px; color: #7d8598; font-weight: 500; padding: 4px 8px; }
+  .bind-table td { padding: 6px 8px; border-top: 1px solid #232833; vertical-align: middle; }
+  .bind-title { white-space: nowrap; }
+  .bind-select { background: #1e222b; color: #e8eaee; border: 1px solid #2a2f3a; border-radius: 6px; padding: 4px 8px; min-width: 180px; max-width: 260px; }
+  .todo-del { color:#e05a5a; margin-left:10px; cursor:pointer; font-weight:600; }
+  .todo-del:hover { color:#ff8080; }
+  .row.todo-armed { background:#3a1c1c; border-radius:6px; outline:1px solid #e05a5a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>天道世界 · 看板</h1>
+  <span class="pill">世界 <b id="h-clock">—</b></span>
+  <span class="pill">时空 <b id="h-epoch">—</b></span>
+  <span class="pill">体检 <b id="h-audit">—</b></span>
+  <span class="pill" id="h-updated">—</span>
+  <span style="flex:1"></span>
+  <input id="token" placeholder="令牌（husband token）">
+  <button onclick="saveToken()">保存</button>
+  <button onclick="load()">刷新</button>
+</header>
+
+<main>
+  <!-- 🌅 今日晨报（放看板最顶部一行，点开看全文） -->
+  <section class="card full" id="morning-banner" style="display:none; background: linear-gradient(90deg, #1d2330 0%, #171a21 100%); border-left: 4px solid var(--accent);">
+    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleMorningReport()">
+      <div style="display:flex; align-items:center; gap:10px; flex:1; overflow:hidden;">
+        <span style="font-size:16px;">🌅</span>
+        <b style="font-size:13.5px; color:#e0e6ed; white-space:nowrap;">今日晨报 · 阿吉报送</b>
+        <span id="morning-short" class="muted" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">—</span>
+      </div>
+      <button type="button" id="morning-btn" style="margin-left:12px; font-size:11px; padding:2px 8px;">展开全文</button>
+    </div>
+    <div id="morning-full" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); line-height:1.8; color:#d1d5db; font-size:13px; white-space:pre-wrap;"></div>
+  </section>
+
+  <!-- 🏡 家宅卡 -->
+  <section class="card" id="card-household">
+    <h2>🏡 家宅</h2>
+    <div class="row" style="padding-bottom:6px;"><span class="big" id="h-family-top" style="color:#f472b6;">正妻 — · 侧室 — · 有孕 —</span></div>
+    <div id="family-detail" style="margin-top:6px;"></div>
+  </section>
+
+  <!-- 💰 账目卡 -->
+  <section class="card" id="card-accounts">
+    <h2>💰 账目</h2>
+    <div class="row" style="padding-bottom:6px;"><span class="big" id="a-acc-top" style="color:#fbbf24;">现存 — 两 · 日入 — 两</span></div>
+    <div id="acc-detail" style="margin-top:6px;"></div>
+  </section>
+
+  <!-- 🏛️ 朝堂卡 -->
+  <section class="card" id="card-court-core">
+    <h2>🏛️ 朝堂</h2>
+    <div class="row" style="padding-bottom:6px;"><span class="big" id="c-court-top" style="color:#60a5fa;">官职 — · 派系 —</span></div>
+    <div id="court-detail" style="margin-top:6px;"></div>
+  </section>
+
+  <!-- ⚔️ 军中卡 -->
+  <section class="card" id="card-military-core">
+    <h2>⚔️ 军中</h2>
+    <div class="row" style="padding-bottom:6px;"><span class="big" id="m-military-top" style="color:#34d399;">兵 — · 士气 —</span></div>
+    <div id="military-detail" style="margin-top:6px;"></div>
+  </section>
+  <section class="card">
+    <h2>运行状态</h2>
+    <div class="row"><span>已运行</span><span id="r-uptime">—</span></div>
+    <div class="row"><span>内存占用</span><span id="r-rss">—</span></div>
+    <div class="row"><span>Node / PID / 端口</span><span id="r-node">—</span></div>
+    <div class="row"><span>回执率（近20轮）</span><span id="r-receipt">—</span></div>
+    <div class="row"><span>健康提示</span><span id="r-health">—</span></div>
+  </section>
+
+  <section class="card">
+    <h2>花费</h2>
+    <div class="row"><span>累计轮数</span><span id="c-rounds" class="big">—</span></div>
+    <div class="row"><span>平均每轮输入</span><span id="c-avg">—</span></div>
+    <div class="row"><span>缓存命中率</span><span id="c-hit">—</span></div>
+    <div class="row"><span>估算花费</span><span id="c-cost" class="big">—</span></div>
+    <div class="muted" id="c-note" style="margin-top:6px"></div>
+  </section>
+
+  <section class="card">
+    <h2>家底</h2>
+    <div class="row"><span>现银</span><span id="a-silver" class="big">—</span></div>
+    <div class="row"><span>日入合计</span><span id="a-income" class="big">—</span></div>
+    <div id="a-props"></div>
+  </section>
+
+  <section class="card">
+    <h2>清空记忆（危险 · 需二次确认）</h2>
+    <div class="row"><span>选择人物</span>
+      <select id="resetWho" style="background:#1e222b;color:#e8eaee;border:1px solid #2a2f3a;border-radius:8px;padding:4px 8px"></select>
+    </div>
+    <div class="row"><span>清什么</span>
+      <span>
+        <label class="muted"><input type="checkbox" id="rsHistory" checked> 聊天历史</label>
+        <label class="muted"><input type="checkbox" id="rsWorld" checked> 关系/身孕</label>
+        <label class="muted"><input type="checkbox" id="rsMem" checked> 她的记忆</label>
+        <label class="muted"><input type="checkbox" id="rsDeep"> 深度抹除（原话/约定/事件/对话）</label>
+      </span>
+    </div>
+    <div class="row"><span>确认</span><span>
+      <input id="resetConfirm" placeholder="输入她的名字以确认" style="width:150px">
+      <button onclick="doReset()">执行清空</button>
+    </span></div>
+    <div class="muted" id="resetMsg" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:10px;border-top:1px dashed #2a2f3a;padding-top:8px">
+      <span>改名</span>
+      <span>
+        <input id="renameTo" placeholder="新名字" style="width:110px">
+        <button onclick="doRename()">改名</button>
+      </span>
+    </div>
+    <div class="muted" id="renameMsg" style="margin-top:4px"></div>
+  </section>
+
+  <section class="card full">
+    <h2>成员绑定（这个账号演谁）</h2>
+    <table class="bind-table">
+      <thead><tr><th style="width:200px">成员</th><th style="width:160px">令牌</th><th>绑定到世界人物</th><th style="width:70px"></th></tr></thead>
+      <tbody id="bind"></tbody>
+    </table>
+    <div class="muted" style="margin-top:6px">没绑定的账号，看到的会是「相公」那份数据。</div>
+  </section>
+
+  <section class="card">
+    <h2>真人（谁在用手机登着）</h2>
+    <div id="humans">—</div>
+  </section>
+
+  <section class="card">
+    <h2>体检结果</h2>
+    <div id="audit-box" class="muted">—</div>
+  </section>
+
+  <section class="card">
+    <h2>势力与兵力</h2>
+    <div class="row"><span>护院家丁</span><span id="m-guards" class="big">0</span></div>
+    <div class="row"><span>乡勇团练</span><span id="m-militia">0</span></div>
+    <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
+    <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
+    <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
+    <div class="row"><span>身份</span><span id="m-standing">—</span></div>
+    <div class="row"><span>名声 / 通缉</span><span id="m-rep">—</span></div>
+    <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
+  </section>
+
+  <section class="card">
+    <h2>城中动静（各人自己的事）</h2>
+    <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>趋势（近 14 日）</h2>
+    <div id="trend" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>盘点（为什么没动静）</h2>
+    <div id="diag" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>大事记时间线</h2>
+    <div id="timeline" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>关系网（谁跟谁一伙，谁跟谁有仇）</h2>
+    <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
+  </section>
+
+  <section class="card">
+    <h2>街面风评</h2>
+    <div id="rumors" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>案子</h2>
+    <div id="cases" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>天下（行会 · 外交 · 驻军）</h2>
+    <div id="realm" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>朝中（官职）</h2>
+    <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
+    <div id="treasury" class="muted" style="margin:0 0 10px">—</div>
+    <div id="court">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>山川（地形）</h2>
+    <div id="terrain">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>天下（城池归属）</h2>
+    <div id="cities">—</div>
+  </section>
+
+  <section class="card">
+    <h2>基础设施</h2>
+    <div id="infra">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>产业表（开遍全国）</h2>
+    <table>
+      <thead><tr><th>产业</th><th>东家</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
+      <tbody id="props"></tbody>
+    </table>
+  </section>
+
+  <section class="card full">
+    <h2>各自的主线（她们自己的人生）</h2>
+    <div id="arcs">—</div>
+  </section>
+
+  <section class="card full">
+    <h2>待办（按时间排序）</h2>
+    <div id="todo"></div>
+  </section>
+
+  <section class="card full">
+    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span></h2>
+    <table>
+      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
+      <tbody id="actors"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>天机（她每轮看到的实况）</h2>
+    <pre id="summary">—</pre>
+  </section>
+
+  <section class="card">
+    <h2>线索（查到的底细）</h2>
+    <div id="clues">—</div>
+  </section>
+
+  <section class="card">
+    <h2>她们亲口说过的话（原文）</h2>
+    <div id="quotes">—</div>
+  </section>
+
+  <section class="card">
+    <h2>最近事件</h2>
+    <div id="events">—</div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => new Intl.NumberFormat('zh-CN').format(Math.round(n));
+
+function saveToken(){
+  localStorage.setItem('fs_admin_token', $('token').value.trim());
+  load();
+}
+function token(){
+  const fromUrl = new URLSearchParams(location.search).get('token');
+  if (fromUrl) { localStorage.setItem('fs_admin_token', fromUrl); return fromUrl; }
+  return localStorage.getItem('fs_admin_token') || localStorage.getItem('surfcore_husband_token') || '';
+}
+function human(sec){
+  if (!sec) return '—';
+  const d = Math.floor(sec/86400), h = Math.floor(sec%86400/3600), m = Math.floor(sec%3600/60);
+  return (d? d+'天':'') + (h? h+'小时':'') + m + '分';
+}
+// 与后端一致的态度阶梯（仅用于展示）
+function attitude(a){
+  if (!a.relations) return '—';
+  const r = a.relations || {}; const d = +r.desire||0, t = +r.trust||0, g = +r.grievance||0;
+  if (a.servant) {
+    if (g>=60) return '心里有气，但不敢违拗';
+    if (t>=60) return a.gender==='male' ? '忠心办事的伙计，最得力' : '贴心的丫头，最得力';
+    return a.gender==='male' ? '府里的伙计，听你差遣' : '府里的丫头，听你差遣';
+  }
+  if (a.gender==='male' && a.household) {
+    if (g>=60) return '心里有气，但不敢违拗';
+    if (t>=60) return '忠心办事的伙计，最得力';
+    return '府里的伙计，听你差遣';
+  }
+  if (a.gender==='male') {
+    if (g>=60) return '对你有敌意，见面就要生事';
+    if (g>=30) return '心里有疙瘩，面上还应酬';
+    if (t>=60) return '称兄道弟，未必真心';
+    return '点头之交，各怀算盘';
+  }
+  if (a.household) {
+    if (g>=60) return '心里有气，会闹一场、要哄';
+    if (d>=60) return '心里有你，主动迎合';
+    if (d>=30) return '愿意服侍，会撒撒娇';
+    return '虽有些倦，仍会应下';
+  }
+  if (g>=60) return '心里有怨，轻易不松口';
+  if (a.consummated) return d>=50 ? '已是相好，嘴上推拒身子应' : '已是相好，脸皮薄';
+  if (d>=70 && t>=55) return '心里已有你，半推半就';
+  if (d>=45) return '有点意动，要给由头';
+  if (t>=45) return '可信的人，但到此为止';
+  if (d<=20 && t<=30) return '只是相识，第一次必拒';
+  return '有意无意打量着';
+}
+
+async function load(){
+  const tk = token();
+  if (!tk) { $('summary').textContent = '请先在右上角填入令牌。'; return; }
+  if (!$('token').value) $('token').value = tk;
+  try {
+    const r = await fetch(`/api/admin/world?token=${encodeURIComponent(tk)}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const w = await r.json();
+    render(w);
+    $('h-updated').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+  } catch (e) {
+    $('h-updated').textContent = '读取失败：' + e.message;
+  }
+}
+
+function toggleMorningReport() {
+  const full = $('morning-full');
+  const btn = $('morning-btn');
+  if (!full || !btn) return;
+  const isHidden = full.style.display === 'none';
+  full.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? '收起' : '展开全文';
+}
+
+function render(w){
+  // ── 🌅 晨报横幅 ──────────────────────────────
+  const mr = w.morningReport || '';
+  if (mr && $('morning-banner')) {
+    $('morning-short').textContent = mr.length > 55 ? mr.slice(0, 53) + '…' : mr;
+    $('morning-full').textContent = mr;
+    $('morning-banner').style.display = 'block';
+  } else if ($('morning-banner')) {
+    $('morning-banner').style.display = 'none';
+  }
+
+  // ── 🏡 家宅卡 ──────────────────────────────
+  if ($('card-household')) {
+    const marriages = w.marriages || [];
+    let wives = 0, concubines = 0, pregs = 0;
+    marriages.forEach(m => {
+      if (m.rank && m.rank.includes('正妻')) wives++;
+      else concubines++;
+      if (m.pregnancy && !m.pregnancy.born) pregs++;
+    });
+    $('h-family-top').textContent = `正妻 ${wives} · 侧室 ${concubines} · 有孕 ${pregs}`;
+    $('family-detail').innerHTML = marriages.map(m => {
+      const pregTag = m.pregnancy && !m.pregnancy.born
+        ? `<span class="tag good" style="margin-left:4px">孕${m.pregnancyMonth ?? 1}月</span>`
+        : '';
+      const childTag = Array.isArray(m.children) && m.children.length
+        ? `<span class="tag" style="margin-left:4px">育${m.children.length}子</span>`
+        : '';
+      return `<div class="row">
+        <span><b>${m.name}</b> <span class="tag" style="margin-left:4px">${m.rank || '妾室'}</span>${pregTag}${childTag}</span>
+        <span class="muted">${m.placeName || '后院暖阁'}</span>
+      </div>`;
+    }).join('') || '<div class="muted">府中尚无内眷</div>';
+  }
+
+  // ── 💰 账目卡 ──────────────────────────────
+  if ($('card-accounts')) {
+    const silver = Number(w.assets?.silver ?? 0);
+    const props = w.assets?.properties || [];
+    const income = props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0);
+    $('a-acc-top').textContent = `现存 ${silver.toFixed(1)} 两 · 日入 ${income.toFixed(1)} 两`;
+    let accHtml = '';
+    accHtml += props.map(p => {
+      const keeper = p.keeperName ? ` <span class="muted">(${p.keeperName}当家)</span>` : '';
+      return `<div class="row">
+        <span>${p.name}${keeper}</span>
+        <span class="num good">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
+      </div>`;
+    }).join('');
+    const debts = w.assets?.debts || 0;
+    accHtml += `<div class="row"><span>借贷债务</span><span class="${debts > 0 ? 'bad' : 'muted'}">${debts > 0 ? debts + ' 两' : '无外债'}</span></div>`;
+    const expense = (Number(w.military?.supplies) || 0) + (Number(w.assets?.expensePerDay) || 0);
+    accHtml += `<div class="row"><span>月支预算</span><span class="muted">${expense > 0 ? (expense * 30).toFixed(0) + ' 两/月' : '流水无额外耗损'}</span></div>`;
+    $('acc-detail').innerHTML = accHtml;
+  }
+
+  // ── 🏛️ 朝堂卡 ──────────────────────────────
+  if ($('card-court-core')) {
+    const courtOffices = Object.keys(w.court?.offices || {}).length || 0;
+    const factionsList = Object.entries(w.factions || {});
+    $('c-court-top').textContent = `官职 ${courtOffices} · 派系 ${factionsList.length}`;
+    let courtHtml = '';
+    courtHtml += factionsList.map(([k, f]) => {
+      const rel = Number(f.relation) || 0;
+      const relTag = rel >= 20 ? `<span class="tag good">交好(${rel})</span>` : rel <= -20 ? `<span class="tag bad">敌视(${rel})</span>` : `<span class="tag">中立(${rel})</span>`;
+      return `<div class="row"><span>${f.name || k}</span><span>${relTag} 势力${f.power ?? '—'}</span></div>`;
+    }).join('');
+    const decrees = Array.isArray(w.court?.decrees) ? w.court.decrees : [];
+    if (decrees.length > 0) {
+      courtHtml += `<div class="row"><span>最新朝廷奏谕</span><span class="muted">${decrees.slice(-1)[0].text || '无'}</span></div>`;
+    }
+    const grainPrice = w.grain?.price ?? 100;
+    const grainStock = w.grain?.stock ?? 0;
+    courtHtml += `<div class="row"><span>市道粮价 / 国库粮仓</span><span class="muted">${grainPrice} 文/斗 · 仓储 ${grainStock} 石</span></div>`;
+    $('court-detail').innerHTML = courtHtml;
+  }
+
+  // ── ⚔️ 军中卡 ──────────────────────────────
+  if ($('card-military-core')) {
+    const guards = Number(w.military?.guards) || 0;
+    const militia = Number(w.military?.militia) || 0;
+    const army = Number(w.military?.army) || 0;
+    const totalTroops = guards + militia + army;
+    const morale = Number(w.military?.morale ?? 60);
+    $('m-military-top').textContent = `兵 ${totalTroops} · 士气 ${morale}`;
+    let milHtml = '';
+    milHtml += `<div class="row"><span>兵力构成</span><span class="muted">家丁 ${guards} · 乡勇 ${militia} · 正军 ${army}</span></div>`;
+    const garrisons = Object.entries(w.garrisons || {});
+    if (garrisons.length > 0) {
+      milHtml += `<div class="row"><span>驻军分布</span><span class="muted">${garrisons.map(([p, c]) => `${p}: ${c}人`).join('，')}</span></div>`;
+    }
+    const marches = Array.isArray(w.marches) ? w.marches : [];
+    if (marches.length > 0) {
+      milHtml += `<div class="row"><span>行军调动</span><span class="warn">${marches.map(m => `往${m.to} ${m.count}人 第${m.arriveDay}日到`).join('；')}</span></div>`;
+    } else {
+      milHtml += `<div class="row"><span>行军调动</span><span class="muted">各营驻扎，无调动</span></div>`;
+    }
+    const supplies = Number(w.military?.supplies) || 0;
+    milHtml += `<div class="row"><span>军饷与粮草耗损</span><span class="muted">${supplies > 0 ? supplies + ' 石/日' : '暂无大军耗损'}</span></div>`;
+    $('military-detail').innerHTML = milHtml;
+  }
+  const d = w.date;
+  const dateText = d ? (d.month + '月' + d.day + '日' + (d.lunar ? '（农历' + d.lunar.text + '）' : '') + ' ') : '';
+  $('h-clock').textContent = `${dateText}${w.clock.hour}时（${w.clock.shichen||''}）· 第${w.clock.day}日`;
+  $('h-epoch').textContent = w.epoch === 'modern' ? '现代' : '古代';
+  const audit = w.audit || [];
+  $('h-audit').textContent = audit.length ? audit.length + ' 个问题' : '正常';
+  $('h-audit').className = 'pill';
+
+  const rt = w.runtime || {};
+  $('r-uptime').textContent = human(rt.uptimeSec);
+  $('r-rss').textContent = rt.rssMB ? rt.rssMB + ' MB' : '—';
+  $('r-node').textContent = rt.node ? `${rt.node} / ${rt.pid} / ${rt.port}` : '—';
+  const rate = Number(w.receiptRate ?? 0); // 后端已经是百分数（0~100）
+  $('r-receipt').textContent = Math.round(rate) + '%';
+  $('r-receipt').className = rate >= 60 ? 'good' : rate >= 35 ? 'warn' : 'bad';
+  $('r-health').textContent = w.health || '—';
+
+  const c = w.cost || {};
+  $('c-rounds').textContent = fmt(c.rounds || 0);
+  $('c-avg').textContent = c.rounds ? fmt(c.promptTokens / c.rounds) + ' tokens' : '—';
+  $('c-hit').textContent = (c.cacheHitRate ?? 0) + '%';
+  const miss = c.cacheMissTokens||0, hit = c.cacheHitTokens||0, out = c.completionTokens||0;
+  const yuan = miss/1e6*2 + hit/1e6*0.2 + out/1e6*8;
+  $('c-cost').textContent = '¥' + yuan.toFixed(2);
+  $('c-note').textContent = c.note || `按 DeepSeek 官方价估算（未命中¥2/M 命中¥0.2/M 输出¥8/M）；累计输入 ${fmt(c.promptTokens||0)} tokens`;
+
+  $('a-silver').textContent = (w.assets?.silver ?? 0) + ' 两';
+  const props = w.assets?.properties || [];
+  const income = props.reduce((s,p)=>s+(+p.incomePerDay||0),0);
+  $('a-income').textContent = income.toFixed(2) + ' 两/日';
+  $('a-props').innerHTML = props.map(p => {
+    const bits = [];
+    if (p.staff) bits.push(p.staff + ' 个人手');
+    const extra = bits.length ? ` <span class="muted">（${bits.join('，')}）</span>` : '';
+    return `<div class="row"><span>${p.name}${extra}</span><span>${(+p.incomePerDay||0).toFixed(2)} 两 · ${p.status||''}</span></div>`;
+  }).join('') || '<div class="muted">无产业</div>';
+
+  // 清空面板：填充下拉
+  const sel = $('resetWho');
+  if (sel && sel.options.length === 0) {
+    (w.actors || []).filter(a => a.id !== 'husband').forEach(a => {
+      const o = document.createElement('option');
+      o.value = a.id; o.textContent = a.name;
+      sel.appendChild(o);
+    });
+  }
+
+  // 真人上线状态
+  const members = w.members || [];
+  $('humans').innerHTML = members.map(m => {
+    const dot = m.online
+      ? '<span class="good">● 在线</span>'
+      : (m.lastSeenSec != null ? `<span class="muted">离线 ${m.lastSeenSec < 3600 ? Math.round(m.lastSeenSec/60)+'分前' : Math.round(m.lastSeenSec/3600)+'小时前'}</span>` : '<span class="muted">从未登录</span>');
+    const role = m.actorName ? `扮演 ${m.actorName}` : '（独立陪伴，不进世界）';
+    return `<div class="row"><span><b>${m.title}</b> <span class="muted">${role}</span></span><span>${dot}</span></div>`;
+  }).join('') || '<div class="muted">没有配置成员</div>';
+
+  const ledgerHtml = audit.length
+    ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
+    : '<div class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</div>';
+  const ownIss = w.ownAudit || [];
+  const ownHtml = ownIss.length
+    ? ownIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 所有东西都有主（或明确公有）</div>';
+  const memIss = w.memAudit || [];
+  const repIss = w.replyAudit || [];
+  const memHtml = memIss.length
+    ? memIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 记忆与账本一致</div>';
+  const repHtml = repIss.length
+    ? repIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 最近台词与账本一致</div>';
+  $('audit-box').innerHTML = ledgerHtml
+    + '<div class="muted" style="margin:8px 0 4px">归属自检</div>' + ownHtml
+    + '<div class="muted" style="margin:8px 0 4px">记忆自检</div>' + memHtml
+    + '<div class="muted" style="margin:8px 0 4px">台词自检</div>' + repHtml;
+
+  try { whoSearch(); } catch (e) {}
+
+  // ── 成员绑定 ──────────────────────────────
+  try {
+    const members = w.members || [];
+    const actorOpts = (w.actors || []).filter(a => a.id !== 'husband')
+      .map(a => `<option value="${a.id}">${a.name}（${a.role || ''}）</option>`).join('');
+    const seenKeys = new Set();
+    const uniq = members.filter((m) => { if (seenKeys.has(m.key)) return false; seenKeys.add(m.key); return true; });
+    const boundList = uniq.filter((m) => m.actor);
+    const shownList = window.__bindExpand ? uniq : boundList;
+    $('bind').innerHTML = shownList.map(m => {
+      const cur = m.actor || '';
+      const tag = cur ? '' : '<span class="muted">未绑定</span>';
+      return `<tr>
+        <td class="bind-title"><b>${m.title}</b> ${tag}</td>
+        <td class="muted" style="font-size:11px">${(m.token || '').slice(0, 12)}…</td>
+        <td><select id="bind-${m.key}" class="bind-select"><option value="">（解除绑定）</option>${actorOpts}</select></td>
+        <td><button onclick="doBind('${m.key}')">保存</button></td>
+      </tr>`;
+    }).join('') + (uniq.length > boundList.length
+      ? `<tr><td colspan="4" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__bindExpand=!window.__bindExpand;load();" style="color:#7fb4ff">${window.__bindExpand ? '收起' : '展开全部（共 ' + uniq.length + ' 个账号）'}</a></td></tr>`
+      : '');
+    members.forEach(m => { const sel = $('bind-' + m.key); if (sel && m.actor) sel.value = m.actor; });
+  } catch (e) { $('bind').innerHTML = '<div class="muted">渲染失败</div>'; }
+
+  // ── 朝中 ──────────────────────────────
+  const court = w.court || {};
+  const offsAll = Object.entries(court.offices || {});
+  const central = offsAll.filter(([k]) => !k.startsWith('city:'));
+  const local = offsAll.filter(([k]) => k.startsWith('city:'));
+  const labelOf = (o) => {
+    const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
+    return !o.holder ? '<span class="bad">空缺</span>' : (actor ? actor.name : o.holder + '（未入世）');
+  };
+  const mnd = court.mandate || {};
+  const decCount = (court.decisions || []).length;
+  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君·被蒙蔽' : '当今天子';
+  const mandateHtml = mnd.quality
+    ? `<div class="row" style="border:1px dashed #2a2f3a;border-radius:6px;padding:6px 8px;margin-bottom:8px"><span>天意</span><span class="muted">${mandateTxt} · ${mnd.note || ''}${mnd.wrath ? ' · <span class="bad">天罚已降</span>' : ''}${decCount ? ' · <span class="bad">有弑君待决</span>' : ''}</span></div>`
+    : '';
+  const courtBody = offsAll.length
+    ? `<div class="off-block"><div class="off-title">中枢</div><div class="off-grid">` +
+      central.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
+      `</div></div><div class="off-block"><div class="off-title">各府父母官（${local.length}）</div><div class="off-grid">` +
+      local.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
+      `</div></div>`
+    : '<div class="muted">朝廷未设官</div>';
+  $('court').innerHTML = mandateHtml + courtBody;
+
+  // ── 山川 ──────────────────────────────
+  const ter = w.terrain || [];
+  const terKind = { river: '江河水道', canal: '运河', mountain: '山脉', pass: '关隘', lake: '湖泽' };
+  const terHtml = ter.map((t) =>
+    `<span class="chip" title="${(t.cities || []).join('、')}"><b>${t.name}</b>&nbsp;<span class="muted">${terKind[t.kind] || t.kind}</span></span>`
+  ).join('');
+  $('terrain').innerHTML = ter.length
+    ? `<div class="geo-chips" style="display:flex">${terHtml}</div><div class="muted" style="margin-top:6px">关隘加守备 30%，山脉加 15%；沿江沿运富庶 +10%。鼠标悬停看经过哪些城。</div>`
+    : '<div class="muted">还没有山川</div>';
+
+  // ── 天下 ──────────────────────────────
+  const powers = w.powers || {};
+  const cities = w.cities || {};
+  const byRegion = {};
+  Object.entries(cities).forEach(([name, c]) => {
+    const r = c.region || "未分道";
+    (byRegion[r] = byRegion[r] || []).push([name, c]);
+  });
+  const REGION_ORDER = ["京畿道","河南道","山东道","河东道","河北道","关内道","陇右道","辽东道","淮北道","淮南道","江南道","闽浙道","江西道","荆湖道","剑南道","云贵道","岭南道"];
+  const regionHtml = Object.keys(byRegion).sort((a, b) => {
+    const ia = REGION_ORDER.indexOf(a);
+    const ib = REGION_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  }).map((r) => {
+    const list = byRegion[r];
+    const mineCount = list.filter(([, c]) => c.owner === "wangjia").length;
+    const avgUnrest = Math.round(list.reduce((s, [, c]) => s + (Number(c.unrest) || 0), 0) / list.length);
+    const head = `<div class="geo-head" onclick="this.parentElement.classList.toggle(\x27open\x27)">` +
+      `<b>${r}</b><span class="muted">${list.length} 城</span>` +
+      (mineCount ? `<span class="chip mine">你的 ${mineCount}</span>` : "") +
+      `<span class="muted">民心 ${avgUnrest}</span><span class="geo-arrow">▸</span></div>`;
+    const chips = list.map(([name, c]) => {
+      const mine = c.owner === "wangjia";
+      const goods = (c.goods || []).join("/");
+      const tip = `${c.region || ""}｜守备${c.defense}｜${goods || "无特产"}｜物价${c.price ?? 100}｜税${c.tax ?? 10}%｜民心${c.unrest}`;
+      return `<span class="chip${mine ? " mine" : ""}" title="${tip}" style="cursor:pointer" onclick="openCity('${name}')">${name}</span>`;
+    }).join("");
+    return `<div class="geo-region">${head}<div class="geo-chips">${chips}</div></div>`;
+  }).join("");
+  $("cities").innerHTML = `<div class="geo-grid">${regionHtml}</div>` || "";
+
+  // ── 兵力 / 基建 ──────────────────────────────
+  const mil = w.military || {};
+  if ($('m-guards')) {
+    $('m-guards').textContent = mil.guards ?? 0;
+    $('m-militia').textContent = mil.militia ?? 0;
+    $('m-army').textContent = mil.army ?? 0;
+    $('m-qm').textContent = `训练 ${mil.quality ?? 0} · 士气 ${mil.morale ?? 0}`;
+    $('m-sup').textContent = mil.supplies ?? 0;
+  }
+  const infra = w.infra || {};
+  const infraNames = { roads: '道路', granary: '粮仓', dock: '码头', workshop: '匠作坊', school: '学堂', clinic: '药堂' };
+  $('infra').innerHTML = Object.keys(infraNames).map(k => {
+    const v = Number(infra[k]) || 0;
+    return `<div class="row"><span>${infraNames[k]}</span><span>${'■'.repeat(v)}${'□'.repeat(Math.max(0, 10 - v))} ${v}/10</span></div>`;
+  }).join('');
+
+  // ── 产业表 ──────────────────────────────
+  const propList = w.assets?.properties || [];
+  $('props').innerHTML = propList.length ? propList.map(p =>
+    `<tr>
+      <td><b>${p.name}</b></td>
+      <td class="muted">${p.ownerName || ""}</td>
+      <td class="muted">${p.city || "临江府"}</td>
+      <td class="muted">${p.placeName || ""}</td>
+      <td class="muted">${p.keeperName || "—"}</td>
+      <td class="muted">${p.staff ? p.staff + " 人" : "—"}</td>
+      <td class="num">${(+p.incomePerDay||0).toFixed(2)} 两</td>
+      <td class="muted">${p.status || ""}</td>
+      <td class="muted">${p.openedDay ? "第" + p.openedDay + "日" : "—"}</td>
+    </tr>`).join('') : '<tr><td colspan="9" class="muted">还没有产业</td></tr>';
+
+  // ── 各自的主线 ──────────────────────────────
+  const arcs = w.arcs || {};
+  const arcNames = {};
+  (w.actors || []).forEach(a => { arcNames[a.id] = a.name; });
+  const arcRows = Object.entries(arcs).map(([id, a]) => {
+    const last = (a.log || []).slice(-1)[0];
+    const stage = Number(a.stage) || 0;
+    const tail = a.done
+      ? `<span class="good">已了结：${a.outcome || ''}</span>`
+      : (a.atEdge
+        ? '<span class="warn">最后关头 · 3 天内不动就被世界定夺</span>'
+        : `<span class="muted">${last ? '第' + last.day + '日：' + String(last.text).slice(0, 28) : '（未推进）'}</span>`);
+    return `<div class="row"><span><b>${arcNames[id] || id}</b> · ${a.title || ''} <span class="muted">阶段 ${stage + 1}</span></span>${tail}</div>`;
+  });
+  $('arcs').innerHTML = arcRows.length ? arcRows.join('') : '<div class="muted">暂无主线</div>';
+
+  // ── 待办：约定 / 承诺 / 暗涌 ──────────────────────
+  const nowH = (w.clock.day||1)*24 + (w.clock.hour||0);
+  const rows = [];
+  const pad = (n)=>String(n).padStart(2,'0');
+  const when = (day, hour) => {
+    const diff = (day*24 + hour) - nowH;
+    if (diff < 0) return `<span class="bad">已过 ${Math.abs(diff)} 小时</span>`;
+    if (diff === 0) return `<span class="warn">就在此刻</span>`;
+    if (diff < 24) return `<span class="warn">还有 ${diff} 小时</span>`;
+    return `<span class="muted">还有 ${Math.round(diff/24)} 天</span>`;
+  };
+  (w.appointments||[]).forEach(a => rows.push({
+    t: a.day*24 + a.hour,
+    kind: '约定', cls: a.day*24+a.hour < nowH ? 'bad' : 'warn',
+    title: `${a.name}${a.place?` · ${a.place}`:''}`,
+    detail: a.text || '', extra: (a.every? `每${a.every}天`:''),
+    when: when(a.day, a.hour),
+  }));
+  // 承诺 / 暗涌只有「哪一天」，没有「几点」——按天显示，别算成半夜 23 点
+  const dayText = (due) => {
+    const d = Number(due) - Number(w.clock.day);
+    if (d < 0) return `<span class="bad">已逾期 ${Math.abs(d)} 天</span>`;
+    if (d === 0) return `<span class="warn">今天到期</span>`;
+    if (d === 1) return `<span class="warn">明天到期</span>`;
+    return `<span class="muted">还有 ${d} 天</span>`;
+  };
+  (w.promises||[]).forEach(p => rows.push({
+    t: Number(p.due)*24,
+    kind: '承诺', cls: Number(p.due) < w.clock.day ? 'bad' : 'warn',
+    title: String(p.text||''), detail: '', raw: String(p.text||''), kindKey: 'promise',
+    extra: (() => {
+      const about = Array.isArray(p.about) ? p.about : [];
+      const names = about.map((id) => ((w.actors||[]).find(a => a.id === id)?.name || id)).filter(Boolean);
+      if (names.length) return '关于 ' + names.join('、');
+      const hit = (w.actors||[]).find(a => a.id !== 'husband' && a.name && String(p.text||'').includes(a.name));
+      return hit ? '关于 ' + hit.name : '';
+    })(),
+    when: dayText(p.due),
+  }));
+  (w.pending||[]).forEach(e => rows.push({
+    t: Number(e.due||99)*24,
+    kind: '暗涌', cls: 'bad',
+    title: String(e.desc||''), detail: '', extra: '',
+    when: dayText(e.due || 99),
+  }));
+  rows.sort((a,b)=>a.t-b.t);
+  $('todo').innerHTML = rows.length ? rows.map(r => `
+    <div class="row">
+      <span><span class="tag ${r.cls}">${r.kind}</span> <b>${r.title}</b> ${r.detail?`<span class="muted">${r.detail}</span>`:''} ${r.extra?`<span class="muted">（${r.extra}）</span>`:''}</span>
+      <span>${r.when}${(r.kind==='承诺'||r.kind==='暗涌')?` <span class="todo-del" data-kind="${r.kind==='暗涌'?'pending':'promise'}" data-text="${String(r.title||'').replace(/"/g,'&quot;')}">✕</span>`:''}</span>
+    </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
+
+  window.__lastWorld = w;
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
+  const officialIds = new Set(w.officeHolders || []);
+  const list = (w.actors||[])
+    .filter((a) => a && !officialIds.has(a.id))
+    .slice()
+    .sort((a,b)=> (a.id==='husband'?-1:0)-(b.id==='husband'?-1:0));
+  const shown = window.__actorExpand ? list : list.slice(0, 10);
+  $('actors').innerHTML = shown.map(a=>{
+    const r = a.relations||{}, im = a.intimacy||{};
+    const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
+    let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
+    if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
+    return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
+      <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
+      <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>
+      <td class="num">${r.desire??'—'} ${bar(r.desire||0)}</td>
+      <td class="num">${r.grievance??0} ${bar(r.grievance||0)}</td>
+      <td>${a.id==='husband'?'—':attitude({...a, household:a.household, consummated:im.consummated, relations:r})}</td>
+      <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
+    </tr>`;
+  }).join('') + (list.length > 10
+    ? `<tr><td colspan="9" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__actorExpand=!window.__actorExpand;load();" style="color:#7fb4ff">${window.__actorExpand ? '收起' : '展开全部（共 ' + list.length + ' 人）'}</a></td></tr>`
+    : '');
+
+  $('summary').textContent = w.summary || '—';
+
+  const cls = (w.clues || []).slice().reverse();
+  $('clues').innerHTML = cls.length ? cls.map(c =>
+    `<div class="row"><span>${String(c.text || '').replace(/</g,'&lt;')}</span><span class="muted">第${c.day}日 · ${c.source || ''}</span></div>`
+  ).join('') : '<div class="muted">还没有线索</div>';
+
+  const qs = (w.quotes || []).slice(-10).reverse();
+  $('quotes').innerHTML = qs.length ? qs.map(q =>
+    `<div class="row"><span><b>${q.name}</b>：${String(q.text).replace(/</g,'&lt;')}</span><span class="muted">第${q.day}日${q.hour}时</span></div>`
+  ).join('') : '<div class="muted">还没有真人登录说过话。她登录后，这里会显示她亲口说的原文。</div>';
+
+  const evs = (w.recentEvents||[]).slice(-8).reverse();
+  $('events').innerHTML = evs.map(e=>{
+    const p = e.payload||{};
+    const txt = p.text||p.desc||p.goal||p.name||'';
+    return `<div class="ev"><b>第${e.day}日${e.hour}时</b> [${e.action}] ${txt}</div>`;
+  }).join('') || '<div class="muted">暂无</div>';
+}
+
+function foldRegion(el, r) {
+  const parent = el.parentElement;
+  Array.from(parent.children).forEach((e) => {
+    if (e !== el && e.dataset && e.dataset.r === r) {
+      e.style.display = e.style.display === 'none' ? '' : 'none';
+    }
+  });
+}
+
+async function renderNpcArcs(list) {
+  const el = $('npcarcs');
+  if (!el) return;
+  const rows = (list || []).slice(0, 8);
+  el.innerHTML = rows.length
+    ? rows.map((x) => `<div class="row"><span><b>${x.name}</b></span><span class="muted" style="max-width:70%;text-align:right">${x.text}</span></div>`).join('')
+    : '暂时还没有动静（每 3 天各人自有一桩事）';
+}
+
+function openProp(name) {
+  const w = window.__lastWorld || {};
+  const p = (w.assets?.properties || []).find((x) => x && x.name === name);
+  if (!p) return;
+  const wage = (Number(p.staff) || 0) * 0.12;
+  const net = (Number(p.incomePerDay) || 0) - wage;
+  $('amName').textContent = `产业：${p.name}`;
+  $('amBody').innerHTML = `
+    <div>东家：${p.owner === 'husband' ? '王甯' : (p.owner || '—')}　掌柜：${p.keeper === 'husband' ? '王甯' : (p.keeper || '—')}</div>
+    <div>日入：${Number(p.incomePerDay || 0).toFixed(2)} 两　人手：${p.staff || 0} 人　工钱：${wage.toFixed(2)} 两/日</div>
+    <div>净入：<b>${net.toFixed(2)} 两/日</b>　月约：<b>${(net * 30).toFixed(1)} 两</b></div>
+    <div>状态：${p.status || '—'}　城市：${p.city || '—'}</div>`;
+  $('actorModal').style.display = 'block';
+}
+
+function openCity(name) {
+  const w = window.__lastWorld || {};
+  const c = (w.cities || {})[name];
+  if (!c) return;
+  const mine = c.owner === 'wangjia';
+  const gar = (w.garrisons || {})[name] || 0;
+  const props = (w.assets?.properties || []).filter((p) => p && (p.city === name || String(p.name || '').includes(name)));
+  const propHtml = props.length
+    ? props.map((p) => `${p.name}（日入 ${Number(p.incomePerDay || 0).toFixed(2)}·${p.staff || 0}人）`).join('<br>')
+    : '这城还没你的产业';
+  $('amName').textContent = `${name}　${c.region || ''}`;
+  $('amBody').innerHTML = `
+    <div>归属：${mine ? '<b style="color:#7BD88F">你的</b>' : c.owner === 'court' ? '朝廷' : (c.owner || '不明')}</div>
+    <div>民心不安：<b>${c.unrest ?? 0}</b>　税率：<b>${c.tax ?? 10}%</b>　物价：<b>${c.price ?? 100}</b></div>
+    <div>守备：${c.defense ?? 0}　驻军：${gar}　财富：${Number(c.wealth || 0).toFixed(1)}</div>
+    <div>特产：${(c.goods || []).join('、') || '无'}</div>
+    <div style="margin-top:6px"><b>这里的产业</b><br>${propHtml}</div>
+    <div style="margin-top:8px;color:#888;font-size:12px">民心 ≥85 会民变；税越高民心掉得越快；驻军能挡流寇与官军</div>`;
+  $('actorModal').style.display = 'block';
+}
+
+async function openActor(id) {
+  const tk = token();
+  if (!tk || !id) return;
+  try {
+    const r = await fetch(`/api/admin/actor/detail?token=${encodeURIComponent(tk)}&id=${encodeURIComponent(id)}`);
+    const j = await r.json();
+    if (!j.ok) return;
+    const a = j.actor || {};
+    $('amName').textContent = `${a.name}　${a.role || ''}`;
+    const rel = a.rel || {};
+    const bonds = (j.bonds || []).map((b) => `${b.name}（${b.type}·${b.score > 0 ? '亲' : '疏'}）`).join('　') || '—';
+    const cases = (j.cases || []).map((c) => `${c.role}·${c.claim}（${c.status}${c.reason ? '·' + c.reason : ''}）`).join('<br>') || '无案底';
+    const props = (j.props || []).map((p) => `${p.name}（${p.role}·日入${Number(p.income).toFixed(2)}·${p.staff}人）`).join('<br>') || '—';
+    const knows = (j.knows || []).join('<br>') || '—';
+    const arc = j.arc ? (j.arc.lastStep || (j.arc.log && j.arc.log.length ? j.arc.log[j.arc.log.length - 1].text : '') || '') : '';
+    $('amBody').innerHTML = `
+      <div>${a.origin === 'spawned' ? '天道衍生' : '预设'}　${a.gender === 'male' ? '男' : '女'}　在「${a.place || '不知去向'}」${a.activity ? '，' + a.activity : ''}</div>
+      ${a.dead ? '<div style="color:#e05a5a">已故</div>' : ''}
+      ${a.jailed ? `<div style="color:#e0a05a">在押（第${a.jailed.untilDay}日出狱）</div>` : ''}
+      ${rel && rel.trust != null ? `<div>对相公：信任 ${rel.trust}　欲望 ${rel.desire || 0}　怨怼 ${rel.grievance || 0}</div>` : ''}
+      <div>身上：${Number(j.money || 0).toFixed(2)} 两${a.rank ? '　功名：' + a.rank : ''}${a.study ? '　学识：' + a.study : ''}</div>
+      <div style="margin-top:6px"><b>关系</b><br>${bonds}</div>
+      ${a.goals && a.goals.length ? `<div style="margin-top:6px"><b>想做的事</b><br>${a.goals.join('；')}</div>` : ''}
+      ${a.secret ? `<div style="margin-top:6px"><b>秘密</b><br>${a.secret}</div>` : ''}
+      ${arc ? `<div style="margin-top:6px"><b>眼下</b><br>${arc}</div>` : ''}
+      <div style="margin-top:6px"><b>案底</b><br>${cases}</div>
+      <div style="margin-top:6px"><b>产业</b><br>${props}</div>
+      <div style="margin-top:6px"><b>听过的风评</b><br>${knows}</div>`;
+    $('actorModal').style.display = 'block';
+  } catch (e) { /* 忽略 */ }
+}
+function closeActor() { $('actorModal').style.display = 'none'; }
+
+function sparkline(vals, color, label) {
+  if (!vals.length) return `<div class="muted">${label}：还没有数据</div>`;
+  const w = 260, h = 46, max = Math.max(1, ...vals), min = Math.min(...vals);
+  const span = Math.max(1, max - min);
+  const pts = vals.map((v, i) => `${(i / Math.max(1, vals.length - 1)) * w},${h - ((v - min) / span) * (h - 6) - 3}`).join(' ');
+  return `<div style="margin-bottom:6px"><span class="muted" style="font-size:11px">${label} ${vals[vals.length - 1]}</span>`
+    + `<svg width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/></svg></div>`;
+}
+function renderTrends(w) {
+  const el = $('trend');
+  if (!el) return;
+  const h = w.history || [];
+  el.innerHTML = sparkline(h.map((x) => x.unrest), '#e05a5a', '民心不安')
+    + sparkline(h.map((x) => x.price), '#d8c48a', '物价')
+    + sparkline(h.map((x) => x.treasury), '#7BD88F', '国库')
+    + `<div class="muted" style="font-size:11px">趋势向上＝在变坏（民心/物价）</div>`;
+}
+function renderDiag(w) {
+  const el = $('diag');
+  if (!el) return;
+  const rows = [];
+  const day = w.clock?.day || 1, hour = w.clock?.hour || 0;
+  if (!(w.cases || []).length) rows.push(`没有案子：民间案子每天卯时（6点）才可能出，现在第${day}日${hour}时`);
+  if (!(w.rumors || []).length) rows.push('没有风评：判了案、出了大事才会生风评');
+  const unrest = (w.cities ? Object.values(w.cities) : []).reduce((a, c) => a + (Number(c.unrest) || 0), 0) / Math.max(1, Object.keys(w.cities || {}).length);
+  rows.push(`平均民心不安 ${Math.round(unrest)}（≥85 才会民变）`);
+  if (!(w.npcArcs || []).length) rows.push('NPC 命运还没生成：每个心跳补 5 个');
+  el.innerHTML = rows.map((r) => `<div class="row"><span>${r}</span></div>`).join('');
+}
+function renderTimeline(w) {
+  const el = $('timeline');
+  if (!el) return;
+  const evs = (w.recentEvents || []).slice(-40);
+  if (!evs.length) { el.innerHTML = '还没有大事'; return; }
+  const byDay = {};
+  evs.forEach((e) => { const d = e.day || (w.clock?.day || 1); (byDay[d] = byDay[d] || []).push(e.text || e.payload?.text || e.action); });
+  el.innerHTML = Object.keys(byDay).sort((a, b) => b - a).slice(0, 6).map((d) =>
+    `<div style="margin-bottom:6px"><b>第${d}日</b><div style="margin-left:10px">${byDay[d].slice(-6).map((t) => `· ${t}`).join('<br>')}</div></div>`
+  ).join('');
+}
+
+function renderBondMap(w) {
+  const el = $('bondmap');
+  if (!el) return;
+  const edges = w.bondEdges || [];
+  if (!edges.length) { el.innerHTML = '<div class="muted">还没有关系</div>'; return; }
+  const names = Array.from(new Set(edges.flatMap((e) => [e.a, e.b]))).slice(0, 24);
+  const n = names.length;
+  const R = 220, cx = 300, cy = 230;
+  const pos = {};
+  names.forEach((nm, i) => {
+    const ang = (Math.PI * 2 * i) / n - Math.PI / 2;
+    pos[nm] = [cx + R * Math.cos(ang), cy + R * Math.sin(ang)];
+  });
+  const lines = edges.filter((e) => pos[e.a] && pos[e.b]).map((e) => {
+    const [x1, y1] = pos[e.a];
+    const [x2, y2] = pos[e.b];
+    const color = e.score >= 25 ? '#7BD88F' : e.score <= -10 ? '#e05a5a' : '#4a5568';
+    const wd = Math.min(4, 1 + Math.abs(e.score) / 25);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${wd}" opacity="0.65"><title>${e.a}—${e.b} ${e.type}(${e.score})</title></line>`;
+  }).join('');
+  const dots = names.map((nm) => {
+    const [x, y] = pos[nm];
+    return `<circle cx="${x}" cy="${y}" r="5" fill="#7fb4ff"><title>${nm}</title></circle>`
+      + `<text x="${x}" y="${y - 9}" font-size="11" fill="#cfd6e4" text-anchor="middle">${nm}</text>`;
+  }).join('');
+  const legend = '<div class="muted" style="font-size:11px;margin-top:4px">绿＝亲近　红＝不对付　灰＝一般　（鼠标悬停看类型与分值）</div>';
+  el.innerHTML = `<svg width="600" height="470" viewBox="0 0 600 470">${lines}${dots}</svg>${legend}`;
+}
+
+function renderWorldExtras(w) {
+  const rum = $('rumors');
+  if (rum) {
+    const list = (w.rumors || []).slice(-6).reverse();
+    rum.innerHTML = list.length
+      ? list.map((r) => `<div class="row"><span>${r.tone < 0 ? '🔻' : r.tone > 0 ? '🔺' : '·'} ${r.text}</span><span class="muted">${r.reach}人知</span></div>`).join('')
+      : '街上还平静';
+  }
+  const cs = $('cases');
+  if (cs) {
+    const list = (w.cases || []).slice(-6).reverse();
+    const st = { filed: '待审', summoned: '已传唤', hearing: '开审中', judged: '已判' };
+    cs.innerHTML = list.length
+      ? list.map((c) => `<div class="row"><span>${c.who} 告 ${c.against}·${c.claim}</span><span class="muted">${st[c.status] || c.status}${c.verdict ? '·' + (c.verdict === 'guilty' ? '有罪' : '无罪') : ''}</span></div>`).join('')
+      : '衙门清闲';
+  }
+  const rm = $('realm');
+  if (rm) {
+    const g = (w.guilds || []).map((x) => `${x.name}·${x.head}(${x.attitude === 'hostile' ? '敌视' : x.attitude === 'friendly' ? '亲近' : '一般'})`).join('　');
+    const f = (w.foreign || []).map((x) => `${x.name}(${Math.round(x.relation)})`).join('　');
+    const gs = Object.entries(w.garrisons || {}).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`).join('　');
+    rm.innerHTML = `<div class="row"><span>行会</span><span class="muted" style="text-align:right;max-width:75%">${g || '—'}</span></div>`
+      + `<div class="row"><span>邻国</span><span class="muted" style="text-align:right;max-width:75%">${f || '—'}</span></div>`
+      + `<div class="row"><span>驻军</span><span class="muted">${gs || '—'}</span></div>`
+      + (w.envoy ? `<div class="row"><span>使节</span><span class="muted">${w.envoy.name} 求${w.envoy.demand}</span></div>` : '')
+      + (w.imperialArmy ? `<div class="row"><span>官军</span><span class="muted" style="color:#e05a5a">${w.imperialArmy.count}人 → ${w.imperialArmy.target}（第${w.imperialArmy.arriveDay}日到）</span></div>` : '');
+  }
+}
+
+function renderTreasury(court) {
+  const el = $('treasury');
+  if (!el) return;
+  const t = court?.treasury || {};
+  const silver = Number(t.silver) || 0;
+  const grain = Number(t.grain) || 0;
+  const color = silver < 100 ? '#e05a5a' : silver < 500 ? '#d8c48a' : '#7BD88F';
+  el.innerHTML = `国库 <b style="color:${color}">${silver.toFixed(1)} 两</b>　`
+    + `粮仓 <b>${grain} 石</b>　`
+    + `<span class="muted">日收 ${(Number(t.lastIncome)||0).toFixed(1)} / 日支 ${(Number(t.lastExpense)||0).toFixed(1)}</span>`;
+}
+
+function renderDecrees(court) {
+  const el = $('decrees');
+  if (!el) return;
+  const ds = (court?.decisions || []).slice(-3).reverse();
+  el.innerHTML = ds.length
+    ? '最近旨意：' + ds.map((d) => `<span style="color:#d8c48a">第${d.day}日「${d.text}」</span>`).join('　')
+    : '最近旨意：暂无';
+}
+
+async function whoSearch() {
+  const tk = token();
+  const q = ($('whoQ')?.value || '').trim();
+  if (!tk) return;
+  try {
+    const r = await fetch(`/api/who?token=${encodeURIComponent(tk)}&q=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    const rows = j.rows || [];
+    $('who').innerHTML = rows.length
+      ? rows.map((x) => `<div class="row"><span>${x.here ? '📍 ' : ''}<b>${x.name}</b> <span class="muted">${x.role}</span></span><span class="muted">${x.place}</span></div>`).join('')
+      : '<div class="muted">没找到</div>';
+  } catch (e) { $('who').innerHTML = '<div class="muted">查询失败</div>'; }
+}
+
+async function todoRemove(kind, el) {
+  const tk = token();
+  const text = el?.dataset?.text || '';
+  if (!tk || !text) return;
+  if (!confirm('删除这条待办？')) return;
+  try {
+    const r = await fetch(`/api/admin/todo/remove?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, text }),
+    });
+    const j = await r.json();
+    if (j.ok) load(); else alert('删除失败：' + (j.error || ''));
+  } catch (e) { alert('删除失败：' + e.message); }
+}
+
+// 待办删除：点 ✕ 先把整条标红，再确认；确认后调接口
+document.addEventListener('click', async (ev) => {
+  const el = ev.target.closest && ev.target.closest('.todo-del');
+  if (!el) return;
+  ev.stopPropagation();
+  const row = el.closest('.row');
+  if (!row) return;
+  if (!row.classList.contains('todo-armed')) {
+    document.querySelectorAll('.row.todo-armed').forEach((x) => x.classList.remove('todo-armed'));
+    row.classList.add('todo-armed');
+    el.textContent = '点一次确认';
+    setTimeout(() => { if (row.classList.contains('todo-armed')) { row.classList.remove('todo-armed'); el.textContent = '✕'; } }, 4000);
+    return;
+  }
+  const tk = token();
+  const text = el.dataset.text || '';
+  const kind = el.dataset.kind || 'promise';
+  try {
+    const r = await fetch(`/api/admin/todo/remove?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, text }),
+    });
+    const j = await r.json();
+    if (j.ok) load(); else alert('删除失败：' + (j.error || ''));
+  } catch (e) { alert('删除失败：' + e.message); }
+});
+
+async function doBind(memberKey) {
+  const tk = token();
+  const sel = $('bind-' + memberKey);
+  if (!tk || !sel) return;
+  const actor = sel.value;
+  try {
+    const r = await fetch(`/api/admin/bind?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member: memberKey, actor }),
+    });
+    const j = await r.json();
+    alert(j.ok ? '已绑定' : ('失败：' + (j.error || '')));
+    load();
+  } catch (e) {
+    alert('失败：' + e.message);
+  }
+}
+
+async function doRename() {
+  const tk = token();
+  const id = $('resetWho').value;
+  const oldName = $('resetWho').selectedOptions[0]?.textContent || '';
+  const to = ($('renameTo').value || '').trim();
+  const msg = $('renameMsg');
+  if (!tk) { msg.textContent = '先保存令牌'; return; }
+  if (!id || !to) { msg.textContent = '先选人物并填新名字'; return; }
+  if (!confirm(`把「${oldName}」改名为「${to}」？记忆、约定、事件、成员标题都会跟着改。`)) return;
+  msg.textContent = '改中…';
+  try {
+    const r = await fetch(`/api/admin/actor/rename?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name: to }),
+    });
+    const j = await r.json();
+    msg.textContent = j.ok ? `✓ ${j.from} → ${j.to}` : ('✗ ' + (j.error || '失败'));
+    $('renameTo').value = '';
+    load();
+  } catch (e) {
+    msg.textContent = '✗ ' + e.message;
+  }
+}
+
+async function doReset() {
+  const tk = token();
+  const id = $('resetWho').value;
+  const name = $('resetWho').selectedOptions[0]?.textContent || '';
+  const typed = ($('resetConfirm').value || '').trim();
+  const msg = $('resetMsg');
+  if (!tk) { msg.textContent = '先保存令牌'; return; }
+  if (!id) { msg.textContent = '先选一个人物'; return; }
+  if (typed !== name) { msg.textContent = '确认名字不一致，未执行'; return; }
+  if (!confirm(`确定要清空「${name}」吗？此操作不可撤销。`)) return;
+  msg.textContent = '执行中…';
+  const done = [];
+  try {
+    if ($('rsHistory').checked) {
+      const r = await fetch(`/api/admin/history/clear?token=${encodeURIComponent(tk)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member: id }),
+      });
+      const j = await r.json();
+      done.push('聊天历史 -' + (j.cleared ?? 0) + ' 条');
+    }
+    if ($('rsWorld').checked || $('rsMem').checked) {
+      const r = await fetch(`/api/admin/actor/reset?token=${encodeURIComponent(tk)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, relations: $('rsWorld').checked, clearPregnancy: $('rsWorld').checked, clearMemories: $('rsMem').checked, deep: $('rsDeep').checked }),
+      });
+      const j = await r.json();
+      done.push('世界线：' + (j.done || []).join('、'));
+    }
+    msg.textContent = '✓ ' + done.join('；');
+    $('resetConfirm').value = '';
+    load();
+  } catch (e) {
+    msg.textContent = '✗ ' + e.message;
+  }
+}
+
+$('token').value = token();
+load();
+setInterval(load, 30000);
+</script>
+<div id="actorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99" onclick="if(event.target===this)closeActor()">
+  <div style="max-width:560px;margin:6vh auto;background:#161a21;border:1px solid #2a2f3a;border-radius:12px;padding:18px;max-height:82vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b id="amName" style="font-size:16px"></b>
+      <a href="javascript:void(0)" onclick="closeActor()" style="color:#888">关闭</a>
+    </div>
+    <div id="amBody" style="font-size:13px;line-height:1.7"></div>
+  </div>
+</div>
+</body>
+</html>
