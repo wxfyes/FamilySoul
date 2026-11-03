@@ -1057,6 +1057,16 @@ function __loadStateInner(dataDir) {
   for (const [id, actor] of Object.entries(raw.actors || {})) {
     mergedActors[id] = { ...(base.actors?.[id] || {}), ...actor };
   }
+
+  // 物理空间解耦自愈：非王府同住内宅女眷（如紫嫣、杨采云等），绝不滞留在正房寝居或后院私宅
+  for (const [id, live] of Object.entries(mergedActors)) {
+    if (!live || live.dead || id === 'husband') continue;
+    const isInner = ['husband_room', 'backyard'].includes(live.location);
+    const isHousehold = Boolean(live.household) || ['waner', 'yunnia', 'xiaocui'].includes(id);
+    if (isInner && !isHousehold) {
+      live.location = (live.home && base.places?.[live.home]) ? live.home : 'wine_shop';
+    }
+  }
   // 版本迁移：预设人物的日程/住处以代码为准（用户自己造的 npc_* 不动）
   if (Number(raw.stateVersion || 1) !== Number(base.stateVersion)) {
     for (const [id, baseActor] of Object.entries(base.actors || {})) {

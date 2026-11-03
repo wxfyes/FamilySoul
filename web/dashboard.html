@@ -628,7 +628,13 @@ function render(w){
   const local = offsAll.filter(([k]) => k.startsWith('city:'));
   const labelOf = (o) => {
     const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
-    return !o.holder ? '<span class="bad">空缺</span>' : (actor ? actor.name : o.holder + '（未入世）');
+    if (!o.holder) return '<span class="bad">空缺</span>';
+    if (!actor) return o.holder + '（未入世）';
+    const r = actor.relations || {};
+    const t = Number(r.trust) || 0;
+    const g = Number(r.grievance) || 0;
+    const d = Number(r.desire) || 0;
+    return `${actor.name} <span class="muted" style="font-size:11px">信${t} 怨${g} 欲${d}</span>`;
   };
   const mnd = court.mandate || {};
   const decCount = (court.decisions || []).length;
@@ -788,8 +794,11 @@ function render(w){
   window.__lastWorld = w;
   try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
   const officialIds = new Set(w.officeHolders || []);
+  // 官员一律只进「朝中」卡，不进人物表（按 id 与身份双重判定）
+  const OFFICIAL_ROLE_RE = /知县|知府|尚书|侍郎|巡抚|宰相|天子|御史|总督|按察|布政|通判|典史|主簿|县令|县丞|知州|同知|参军|都尉|统领/;
+  const isOfficial = (a) => officialIds.has(a.id) || OFFICIAL_ROLE_RE.test(String(a.role || ''));
   const list = (w.actors||[])
-    .filter((a) => a && !officialIds.has(a.id))
+    .filter((a) => a && !isOfficial(a))
     .slice()
     .sort((a,b) => {
       // 相关的人靠前：相公 → 府内 → 相好/高信任 → 其他
