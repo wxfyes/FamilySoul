@@ -1436,7 +1436,7 @@ export class PetService {
           const hereNow = Object.values(wPost.actors || {})
             .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId && a.id !== 'husband')
             .slice(0, 4);
-          const hereText = hereNow.map((a) => `${a.name}${a.activity?.text ? '正' + a.activity.text : ''}`).join('，');
+          const hereText = hereNow.slice(0, 2).map((a) => `${a.name}${a.activity?.text ? '正' + a.activity.text : ''}`).join('，');
           const lead = movedNow ? `你到了${placeNow}` : `就站在${placeNow}`;
           reply = hereText
             ? `【${placeNow || '这里'}】：${lead}——${hereText}。`
@@ -1617,7 +1617,21 @@ export class PetService {
               && a.location === locPost && a.name && String(say || '').includes(a.name),
           );
           console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
-          for (const npc of (namedPresent.length ? namedPresent : partnerHere).slice(0, 2)) {
+          // 没人被点名、也没有对话对象，且回复已空 → 让在场最亲近的人开口
+          let autoPick = [];
+          const presentNamesNow = Object.values(wPost.actors || {})
+            .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId)
+            .map((a) => String(a.name || ''))
+            .filter(Boolean);
+          const replyIsNarration = /(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
+          const replyHasPresentSpeaker = !replyIsNarration && presentNamesNow.some((n) => String(reply || '').includes(n));
+          if (!namedPresent.length && !partnerHere.length && !replyHasPresentSpeaker) {
+            const here2 = Object.values(wPost.actors || {})
+              .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId && a.id !== 'husband')
+              .sort((x, y) => (Number(y.relations?.husband?.trust) || 0) - (Number(x.relations?.husband?.trust) || 0));
+            autoPick = here2.slice(0, 1);
+          }
+          for (const npc of (namedPresent.length ? namedPresent : (partnerHere.length ? partnerHere : autoPick)).slice(0, 2)) {
             const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
             if (already) continue;
             const npcMem = (wPost.memories || [])
@@ -1652,7 +1666,7 @@ export class PetService {
             });
             const npLine = wrapProxyLine(npc.name, npRes?.text);
             if (npLine) {
-              reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声|没人接话/.test(x)).join('\n')}`.trim();
+              reply = `${npLine}\n${String(reply).split('\n').filter((x) => !/没人应声|没人接话|就站在|四下冷清|你到了/.test(x)).join('\n')}`.trim();
               console.log('[Proxy] 代演' + npc.name + '：' + npLine.slice(0, 40));
               try {
                 const wp2 = loadState(this.dataDir);
