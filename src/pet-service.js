@@ -2341,7 +2341,8 @@ export class PetService {
         const named = saidA.includes(a.name) || (short && saidA.includes(short));
         return named && a.location !== meA2?.location;
       });
-      if (absent && !String(reply || '').includes(String(wAbs.places?.[absent.location]?.name || ''))) {
+      const absentIsHousehold = absent && (absent.household || ['waner', 'yunnia', 'xiaocui'].includes(absent.id));
+      if (absent && !absentIsHousehold && !String(reply || '').includes(String(wAbs.places?.[absent.location]?.name || ''))) {
         const whereA = String(wAbs.places?.[absent.location]?.name || '别处');
         const hereA = String(wAbs.places?.[meA2?.location]?.name || '这里');
         reply = `【${hereA}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
@@ -2407,6 +2408,36 @@ export class PetService {
           if (lineL) {
             reply = lineL;
             console.log('[Proxy] 旁白兜底 → ' + pickL.name + '：' + lineL.slice(0, 24));
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
+
+    // 账本没有的往事：让天道自己重写一版（不替它写台词）
+    try {
+      const askP2 = /(还记得|记不记得|记得吗|以前|上次|那回|从前|当年|旧事)/.test(String(say || ''));
+      const looksFabricated = /(记得|从前|那时|当年|上次|那回|你总|你总是|你那时)/.test(String(reply || ''));
+      if (askP2 && looksFabricated) {
+        const wR = loadState(this.dataDir);
+        const meR = this._viewerActorId ? wR.actors?.[this._viewerActorId] : wR.actors?.husband;
+        const hereR = Object.values(wR.actors || {}).filter((a) => a && !a.dead && a.location === meR?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
+        const namesR = hereR.map((a) => a.name);
+        const poolR = (wR.memories || []).filter((m) => {
+          const t = String(m?.text || '');
+          return namesR.some((n) => t.includes(n)) || t.includes('相公') || m.visible === 'public';
+        });
+        if (poolR.length === 0) {
+          const speaker = (String(reply || '').match(/^【([^】\n]{1,12})】/) || [])[1] || (hereR[0]?.name || '她');
+          const rr = await this.llmClient.complete({
+            system: `你就是${speaker}。账本里没有对方说的那件旧事。`, messages: [{
+              role: 'user',
+              content: `对方问：“${String(say).slice(0, 60)}”。账本里没有这件事。请用一句到两句、${speaker}自己的口吻回答：记不得、或含混带过，绝不许编任何具体往事、细节、物件、场景。只输出台词，以【${speaker}】：开头。`,
+            }], maxTokens: 120, temperature: 0.8,
+          });
+          const rewritten = String(rr?.text || '').trim();
+          if (rewritten) {
+            reply = /^【[^】]+】/.test(rewritten) ? rewritten : (wrapProxyLine(speaker, rewritten) || rewritten);
+            console.log('[Memory] 已让天道重写（账本无此事）');
           }
         }
       }
