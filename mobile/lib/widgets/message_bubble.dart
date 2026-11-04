@@ -18,14 +18,17 @@ class MessageBubble extends StatelessWidget {
     this.characterName = 'AI',
   });
 
+  /// 谁说这句话就显示谁的名字：分角剧本角色优先，其次从正文推导发言人，否则用当前主角色
+  String get displaySpeakerName {
+    final resolved = message.speaker ?? message.effectiveSpeaker;
+    return (resolved != null && resolved.isNotEmpty) ? resolved : characterName;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isUser = message.isUser;
     final timeStr = DateFormat('HH:mm').format(message.timestamp);
-    // 谁说这句话就显示谁的名字：分角剧本里的角色优先，否则用当前主角色
-    final speakerName = (message.speaker != null && message.speaker!.isNotEmpty)
-        ? message.speaker!
-        : characterName;
+    final speakerName = displaySpeakerName;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
@@ -347,7 +350,9 @@ class MessageBubble extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                isPlaying ? '正在播放${characterName.isNotEmpty ? characterName : "伴侣"}语音...' : '点击播放${characterName.isNotEmpty ? characterName : "伴侣"}语音',
+                isPlaying
+                    ? '正在播放${displaySpeakerName.isNotEmpty ? displaySpeakerName : '伴侣'}语音...'
+                    : '点击播放${displaySpeakerName.isNotEmpty ? displaySpeakerName : '伴侣'}语音',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,

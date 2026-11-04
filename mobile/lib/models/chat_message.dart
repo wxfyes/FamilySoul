@@ -27,6 +27,18 @@ class ChatMessage {
     this.speaker,
   });
 
+  /// 智能推导说话人：优先显式 speaker；若无则从文本前缀【xxx】自动提取（自愈历史旧消息）
+  String? get effectiveSpeaker {
+    if (speaker != null && speaker!.trim().isNotEmpty) {
+      return speaker!.trim();
+    }
+    final m = RegExp(r'^\s*【\s*([^】\n]{1,16}?)\s*】').firstMatch(text.trim());
+    if (m != null) {
+      return m.group(1)!.trim();
+    }
+    return null;
+  }
+
   /// 提取过滤掉 [emoji:xxx]、[compare:xxx]、[image:xxx]、[music:xxx] 后的干净文字
   String get displayCleanText {
     var clean = text;
@@ -34,6 +46,11 @@ class ChatMessage {
     clean = clean.replaceAll(RegExp(r'\[compare:[^\]\n]+\]?'), '');
     clean = clean.replaceAll(RegExp(r'\[image:[^\]\n]+\]?'), '');
     clean = clean.replaceAll(RegExp(r'\[music:[^\]\n]+\]?'), '').trim();
+    // 若正文开头遗留了【xxx】：或【xxx】，在显示时自动剥离前缀，避免与气泡姓名标签重复
+    final spk = effectiveSpeaker;
+    if (spk != null && spk.isNotEmpty) {
+      clean = clean.replaceFirst(RegExp('^\\s*【\\s*${RegExp.escape(spk)}\\s*】\\s*[:：]?\\s*'), '').trim();
+    }
     if (clean.isEmpty) {
       if (detectedEmoji != null) return '（发来了一个表情包）';
       if (detectedImageUrl != null) return '（奉上一张自拍画像）';

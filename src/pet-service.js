@@ -1,4 +1,5 @@
-﻿import fs from 'node:fs';
+import { resolveVoiceCasting } from './world/voice-casting.js';
+import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } from './world/naming.js';
 import { moveActor } from './world/position.js';
@@ -2924,15 +2925,23 @@ export class PetService {
       const voiceText = this.stripForVoice(reply);
       if (voiceText) {
         try {
-          let chosenVoice = 'zh-CN-XiaoxiaoNeural'; // 默认相公的小娘子（娇美正妻）
-          if (profileKey === 'wife' || activeRole === '贴心管家') {
-            chosenVoice = 'zh-CN-YunjianNeural'; // 女主人专属的沉稳帅气男管家磁性暖男声
-          } else if (profileKey === 'kid' || activeRole === '全能导师') {
-            chosenVoice = 'zh-CN-YunxiNeural'; // 孩子的阳光大哥哥声线
-          } else if (history?.inPrivateWorld === '芸娘') {
-            chosenVoice = 'zh-CN-XiaoshuangNeural'; // 芸娘二人世界专属温婉娇怯声线
-          }
-          const ttsResult = await this.ttsService.synthesizeToFile({ text: voiceText, voice: chosenVoice });
+          const matchSpeaker = String(reply || '').match(/^[^\w一-龥]*?【([^】\n]{1,16})】/);
+          const detectedSpeaker = matchSpeaker ? matchSpeaker[1].trim() : (turnTarget?.actor?.name || null);
+          let currentWorld = null;
+          try { currentWorld = loadState(this.dataDir); } catch {}
+          const casting = resolveVoiceCasting({
+            speakerName: detectedSpeaker,
+            actor: turnTarget?.actor || null,
+            world: currentWorld,
+            profileKey,
+          });
+          console.log(`[TTS] 🎭 角色配音派发 [${detectedSpeaker || '默认'}] -> ${casting.label} (voice=${casting.voice}, pitch=${casting.pitch}, rate=${casting.rate})`);
+          const ttsResult = await this.ttsService.synthesizeToFile({
+            text: voiceText,
+            voice: casting.voice,
+            pitch: casting.pitch,
+            rate: casting.rate,
+          });
           if (ttsResult.ok) {
             audioKey = ttsResult.key;
           }

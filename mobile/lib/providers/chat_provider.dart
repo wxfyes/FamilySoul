@@ -570,7 +570,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
           modality: 'voice',
           audioUrl: audioUrl,
         );
-        _messages.add(aiMsg);
+        _applyReplyTo('v_${now.millisecondsSinceEpoch}', aiMsg);
         _persistMessages();
         notifyListeners();
       }
