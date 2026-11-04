@@ -579,6 +579,8 @@ export class PetService {
     if (!say) return { ok: false, error: '输入内容为空' };
     // 账号（memberKey）与世界实体（actor）可以不同：女主人账号可以绑定到「杨振华」这个 actor
     const selfId = actorId || profileKey;
+    // 记录开局位置：这一轮如果换了地方，末尾补一行"你到了"
+    const __locAtStart = (() => { try { const w0 = loadState(this.dataDir); return (this._viewerActorId ? w0.actors?.[this._viewerActorId] : w0.actors?.husband)?.location || null; } catch { return null; } })();
 
     // 0. 七层单向管道架构：Intent 意图归一与 Gate 合法性门禁 (第 ①、② 层)
     let intent = null;
@@ -2568,6 +2570,24 @@ export class PetService {
             console.log('[Proxy] 补代演' + target.name + '：' + lineN.slice(0, 30));
           }
         }
+      }
+    } catch { /* 忽略 */ }
+
+    // 换地方了：在回复末尾补一行"你到了"，带上此处有谁（引擎写事实，不写台词）
+    try {
+      const wEnd2 = loadState(this.dataDir);
+      const __meEnd = this._viewerActorId ? wEnd2.actors?.[this._viewerActorId] : wEnd2.actors?.husband;
+      const __locNow = __meEnd?.location || null;
+      if (__locAtStart && __locNow && __locNow !== __locAtStart) {
+        const __placeName = String(wEnd2.places?.[__locNow]?.name || __locNow);
+        const __here = Object.values(wEnd2.actors || {})
+          .filter((a) => a && !a.dead && a.name && a.location === __locNow && a.id !== (__meEnd?.id || 'husband'))
+          .slice(0, 5)
+          .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
+        const __line = `（你到了「${__placeName}」。${__here.length ? '此处：' + __here.join('，') + '。' : '此处无人。'}）`;
+        if (!String(reply || '').includes(__placeName)) reply = `${String(reply || '').trim()}\n${__line}`.trim();
+        else if (!String(reply || '').includes('此处')) reply = `${String(reply || '').trim()}\n${__line}`.trim();
+        console.log(`[Scene] 到了${__placeName}（此处 ${__here.length} 人）`);
       }
     } catch { /* 忽略 */ }
 
