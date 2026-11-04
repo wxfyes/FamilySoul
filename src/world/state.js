@@ -929,35 +929,34 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
-  // 承诺去重：同一个人、同一件事、同一天之内，只留最新一条
-  // （天道常把一句话记成好几条，攒久了列表会炸）
+  // 承诺去重：同一件事被天道记成好几条时，只留最完整的一条。
+  // 判"同一件事"用文字相似度（同一天、两条内容六成重合就算同一件）。
   try {
-    const keyOf = (p) => {
-      const who = String(p?.actorId || p?.name || '');
-      const day = String(p?.due ?? p?.dueDay ?? '');
-      const body = String(p?.text || '').replace(/[，。、！？\s“”"'']/g, '').slice(0, 10);
-      return `${who}|${day}|${body}`;
+    const norm = (t) => String(t || '').replace(/[，。、！？；：""''（）\s]/g, '');
+    const bigrams = (t) => {
+      const out = new Set();
+      for (let i = 0; i < t.length - 1; i += 1) out.add(t.slice(i, i + 2));
+      return out;
     };
-    const seen = new Map();
-    const kept = [];
-    for (const pr of world.promises || []) {
-      if (!pr) continue;
-      const k = keyOf(pr);
-      if (seen.has(k)) {
-        const prev = seen.get(k);
-        // 留文本更完整的那条
-        if (String(pr.text || '').length > String(prev.text || '').length) {
-          kept[kept.indexOf(prev)] = pr;
-          seen.set(k, pr);
-        }
-        continue;
+    const sim = (a, b) => {
+      const A = bigrams(norm(a)); const B = bigrams(norm(b));
+      if (!A.size || !B.size) return 0;
+      let inter = 0;
+      for (const x of A) if (B.has(x)) inter += 1;
+      return inter / Math.min(A.size, B.size);
+    };
+    const list = (world.promises || []).filter(Boolean);
+    const keep = [];
+    for (const pr of list) {
+      const dup = keep.find((k) => String(k.due ?? '') === String(pr.due ?? '') && sim(k.text, pr.text) >= 0.6);
+      if (!dup) { keep.push(pr); continue; }
+      if (String(pr.text || '').length > String(dup.text || '').length) {
+        keep[keep.indexOf(dup)] = pr;
       }
-      seen.set(k, pr);
-      kept.push(pr);
     }
-    if (kept.length !== (world.promises || []).length) {
-      console.log(`[Promise] 去重：${(world.promises || []).length} → ${kept.length}`);
-      world.promises = kept;
+    if (keep.length !== list.length) {
+      console.log(`[Promise] 合并重复：${list.length} → ${keep.length}`);
+      world.promises = keep;
     }
   } catch { /* 忽略 */ }
   // 约定的"人"必须是活人：老数据里存过 id/拼音的，一律纠正成现名
