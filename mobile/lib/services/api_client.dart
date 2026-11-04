@@ -394,4 +394,81 @@ class SurfCoreApiClient {
     } catch (_) {}
     return null;
   }
+
+  /// 现代 AI 助手问答（物理级解耦）
+  Future<String?> askAssistant(String text, {bool newSession = false}) async {
+    try {
+      final res = await _dio.post(
+        '/api/assistant/chat',
+        queryParameters: {'token': config.token.trim()},
+        data: {'text': text, 'newSession': newSession},
+      );
+      if (res.statusCode == 200 && res.data is Map) {
+        return res.data['reply']?.toString() ?? '';
+      }
+    } catch (e) {
+      return '助手请求失败: $e';
+    }
+    return null;
+  }
+
+  /// 获取助手历史
+  Future<List<Map<String, dynamic>>> getAssistantHistory() async {
+    try {
+      final res = await _dio.get(
+        '/api/assistant/history',
+        queryParameters: {'token': config.token.trim()},
+      );
+      if (res.statusCode == 200 && res.data is Map && res.data['history'] is List) {
+        return (res.data['history'] as List).cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  /// 清空助手历史
+  Future<bool> clearAssistantHistory() async {
+    try {
+      final res = await _dio.post(
+        '/api/assistant/clear',
+        queryParameters: {'token': config.token.trim()},
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 新玩家入世注册
+  Future<Map<String, dynamic>> registerUser({
+    required String name,
+    required String gender,
+    required int age,
+    required String originKind,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/api/register',
+        data: {
+          'name': name,
+          'gender': gender,
+          'age': age,
+          'originKind': originKind,
+        },
+      );
+      if (res.statusCode == 200 && res.data is Map) {
+        return (res.data as Map).cast<String, dynamic>();
+      } else if (res.data is Map && res.data['error'] != null) {
+        return {'ok': false, 'error': res.data['error']};
+      }
+    } on DioException catch (e) {
+      if (e.response?.data is Map && e.response?.data['error'] != null) {
+        return {'ok': false, 'error': e.response?.data['error']};
+      }
+      return {'ok': false, 'error': '网络连接失败: ${e.message}'};
+    } catch (e) {
+      return {'ok': false, 'error': e.toString()};
+    }
+    return {'ok': false, 'error': '未知错误'};
+  }
 }

@@ -14,6 +14,8 @@ import 'settings_screen.dart';
 import 'my_world_screen.dart';
 import 'out_and_about_sheet.dart';
 import 'video_call_screen.dart';
+import 'assistant_view.dart';
+import '../widgets/register_dialog.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -26,6 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocus = FocusNode();
   int _lastMessageCount = 0;
+  int _activeDomainIndex = 0; // 0: 宿命乾坤 (虚拟世界), 1: 天机助手 (纯问答解耦)
   String _lastContentSig = '';
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -663,6 +666,38 @@ class _ChatScreenState extends State<ChatScreen> {
 
 
   /// 豆包式抽屉：头像 + 位置 + 收纳所有入口（出门/世界/视讯/语音/设置）
+  Widget _buildDomainTab(int index, String label) {
+    final isSelected = _activeDomainIndex == index;
+    return GestureDetector(
+      onTap: () {
+        if (_activeDomainIndex != index) {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _activeDomainIndex = index;
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF8B5CF6) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected
+                ? Colors.white
+                : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF475569)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDrawer(BuildContext context, ChatProvider provider) {
     final name = provider.petStatus.characterName;
     return Drawer(
@@ -818,6 +853,29 @@ class _ChatScreenState extends State<ChatScreen> {
               onChanged: (_) => provider.toggleVoiceReply(),
             ),
             ListTile(
+              leading: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF38BDF8)),
+              title: const Text('初入江湖 · 立牒入世', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('建新角色 · 姓名性别岁数 · 投身客栈', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
+              onTap: () {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (_) => RegisterDialog(
+                    apiClient: provider.api,
+                    onRegistered: (token, actorId, name) async {
+                      final newConfig = provider.config.copyWith(token: token);
+                      await provider.saveConfig(newConfig);
+                      scaffoldMessenger.showSnackBar(
+                        SnackBar(content: Text('欢迎【$name】立牒入世，已落脚临江客栈！')),
+                      );
+                      _refreshPlace();
+                    },
+                  ),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.settings_outlined, color: Colors.white70),
               title: const Text('设置', style: TextStyle(color: Colors.white)),
               subtitle: const Text('服务器 · 令牌 · 备份 · 作息', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
@@ -846,7 +904,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final provider = context.watch<ChatProvider>();
     final isOnline = provider.isConnected;
     final characterName = provider.petStatus.characterName;
-    final statusText = isOnline ? provider.petStatus.presenceState : '离线中';
+
 
     // 关键：必须在「新内容布局之前」判断当时是否贴在底部。
     // 放进 postFrame 再判断就晚了——新消息已经把列表撑长，永远会被判成"不在底部"。
@@ -875,53 +933,24 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         elevation: 0.5,
         titleSpacing: 0,
-        title: Row(
-          children: [
-            const SizedBox(width: 16),
-            Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF8B5CF6),
-                  radius: 19,
-                  child: Text(
-                    characterName.isNotEmpty ? characterName.characters.first : 'A',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Container(
-                  width: 11,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    color: isOnline ? const Color(0xFF22C55E) : Colors.grey,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    characterName,
-                    style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    statusText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isOnline ? const Color(0xFF16A34A) : Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        centerTitle: true,
+        title: Container(
+          height: 32,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF0F172A)
+                : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDomainTab(0, '🌸 宿命乾坤'),
+              _buildDomainTab(1, '🤖 天机助手'),
+            ],
+          ),
         ),
         actions: [
           // 豆包同款语音播报开关（开启才请求火山TTS，关闭省额度）
@@ -964,8 +993,10 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       body: SafeArea(
-        child: Stack(
-          children: [
+        child: _activeDomainIndex == 1
+            ? AssistantView(apiClient: provider.api)
+            : Stack(
+                children: [
             Column(
               children: [
                 // 📍 位置条：随时知道自己在哪（点一下＝出门）

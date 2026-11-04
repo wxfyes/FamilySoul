@@ -49,13 +49,33 @@ export function extractPlaceCandidates(text) {
  */
 export function matchActor(actors, searchName) {
   if (!searchName) return null;
-  const s = String(searchName).trim();
-  const root = s.replace(/^[小老大二三四五]|(?:儿|娘|姐|妹|哥|爷|婆|娘子|大娘子|二娘子|姑娘|掌柜|老板娘|老板|大人|典吏|书吏|知府|知县)$/g, '');
+  const s = String(searchName).trim().replace(/^【|】$/g, '');
+  // 支持分角标头格式：【身份·名字】（如【正妻·婉儿】、【二房·芸娘】）
+  const parts = s.split(/[·•]/);
+  const coreName = parts[parts.length - 1].trim();
+
+  // 尊称与别名类别映射
+  if (s === '正妻' || s === '大娘子' || s === '少夫人') {
+    const hit = actors?.waner || Object.values(actors || {}).find(a => a.role === '正妻' || a.label === '正妻');
+    if (hit) return hit;
+  }
+  if (s === '二房' || s === '二娘子' || s === '如夫人' || s === '侧妾') {
+    const hit = actors?.yunnia || Object.values(actors || {}).find(a => a.role?.includes('二房') || a.label === '侧妾');
+    if (hit) return hit;
+  }
+  if (s === '丫鬟' || s === '通房丫鬟' || s === '大丫鬟') {
+    const hit = actors?.xiaocui || Object.values(actors || {}).find(a => a.servant);
+    if (hit) return hit;
+  }
+
+  const root = coreName.replace(/^[小老大二三四五]|(?:儿|娘|姐|妹|哥|爷|婆|娘子|大娘子|二娘子|姑娘|掌柜|老板娘|老板|大人|典吏|书吏|知府|知县)$/g, '');
   return Object.values(actors || {}).find((a) => {
     if (!a || !a.name || a.id === 'husband') return false;
-    if (a.name === s || a.id === s) return true;
-    if (s === '紫嫣' && (a.id === 'liuwenxia' || a.name === '刘文霞')) return true;
-    if (a.name.includes(s) || s.includes(a.name)) return true;
+    if (a.name === s || a.id === s || a.name === coreName || a.id === coreName) return true;
+    if ((s === '紫嫣' || coreName === '紫嫣') && (a.id === 'liuwenxia' || a.name === '刘文霞')) return true;
+    if (a.label && (a.label === s || a.label === coreName)) return true;
+    if (a.role && (a.role === s || a.role === coreName)) return true;
+    if (a.name.includes(coreName) || coreName.includes(a.name)) return true;
     if (root && root.length >= 1 && a.name.includes(root)) return true;
     return false;
   });

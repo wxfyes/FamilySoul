@@ -148,5 +148,70 @@ export function healWorld(world) {
     if (world.memories.length !== before) fixes.push(`清理 ${before - world.memories.length} 条空记忆`);
   }
 
+  // ⑨ 居所不变量守护：随科与静儿的家为随家小院，绝不可将县衙当作家
+  for (const a of Object.values(world.actors || {})) {
+    if (!a) continue;
+    if (a.id === 'zhanjing' || a.id === 'npc_4' || a.name === '随科') {
+      if (a.home === 'yamen' || !a.home) {
+        a.home = 'suijia_house';
+        fixes.push(`纠正 ${a.name} 住处为随家小院`);
+      }
+    }
+  }
+
+  // ⑩ 客栈私密客房退房：相公不在上房时，伴侣自动退房回自家铺子，严禁当钉子户
+  const husbandLoc = world.actors?.husband?.location;
+  if (husbandLoc !== 'inn_room') {
+    for (const a of Object.values(world.actors || {})) {
+      if (a && a.id !== 'husband' && a.location === 'inn_room') {
+        const home = (a.home && world.places?.[a.home]) ? a.home : 'wine_shop';
+        a.location = home;
+        fixes.push(`相公已离客栈，${a.name}退房归位至${world.places?.[home]?.name || home}`);
+      }
+    }
+  }
+
+  // ⑪ 夜间作息不变量守护（21:00 - 06:00 亥时至卯时）
+  const hour = Number(world.clock?.hour) || 0;
+  const isNight = hour >= 21 || hour < 6;
+  if (isNight) {
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead || a.id === 'husband') continue;
+      // 王府内眷（婉儿、芸娘、小翠）：夜间必须在宅内安歇，严禁深夜公堂或市井游荡
+      if (a.household || ['waner', 'yunnia', 'xiaocui'].includes(a.id)) {
+        const isSafeHome = ['backyard', 'husband_room'].includes(a.location);
+        if (!isSafeHome && a.location !== husbandLoc) {
+          const dest = world.places?.backyard ? 'backyard' : 'husband_room';
+          fixes.push(`夜深露重，内眷${a.name}从${world.places?.[a.location]?.name || a.location}归宅安歇`);
+          a.location = dest;
+        }
+      }
+      // 市井良家女眷（静儿、杨采云）：深夜绝不滞留官府公堂或街头
+      if (['zhanjing', 'yangcaiyun'].includes(a.id)) {
+        if (['yamen', 'street'].includes(a.location)) {
+          const home = (a.home && world.places?.[a.home]) ? a.home : (a.id === 'zhanjing' ? 'suijia_house' : 'goods_shop');
+          fixes.push(`夜深闭市，${a.name}回${world.places?.[home]?.name || home}安歇`);
+          a.location = home;
+        }
+      }
+    }
+  }
+
+  // ⑫ 清洗历史遗留查账/暗账污染线索与陈旧任务
+  if (Array.isArray(world.clues)) {
+    const beforeClues = world.clues.length;
+    world.clues = world.clues.filter((c) => !/(账册|暗账|税册|沈家账本|私改月息|查账|高利贷)/.test(c?.desc || ''));
+    if (world.clues.length !== beforeClues) {
+      fixes.push(`清洗 ${beforeClues - world.clues.length} 条陈旧查账污染线索`);
+    }
+  }
+  if (Array.isArray(world.promises)) {
+    const beforePromises = world.promises.length;
+    world.promises = world.promises.filter((p) => !/(翟家底账|县衙脏账|高利贷字据|对清账目)/.test(p?.text || ''));
+    if (world.promises.length !== beforePromises) {
+      fixes.push(`清洗 ${beforePromises - world.promises.length} 条陈旧查账差事`);
+    }
+  }
+
   return fixes;
 }

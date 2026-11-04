@@ -29,6 +29,8 @@ import { spendSilver, recentLedger } from './world/ledger.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
+import { AssistantService } from './assistant-service.js';
+import { UserRegistry } from './user-registry.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -210,6 +212,22 @@ function resolveMember(req, url) {
     return { ...family.husband, token: clientToken, memberKey: 'husband' };
   }
 
+  // 检查已自建档案入世的普通玩家身份（data/users.json）
+  if (typeof userRegistry !== 'undefined') {
+    const regUser = userRegistry.getUserByToken(clientToken);
+    if (regUser) {
+      touchMember(regUser.actorId);
+      return {
+        memberKey: regUser.actorId,
+        actor: regUser.actorId,
+        title: regUser.name,
+        name: regUser.name,
+        token: regUser.token,
+        isRegisteredPlayer: true,
+      };
+    }
+  }
+
   return null;
 }
 
@@ -260,6 +278,8 @@ const petService = new PetService({
   historyTurns: config.prompt?.historyTurns,
   promptMode: config.prompt?.mode,
 });
+const userRegistry = new UserRegistry({ dataDir: DATA_DIR });
+const assistantService = new AssistantService({ dataDir: DATA_DIR, llmClient });
 
 /**
  * 引擎只排队「该她说话了」这个事实，台词由天道（大模型）现写；
@@ -376,6 +396,59 @@ const STARTED_AT = Date.now();
       });
       fs.createReadStream(WEB_INDEX_FILE).pipe(res);
       return;
+    }
+  }
+
+  // 0. 公开自主建档入世接口 POST /api/register
+  if (req.method === 'POST' && pathname === '/api/register') {
+    try {
+      const body = await parseJsonBody(req, 16 * 1024);
+      const resData = userRegistry.register(body);
+      if (!resData.ok) {
+        return sendJson(res, 400, resData);
+      }
+      return sendJson(res, 200, resData);
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  // 0.1 AI 助手专属解耦接口（物理级隔离于虚拟世界之外，只做纯净知性问答）
+  // POST /api/assistant/chat
+  if (req.method === 'POST' && pathname === '/api/assistant/chat') {
+    try {
+      const member = resolveMember(req, url);
+      const memberKey = member?.memberKey || 'husband';
+      const body = await parseJsonBody(req, 64 * 1024);
+      const replyObj = await assistantService.chat(memberKey, body.text, { newSession: Boolean(body.newSession) });
+      return sendJson(res, 200, replyObj);
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  // GET /api/assistant/history
+  if (req.method === 'GET' && pathname === '/api/assistant/history') {
+    try {
+      const member = resolveMember(req, url);
+      const memberKey = member?.memberKey || 'husband';
+      const limit = parseInt(url.searchParams.get('limit') || '30', 10);
+      const history = assistantService.getHistory(memberKey, limit);
+      return sendJson(res, 200, { ok: true, history });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  // POST /api/assistant/clear
+  if (req.method === 'POST' && pathname === '/api/assistant/clear') {
+    try {
+      const member = resolveMember(req, url);
+      const memberKey = member?.memberKey || 'husband';
+      assistantService.clearHistory(memberKey);
+      return sendJson(res, 200, { ok: true });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
     }
   }
 

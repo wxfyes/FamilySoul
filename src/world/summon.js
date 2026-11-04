@@ -676,7 +676,7 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
   const left = [];
   const segs = text.split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
 
-  const husbandDismiss = /(你(先|且)?(回|走)吧|回去吧|回吧|退下吧|你退下|回去歇着|你且回去|你先走)/.test(String(sayText || ''));
+  const husbandDismiss = /(你(先|且)?(回|走)吧|回去吧|回吧|退下吧|你退下|回去歇着|你且回去|你先走|你们(先|且)?(回|走)吧|你们回去|回府吧|回府|各自回吧|散了吧|各回各家|我先走了|明天再见|天亮见)/.test(String(sayText || ''));
 
   for (const seg of segs) {
     const m = seg.match(/^【([^】\n]{1,12})】/);
@@ -684,7 +684,7 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
     const name = m[1].trim();
     const bodyOnly = seg.replace(/^【[^】\n]{1,12}】[:：]?/, '');
 
-    const npcSaysLeave = /(下楼|告辞|先回|回去|回铺子|回家|走了|且回去|先走了|退下|这就走|先走一步|这就回去|这就告辞|先行一步|妾身先退|小人先退|保重)/.test(bodyOnly);
+    const npcSaysLeave = /(下楼|告辞|先回|回去|回铺子|回家|走了|且回去|先走了|退下|这就走|先走一步|这就回去|这就告辞|先行一步|妾身先退|小人先退|保重|回府|回后院)/.test(bodyOnly);
     const dismissedAndAgreed = husbandDismiss && /(诶|好|这就|妾身|小人|明白|遵命|省得|行|保重)/.test(bodyOnly);
 
     if (!npcSaysLeave && !dismissedAndAgreed) continue;
@@ -692,9 +692,15 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
     const actor = matchActor(world.actors, name);
     if (!actor) continue;
 
-    // 家人（婉儿、芸娘、小翠）如果在自己家宅（正房/内院/茶坊），则不往外挪
+    // 家人（婉儿、芸娘、小翠）：若已在家宅（正房/内院/茶坊）则不往外挪；若在外头（公堂/市井）且辞别回府，则归位回后院
     const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
-    if (actor.household && HOME_MANSION.includes(actor.location)) {
+    if (actor.household || ['waner', 'yunnia', 'xiaocui'].includes(actor.id)) {
+      if (HOME_MANSION.includes(actor.location)) {
+        continue;
+      }
+      moveActor(world, actor.id, 'backyard', 'world', '随相公回府');
+      left.push(actor.name);
+      console.log(`[Departure] 内眷 ${actor.name}(${actor.id}) 随相公回府，归位至 后院暖阁`);
       continue;
     }
 

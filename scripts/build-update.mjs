@@ -28,6 +28,8 @@ const TARGETS = ['src', 'roles', 'web', 'data', 'scripts', 'start.sh', 'stop.sh'
 // 【必须保留】data/world/milestones.json（王家世界大事记与产业账本）——不在排除表里，照常打包！
 const EXCLUDE_PREFIXES = [
   'data/chat',               // 线上真实聊天记录（冲刷记忆）
+  'data/assistant',          // 助手对话记录（独立隔离，不冲刷）
+  'data/users.json',         // 线上自主注册用户表（不冲刷）
   'data/world/state.json',   // 世界状态（服务首次启动会自动生成，不需要随包分发）
   'data/world/events.jsonl', // 世界事件流（同上）
   'data/avatars',            // 用户自传头像（运行时资产，绝不能被包覆盖）

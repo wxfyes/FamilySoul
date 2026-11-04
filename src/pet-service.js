@@ -237,6 +237,7 @@ export class PetService {
       lines.push('- 【谁在场谁说话 · 严禁被议论者凭空闪现搭话】：严格遵守现实物理空间与对话指向！当相公对某人（如正妻婉儿）私语（如“就我们俩”、“芸娘如何”），被提及者此刻不在场，绝对严禁插话；');
       lines.push('- 【支走与退避】：相公下令支走某人，被支走者简短应声即退下离开，未被重新传唤前绝不出现插嘴；');
       lines.push('- 【转场区分】：相公明确下令动身（“走，去酒楼”）则立即转场到目的地；室内商议家事则留在房内，严禁乱切镜头。');
+      lines.push('- 【严禁在台词内脑补瞬移转场】：转场必须由客户端交互动作触发。严禁在台词叙述或动作描写中自作主张写“一路无话回到府里”、“回到了后院”等转移物理地点的文字！所有人必须在当前地点交谈、告别或吩咐离场。若相公与大家告辞（如说回府、散了、回去吧），在场 NPC 只能躬身施礼告退离场（如“妾身这就回铺子”、“小人告退”），不得在台词中自作主张描写把所有人瞬移搬到新场景！');
 
       lines.push('');
       lines.push('【王家产业基业与已办大事记（最高既定事实铁律 · 永不磨灭）】');
@@ -1806,7 +1807,7 @@ export class PetService {
             .slice(0, 4).map((a) => a.name);
           return `（【现状】相公此刻在「${placeT}」。${hereT.length ? '此处：' + hereT.join('、') + '。' : '此处无人。'}）\n`;
         })();
-      } else if (/查账|报家底|咱家有多少钱|有多少银子|还有多少钱|账本|家当|资产/i.test(say)) {
+      } else if (/报家底|咱家有多少钱|有多少银子|还有多少钱|家当几何|资产几何|盘点家底/i.test(say)) {
         currentEpoch = 'ancient';
         contextHint = `（【查账】：相公要看家底。所有数目一律以【天机】里「家底」那一行为准——现银多少、日入多少、产业什么状况，必须与账本完全一致。【绝对严禁】凭记忆编造金额，绝不许说出与账本不符的数字。报完账可顺带提一句眼下的难处或打算。）`;
       } else if (/早安|早上好|早|起床|醒了|起了|新的一天|天亮了/i.test(say)) {
@@ -2474,11 +2475,8 @@ export class PetService {
             const here3 = String(wLoc.places?.[locId2]?.name || '这里');
             reply = `【${here3}】：${named3.name}在「${where3}」，眼下不在这儿。`;
             console.log(`[Scene] ${named3.name}不在场，照实报位置：${where3}`);
-          } else if (segs3.length > 0) {
-            // 避免死寂省略号：刚才相公明明在跟对方说话，若因后台瞬移被误杀，宽容放行
-            reply = segs3.join('').trim();
-            console.log(`[Scene] 避免死寂省略号，放行当轮回复：${reply.slice(0, 30)}`);
           } else {
+            // 不在场角色严禁放行，杜绝隔空千里传音
             reply = '';
           }
         }
@@ -3397,6 +3395,32 @@ export class PetService {
         const label = a.label ? `${a.label}·${short}` : a.name;
         map.set(a.name, label);
         if (short !== a.name) map.set(short, label);
+      }
+      // 尊称与身份反向归一映射：解决大模型只写【正妻】、【二房】等导致丢失名字的问题
+      if (world.actors?.waner) {
+        map.set('正妻', '正妻·婉儿');
+        map.set('大娘子', '正妻·婉儿');
+        map.set('少夫人', '正妻·婉儿');
+        map.set('正室', '正妻·婉儿');
+      }
+      if (world.actors?.yunnia) {
+        map.set('二房', '二房·芸娘');
+        map.set('二娘子', '二房·芸娘');
+        map.set('如夫人', '二房·芸娘');
+        map.set('侧妾', '二房·芸娘');
+      }
+      if (world.actors?.xiaocui) {
+        map.set('丫鬟', '丫鬟·小翠');
+        map.set('通房丫鬟', '丫鬟·小翠');
+        map.set('大丫鬟', '丫鬟·小翠');
+      }
+      if (world.actors?.liuwenxia) {
+        map.set('刘文霞', '老板娘·紫嫣');
+        map.set('文霞', '老板娘·紫嫣');
+        map.set('紫嫣', '老板娘·紫嫣');
+      }
+      if (world.actors?.zhanjing) {
+        map.set('静儿', '发妻·静儿');
       }
       let res = String(text || '').replace(/【([^】\n]{1,10})】/g, (whole, name) => {
         const hit = map.get(String(name).trim());

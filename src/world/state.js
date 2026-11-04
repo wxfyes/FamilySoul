@@ -130,6 +130,7 @@ export function createInitialState(dataDir) {
       canal_restaurant: { name: '运河码头大酒楼', exits: ['dock'], owner: 'husband' },
       yang_mansion: { name: '杨府', exits: ['street'], owner: 'yangzhenhua' },
       yamen: { name: '临江县衙', exits: ['street'], owner: 'court' },
+      suijia_house: { name: '临江府·随家小院', exits: ['street'], owner: 'zhanjing', city: '临江府' },
     },
 
     actors: {
@@ -166,8 +167,8 @@ export function createInitialState(dataDir) {
         label: '正妻',
         household: true,
         location: 'tea_house',
-        goals: ['保住王家体面', '把运河大酒楼盘活', '为相公张罗一房稳妥的侧室'],
-        secret: '沈家旧案还有一份未烧尽的账册压在知府衙门的旧档里',
+        goals: ['保住王家体面', '把运河大酒楼妥善经营开张', '操持中馈、为王家开枝散叶'],
+        secret: '贴身收着沈家祖传的一本贡茶焙制古谱，只待相公大酒楼开张时作压箱底招牌',
         relations: {
           husband: { trust: 72, desire: 58, fear: 2, grievance: 0 },
         },
@@ -185,7 +186,8 @@ export function createInitialState(dataDir) {
         label: '侧妾',
         household: true,
         location: 'backyard',
-        goals: ['把柜台生意学精', '不给姐姐添乱'],
+        goals: ['把柜台茶艺学精', '早日为相公诞下一男半女', '不给姐姐添乱'],
+        secret: '偷偷向城中老郎中求了一剂温经求子的古方，每晚温水煎服',
         relations: {
           husband: { trust: 63, desire: 66, fear: 4, grievance: 0 },
         },
@@ -263,8 +265,8 @@ export function createInitialState(dataDir) {
         name: '杨采云',
         role: '翟家货栈老板娘',
         location: 'street',
-        goals: ['撑住翟家货栈的门面', '等一个能说心里话的人'],
-        secret: '手里攥着翟家货栈的底价暗账',
+        goals: ['撑住翟家货栈的各路商道', '等一个能说心里话的知心相公'],
+        secret: '结识南来北往的江南漕帮船帮头目，知晓各府奇珍异宝的进销行市',
         relations: {
           husband: { trust: 50, desire: 30, fear: 2, grievance: 8 },
         },
@@ -279,8 +281,8 @@ export function createInitialState(dataDir) {
         name: '刘文霞',
         role: '于家酒肆老板娘',
         location: 'street',
-        goals: ['把酒肆的茶酒生意做起来', '不在人前露出半分委屈'],
-        secret: '丈夫于杰欠下画舫一笔账，她在悄悄填补',
+        goals: ['把自家酒肆的陈酿生意做大', '与王家相公常续红袖琴瑟之好'],
+        secret: '私下密酿了一坛陈年女儿红，专等与心上人花前月下共饮',
         relations: {
           husband: { trust: 48, desire: 34, fear: 1, grievance: 10 },
         },
@@ -291,19 +293,21 @@ export function createInitialState(dataDir) {
         ],
       },
       zhanjing: {
-        id: 'zhanjing', gender: 'female', home: 'yamen',
+        id: 'zhanjing', gender: 'female', home: 'suijia_house',
         name: '静儿',
-        role: '县衙书吏发妻',
-        location: 'street',
-        goals: ['守住自己的体面', '替娘家争一口气'],
-        secret: '抄录了一份县衙里说不清的税册',
+        role: '书吏发妻',
+        location: 'suijia_house',
+        goals: ['过好自家安稳日子', '得王相公照应免受市井胥吏欺凌'],
+        secret: '手艺极巧，会做一手极地道的苏式点心和桂花清露',
         relations: {
           husband: { trust: 42, desire: 26, fear: 3, grievance: 14 },
         },
         intimacy: { level: 1, tone: 0, lastAt: 0, ritual: 'solemn' },
         schedule: [
-          { at: 6, do: '去慈云庵进香', place: 'yamen' },
-          { at: 9, do: '回家理事', place: 'street' },
+          { at: 6, do: '在家操持家务', place: 'suijia_house' },
+          { at: 10, do: '去慈云庵进香', place: 'temple' },
+          { at: 14, do: '去市井茶摊置办针线', place: 'tea_stall' },
+          { at: 18, do: '回随家小院歇息', place: 'suijia_house' },
         ],
       },
     },
@@ -320,7 +324,7 @@ export function createInitialState(dataDir) {
 
     promises: [],
     // 账本结构版本：升版本时把预设人物的日程/住处刷成最新设计（不影响用户自己造的 npc_*）
-    stateVersion: 4,
+    stateVersion: 7,
     // 疆域：开遍全国要有个地图
     geo: {
       country: '大乾',
@@ -1441,6 +1445,17 @@ function __loadStateInner(dataDir) {
       live.location = (live.home && base.places?.[live.home]) ? live.home : 'wine_shop';
     }
   }
+  // 夜间内眷归宅不变量：深夜（21:00-06:00），王府内眷若留在官衙或市井且相公不在该处，自动归位后院暖阁安歇
+  const curHour = Number(raw.clock?.hour ?? base.clock?.hour ?? 0);
+  const curHusLoc = mergedActors.husband?.location;
+  if (curHour >= 21 || curHour < 6) {
+    for (const id of ['waner', 'yunnia', 'xiaocui']) {
+      const a = mergedActors[id];
+      if (a && a.location !== curHusLoc && !['backyard', 'husband_room'].includes(a.location)) {
+        a.location = 'backyard';
+      }
+    }
+  }
   // 版本迁移：预设人物的日程/住处以代码为准（用户自己造的 npc_* 不动）
   if (Number(raw.stateVersion || 1) !== Number(base.stateVersion)) {
     for (const [id, baseActor] of Object.entries(base.actors || {})) {
@@ -1451,8 +1466,28 @@ function __loadStateInner(dataDir) {
       if (baseActor.gender) live.gender = baseActor.gender;
       if (typeof baseActor.household === 'boolean') live.household = baseActor.household;
       if (typeof baseActor.servant === 'boolean') live.servant = baseActor.servant;
+      if (baseActor.goals) live.goals = [...baseActor.goals];
+      if (baseActor.secret) live.secret = baseActor.secret;
     }
-    console.log(`[State] 账本升级到 v${base.stateVersion}：已刷新 ${Object.keys(base.actors || {}).length} 位预设人物的日程与住处`);
+    // 随家眷属住处规范：随科与静儿统一归于随家小院
+    for (const a of Object.values(mergedActors)) {
+      if (a && (a.name === '随科' || a.id === 'npc_4')) a.home = 'suijia_house';
+    }
+    // 彻底清洗历史遗留的查账/暗账/高利贷污染线索、差事、约定与承诺
+    const auditPollutionRe = /(账册|底账|暗账|税册|沈家账本|私改月息|查账|理账|脏账|高利贷|底档|旧卷房|对清账目|盘账|对好的账|铺账|对出账目|送对清|名讳一处|对清)/;
+    if (Array.isArray(raw.clues)) {
+      raw.clues = raw.clues.filter((c) => !auditPollutionRe.test(c?.desc || ''));
+    }
+    if (Array.isArray(raw.promises)) {
+      raw.promises = raw.promises.filter((p) => !auditPollutionRe.test(p?.text || ''));
+    }
+    if (Array.isArray(raw.appointments)) {
+      raw.appointments = raw.appointments.filter((a) => !auditPollutionRe.test(a?.text || a?.desc || ''));
+    }
+    if (Array.isArray(raw.tasks)) {
+      raw.tasks = raw.tasks.filter((t) => !auditPollutionRe.test(t?.what || ''));
+    }
+    console.log(`[State] 账本升级到 v${base.stateVersion}：已刷新预设人物欲望与住处，并彻底肃清历史查账污染`);
   }
 
   const resWorld = {

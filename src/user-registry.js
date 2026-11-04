@@ -1,0 +1,139 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { loadState, saveState } from './world/state.js';
+import { isPlaceName } from './world/naming.js';
+
+/**
+ * 玩家用户注册与入世管理（安全隔离于 config.json 之外）
+ * 存储路径：data/users.json
+ */
+
+export class UserRegistry {
+  constructor({ dataDir = './data' } = {}) {
+    this.dataDir = dataDir;
+    this.usersFile = path.join(this.dataDir, 'users.json');
+    this._ensureFile();
+  }
+
+  _ensureFile() {
+    if (!fs.existsSync(this.usersFile)) {
+      try {
+        fs.writeFileSync(this.usersFile, JSON.stringify({}, null, 2), 'utf8');
+      } catch (_) {}
+    }
+  }
+
+  loadUsers() {
+    try {
+      if (fs.existsSync(this.usersFile)) {
+        return JSON.parse(fs.readFileSync(this.usersFile, 'utf8') || '{}');
+      }
+    } catch (err) {
+      console.warn('[UserRegistry] 读取 users.json 失败:', err.message);
+    }
+    return {};
+  }
+
+  saveUsers(users) {
+    try {
+      fs.writeFileSync(this.usersFile, JSON.stringify(users, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('[UserRegistry] 保存 users.json 失败:', err.message);
+    }
+  }
+
+  getUserByToken(token) {
+    if (!token) return null;
+    const users = this.loadUsers();
+    return users[String(token).trim()] || null;
+  }
+
+  register({ name, gender = 'male', age = 20, originKind = 'scholar' }) {
+    const rawName = String(name || '').trim();
+    if (!rawName || rawName.length < 2 || rawName.length > 4 || !/^[\u4e00-\u9fa5]+$/.test(rawName)) {
+      return { ok: false, error: '姓名必须为 2~4 个汉字' };
+    }
+    const numAge = parseInt(age, 10);
+    if (Number.isNaN(numAge) || numAge < 14 || numAge > 60) {
+      return { ok: false, error: '年龄须在 14 至 60 岁之间' };
+    }
+
+    const placeCheck = isPlaceName(rawName);
+    if (placeCheck.ok && placeCheck.looksLikePlace) {
+      return { ok: false, error: '地名不可作为人物姓名' };
+    }
+
+    const safeGender = gender === 'female' ? 'female' : 'male';
+    const world = loadState(this.dataDir);
+
+    // 重名检查：不得与现有主要角色重名
+    const nameUsed = Object.values(world.actors || {}).some(a => a && a.name === rawName && !a.dead);
+    if (nameUsed) {
+      return { ok: false, error: '此姓名在城中已有人用，请另选雅号' };
+    }
+
+    // 生成唯一角色 ID 与安全通行凭证
+    const actorId = `usr_${Date.now().toString(36)}_${crypto.randomBytes(3).toString('hex')}`;
+    const token = `usr_token_${crypto.randomBytes(16).toString('hex')}`;
+
+    // 身份与初入行当
+    const ROLE_MAP = {
+      scholar: '求学的生员',
+      merchant: '行脚小商客',
+      wanderer: '初来乍到的游侠',
+    };
+    const roleName = ROLE_MAP[originKind] || '初入临江的布衣';
+
+    // 录入世界账本（落脚临江客栈，绝不动态造房污染地图）
+    world.actors[actorId] = {
+      id: actorId,
+      name: rawName,
+      gender: safeGender,
+      age: numAge,
+      role: roleName,
+      label: '新客',
+      playerControlled: true,
+      humanBound: true,
+      home: 'inn',
+      location: 'inn',
+      money: 20, // 20两碎银起步盘缠
+      relations: {
+        husband: { trust: 40, desire: 0, fear: 0, grievance: 0 },
+      },
+      intimacy: { level: 1, tone: 0, lastAt: 0 },
+      schedule: [
+        { at: 8, do: '在客栈大堂用早茶', place: 'inn' },
+        { at: 12, do: '在前街漫步采风', place: 'street' },
+        { at: 20, do: '回客栈大堂歇息', place: 'inn' },
+      ],
+    };
+
+    saveState(this.dataDir, world);
+
+    // 记录用户身份档案
+    const users = this.loadUsers();
+    users[token] = {
+      token,
+      actorId,
+      name: rawName,
+      gender: safeGender,
+      age: numAge,
+      role: roleName,
+      createdAt: Date.now(),
+    };
+    this.saveUsers(users);
+
+    console.log(`[UserRegistry] 新玩家入世：${rawName}（${actorId}），落脚临江客栈`);
+
+    return {
+      ok: true,
+      token,
+      actorId,
+      name: rawName,
+      gender: safeGender,
+      age: numAge,
+      place: '临江客栈',
+    };
+  }
+}
