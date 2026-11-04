@@ -419,6 +419,7 @@ export function applyRepairs(world, text) {
   // 天道没修的硬错，按最保守办法兜底
   for (const [id, a] of Object.entries(world.actors || {})) {
     if (!a || !a.name) continue;
+    if (a.dead) { if (a.location) { delete a.location; fixed += 1; } continue; }
     if (a.location && !world.places?.[a.location]) { a.location = 'street'; fixed += 1; }
     if (typeof a.money === 'number' && a.money < 0) { a.money = 0; fixed += 1; }
     if (Number(a.age) > 48 && a.pregnancy && !a.pregnancy.born) { delete a.pregnancy; fixed += 1; }

@@ -15,7 +15,7 @@ import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
 import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
-import { resolveTurnTarget } from './world/turn-target.js';
+import { resolveTurnTarget, rememberPartner } from './world/turn-target.js';
 import { describeBonds } from './world/bonds.js';
 import { rumorsKnownBy } from './world/rumors.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
@@ -1795,12 +1795,43 @@ export class PetService {
       }
     }
 
+    // 目标发言人调度路由：彻底解决同场抢话打岔、离场幽灵插嘴与冷场
+    let turnDirective = '';
+    let turnTarget = null;
+    try {
+      const wTurn = loadState(this.dataDir);
+      const myActorId = this._viewerActorId || 'husband';
+      const myLoc = wTurn.actors?.[myActorId]?.location || 'husband_room';
+      const hereActors = Object.values(wTurn.actors || {}).filter(
+        (a) => a && !a.dead && a.id !== myActorId && a.location === myLoc
+      );
+      turnTarget = resolveTurnTarget({
+        world: wTurn,
+        viewerId: myActorId,
+        say,
+        present: hereActors,
+      });
+      if (turnTarget && turnTarget.actor) {
+        const tActor = turnTarget.actor;
+        const tName = tActor.name;
+        const tLabel = tActor.label || tName;
+        turnDirective = `\n（【现场发言权调度铁律 · 严禁旁人抢话打岔】：\n` +
+          `1. 当前相公对话的目标正主唯一确定为【${tName}】！\n` +
+          `2. 本轮回复首个开口发言者【必须且只能是 ${tName}】（以【${tLabel}】开头接话）！\n` +
+          `3. 现场其他在场者绝不许抢白抢答、不得代替 ${tName} 表态立据；已离场者绝不可再次出声！）`;
+        console.log(`[TurnTarget] 发言权锁定: ${tName}(${tActor.id}) reason=${turnTarget.named ? '指名道姓' : (turnTarget.solePresent ? '唯一在场' : '场景正主')}`);
+      }
+    } catch (err) {
+      console.warn('[TurnTarget] 仲裁异常:', err.message);
+    }
+
     // 离场时把动作写进用户这一句 —— 模型对最后一条 user 消息最敏感，
     // 只放在 system 末尾会被忽略，导致她还在原地反复道别。
     const sceneAction = leftScene
       ? '\n（相公已起身离开，回到临江茶坊。请先写出转场，再由临江茶坊这边的人开口；刚才那位已经不在场，不能再说话。）'
       : '';
-    const currentContent = contextHint ? `${say}${sceneAction}\n${contextHint}` : `${say}${sceneAction}`;
+    const mergedHints = [contextHint, turnDirective].filter(Boolean).join('\n');
+    const currentContent = mergedHints ? `${say}${sceneAction}\n${mergedHints}` : `${say}${sceneAction}`;
     messages.push({ role: 'user', content: currentContent });
 
     const systemPrompt = this.buildSystemPrompt(activeRole, modality, profileKey, currentEpoch, history);
@@ -2569,10 +2600,23 @@ export class PetService {
 
     // 交互系统已在客户端完全接管：转场去哪儿由客户端显式调用 /api/world/go 触发
     // 聊天中绝不因台词或场景描写自动偷跑挪移（全由交互控制）
-      if (!reply) {
+      if (!reply || /^[...…\s]+$/.test(reply)) {
         const wHome = loadState(this.dataDir);
-        const pNow = String(wHome.places?.[wHome.actors?.husband?.location]?.name || '');
-        reply = engineMovedHusband && pNow ? `【${pNow}】：（你到了${pNow}。）` : '……';
+        const myActorId = this._viewerActorId || 'husband';
+        const myLoc = wHome.actors?.[myActorId]?.location || 'husband_room';
+        const hereOthers = Object.values(wHome.actors || {}).filter(
+          (a) => a && !a.dead && a.id !== myActorId && a.location === myLoc
+        );
+        const pNow = String(wHome.places?.[myLoc]?.name || '');
+        if (hereOthers.length > 0) {
+          const prime = (turnTarget && turnTarget.actor && hereOthers.some((x) => x.id === turnTarget.actor.id))
+            ? turnTarget.actor
+            : (hereOthers.find((x) => x.gender === 'female') || hereOthers[0]);
+          const short = prime.name && prime.name.length > 2 ? prime.name.slice(-2) : prime.name;
+          reply = `【${prime.label || prime.name || short}】：“相公吩咐，妾身在这儿听着呢。这桩事相公既说了，妾身这就照办。”`;
+        } else {
+          reply = engineMovedHusband && pNow ? `【${pNow}】：（你到了${pNow}。）` : '……';
+        }
       }
     // 记下相公原本位置：她走动不该把他一起搬走
     const husBefore = (() => { try { return loadState(this.dataDir).actors?.husband?.location || null; } catch { return null; } })();
