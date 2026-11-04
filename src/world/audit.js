@@ -308,7 +308,9 @@ export function inspectStructure(world) {
   // 没有来历的人：世界里的每个人都有出处，孤儿要被认领或清掉
   for (const [id, a] of Object.entries(actors)) {
     if (!a || !a.name || a.dead || a.id === 'husband') continue;
-    if (String(id).startsWith('npc_') && !a.hiredBy && !a.sourceTask && a.origin !== 'dm_hired') {
+    // 只查"被雇的人"：普通居民有自己的住处就是来历，不必有雇工记录
+    const employed = Boolean(a.employer && a.workplace) || Boolean(a.sourceTask);
+    if (employed && !a.hiredBy && !a.sourceTask) {
       issues.push({ kind: 'orphan', who: a.name, id, detail: `${a.name}（${a.role || '来路不明'}）没有来历` });
     }
   }
