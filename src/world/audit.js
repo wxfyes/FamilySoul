@@ -308,10 +308,12 @@ export function inspectStructure(world) {
   // 产业有没有人在岗：开张却空无一人的，报给天道
   for (const prop of world.assets?.properties || []) {
     if (!prop || !prop.placeId) continue;
-    const onDuty = Object.values(actors).filter((a) => a && !a.dead && a.location === prop.placeId && a.id !== 'husband');
-    if (!onDuty.length) {
-      issues.push({ kind: 'staff', who: prop.name, detail: `「${prop.name}」开着却没有一个人在岗` });
-    } else if (Array.isArray(prop.staffIds)) {
+    const roster = Array.isArray(prop.staffIds) ? prop.staffIds.filter((id) => actors[id] && !actors[id].dead) : [];
+    const onDuty = roster.filter((id) => actors[id].location === prop.placeId);
+    if (!roster.length && prop.status === '已开张') {
+      // 名册里一个人都没有 = 真的还没请人；只是临时外出不算
+      issues.push({ kind: 'staff', who: prop.name, detail: `「${prop.name}」开着却还没请人` });
+    } else {
       prop.staff = onDuty.length;
     }
   }

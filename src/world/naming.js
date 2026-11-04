@@ -45,12 +45,12 @@ export function extractPlaceCandidates(text) {
 /**
  * 人物匹配规则：按名字、昵称、去词缀根字统一匹配世界人物
  * 遵循规则以「类别」表达：
- * 自动识别常见古风称呼前缀（小/老/大/二/三/四/五）与后缀（儿/娘/姐/妹/哥/爷/婆）
+ * 自动识别常见古风称呼前缀（小/老/大/二/三/四/五）与后缀（儿/娘/姐/妹/哥/爷/婆/娘子/掌柜/老板娘）
  */
 export function matchActor(actors, searchName) {
   if (!searchName) return null;
   const s = String(searchName).trim();
-  const root = s.replace(/^[小老大二三四五]|(?:儿|娘|姐|妹|哥|爷|婆)$/g, '');
+  const root = s.replace(/^[小老大二三四五]|(?:儿|娘|姐|妹|哥|爷|婆|娘子|大娘子|二娘子|姑娘|掌柜|老板娘|老板|大人|典吏|书吏|知府|知县)$/g, '');
   return Object.values(actors || {}).find((a) => {
     if (!a || !a.name || a.id === 'husband') return false;
     if (a.name === s || a.id === s) return true;
@@ -59,4 +59,41 @@ export function matchActor(actors, searchName) {
     if (root && root.length >= 1 && a.name.includes(root)) return true;
     return false;
   });
+}
+
+/**
+ * 从一句话中识别相公正在呼唤或针对对话的目标人物（Target Addressee）
+ * 规则以「类别」表达：全名优先 > 古风尊称（姓+娘子/老板/掌柜/大人）> 根字昵称（字+儿/娘）
+ */
+export function findTargetActorInText(actors, text) {
+  if (!text) return null;
+  const str = String(text);
+  // 1. 全名直接命中优先
+  for (const a of Object.values(actors || {})) {
+    if (!a || !a.name || a.id === 'husband') continue;
+    if (str.includes(a.name)) return a;
+    if (a.id === 'liuwenxia' && str.includes('紫嫣')) return a;
+  }
+  // 2. 古风称谓组合命中（姓氏/名首字 + 尊称后缀）
+  const honorificRe = /([\u4e00-\u9fa5]{1,2})(娘子|大娘子|二娘子|姑娘|掌柜|老板娘|老板|姐姐|妹妹|大人|典吏|书吏|知县|知府|千金|公子)/g;
+  let m;
+  while ((m = honorificRe.exec(str)) !== null) {
+    const prefix = m[1];
+    const hit = Object.values(actors || {}).find((a) => {
+      if (!a || !a.name || a.id === 'husband') return false;
+      return a.name.startsWith(prefix) || a.name.includes(prefix);
+    });
+    if (hit) return hit;
+  }
+  // 3. 根字昵称命中（如静儿、婉儿、芸娘、小翠）
+  const nicknameRe = /([\u4e00-\u9fa5]{1,2})(?:儿|娘)/g;
+  while ((m = nicknameRe.exec(str)) !== null) {
+    const prefix = m[1];
+    const hit = Object.values(actors || {}).find((a) => {
+      if (!a || !a.name || a.id === 'husband') return false;
+      return a.name.includes(prefix);
+    });
+    if (hit) return hit;
+  }
+  return null;
 }

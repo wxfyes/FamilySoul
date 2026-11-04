@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 民间自愈（society）
  *
  * 世界的"谁该在哪、在做什么"不写死规则，交给天道自己回一遍：
@@ -108,6 +108,12 @@ export function applyPlacements(world, text) {
     if (a?.name) byName.set(String(a.name), a);
   }
 
+  // 在岗的人不归自愈管：店里不能因为"人挤在街上"就把伙计全抽走
+  const onDuty = new Set();
+  for (const prop of world.assets?.properties || []) {
+    for (const id of prop?.staffIds || []) onDuty.add(id);
+  }
+
   let changed = 0;
   const notes = [];
   for (const item of list) {
@@ -115,6 +121,7 @@ export function applyPlacements(world, text) {
     const placeId = nameToId.get(String(item?.place || ''));
     if (!a || !placeId || a.dead || a.id === 'husband' || a.humanBound) continue;
     if (a.intimacy?.ritual === 'unlocked') continue;
+    if (onDuty.has(a.id)) continue;   // 当值的人不动
     const moved = a.location !== placeId;
     const mv = moveActor(world, a.id, placeId, 'world', '天道安顿');
     if (!mv.ok) continue;
