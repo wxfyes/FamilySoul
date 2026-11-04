@@ -24,6 +24,7 @@ import { applyAction } from './world/apply.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
+import { buildTimeline, eventText } from './world/events-view.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
@@ -2664,10 +2665,28 @@ const STARTED_AT = Date.now();
           recentEvents: (() => {
             // 只显示已经发生的事（时钟回拨后旧账里会有"未来事件"）
             const nowH = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
-            return readRecentEvents(DATA_DIR, 20).filter(
+            const evs = readRecentEvents(DATA_DIR, 30).filter(
               (e) => (Number(e?.day) || 0) * 24 + (Number(e?.hour) || 0) <= nowH,
-            ).slice(-12);
+            );
+            // 每条都带上人话说明，并合并同一时刻同一件事的重复
+            const out = [];
+            const index = new Map();
+            for (const e of evs) {
+              const text = eventText(world, e);
+              const key = `${e.day}|${e.hour}|${e.action}|${e.actor}|${e.payload?.actorId || ''}`;
+              const hit = index.get(key);
+              if (hit) {
+                hit.repeat += 1;
+                hit.text = `${hit.base}（×${hit.repeat}）`;
+                continue;
+              }
+              const item = { ...e, text, base: text, repeat: 1 };
+              index.set(key, item);
+              out.push(item);
+            }
+            return out.slice(-12);
           })(),
+          timeline: buildTimeline(world, readRecentEvents(DATA_DIR, 40), 14),
           summary: buildStateSummary(DATA_DIR),
           marriages,
           factions,
