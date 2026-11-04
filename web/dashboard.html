@@ -645,6 +645,10 @@
     .menu-toggle { display: block; }
     .tab-content-area { padding: 14px 14px 30px; }
   }
+
+.clue-row{align-items:flex-start}
+.clue-text{flex:1;min-width:0;line-height:1.5}
+.clue-meta{white-space:nowrap;flex:none;margin-left:12px;font-size:12px}
 </style>
 </head>
 <body>
@@ -811,6 +815,11 @@
             <h2>📈 近 14 日大势走向趋势</h2>
             <div id="trend" style="margin-top:6px">—</div>
           </section>
+
+        <section class="card full">
+            <h2>🔎 查探线索（底细密辛）</h2>
+            <div id="clues">—</div>
+        </section>
         </div>
       </div>
 
@@ -1013,10 +1022,6 @@
           <section class="card">
             <h2>🗣️ 街面风评（市井口舌）</h2>
             <div id="rumors" class="muted" style="margin-top:6px">—</div>
-          </section>
-          <section class="card">
-            <h2>🔎 查探线索（底细密辛）</h2>
-            <div id="clues">—</div>
           </section>
       </div>
 
@@ -1831,7 +1836,7 @@ function render(w){
 
   const cls = (w.clues || []).slice().reverse();
   $('clues').innerHTML = cls.length ? cls.map(c =>
-    `<div class="row"><span>${String(c.text || '').replace(/</g,'&lt;')}</span><span class="muted">第${c.day}日 · ${c.source || ''}</span></div>`
+    `<div class="row clue-row"><span class="clue-text">${String(c.text || '').replace(/</g,'&lt;')}</span><span class="muted clue-meta">第${c.day}日${c.source ? ' · ' + c.source : ''}</span></div>`
   ).join('') : '<div class="muted">还没有线索</div>';
 
   const qs = (w.quotes || []).slice(-10).reverse();

@@ -737,24 +737,9 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         const actorId = who === 'husband' ? 'husband' : who;
         const isHus = actorId === 'husband';
         if (isHus) {
-          world.assets.copper = Number(world.assets.copper) || 0;
-          const silver = Number(world.assets.silver) || 0;
-          const total = silver + world.assets.copper / 1000;
-          if (total < amount) {
-            applied.push(`钱不够:需${amount}两`);
-            continue;
-          }
-          // 先用铜钱付，铜钱不够再动银子
-          const copper = Number(world.assets.copper) || 0;
-          const needWen = Math.round(amount * 1000);
-          if (copper >= needWen) {
-            world.assets.copper = copper - needWen;
-          } else {
-            const rest = round2((needWen - copper) / 1000);
-            world.assets.copper = 0;
-            world.assets.silver = round2(silver - rest);
-          }
-          applied.push(`花销:${amount}两 → 余银${world.assets.silver}两/铜${world.assets.copper}文`);
+          // 军规铁律：相公（真人玩家）的真金白银绝不被自然语言会话静默扣除
+          // 如需付款，必须走 App 交互（手动记一笔花销 /api/world/pay 或交互选项 confirm）
+          applied.push(`商定花销:${amount}两（需相公交互确认支付）`);
         } else {
           world.wallets = world.wallets || {};
           const have = Number(world.wallets[actorId]) || 0;
