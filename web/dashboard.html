@@ -796,6 +796,22 @@
             <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
           </section>
         </div>
+
+        </div>
+        <section class="card full">
+          <h2>📜 大事记时间线（天下纪实）</h2>
+          <div id="timeline" class="muted" style="margin-top:6px">—</div>
+        </section>
+        <div class="grid-cards">
+          <section class="card">
+            <h2>⚡ 最近世界事件</h2>
+            <div id="events">—</div>
+          </section>
+          <section class="card">
+            <h2>📈 近 14 日大势走向趋势</h2>
+            <div id="trend" style="margin-top:6px">—</div>
+          </section>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════════════════════
@@ -1002,21 +1018,6 @@
             <h2>🔎 查探线索（底细密辛）</h2>
             <div id="clues">—</div>
           </section>
-        </div>
-        <section class="card full">
-          <h2>📜 大事记时间线（天下纪实）</h2>
-          <div id="timeline" class="muted" style="margin-top:6px">—</div>
-        </section>
-        <div class="grid-cards">
-          <section class="card">
-            <h2>⚡ 最近世界事件</h2>
-            <div id="events">—</div>
-          </section>
-          <section class="card">
-            <h2>📈 近 14 日大势走向趋势</h2>
-            <div id="trend" style="margin-top:6px">—</div>
-          </section>
-        </div>
       </div>
 
       <!-- ══════════════════════════════════════════════════
@@ -1840,9 +1841,9 @@ function render(w){
 
   const evs = (w.recentEvents||[]).slice(-8).reverse();
   $('events').innerHTML = evs.map(e=>{
-    const p = e.payload||{};
-    const txt = p.text||p.desc||p.goal||p.name||'';
-    return `<div class="ev"><b>第${e.day}日${e.hour}时</b> [${e.action}] ${txt}</div>`;
+    // 服务端已经翻成人话（e.text）；没有就用 payload 里的说明，绝不显示机器 action
+    const txt = e.text || (e.payload||{}).text || (e.payload||{}).desc || (e.payload||{}).name || '';
+    return `<div class="ev"><b>第${e.day}日${e.hour}时</b> ${txt}</div>`;
   }).join('') || '<div class="muted">暂无</div>';
 }
 
