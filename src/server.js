@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -26,6 +26,7 @@ import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
 import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
+import { getMoney, setMoney, spendMoney, syncMoney } from './world/money.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
@@ -808,7 +809,7 @@ const STARTED_AT = Date.now();
           || options[0];
         const price = Number(opt?.price) || 0;
 
-        const silver = actorId === 'husband' ? (Number(world.assets?.silver) || 0) : (Number(world.wallets?.[actorId]) || 0);
+        const silver = getMoney(world, actorId);
         if (silver < price) {
           return sendJson(res, 200, { ok: false, error: `钱不够：要 ${price} 两，手头只有 ${silver.toFixed(2)} 两` });
         }
@@ -818,7 +819,8 @@ const STARTED_AT = Date.now();
           const spent1 = spendSilver(world, price, `${pend.title || '花销'}·${opt?.label || ''}`, 'husband');
           if (!spent1.ok) return sendJson(res, 200, { ok: false, error: spent1.error });
         } else {
-          world.wallets = { ...(world.wallets || {}), [actorId]: Math.round((silver - price) * 100) / 100 };
+          const spent2 = spendMoney(world, actorId, price, `${pend.title || '花销'}·${opt?.label || ''}`);
+          if (!spent2.ok) return sendJson(res, 200, { ok: false, error: spent2.error });
         }
 
         let line = `（付了 ${price} 两。）`;
@@ -1113,7 +1115,22 @@ const STARTED_AT = Date.now();
             names: leading ? here.filter((id) => id !== actorId).map(nameOf) : [],
           };
         })(),
-        self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
+        self: (() => {
+          const maritalMap = { single: '未婚', married: '已婚', widowed: '寡居', concubine: '侧室' };
+          const spouseName = me?.spouse ? (world.actors?.[me.spouse]?.name || '') : '';
+          const res = me?.residence || null;
+          const resName = res?.placeId ? (world.places?.[res.placeId]?.name || '') : '';
+          const resText = res?.type === 'own' ? `自有${resName || '民宅'}`
+            : res?.type === 'rent' ? `租住${resName || ''}`
+            : res?.type === 'inn' ? '住客栈'
+            : res?.type === 'family' ? `寄居${resName || ''}` : '';
+          return {
+            name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband,
+            married: maritalMap[me?.marital || 'single'] || '未婚',
+            spouseName,
+            residence: resText,
+          };
+        })(),
         here: hereNames,
         pendingAction: world.pendingAction || null,
         tasks: (world.tasks || []).filter((t) => t && t.status === 'doing').map((t) => ({
@@ -1136,7 +1153,7 @@ const STARTED_AT = Date.now();
         })(),
         date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
         assets: {
-          silver: isHusband ? Number(world.assets?.silver) || 0 : Number(world.wallets?.[actorId]) || 0,
+          silver: getMoney(world, actorId),
           properties: props.map((p) => ({ name: p.name, income: Number(p.incomePerDay) || 0, status: p.status || '', staff: p.staff || 0, city: p.city || '' })),
           daily: props.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0),
         },
@@ -2579,6 +2596,10 @@ const STARTED_AT = Date.now();
             gender: a.gender || (key === 'husband' ? 'male' : '未知'),
             money: typeof a.money === 'number' ? a.money : null,
             age: Number(a.age) || null,
+            home: a.home || null,
+            homeName: a.home ? (world.places?.[a.home]?.name || '') : '',
+            marital: a.marital || null,
+            residence: a.residence ? { type: a.residence.type, placeId: a.residence.placeId, placeName: world.places?.[a.residence.placeId]?.name || '' } : null,
             onPeriod: Boolean(a.menses?.on),
             fertile: (() => {
               const m = a.menses;

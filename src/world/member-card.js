@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 她那一侧的身份卡 —— 只有核心事实，别的一概不给
  *
  * 产业事实与场景事实统一走 state.js 的 placeFacts(world, placeId)，

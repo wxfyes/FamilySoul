@@ -5,6 +5,7 @@
  * 所有数据结构见 docs/world-engine.md 第 3、4 节。
  */
 import { ensureBonds } from './bonds.js';
+import { syncMoney } from './money.js';
 import { syncNames } from './identity.js';
 import fs from 'node:fs';
 import { lunarFromTable } from './lunar-table.js';
@@ -934,6 +935,48 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 注册玩家补齐"一人一院 + 婚配 + 住处"（历史注册没写这三样）
+  try {
+    world.places = world.places || {};
+    for (const [id, a] of Object.entries(world.actors || {})) {
+      if (!a || !a.name || a.dead) continue;
+      if (!String(id).startsWith('usr_')) continue;
+
+      if (!a.marital) a.marital = 'single';
+      if (a.spouse === undefined) a.spouse = null;
+
+      const needHouse = !a.residence || !a.residence.placeId || !world.places[a.residence.placeId];
+      if (needHouse) {
+        const houseId = `house_${id}`;
+        if (!world.places[houseId]) {
+          world.places[houseId] = {
+            id: houseId,
+            name: `${a.name}的小院`,
+            exits: ['street'],
+            owner: id,
+            residence: true,
+            dynamic: true,
+            createdDay: world.clock?.day || 1,
+          };
+          world.dynamicPlaces = world.dynamicPlaces || {};
+          world.dynamicPlaces[houseId] = world.places[houseId];
+        }
+        a.residence = { type: 'own', placeId: houseId };
+        if (!a.home || a.home === 'inn') a.home = houseId;
+        console.log(`[Reg] ${a.name} 补上住处：${world.places[houseId].name}`);
+      } else {
+        // 已有住处：名字统一成"某某的小院"（老数据里可能叫"陆家小院"，同姓会撞）
+        const pid = a.residence.placeId;
+        const want = `${a.name}的小院`;
+        if (world.places[pid] && world.places[pid].name !== want) {
+          world.places[pid].name = want;
+        }
+        if (!a.home || a.home === 'inn') a.home = pid;
+      }
+    }
+  } catch { /* 忽略 */ }
+  // 银两对齐：actor.money 与 wallets 只留一个真相
+  try { syncMoney(world); } catch { /* 忽略 */ }
   // 承诺去重：同一件事被天道记成好几条时，只留最完整的一条。
   // 判"同一件事"用文字相似度（同一天、两条内容六成重合就算同一件）。
   try {
@@ -1716,10 +1759,13 @@ export function placeFacts(world, placeId) {
     ownerName = world.actors?.[ownerId]?.name || ownerId;
   }
 
+  // 在岗：以产业名册为真相源；名册为空时才按身份关键词兜底
+  const staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
   const onDuty = Object.values(world.actors || {}).filter((a) => {
     if (!a || a.dead) return false;
     const isAt = a.location === placeId || a.location === actualPlaceId || a.location === placeName || world.places?.[a.location]?.name === placeName;
     if (!isAt) return false;
+    if (staffIds.length) return staffIds.includes(a.id);
     return a.id === prop.keeper || a.role?.includes('掌柜') || a.role?.includes('伙计') || a.role?.includes('跑堂') || a.role?.includes('厨');
   }).map((a) => `${a.name}（${a.role || '在岗'}）`);
 

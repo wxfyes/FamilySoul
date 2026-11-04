@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadState, saveState, worldDate } from './world/state.js';
@@ -89,7 +89,25 @@ export class UserRegistry {
     const roleName = ROLE_MAP[originKind] || '初入临江的布衣';
     const genderDesc = safeGender === 'female' ? '坤身女子' : '乾身男子';
 
-    // 录入世界账本（初来乍到投宿临江客栈，信赖度从 0 开始）
+    // 一人一座小院：注册时就给他一处住处（不是所有人挤客栈）
+    const houseId = `house_${actorId}`;
+    world.places = world.places || {};
+    if (!world.places[houseId]) {
+      const surname = rawName.slice(0, 1);
+      world.places[houseId] = {
+        id: houseId,
+        name: `${rawName}的小院`,
+        exits: ['street'],
+        owner: actorId,
+        residence: true,
+        dynamic: true,
+        createdDay: world.clock?.day || 1,
+      };
+      world.dynamicPlaces = world.dynamicPlaces || {};
+      world.dynamicPlaces[houseId] = world.places[houseId];
+    }
+
+    // 录入世界账本（先投宿客栈落脚，另有自家小院）
     world.actors[actorId] = {
       id: actorId,
       name: rawName,
@@ -99,8 +117,11 @@ export class UserRegistry {
       label: '新客',
       playerControlled: true,
       humanBound: true,
-      home: 'inn',
+      home: houseId,
       location: 'inn',
+      marital: 'single',
+      spouse: null,
+      residence: { type: 'own', placeId: houseId },
       money: 20, // 20两碎银起步盘缠
       relations: {
         husband: { trust: 0, desire: 0, fear: 0, grievance: 0 },

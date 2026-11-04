@@ -134,6 +134,9 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     final mil = (d['military'] as Map?)?.cast<String, dynamic>();
     final standing = (d['standing'] as Map?)?.cast<String, dynamic>() ?? {};
     final props = (assets['properties'] as List?) ?? const [];
+    final married = (self['married'] as String?) ?? '';
+    final spouseName = (self['spouseName'] as String?) ?? '';
+    final residence = (self['residence'] as String?) ?? '';
 
     final day = date['day'] ?? 1;
     final hour = date['hour'] ?? 0;
@@ -186,6 +189,17 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13.5),
               ),
             ),
+          ],
+        ),
+      ),
+
+      // 名分与住处
+      _sectionTitle('名分与住处'),
+      _cardShell(
+        child: Column(
+          children: [
+            _kv('婚姻', spouseName.isNotEmpty ? '$married · 配偶「$spouseName」' : (married.isEmpty ? '未婚' : married)),
+            _kv('住处', residence.isEmpty ? '尚无定所' : residence),
           ],
         ),
       ),

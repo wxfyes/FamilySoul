@@ -142,8 +142,9 @@ async function main() {
   let noResidence = 0;
   for (const a of players) {
     const hasSpouseField = Object.prototype.hasOwnProperty.call(a, 'spouse');
-    const atInn = a.place === '临江客栈' || a.place === '客栈';
-    if (atInn) noResidence += 1;
+    // 有没有"自己的住处"看 home/residence，而不是此刻站在哪
+    const hasRes = Boolean(a.residence && a.residence.placeId) || (a.home && a.home !== 'inn');
+    if (!hasRes) noResidence += 1;
     if (VERBOSE) console.log(`    ${a.name}｜在 ${a.place}｜spouse 字段 ${hasSpouseField ? '有' : '无'}`);
   }
   if (players.length && noResidence === players.length) warn('所有注册玩家都住在客栈（没有自己的住处）');
