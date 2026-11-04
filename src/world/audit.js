@@ -397,6 +397,9 @@ export function applyRepairs(world, text) {
         prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
         if (!prop.staffIds.includes(a.id)) prop.staffIds.push(a.id);
         prop.staff = prop.staffIds.length;
+        a.employer = prop.owner || 'husband';
+        a.workplace = prop.name;
+        a.workplaceId = prop.placeId || null;
         fixed += 1;
       }
       continue;

@@ -2037,6 +2037,9 @@ const STARTED_AT = Date.now();
         prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
         if (!prop.staffIds.includes(a.id)) prop.staffIds.push(a.id);
         prop.staff = prop.staffIds.length;
+        a.employer = prop.owner || 'husband';
+        a.workplace = prop.name;
+        a.workplaceId = prop.placeId || null;
         saveState(DATA_DIR, world);
         return sendJson(res, 200, { ok: true, hired: a.name, role, prop: prop.name, staff: prop.staff });
       } catch (err) {

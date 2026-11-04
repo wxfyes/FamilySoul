@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import { isPlaceName, extractPlaceCandidates, matchActor } from './world/naming.js';
 import { moveActor } from './world/position.js';
 import path from 'node:path';
@@ -922,6 +922,16 @@ export class PetService {
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
+    } catch { /* 忽略 */ }
+
+    // 用人事实：谁在相公哪家店做事（免得雇工装作不认识东家）
+    try {
+      const wEmp = loadState(this.dataDir);
+      const lines = Object.values(wEmp.actors || {})
+        .filter((a) => a && !a.dead && a.employer === 'husband' && a.workplace)
+        .slice(0, 12)
+        .map((a) => `${a.name}是相公${a.workplace}的${a.role || '伙计'}`);
+      if (lines.length) contextHintEarly += `（【用人】${lines.join('；')}。这些人都认相公是东家，说话要带这层本分。）\n`;
     } catch { /* 忽略 */ }
 
     // 在场者的习性：同一句话，不同性子的人反应不一样
