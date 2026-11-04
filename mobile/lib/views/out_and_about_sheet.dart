@@ -178,8 +178,15 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
       final g = (p['group'] ?? '其他人').toString();
       groups.putIfAbsent(g, () => []).add(p);
     }
+    // 按服务端给的视角分组渲染（相公：府内/相好/其他人；她：我的人/王家/其他人）
+    final order = ['我的人', '府内', '王家', '相好', '其他人'];
+    final names = groups.keys.toList()
+      ..sort((a, b) {
+        final ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      });
     final children = <Widget>[];
-    for (final g in ['府内', '相好', '其他人']) {
+    for (final g in names) {
       final list = groups[g];
       if (list == null || list.isEmpty) continue;
       children.add(Padding(

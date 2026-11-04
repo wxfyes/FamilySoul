@@ -1,0 +1,33 @@
+Total cards in bak: 32
+Card ID: morning-short | H2: No H2
+Card ID: nav-where | H2: 🧭 出门 · 找人 · 赴约
+Card ID: h-family-top | H2: 🏡 家宅
+Card ID: a-acc-top | H2: 💰 账目
+Card ID: c-court-top | H2: 🏛️ 朝堂
+Card ID: m-military-top | H2: ⚔️ 军中
+Card ID: npcarcs | H2: 城中动静（各人自己的事）
+Card ID: cases | H2: 案子
+Card ID: rumors | H2: 街面风评
+Card ID: bondmap | H2: 关系网（谁跟谁一伙，谁跟谁有仇）
+Card ID: timeline | H2: 大事记时间线
+Card ID: arcs | H2: 各自的主线（她们自己的人生）
+Card ID: todo | H2: 待办（按时间排序）
+Card ID: clues | H2: 线索（查到的底细）
+Card ID: decrees | H2: 朝中（官职）
+Card ID: actors | H2: 人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span>
+Card ID: realm | H2: 天下（行会 · 外交 · 驻军）
+Card ID: m-guards | H2: 势力与兵力
+Card ID: cities | H2: 天下（城池归属）
+Card ID: terrain | H2: 山川（地形）
+Card ID: infra | H2: 基础设施
+Card ID: props | H2: 产业表（开遍全国）
+Card ID: summary | H2: 天机（她每轮看到的实况）
+Card ID: quotes | H2: 她们亲口说过的话（原文）
+Card ID: events | H2: 最近事件
+Card ID: trend | H2: 趋势（近 14 日）
+Card ID: diag | H2: 盘点（为什么没动静）
+Card ID: diag-summary | H2: 🩺 系统诊断
+Card ID: bind | H2: 成员绑定（这个账号演谁）
+Card ID: humans | H2: 真人（谁在用手机登着）
+Card ID: a-silver | H2: 家底
+Card ID: resetWho | H2: 清空记忆（危险 · 需二次确认）

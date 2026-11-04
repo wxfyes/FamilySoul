@@ -1,0 +1,63 @@
+=== c-avg ===
+</span><span id="c-rounds" class="big">—</span></div>
+    <div class="row"><span>平均每轮输入</span><span id="c-avg">—</span></div>
+    <div class="row"><span>缓存命中率</span><span id="c-hit">—</span></div>
+    <div class="row"><span>估算花费</span><span id="c-cost" class="big">—</span></div>
+    <div class="mute
+
+=== c-note ===
+iv class="row"><span>估算花费</span><span id="c-cost" class="big">—</span></div>
+    <div class="muted" id="c-note" style="margin-top:6px"></div>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
+      <div class="muted" style="margin-bottom:4px">体检结
+
+=== a-silver ===
+"card" data-dup="1" style="display:none">
+    <h2>家底</h2>
+    <div class="row"><span>现银</span><span id="a-silver" class="big">—</span></div>
+    <div class="row"><span>日入合计</span><span id="a-income" class="big">—</span></div>
+    <div id="a-props"></div>
+  </section>
+
+  <section class="card">
+    <h
+
+=== a-income ===
+现银</span><span id="a-silver" class="big">—</span></div>
+    <div class="row"><span>日入合计</span><span id="a-income" class="big">—</span></div>
+    <div id="a-props"></div>
+  </section>
+
+  <section class="card">
+    <h2>清空记忆（危险 · 需二次确认）</h2>
+    <div class="row"><span>选择人物</span>
+      <select id="rese
+
+=== a-props ===
+/div>
+    <div class="row"><span>日入合计</span><span id="a-income" class="big">—</span></div>
+    <div id="a-props"></div>
+  </section>
+
+  <section class="card">
+    <h2>清空记忆（危险 · 需二次确认）</h2>
+    <div class="row"><span>选择人物</span>
+      <select id="resetWho" style="background:#1e222b;color:#e8eaee;bord
+
+=== diag ===
+le="margin-top:6px">—</div>
+  </section>
+
+  <section class="card">
+    <h2>盘点（为什么没动静）</h2>
+    <div id="diag" class="muted" style="margin-top:6px">—</div>
+  </section>
+
+<section class="card" id="card-diag">
+  <h2>🩺 系统诊断</h2>
+  <div class="muted" id="diag-summary" style="margin:4px 0 6px">点开看：运行状态 · 
+
+=== who NOT FOUND ===
+
+=== whoQ NOT FOUND ===

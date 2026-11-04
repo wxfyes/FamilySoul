@@ -424,7 +424,20 @@ const STARTED_AT = Date.now();
         // 可找的人：府内 / 相好 / 其他
         const rel = (a) => a.relations?.husband || {};
         const isIntimate = (a) => (a.intimacy && a.intimacy.consummated) || Number(rel(a).trust) >= 60;
-        const group = (a) => (a.household ? '府内' : isIntimate(a) ? '相好' : '其他人');
+        const isHusbandViewer = actorId === 'husband';
+        // 分组按"看的人"来定：相公用"府内/相好"，她的号用"我的人/王家/其他"
+        const group = (a) => {
+          if (isHusbandViewer) {
+            if (a.household) return '府内';
+            return isIntimate(a) ? '相好' : '其他人';
+          }
+          // 她的视角
+          if (a.id === 'husband') return '我的人';
+          if (a.spouse === actorId || (me?.spouse && a.id === me.spouse)) return '我的人';
+          if (a.household) return '王家';
+          if (a.id === actorId) return '我的人';
+          return '其他人';
+        };
         const peopleOut = people
           .map((a) => ({
             id: a.id, name: a.name, role: a.role || '', place: placeName(a.location || ''),
@@ -432,8 +445,12 @@ const STARTED_AT = Date.now();
             trust: Number(rel(a).trust) || 0, grievance: Number(rel(a).grievance) || 0,
           }))
           .sort((x, y) => {
-            const o = { 府内: 0, 相好: 1, 其他人: 2 };
-            if (o[x.group] !== o[y.group]) return o[x.group] - o[y.group];
+            const o = isHusbandViewer
+              ? { 府内: 0, 相好: 1, 其他人: 2 }
+              : { 我的人: 0, 王家: 1, 其他人: 2 };
+            const ax = o[x.group] ?? 9;
+            const ay = o[y.group] ?? 9;
+            if (ax !== ay) return ax - ay;
             return y.trust - x.trust;
           })
           .slice(0, 40);

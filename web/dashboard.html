@@ -395,6 +395,33 @@
   tr:hover td { background: rgba(255,255,255,0.02); }
   td.num { font-variant-numeric: tabular-nums; }
 
+  /* 📊 人物数值进度条 (信任/欲望/怨怼) */
+  .bar {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 48px;
+    max-width: 72px;
+    margin-top: 3px;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  .bar i.trust {
+    background: linear-gradient(90deg, #059669, #10b981);
+  }
+  .bar i.desire {
+    background: linear-gradient(90deg, #db2777, #f43f5e);
+  }
+  .bar i.grievance {
+    background: linear-gradient(90deg, #7c3aed, #ef4444);
+  }
+
   pre {
     white-space: pre-wrap;
     word-break: break-word;
@@ -688,6 +715,13 @@
           <h2>🧱 基础设施建设</h2>
           <div id="infra">—</div>
         </section>
+
+        <!-- 家底统计（隐藏兼容与数据兜底） -->
+        <section class="card full" style="display:none;">
+          <span id="a-silver"></span>
+          <span id="a-income"></span>
+          <div id="a-props"></div>
+        </section>
       </div>
 
       <!-- ══════════════════════════════════════════════════
@@ -700,6 +734,8 @@
           </div>
           <div class="filter-bar">
             <input type="text" id="actorSearch" class="search-input" placeholder="🔍 快速搜索人物名、身份、地点...">
+            <input type="hidden" id="whoQ">
+            <div id="who" style="display:none;"></div>
             <button class="btn sm" onclick="filterActors('', 'all')">全部</button>
             <button class="btn sm" onclick="filterActors('', 'here')">在场之人</button>
             <button class="btn sm" onclick="filterActors('', 'house')">府中内眷</button>
@@ -826,7 +862,10 @@
               <span>估算花费</span><span id="c-cost" class="big" style="color:var(--accent-gold);">—</span>
             </div>
             <div class="row"><span>累计轮数</span><span id="c-rounds">—</span></div>
+            <div class="row"><span>平均每轮</span><span id="c-avg">—</span></div>
             <div class="row"><span>缓存命中率</span><span id="c-hit">—</span></div>
+            <div class="muted" id="c-note" style="margin-top:6px"></div>
+            <div id="diag" class="muted" style="margin-top:6px;display:none;"></div>
             <div id="audit-box" class="muted" style="margin-top:8px">—</div>
           </section>
 
@@ -953,7 +992,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-const $ = (id) => document.getElementById(id);
+// 终极健壮 $ 选择器：若节点不存在返回虚拟 Proxy 节点，坚决杜绝 null.textContent 白屏
+const _dummyProxy = new Proxy({}, {
+  get: (target, prop) => {
+    if (prop === 'classList') return { add(){}, remove(){}, toggle(){}, contains: () => false };
+    if (prop === 'style') return {};
+    if (prop === 'options') return [];
+    if (prop === 'value') return '';
+    if (prop === 'innerHTML' || prop === 'textContent') return '';
+    return () => {};
+  },
+  set: () => true
+});
+const $ = (id) => document.getElementById(id) || _dummyProxy;
 const fmt = (n) => new Intl.NumberFormat('zh-CN').format(Math.round(n));
 
 function saveToken(){
@@ -1490,16 +1541,16 @@ function render(w){
         <td><span class="tag">—</span></td>
       </tr>`;
     }
-    const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
+    const bar = (v, cls = '') => `<div class="bar"><i class="${cls}" style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
     if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
     if (a.onPeriod) intimacy = '月事中';
     return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
       <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + (a.debt ? ' <span class="bad">欠'+a.debt+'</span>' : '') : '—'}</td>
-      <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>
-      <td class="num">${r.desire??'—'} ${bar(r.desire||0)}</td>
-      <td class="num">${r.grievance??0} ${bar(r.grievance||0)}</td>
+      <td class="num">${r.trust??'—'} ${bar(r.trust||0, 'trust')}</td>
+      <td class="num">${r.desire??'—'} ${bar(r.desire||0, 'desire')}</td>
+      <td class="num">${r.grievance??0} ${bar(r.grievance||0, 'grievance')}</td>
       <td>${a.id==='husband'?'—':attitude({...a, household:a.household, consummated:im.consummated, relations:r})}</td>
       <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
     </tr>`;
