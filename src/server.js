@@ -401,9 +401,62 @@ const STARTED_AT = Date.now();
       return byName?.location || null;
     };
 
+    // 原话里提到的地点：约定里写了"雅阁/茶摊/铺子"，就该去那儿，不该随机
+    const placeFromText = (world, text, fallbackParent) => {
+      const t = String(text || '');
+      if (!t) return null;
+      // ① 原话里点了世上已有的地名 → 就去那儿
+      let best = null;
+      for (const [id, pl] of Object.entries(world.places || {})) {
+        const nm = String(pl?.name || '');
+        if (nm.length < 2) continue;
+        if (!t.includes(nm)) continue;
+        if (!best || nm.length > best.nm.length) best = { id, nm };
+      }
+      if (best) return best.id;
+
+      // ② 原话点了一个"雅阁/暖房/西厢"这类具体的屋，世上还没有 → 照原话把它立起来
+      //    （这不是乱起名，是剧情里已经说定的地方，只是还没入册）
+      // 只认"到/去/往/在/回/进/于/至 + 名 + 屋"，或"名 + 屋"两字名
+      const SUF = '(阁|房|间|轩|堂|园|楼|居|斋|厅)';
+      let roomName = null;
+      const m1 = t.match(new RegExp(`(?:到|去|往|在|回|进|于|至)([\\u4e00-\\u9fa5]{1,3}?)${SUF}`));
+      if (m1) roomName = (m1[1] + m1[2]).replace(/^[的了着个间]/, '');
+      if (!roomName) {
+        const m2 = t.match(new RegExp(`([\\u4e00-\\u9fa5]{2})${SUF}`));
+        if (m2) roomName = m2[0];
+      }
+      if (roomName) {
+        world.places = world.places || {};
+        world.flags = world.flags || {};
+        world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+        const id = `place_${world.flags.placeSeq}`;
+        const parent = fallbackParent && world.places[fallbackParent] ? fallbackParent : 'street';
+        world.places[id] = {
+          id, name: roomName, exits: [parent], dynamic: true, private: true,
+          desc: '剧情里说定的地方，记录在册',
+          createdDay: world.clock?.day || 1,
+        };
+        world.dynamicPlaces = world.dynamicPlaces || {};
+        world.dynamicPlaces[id] = world.places[id];
+        console.log(`[Place] 原话里的「${roomName}」入册`);
+        return id;
+      }
+      return null;
+    };
+
     // 约定没地点时：当场请天道从"世上已有的地方"里挑一个（它挑，引擎不猜）
     const askDmForPlace = async (world, ap) => {
       try {
+        // 先看原话里有没有现成地点
+        const otherActor = Object.values(world.actors || {}).find((a) => a && a.name === ap?.name);
+        const fromText = placeFromText(world, ap?.text, otherActor?.location);
+        if (fromText) {
+          ap.place = fromText;
+          world.notes = Array.isArray(world.notes) ? world.notes : [];
+          world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `与${ap.name || '人'}的约定在「${world.places[fromText].name}」（原话就说的这儿）` });
+          return fromText;
+        }
         if (!llmClient.isReady()) return null;
         const places = Object.entries(world.places || {})
           .filter(([, pl]) => pl && pl.name && !pl.private)
@@ -411,11 +464,15 @@ const STARTED_AT = Date.now();
           .slice(0, 80)
           .join('、');
         const sys = '你是这个世界的天道。只输出一个地点名，别的都不许写。';
+        const other = Object.values(world.actors || {}).find((a) => a && a.name === ap.name);
+        const otherPlace = other ? (world.places?.[other.location]?.name || '') : '';
         const usr = [
           `第${world.clock?.day}日 ${world.clock?.hour}时，有一桩约要去赴：`,
-          `与${ap.name || '某人'}：${String(ap.text || '').slice(0, 40)}`,
+          `与${ap.name || '某人'}（她此刻在「${otherPlace || '不知何处'}」）：${String(ap.text || '').slice(0, 60)}`,
           `世上现有的地方：${places}`,
-          '这桩约最合场景是在哪？只回一个上面列表里的地点名。',
+          '先看这桩事的原话里提到了哪处（比如"雅阁/茶摊/铺子/货栈"）；提到了就用那处。',
+          '原话没提，就用当事人此刻所在处，或与这事最相关的铺子。',
+          '不许随机挑、不许另起地名。只回一个上面列表里的地点名。',
         ].join('\n');
         const out = await llmClient.complete({ system: sys, messages: [{ role: 'user', content: usr }], temperature: 0.2, maxTokens: 40 });
         const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '');
@@ -1901,6 +1958,35 @@ const STARTED_AT = Date.now();
         petService.saveHistory(member, cur);
         console.log(`[History] 已弹出 ${member} 最后 ${count} 条历史（剩余 ${cur.messages.length} 条）`);
         return sendJson(res, 200, { ok: true, member, popped: count, remaining: cur.messages.length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 删掉误立的地方，把人送回一处（管理用）
+    if (req.method === 'POST' && pathname === '/api/admin/place/delete') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        let id = String(body.id || '');
+        const wantName = String(body.name || '');
+        const to = String(body.to || 'street');
+        const world = loadState(DATA_DIR);
+        if (!id && wantName) {
+          const hit = Object.entries(world.places || {}).find(([, pl]) => pl && String(pl.name) === wantName);
+          if (hit) id = hit[0];
+        }
+        if (!world.places?.[id]) return sendJson(res, 404, { ok: false, error: '没有这个地点' });
+        const name = world.places[id].name;
+        const back = world.places[to] ? to : 'street';
+        for (const a of Object.values(world.actors || {})) {
+          if (a && a.location === id) a.location = back;
+        }
+        delete world.places[id];
+        if (world.dynamicPlaces) delete world.dynamicPlaces[id];
+        for (const ap of world.appointments || []) if (ap && ap.place === id) delete ap.place;
+        saveState(DATA_DIR, world);
+        console.log(`[Place] 删掉「${name}」，人送回${world.places[back]?.name || back}`);
+        return sendJson(res, 200, { ok: true, deleted: name, movedTo: world.places[back]?.name || back });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
