@@ -365,9 +365,17 @@ export function applyRepairs(world, text) {
       }
       continue;
     }
-    if (f?.kind === 'place' && world.places?.[who]) {
-      const ex = Object.keys(world.places).find((k) => k !== who);
-      if (ex) { world.places[who].exits = [ex]; fixed += 1; }
+    if (f?.kind === 'place') {
+      const pid = world.places?.[who] ? who : nameToPlace.get(who);
+      if (pid && world.places[pid]) {
+        const pl = world.places[pid];
+        const ex = Array.isArray(pl.exits) ? pl.exits.filter((x) => world.places?.[x]) : [];
+        if (!ex.length) {
+          const back = world.places.street ? 'street'
+            : Object.keys(world.places).find((k) => k !== pid) || null;
+          if (back) { pl.exits = [back]; fixed += 1; }
+        }
+      }
     }
   }
 
@@ -379,6 +387,15 @@ export function applyRepairs(world, text) {
     if (Number(a.age) > 48 && a.pregnancy && !a.pregnancy.born) { delete a.pregnancy; fixed += 1; }
   }
   if (Number(world.assets?.silver) < 0) { world.assets.silver = 0; fixed += 1; }
+
+  // 孤儿地点：没有出口就当街立着（不然人进去了出不来）
+  for (const [id, pl] of Object.entries(world.places || {})) {
+    if (!pl || !pl.name || id === 'street') continue;
+    const ex = Array.isArray(pl.exits) ? pl.exits.filter((x) => world.places?.[x]) : [];
+    if (ex.length) continue;
+    const back = world.places.street ? 'street' : Object.keys(world.places).find((k) => k !== id);
+    if (back) { pl.exits = [back]; fixed += 1; }
+  }
 
   return { fixed, fromDm: fixes.length };
 }

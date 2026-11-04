@@ -1965,6 +1965,31 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 立刻跑一次结构自检并修账（诊断/验收）
+    if (req.method === 'POST' && pathname === '/api/admin/audit/repair') {
+      try {
+        const world = loadState(DATA_DIR);
+        ensureRealms(world);
+        const issues = inspectStructure(world);
+        let fixed = 0;
+        if (llmClient.isReady() && issues.length) {
+          const { system, user } = buildRepairPrompt(world, issues);
+          const out = await llmClient.complete({ system, messages: [{ role: 'user', content: user }], temperature: 0.3, maxTokens: 1200 });
+          const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '');
+          fixed = applyRepairs(world, text).fixed;
+        } else {
+          fixed = applyRepairs(world, '').fixed;
+        }
+        world.flags = world.flags || {};
+        world.flags.lastAuditDay = Number(world.clock?.day) || 1;
+        saveState(DATA_DIR, world);
+        const left = inspectStructure(world);
+        return sendJson(res, 200, { ok: true, found: issues.length, fixed, left: left.length, remaining: left.slice(0, 10) });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 删掉误立的地方，把人送回一处（管理用）
     if (req.method === 'POST' && pathname === '/api/admin/place/delete') {
       try {
