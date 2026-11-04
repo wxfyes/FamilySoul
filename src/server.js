@@ -396,12 +396,15 @@ const STARTED_AT = Date.now();
     if (req.method === 'GET' && pathname === '/api/world/menu') {
       try {
         const world = peek(DATA_DIR);
-        const me = world.actors?.husband;
+        // 谁在请求，就以谁的身份看世界（她的号看她的位置）
+        const member = resolveMember(req, url);
+        const actorId = member?.actor || 'husband';
+        const me = world.actors?.[actorId] || world.actors?.husband;
         const curId = me?.location || 'husband_room';
         const curName = world.places?.[curId]?.name || curId;
 
         const placeName = (id) => world.places?.[id]?.name || id;
-        const people = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband');
+        const people = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== actorId);
 
         // 可去的地方：当前出口 + 自有产业 + 有人的地方
         const exits = (world.places?.[curId]?.exits || []).map((id) => ({ id, name: placeName(id) }));
@@ -464,10 +467,11 @@ const STARTED_AT = Date.now();
         const target = String(body.place || '').trim();
         if (!target) return sendJson(res, 400, { ok: false, error: '没说要哪儿' });
         const world = loadState(DATA_DIR);
-        const hit = Object.entries(world.places || {}).find(([id, p]) => p?.name === target || id === target);
+        const member = resolveMember(req, url);
+        const actorId = member?.actor || 'husband';
         const intent = {
           id: `ui_go_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-          actor: 'husband', verb: 'MOVE', target, companions: [],
+          actor: actorId, verb: 'MOVE', target, companions: [],
           params: { byUi: true }, origin: 'ui',
         };
         const res2 = applyAction({ dataDir: DATA_DIR, world, intent, verdict: { companionConsented: true } });
@@ -488,7 +492,9 @@ const STARTED_AT = Date.now();
         const body = await parseJsonBody(req, 32 * 1024);
         const id = String(body.id || '');
         const world = loadState(DATA_DIR);
-        const me = world.actors?.husband;
+        const member = resolveMember(req, url);
+        const actorId = member?.actor || 'husband';
+        const me = world.actors?.[actorId] || world.actors?.husband;
         const her = world.actors?.[id];
         if (!her || her.dead) return sendJson(res, 404, { ok: false, error: '没有这个人' });
         const hereName = world.places?.[me?.location]?.name || '';
@@ -521,7 +527,7 @@ const STARTED_AT = Date.now();
             const targetName = where || 'street';
             const intent = {
               id: `ui_apt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-              actor: 'husband', verb: 'MOVE', target: '青石板长街', companions: [], params: { byUi: true }, origin: 'ui',
+              actor: (resolveMember(req, url)?.actor || 'husband'), verb: 'MOVE', target: '青石板长街', companions: [], params: { byUi: true }, origin: 'ui',
             };
             applyAction({ dataDir: DATA_DIR, world, intent, verdict: { companionConsented: true } });
             touched = true;
