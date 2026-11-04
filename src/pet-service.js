@@ -620,6 +620,31 @@ export class PetService {
 
     // 交互系统已在客户端完全接管（转场/找人/付钱等），聊天中绝不偷听正则乱挂待付款打断剧情
 
+    // 习性：相处久了性情会变，变了要记住（[[trait:谁|哪一样|+-数]]）
+    try {
+      const traitTags = String(reply || '').match(/\[\[trait:([^\]]+)\]\]/g);
+      if (traitTags && traitTags.length) {
+        const wTr = loadState(this.dataDir);
+        for (const tag of traitTags) {
+          const m = /\[\[trait:(.+?)\|([^|]+)\|([+-]?\d+)\]\]/.exec(tag);
+          if (!m) continue;
+          const whoName = String(m[1]).trim();
+          const key = String(m[2]).trim().slice(0, 8);
+          const delta = Math.max(-20, Math.min(20, Number(m[3]) || 0));
+          const who = Object.values(wTr.actors || {}).find((a) => a && a.name === whoName);
+          if (!who || !delta) continue;
+          who.traits = who.traits || {};
+          who.traits[key] = Math.max(0, Math.min(100, Number(who.traits[key] || 50) + delta));
+          wTr.notes = Array.isArray(wTr.notes) ? wTr.notes : [];
+          wTr.notes.push({ day: wTr.clock?.day, hour: wTr.clock?.hour, text: `${who.name}的${key}${delta > 0 ? '增' : '减'}了` });
+          console.log(`[Trait] ${who.name} ${key} ${delta > 0 ? '+' : ''}${delta} → ${who.traits[key]}`);
+        }
+        wTr.notes = (wTr.notes || []).slice(-40);
+        saveState(this.dataDir, wTr);
+        reply = String(reply || '').replace(/\[\[trait:[^\]]+\]\]/g, '').trim();
+      }
+    } catch { /* 忽略 */ }
+
     // 差事：天道把"谁去办什么"记成差事，后面办到哪一步都能追
     try {
       const taskTags = String(reply || '').match(/\[\[task:([^\]]+)\]\]/g);
@@ -827,6 +852,7 @@ export class PetService {
 
     // 告诉天道：要收钱就这么声明（由相公自己点确认）
     try {
+      contextHintEarly += '（【习性规矩】长期相处真的改了某个人的性子（更顺从、更敢顶嘴、开始怕你…），你可以在回复末尾附 [[trait:谁|哪一样|+5]]，一次最多动 5~10，别乱给。这东西会跟着她一辈子。）\n';
       contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
@@ -864,6 +890,18 @@ export class PetService {
           console.log(`[Pay] 天道声明付费：${title2} ${opts2.map((o) => o.label + o.price).join('/')}`);
         }
       }
+    } catch { /* 忽略 */ }
+
+    // 在场者的习性：同一句话，不同性子的人反应不一样
+    try {
+      const wT2 = loadState(this.dataDir);
+      const meT2 = this._viewerActorId ? wT2.actors?.[this._viewerActorId] : wT2.actors?.husband;
+      const near = Object.values(wT2.actors || {}).filter((a) => a && !a.dead && a.location === meT2?.location && a.id !== (meT2?.id || 'husband'));
+      const lines2 = near
+        .filter((a) => a.traits && Object.keys(a.traits).length)
+        .slice(0, 4)
+        .map((a) => `${a.name}：${Object.entries(a.traits).map(([k, v]) => `${k}${v}`).join('、')}`);
+      if (lines2.length) contextHintEarly += `（【习性】${lines2.join('；')}。这些是处出来的，照它演。）\n`;
     } catch { /* 忽略 */ }
 
     // 将 Gate 门禁客观事实注入为天道推演的刚性阻力边界
@@ -1036,6 +1074,9 @@ export class PetService {
             '绝不替玩家说话、绝不替她做决定、绝不描写她的心理活动，也不要写"她心想"。',
             '她的话可能是试探、也可能是遮掩——你按人物本来的处境应答，不必点破，也不必全信。',
             '台词一律用第一人称；动作、神态放圆括号里，点到为止。',
+            '【NPC 活人驱动铁律】：每个人都是活生生的人，有手头真实的营生差事与生活算盘，绝不是复读旧台词的死木头！',
+            '1. 必须向前推进事态：严禁抓住过去发生的某个事故（如黑洞、掉钱）翻来覆去念叨！旧事翻篇，生活与营生必须向前走；',
+            '2. 主动做事与配合帮衬：面对玩家提要求、抱怨、托付或遇到难处，在场角色要立足自身本分主动表态、主动分担、主动配合推进解决（如工头主动张罗修缮翻新、揽大活挣工钱；相公主动担当遮风挡雨；熟人出谋划策），牵动世界运转！',
           ].join('\n');
         }
       } catch {

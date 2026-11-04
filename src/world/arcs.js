@@ -269,7 +269,7 @@ export function npcArcPrompt(world, actorId) {
   const rel = a.relations?.husband || {};
   const here = String(world.places?.[a.location]?.name || '');
   const arc = (world.npcArcs || {})[actorId] || {};
-  const prev = arc.lastStep ? `前情：${arc.lastStep}。` : '';
+  const prev = arc.lastStep ? `前情（已成过去，绝不可原地复读）：${arc.lastStep}。` : '';
   return [
     `你是天道。人物：${a.name}（${a.role || ''}），第${day}日，此刻在${here}。`,
     `他手头的事：${a.activity?.text || '按部就班'}。`,
@@ -286,6 +286,7 @@ export function npcArcPrompt(world, actorId) {
       return parts.length ? `${parts.join('；')}。他的事可以跟这些人有关。` : '';
     })(),
     prev,
-    '写一句他眼下自己遇到的麻烦或机会（20~40字），只写处境，不写结局。只输出这一句。',
+    '【活人驱动铁律】：每个人都是活生生的人，必须向前迈进与做事！结合前情写出他接下来的【具体行动与事态新进展】（例如化解旧困、外出揽活、营生推进、协助家人等，20~40字）。',
+    '【最高禁令】：严禁原地重复前情旧词（如黑洞、掉钱等陈年旧账），事态必须向前流动！只输出这一句。',
   ].filter(Boolean).join('\n');
 }
