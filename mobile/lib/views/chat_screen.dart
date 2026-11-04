@@ -41,6 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
   int _worldDay = 0;
   int _worldHour = 0;
   Timer? _locTimer;
+  List<String> _partyNames = const [];
 
   // 豆包风格语音按住说话状态
   bool _isVoiceMode = false; // 是否处于底部按住说话大按钮模式
@@ -558,6 +559,17 @@ class _ChatScreenState extends State<ChatScreen> {
       final date = (d['date'] is Map) ? d['date'] as Map : const {};
       final place = (self['place'] ?? '').toString();
       if (place.isEmpty) return;
+      // 同行的人
+      List<String> names = const [];
+      final party = d['party'];
+      if (party is Map) {
+        if (party['names'] is List) {
+          names = (party['names'] as List).map((x) => x.toString()).where((x) => x.isNotEmpty).toList();
+        } else if (party['members'] is List && (party['members'] as List).isNotEmpty) {
+          // 相公视角只有 id，这里退回用 id 展示
+          names = (party['members'] as List).map((x) => x.toString()).toList();
+        }
+      }
       final day = (date['day'] ?? 0) is int ? date['day'] as int : int.tryParse('${date['day']}') ?? 0;
       final hour = (date['hour'] ?? 0) is int ? date['hour'] as int : int.tryParse('${date['hour']}') ?? 0;
       if (place != _placeName || day != _worldDay || hour != _worldHour) {
@@ -565,6 +577,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _placeName = place;
           _worldDay = day;
           _worldHour = hour;
+          _partyNames = names;
         });
       }
     } catch (_) {}
@@ -916,6 +929,17 @@ class _ChatScreenState extends State<ChatScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (_partyNames.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              _partyNames.length <= 2
+                                  ? '与${_partyNames.join('、')}同行'
+                                  : '与${_partyNames.take(2).join('、')}等${_partyNames.length}人同行',
+                              style: const TextStyle(color: Color(0xFF9B8CF6), fontSize: 11.5),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         if (_worldDay > 0)
                           Text(
                             '第$_worldDay日 $_worldHour时',

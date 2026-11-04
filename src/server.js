@@ -616,7 +616,21 @@ const STARTED_AT = Date.now();
       return sendJson(res, 200, {
         ok: true,
         version: Number(world.version) || 1,
-        party: isHusband ? { members: Array.isArray(world.party?.husband) ? world.party.husband : [] } : { leading: (world.party?.husband || []).includes(actorId) ? 'husband' : null },
+        party: (() => {
+          const nameOf = (id) => world.actors?.[id]?.name || id;
+          const ids = Array.isArray(world.party?.husband) ? world.party.husband : [];
+          const here = ids.filter((id) => world.actors?.[id] && !world.actors[id].dead);
+          if (isHusband) {
+            return { members: here, names: here.map(nameOf) };
+          }
+          const leading = here.includes(actorId) ? 'husband' : null;
+          // 她那边：告诉你正跟着谁、还有谁一起
+          return {
+            leading,
+            leaderName: leading ? (world.actors?.husband?.name || '相公') : null,
+            names: leading ? here.filter((id) => id !== actorId).map(nameOf) : [],
+          };
+        })(),
         self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
         date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
         assets: {
