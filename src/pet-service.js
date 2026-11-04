@@ -1004,8 +1004,7 @@ export class PetService {
           const husbandLoc = wr.actors?.husband?.location;
           if (!who || (husbandLoc && who.location && who.location !== husbandLoc)) {
             console.warn('[Ritual] 结算拦截：' + (who?.name || ritualCtx.actorId) + '与相公不在同处，拒绝欢好结算');
-            return;
-          }
+          } else {
           const rel = who?.relations?.husband;
           if (rel) {
             rel.desire = Math.min(100, Math.round((Number(rel.desire) || 0) + 8));
@@ -1037,6 +1036,7 @@ export class PetService {
             } catch { /* 忽略 */ }
             saveState(this.dataDir, wr);
             console.log(`[Ritual] 关系结算：${who.name} 欲望+8→${rel.desire} 信任+5→${rel.trust}（已标为相好）`);
+          }
           }
         } catch (err2) {
           console.warn('[Ritual] 关系结算失败：', err2.message);
@@ -1707,10 +1707,10 @@ export class PetService {
           const rumorText = rumor?.text ? String(rumor.text).slice(0, 40) : (wM2.rumors?.length ? '' : '');
           return `（【现状】第${wM2.clock?.day}日 ${wM2.clock?.hour}时。${rumorText ? '城里在传：' + rumorText + '。' : ''}该起身了。）\n`;
         })();
-      } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了|滚吧/.test(say)) {
+      } else if (/(?:做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了|滚吧|走了|回去了|回家了|回家|不做了|别弄了|放开|下榻|下床|起吧|起了|回了)/.test(say)) {
         delete history.inBedSession;
         if (this._viewerActorId) {
-          contextHint = '（二人私密欢好已毕，当家丈夫满头大汗、心满意足又万分心疼，立刻取温热汗巾替妻子仔细擦拭清理身子与隐秘处，拉好锦被抱在怀里揉肩温存，端温水伺候，言语粗直宠溺、安抚妻子好生歇息，绝不许继续胡闹！）';
+          contextHint = '（二人欢好已毕或已经叫停。妻子若说要走、要回家、要歇息，丈夫必须体贴放行、绝不硬缠强按！取温热汗巾仔细替妻子擦拭清理身子，温柔帮她整理穿好衣裙，关切叮嘱路上慢行或端水伺候，言语温存爱护，绝对严禁继续脱衣抽送胡闹！）';
         } else {
           contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
         }
@@ -3190,7 +3190,7 @@ export class PetService {
       }
     }
     const out = kept.join('').trim();
-    return { text: out || String(text || ''), dropped };
+    return { text: out, dropped };
   }
 
   /**

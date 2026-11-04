@@ -16,7 +16,7 @@
    - **192.168.1.112（本机）**：开发 + 打包源（`http://192.168.1.112:8089/update.tar.gz`）
    - **192.168.1.254:3088（软路由）**：唯一生产测试环境
 3. **客户端先只调通 Android**：`flutter analyze` 零告警 → 本地 `flutter build apk --release` → 装到手机实测。
-4. **iOS 打包暂停**：等用户明确说「可以打 iOS 了」再推 GitHub Actions，不要自作主张触发。
+4. **iOS 已恢复自动打包（2026-11-04 起）**：只要有 `mobile/lib/**` 等客户端改动，push 后 GitHub Actions 自动构建；构建成功后把最新未签名 IPA 下载到桌面，与安卓包一起交付（详见第九条）。纯服务端改动不得触发 iOS 构建。
 
 ## 一、生产环境与软路由事实（严禁怀疑或建议老目录）
 1. **软路由主力生产目录唯一确定为 `/opt/familysoul`（运行端口 3088）**；
@@ -62,7 +62,7 @@
 3. **iOS 语音零破坏**：`Platform.isIOS` 必须 100% 保持原汁原味的 Apple Speech (`_speech.listen`) 与扬声器外放；
 4. **Android 离线中文语音**：`Platform.isAndroid` 100% 直连 `OfflineAsrService`，绝不可删除 `mobile/assets/asr/*.onnx` 权重；
 5. **音频 URL 完整性**：必须带 `${config.apiPrefix}/audio/$audioKey.wav?token=${...}`，严禁相对路径，严禁 PowerShell 吞变量；
-6. **改动即发布闭环（按【当前发布范围】执行）**：修改 `mobile/` 必须完成 `flutter analyze` 零告警 + 本地 `flutter build apk --release`，产物放桌面供实测；**iOS 只在用户明确说“可以打 iOS”时才推 Actions**；小主机已暂停，不再同步。
+6. **改动即发布闭环（按【当前发布范围】执行）**：修改 `mobile/` 必须完成 `flutter analyze` 零告警 + 本地 `flutter build apk --release`，产物放桌面供实测；**iOS 随客户端改动自动构建，并把最新 IPA 下载到桌面交付（详见第九条）**；小主机已暂停，不再同步。
 
 ---
 
@@ -85,7 +85,7 @@
    - 事后归位温存、擦拭整理、严禁怪话 100% 状态转换；
    - 妻妾与地下情人体系（沈婉儿/林芸娘/小翠/杨采云/刘文霞/战静）完整保留；
    - **510两运河码头大酒楼** 作为初始既定事实直接写入 state，永远在场；
-   - **移动端 `mobile/` 已解冻**（原「一行不动」铁律作废，2026-11 起允许改造）：改动必须 `flutter analyze` 零告警 → 本地编译 Android APK → 产物放桌面实测；**iOS 等用户明确指示再推 Actions；小主机已暂停不再同步**。第五节的六大防退化死命令仍然有效，不得顺势删掉 3D 头像、四圆钮、离线 ASR、Apple Speech 与音频 URL 拼接；
+   - **移动端 `mobile/` 已解冻**（原「一行不动」铁律作废，2026-11 起允许改造）：改动必须 `flutter analyze` 零告警 → 本地编译 Android APK → 产物放桌面实测；**iOS 随客户端改动自动构建并同步桌面（第九条）；小主机已暂停不再同步**。第五节的六大防退化死命令仍然有效，不得顺势删掉 3D 头像、四圆钮、离线 ASR、Apple Speech 与音频 URL 拼接；
    - 微软 TTS 与 DeepSeek 强制国内直连。
 6. **【最高铁律】严禁剧本化（任何一代 AI 都不得违逆）**：
    - 任何「正则命中 ➔ 注入预制台词 / 固定剧情分支」都是剧本，一律禁止；凡是"看起来世界在动，其实是代码在念稿"的实现，一律算退化；
@@ -110,4 +110,22 @@
    - **绝对严禁**任何 AI 助理在服务端代码里加正则偷听聊天文字去触发物理瞬移、强行离场、召唤人物或扣除银两！
    - 杜绝一切因关键词偷听导致的半路瞬移与剧情断档，确保玩家沉浸式剧情推进完整连贯。
 
+
+
+---
+
+## 九、发布闭环与桌面同步铁律（每次改客户端都必须执行）
+
+1. **打包前必须先让服务真跑起来**：`node --check` 通过 **不算** 通过，必须在本地 `node src/server.js` 起一次并请求 `/health`，确认无运行时错误，才允许 `node scripts/build-update.mjs` 打包。
+   - 血的教训：两次都是「语法通过、启动崩」，直接把线上服务打死，只能用户手动救。
+2. **客户端一改，两端一起交付**：
+   - 安卓：`flutter analyze` 零告警 → `flutter build apk --release`
+   - iOS：push 后等 GitHub Actions 构建成功 → 用 artifacts 下载最新 IPA（未签名）
+3. **桌面只留两个文件，命名固定**：
+   - `【最新】FamilySoul_安卓.apk`
+   - `【最新】FamilySoul_iOS.ipa`
+   - 每次交付直接覆盖同名文件；**其余 FamilySoul / SurfCore 的 apk / ipa / zip / 解压文件夹一律删除**（`青山传奇` 等非本项目文件不得误删）。
+4. **只改服务端时**：不重新打包客户端，只在回复里说明「服务端已更新，客户端不用重装」。
+5. **iOS 触发范围**：仅 `mobile/lib/**`、`mobile/pubspec.yaml`、`mobile/assets/**`、`mobile/ios/**`、`mobile/android/app/**` 变更才触发；服务端/文档/脚本变更不得触发云构建。
+6. **每次客户端改动完成后，回复里必须写明**：桌面两个包已更新（或未变），以及本次是否需要重装。
 
