@@ -1764,7 +1764,8 @@ const STARTED_AT = Date.now();
     if (req.method === 'GET' && pathname === '/api/admin/audit') {
       try {
         const world = peek(DATA_DIR);
-        return sendJson(res, 200, { ok: true, result: auditAll(world) });
+        const structure = inspectStructure(world);
+        return sendJson(res, 200, { ok: true, result: auditAll(world), structure, structureCount: structure.length });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
