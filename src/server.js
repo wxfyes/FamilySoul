@@ -24,6 +24,7 @@ import { applyAction } from './world/apply.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
+import { isPlaceName } from './world/naming.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -429,6 +430,7 @@ const STARTED_AT = Date.now();
         const m2 = t.match(new RegExp(`([\\u4e00-\\u9fa5]{2})${SUF}`));
         if (m2) roomName = m2[0];
       }
+      if (roomName && !isPlaceName(roomName).ok) roomName = null;
       if (roomName) {
         world.places = world.places || {};
         world.flags = world.flags || {};

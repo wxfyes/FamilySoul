@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { isPlaceName, extractPlaceCandidates } from './world/naming.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -737,11 +738,8 @@ export class PetService {
           const rawName = String(m[1] || '').replace(/\s/g, '');
           const parentName = String(m[2] || '').trim();
           // 验名：2~6 个汉字，不许疑问/指示/动词
-          const valid = /^[\u4e00-\u9fa5]{2,6}$/.test(rawName)
-            && !/(什么|哪|这里|那里|某|一个|怎么|如何|是否|到底)/.test(rawName)
-            && !/(去|来|走|到|找|说|看|上|下|里|外|前|后|旁|中|间|边)/.test(rawName.slice(0, 1))
-            && !/^(上方|下方|上面|下面|左边|右边|旁边|中间|里头|外头|前面|后面|里面|外面|这里|那里|上头|下头)$/.test(rawName);
-          if (!valid) { console.log(`[Build] 名字「${rawName}」不像地名，驳回`); continue; }
+          const verdict = isPlaceName(rawName);
+          if (!verdict.ok) { console.log(`[Build] 名字「${rawName}」不像地名（${verdict.why}），驳回`); continue; }
           if (Object.values(wB.places || {}).some((pl) => pl && pl.name === rawName)) {
             console.log(`[Build] 「${rawName}」已经有了`);
             continue;
