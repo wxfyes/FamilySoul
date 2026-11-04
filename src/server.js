@@ -14,7 +14,8 @@ import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, should
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
-import { auditWorld } from './world/audit.js';
+import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
+import { ensureRealms } from './world/realm.js';
 import { worldDate } from './world/state.js';
 import { healWorld } from './world/heal.js';
 import { ensureArcs } from './world/arcs.js';
@@ -3573,6 +3574,36 @@ server.listen(PORT, '0.0.0.0', () => {
   globalThis.__stepWorld = stepWorld;
   globalThis.__worldGenerators = { generateCase, judgeCases, resolveMemorials, generateDecree, generateCityShops, generateNpcArcs };
 
+  // 每日自检：查"不成立"的事实，请天道修；它没修的按最保守办法兜底
+  const dailyAuditWorld = async () => {
+    try {
+      const world = loadState(DATA_DIR);
+      ensureRealms(world);
+      const issues = inspectStructure(world);
+      if (!issues.length) return;
+      const today = Number(world.clock?.day) || 1;
+      if (Number(world.flags?.lastAuditDay || 0) === today) return;   // 一天只查一次
+      let fixed = 0;
+      if (llmClient.isReady()) {
+        const { system, user } = buildRepairPrompt(world, issues);
+        const out = await llmClient.complete({ system, messages: [{ role: 'user', content: user }], temperature: 0.3, maxTokens: 1200 });
+        const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '');
+        const r = applyRepairs(world, text);
+        fixed = r.fixed;
+      } else {
+        const r = applyRepairs(world, '');
+        fixed = r.fixed;
+      }
+      world.flags = world.flags || {};
+      world.flags.lastAuditDay = today;
+      saveState(DATA_DIR, world);
+      console.log(`[Audit] 自检 ${issues.length} 处不成立，修 ${fixed} 处`);
+    } catch (err) {
+      console.warn('[Audit] 自检失败：', err.message);
+    }
+  };
+  globalThis.__dailyAuditWorld = dailyAuditWorld;
+
   // 人间自愈：人挤在一处、铺子空着时，请天道重新安顿一次（它决定，引擎只落账）
   const selfHealWorld = async () => {
     try {
@@ -3607,6 +3638,7 @@ server.listen(PORT, '0.0.0.0', () => {
       intervalMs: Number(config.world?.tickIntervalMs) || 2 * 60 * 1000,
       msPerWorldHour: Number(config.world?.msPerWorldHour) || 60 * 60 * 1000,
       onAfterTick: async () => {
+        await dailyAuditWorld();
         await selfHealWorld();
         await fillProactiveTexts();
         await generateNpcArcs();

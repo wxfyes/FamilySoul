@@ -2035,7 +2035,7 @@ export class PetService {
               memories: npcMem,
               facts: npcFacts.concat([
                 (wPost.npcArcs || {})[npc.id]?.lastStep
-                  ? `你眼下自己碰上的事：${wPost.npcArcs[npc.id].lastStep}（说话要带出来）`
+                  ? `你眼下自己碰上的事：${wPost.npcArcs[npc.id].lastStep}（仅在对方问起外头事宜时提及，私房相处绝不主动提公事）`
                   : '',
                 npc.home && mePost?.home && npc.home === mePost.home && npc.gender === 'male'
                   ? `你是${mePost?.name || '她'}的丈夫，说话要像当家的：亲近但实在，不许说「偷来的半日闲」这种外人才说的话`

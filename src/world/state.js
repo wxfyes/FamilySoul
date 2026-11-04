@@ -1063,6 +1063,25 @@ export function migrateOwnership(world) {
     }
   } catch { /* 忽略 */ }
 
+  // 清除于子归的“黑洞塌方”死循环剧本，强化夫妻情深与热烈调情
+  try {
+    if (world.npcArcs) {
+      for (const [k, v] of Object.entries(world.npcArcs)) {
+        if (v && /黑洞|塌出|空响/.test(String(v.text || '') + String(v.lastStep || ''))) {
+          delete world.npcArcs[k];
+          console.log('[State] 清除黑洞死循环剧本：' + k);
+        }
+      }
+    }
+    const yzg = world.actors?.npc_2 || Object.values(world.actors || {}).find((a) => a && a.name === '于子归');
+    if (yzg) {
+      yzg.goals = ['护好自家美貌娇妻紫嫣', '多抽空回酒肆陪媳妇温存', '在外跑工期挣大银子养家'];
+      yzg.relations = yzg.relations || {};
+      yzg.relations.liuwenxia = { trust: 95, desire: 85, fear: 0, grievance: 0 };
+      yzg.intimacy = { level: 4, tone: 2, lastAt: world.clock?.day || 1, ritual: 'unlocked', willing: 'eager' };
+    }
+  } catch { /* 忽略 */ }
+
   // 清除“底是什么铺”等疑问词误建的垃圾地点
   try {
     for (const [pid, pl] of Object.entries(world.places || {})) {

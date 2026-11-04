@@ -143,9 +143,12 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
 /**
  * 契约强制：暗号命中而回复里没有「上山打老虎」，补齐。
  * 宁可机械一拍，也不能让契约失灵。
+ * 铁律：只有女性内眷（沈婉儿/芸娘/小翠）在相公发起暗号时才对答，糙汉丈夫（如于子归）绝不得误答！
  */
 export function enforceRitualAnswer(reply, ritual) {
   if (!ritual?.unlock) return reply;
+  const aid = String(ritual?.actorId || '');
+  if (aid === 'npc_2' || aid === 'husband' || aid === 'suike' || /于子归|于杰|随科/.test(aid)) return reply;
   const text = String(reply || '');
   if (text.includes('上山打老虎')) return text;
   console.warn('[Ritual] 暗号命中但天道未答契约词，已自动补齐');
