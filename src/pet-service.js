@@ -2240,18 +2240,8 @@ export class PetService {
       /* 忽略 */
     }
 
-    // 她说要走了，就真的走（否则人会永远钉在原地）
-    try {
-      const gone = applyNpcDeparture(this.dataDir, reply);
-      if (gone.length > 0) console.log(`[Scene] 离席：${gone.join('、')}`);
-    } catch (err) {
-      console.warn('[Scene] 离席处理失败：', err.message);
-    }
-
-    const sceneSync = this.syncSceneFromReply(reply, { skipHusbandMove: engineMovedHusband, selfId: this._viewerActorId || 'husband' });
-      if (sceneSync) {
-        console.log(`[Scene] 账本对齐叙事 → ${sceneSync.place}（${sceneSync.moved.join('、')}）`);
-      }
+    // 交互系统已在客户端完全接管：转场去哪儿由客户端显式调用 /api/world/go 触发
+    // 聊天中绝不因台词或场景描写自动偷跑挪移（全由交互控制）
       if (!reply) {
         const wHome = loadState(this.dataDir);
         const pNow = String(wHome.places?.[wHome.actors?.husband?.location]?.name || '');
@@ -2287,85 +2277,8 @@ export class PetService {
         }
       } catch { /* 忽略 */ }
 
-      // 缺口⑤：同行裁决回执未出时的兜底机制
-      try {
-        const isMove = intent && intent.verb === VERBS.MOVE && intent.target && !intent.params?.isConsensus;
-        const alreadyHandledConsent = applied.some((x) => /^同行/.test(String(x)));
-        if (isMove && !alreadyHandledConsent && Array.isArray(intent.companions) && intent.companions.length > 0) {
-          const wNow = loadState(this.dataDir);
-          const hus = wNow.actors?.husband;
-          const botText = String(reply || '');
-
-          for (const comp of intent.companions) {
-            const cActor = wNow.actors?.[comp.id];
-            if (!cActor || cActor.dead || !hus?.location || cActor.location === hus.location) continue;
-
-            const st = (gate?.companionsStatus || []).find((s) => s.id === comp.id);
-            if (st?.notPresent) continue; // 不在场绝不搬
-
-            const rel = cActor.relations?.husband || {};
-            const trust = Number(rel.trust || 0);
-            const grievance = Number(rel.grievance || 0);
-            const busyText = typeof cActor.activity === 'object' ? String(cActor.activity?.text || '') : String(cActor.activity || '');
-
-            const saysDecline = /(脱不开身|改日|先去吧|手头有活|走不开|且慢|稍后再去|妾身不去|奴家不去|恕难同行)/.test(botText);
-            const saysAgree = /(妾身随相公|依相公|一同去|这就随相公|走吧|同去|收拾收拾便来|依偎|相随|挽着|随行)/.test(botText);
-
-            let willFollow = false;
-            if (saysAgree) {
-              willFollow = true;
-            } else if (saysDecline || grievance >= 40 || (busyText && /(核账|看账|守店|熬药)/.test(busyText))) {
-              willFollow = false;
-            } else if (trust >= 60) {
-              willFollow = true; // 高信任 (≥60) 默认跟
-            } else {
-              willFollow = false; // 低信任默认留，附一句迟疑推拉
-            }
-
-            if (willFollow) {
-              cActor.location = hus.location;
-              saveState(this.dataDir, wNow);
-              const pName = wNow.places?.[hus.location]?.name || hus.location;
-              console.log(`[Party] 同行名单：${hus.name || '王甯'} + ${cActor.name}`);
-              console.log(`[Move] ${hus.name || '王甯'} → ${pName} (同行: ${cActor.name})`);
-            } else {
-              console.log(`[Party] 同行名单：${hus.name || '王甯'} (${cActor.name}婉拒留在原地)`);
-              console.log(`[Move] ${hus.name || '王甯'} → ${wNow.places?.[hus.location]?.name || hus.location} (同行: 独自一人)`);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[Pipeline] 同行兜底判定异常:', err.message);
-      }
-
-      // 兜底记账：付了钱却没记 → 按"上一句报价 + 这一句答应买"两段式对账
-      // 五道闸门：①这一句有购买动作 ②上一句报了价 ③不是"免了/回头再给" ④金额不离谱 ⑤这轮还没记过花销
-      try {
-        const alreadyPaid = applied.some((x) => /花销|银两|资产/.test(String(x)));
-        const buyWords = /(买|要了|来一|来两|来半|付钱|付账|结账|打赏|雇|租下|住下|拿走|带走|打包|就要这个|成，|好，就)/;
-        const freeWords = /(不要钱|送你|免了|不必|算了|回头再给|下回给|记在账上|赊着)/;
-        const prevBot = [...(this.readHistory(profileKey).messages || [])].reverse().find((x) => x.role !== 'user')?.text || '';
-        if (!alreadyPaid && buyWords.test(say) && !freeWords.test(String(prevBot))) {
-          const m = String(prevBot).match(/([0-9]+|[一二三四五六七八九十百千]+)\s*(文|两)(?:银|钱|整)?/);
-          if (m) {
-            const raw = m[1];
-            const unit = m[2];
-            const num = /^[0-9]/.test(raw) ? Number(raw) : cnNum(raw);
-            const liang = unit === '文' ? num / 1000 : num;
-            if (Number.isFinite(liang) && liang > 0 && liang <= 5) {
-              const paid = applyWorldTags(this.dataDir, [{ kind: 'spend', args: { amount: liang, unit: '两', reason: '对话消费' } }], {
-                selfId: this._viewerActorId || 'husband',
-              });
-              if (paid.length > 0) console.log(`[Ledger] 兜底扣款 ${num}${unit}：${paid.join('、')}`);
-              else console.log(`[Ledger] 兜底扣款未成（钱不够）：${num}${unit}`);
-            } else {
-              console.log(`[Ledger] 金额可疑，未自动扣：${num}${unit}`);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[Ledger] 兜底扣款失败：', err.message);
-      }
+      // 军规：位移、同行与花销已完全由客户端交互系统掌控（/api/world/go、/api/world/confirm 等）
+      // 聊天对话纯粹为沉浸式剧情推进，绝不在此暗自挪移人物物理位置或兜底扣除银两
 
       // 主模型没写回执 → 记账员在后台补记（不阻塞回复，否则容易拖到客户端超时）
       let changed = applied.length > 0;
@@ -2822,22 +2735,7 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 「跟我去/陪我去」→ 她真的跟着走，不许站着讲理由
-    try {
-      const saidG = String(say || '');
-      if (/(跟我去|跟我来|陪我去|随我去|一起去|同去)/.test(saidG)) {
-        const wG = loadState(this.dataDir);
-        const meG = this._viewerActorId ? wG.actors?.[this._viewerActorId] : wG.actors?.husband;
-        const partnerIdG = String((wG.chatPartners || {})[this._viewerActorId || 'husband'] || '');
-        const target = wG.actors?.[partnerIdG];
-        if (target && meG && !target.dead && target.location !== meG.location) {
-          target.location = meG.location;
-          target.activity = { text: '跟着同行', at: wG.clock?.hour || 0, day: wG.clock?.day || 1 };
-          saveState(this.dataDir, wG);
-          console.log(`[Scene] ${target.name}跟着走了`);
-        }
-      }
-    } catch { /* 忽略 */ }
+    // 找人与同行由客户端交互面板调用 /api/world/summon 驱动，聊天中不因"同去/跟我去"等词偷听挪移
 
     // 有人说正经台词了，旁白就别再占一行（它会每轮重复同一句）
     try {
@@ -2915,113 +2813,8 @@ export class PetService {
    * 只要出现这个标记，就把相公与本轮开口的人一起挪过去——不依赖模型是否记得写回执。
    */
   syncSceneFromReply(text, { skipHusbandMove = false, selfId = 'husband' } = {}) {
-    try {
-      const m = String(text || '').match(/【天道[·:：]\s*([^】]{2,24})】/);
-      if (!m) return null;
-      const placeNameRaw = m[1]
-        .split(/[·・]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        // 「【天道·地点·雅阁】」里的"地点"是格式词，不是地名，必须剥掉
-        .filter((s, i) => !(i === 0 && /^(地点|场景|场所|时空|现场)$/.test(s)));
-      if (placeNameRaw.length === 0) return null;
-      let placeName = placeNameRaw.join('·');
-      // 「院中/屋里/房中」这类不是地名，归到真实所在，别另建一处
-      const VAGUE = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外)$/;
-      if (VAGUE.test(placeName)) {
-        const meV = world.actors?.[selfId] || world.actors?.husband;
-        const homePlace = meV?.home && world.places?.[meV.home] ? meV.home : null;
-        const back = world.places?.backyard ? 'backyard' : null;
-        const target = homePlace || back || meV?.location;
-        if (target && world.places?.[target]) {
-          console.log(`[Scene] 「${placeName}」不是地名，按${world.places[target].name}算`);
-          return { place: world.places[target].name, moved: [] };
-        }
-      } // 保留「大酒楼·后院账房」这种细位置
-      let headName = placeNameRaw[0];
-
-      const world = loadState(this.dataDir);
-      const me = world.actors?.[selfId] || world.actors?.husband;
-      if (!me) return null;
-
-      // 「【天道·林芸娘】」这种是人名不是地点 → 换成她所在之处，别建出「林芸娘处」
-      const personHit = Object.values(world.actors || {}).find(
-        (a) => a?.name && (headName === a.name || headName === (a.name.length > 2 ? a.name.slice(-2) : a.name)),
-      );
-      if (personHit && world.places?.[personHit.location]) {
-        placeName = world.places[personHit.location].name;
-        headName = placeName;
-      }
-
-      // 「雅阁/二楼雅阁/雅间」是临江茶坊的茶室，归并到 tea_house，严禁另建独立地点
-      let placeId = null;
-      if (/^(雅阁|二楼雅阁|茶坊雅阁|茶阁|雅间)$/.test(headName) || /^(雅阁|二楼雅阁|茶坊雅阁|茶阁|雅间)$/.test(placeName)) {
-        if (world.places?.tea_house) {
-          placeId = 'tea_house';
-          placeName = world.places.tea_house.name || '临江茶坊';
-          headName = placeName;
-        }
-      }
-      if (!placeId) {
-        placeId = Object.keys(world.places || {}).find((id) => {
-          const n = world.places[id]?.name || '';
-          return n === placeName || n === headName;
-        });
-      }
-      if (!placeId) {
-        for (const [id, p] of Object.entries(world.places || {})) {
-          const n = p?.name || '';
-          if (!n) continue;
-          if (n.includes(headName) || headName.includes(n)) {
-            placeId = id;
-            break;
-          }
-        }
-      }
-      if (!placeId) {
-        world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
-        placeId = `place_${world.flags.placeSeq}`;
-        world.places[placeId] = { name: placeName, exits: [], dynamic: true };
-      }
-
-      const moved = [];
-      // 优先级铁律：引擎这轮已经决定过相公去哪（比如他说"我走了"），模型的场景标记不得再改
-      if (skipHusbandMove) {
-        moved.push('（相公位置已由引擎决定，忽略场景标记）');
-      } else if (me.location !== placeId) {
-        me.location = placeId;
-        moved.push(String(world.actors?.[selfId]?.name || '相公'));
-      }
-
-      // 只有「实景地点」才把说话的人一起带过去；
-      // 马车、路上、船上这类过场地点只挪相公，否则几轮下来所有人都会挤进马车。
-      const isTransient = /(马车|车上|马上|路上|途中|轿|船|码头边|街口|门口)/.test(placeName);
-      if (!isTransient) {
-        const speakers = [...String(text).matchAll(/【([^】\n]{1,10})】/g)].map((x) => x[1].trim());
-        let carried = 0;
-        for (const name of speakers) {
-          if (carried >= 2) break; // 一轮最多带两人，避免整府搬家
-          const id = Object.keys(world.actors || {}).find((k) => {
-            const a = world.actors[k];
-            if (!a?.name || k === 'husband' || a.kind === 'human') return false;
-            const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
-            return a.name === name || name.includes(a.name) || name.includes(short);
-          });
-          if (!id) continue;
-          if (world.actors[id].location !== placeId) {
-            world.actors[id].location = placeId;
-            moved.push(world.actors[id].name);
-            carried += 1;
-          }
-        }
-      }
-
-      if (moved.length === 0) return null;
-      saveState(this.dataDir, world);
-      return { place: placeName, moved };
-    } catch {
-      return null;
-    }
+    // 军规：转场全由交互系统 (/api/world/go) 控制，绝不从回复场景文本中修改物理位置
+    return null;
   }
 
   /**

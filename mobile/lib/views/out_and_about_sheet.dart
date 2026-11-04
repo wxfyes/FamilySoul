@@ -20,6 +20,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
   Map<String, dynamic>? _menu;
   bool _loading = true;
   bool _busy = false;
+  String _query = '';
 
   @override
   void initState() {
@@ -113,6 +114,29 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+              child: TextField(
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: '搜地方、搜人（如：货栈 / 采云）',
+                  hintStyle: const TextStyle(color: Colors.white24, fontSize: 12.5),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 17, color: Colors.white38),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 15, color: Colors.white38),
+                          onPressed: () => setState(() => _query = ''),
+                        ),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.06),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide.none),
+                ),
+                onChanged: (v) => setState(() => _query = v.trim()),
+              ),
+            ),
             TabBar(
               controller: _tab,
               labelColor: const Color(0xFF8B5CF6),
@@ -139,10 +163,17 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
   }
 
   Widget _places(Map<String, dynamic>? d) {
-    final places = (d?['places'] as List?) ?? const [];
-    final homes = (d?['homes'] as List?) ?? const [];
+    bool hit(Map m) {
+      if (_query.isEmpty) return true;
+      final q = _query;
+      final hay = '${m['name'] ?? ''}${m['role'] ?? ''}${m['place'] ?? ''}${(m['names'] as List?)?.join('') ?? ''}';
+      return hay.contains(q);
+    }
+
+    final places = ((d?['places'] as List?) ?? const []).where((x) => x is Map && hit(x)).toList();
+    final homes = ((d?['homes'] as List?) ?? const []).where((x) => x is Map && hit(x)).toList();
     if (places.isEmpty && homes.isEmpty) {
-      return const Center(child: Text('附近没什么地方可去', style: TextStyle(color: Colors.white54)));
+      return Center(child: Text(_query.isEmpty ? '没有可去的地方' : '没搜到「$_query」', style: const TextStyle(color: Colors.white54)));
     }
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -181,9 +212,15 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
   }
 
   Widget _people(Map<String, dynamic>? d) {
-    final people = (d?['people'] as List?) ?? const [];
+    bool hitP(Map m) {
+      if (_query.isEmpty) return true;
+      final q = _query;
+      return '${m['name'] ?? ''}${m['role'] ?? ''}${m['place'] ?? ''}'.contains(q);
+    }
+
+    final people = ((d?['people'] as List?) ?? const []).where((x) => x is Map && hitP(x)).toList();
     if (people.isEmpty) {
-      return const Center(child: Text('世上没别人', style: TextStyle(color: Colors.white54)));
+      return Center(child: Text(_query.isEmpty ? '世上没别人' : '没搜到「$_query」', style: const TextStyle(color: Colors.white54)));
     }
     final groups = <String, List>{};
     for (final p in people) {
@@ -191,7 +228,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
       groups.putIfAbsent(g, () => []).add(p);
     }
     // 按服务端给的视角分组渲染（相公：府内/相好/其他人；她：我的人/王家/其他人）
-    final order = ['我的人', '府内', '王家', '相好', '其他人'];
+    final order = ['我的人', '府内', '王家', '相好', '常来往', '其他人'];
     final names = groups.keys.toList()
       ..sort((a, b) {
         final ia = order.indexOf(a), ib = order.indexOf(b);

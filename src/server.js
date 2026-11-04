@@ -422,6 +422,16 @@ const STARTED_AT = Date.now();
           .sort((x, y) => (y.count - x.count) || x.name.localeCompare(y.name, 'zh'))
           .slice(0, 300);
 
+        // 常来往：关系网里处得来的人（不是仇家），加进"找人"的第一组
+        const friendIds = new Set();
+        try {
+          const myBonds = world.bonds?.[actorId] || {};
+          for (const [otherId, b] of Object.entries(myBonds)) {
+            if (!b || b.type === '仇家' || b.type === '主仆') continue;
+            if (Number(b.score) >= 20 && world.actors?.[otherId] && !world.actors[otherId].dead) friendIds.add(otherId);
+          }
+        } catch { /* 忽略 */ }
+
         // 可找的人：府内 / 相好 / 其他
         const rel = (a) => a.relations?.husband || {};
         const isIntimate = (a) => (a.intimacy && a.intimacy.consummated) || Number(rel(a).trust) >= 60;
@@ -430,7 +440,9 @@ const STARTED_AT = Date.now();
         const group = (a) => {
           if (isHusbandViewer) {
             if (a.household) return '府内';
-            return isIntimate(a) ? '相好' : '其他人';
+            if (isIntimate(a)) return '相好';
+            if (friendIds.has(a.id)) return '常来往';
+            return '其他人';
           }
           // 她的视角
           if (a.id === 'husband') return '我的人';
@@ -450,8 +462,8 @@ const STARTED_AT = Date.now();
           }))
           .sort((x, y) => {
             const o = isHusbandViewer
-              ? { 府内: 0, 相好: 1, 其他人: 2 }
-              : { 我的人: 0, 王家: 1, 其他人: 2 };
+              ? { 府内: 0, 相好: 1, 常来往: 2, 其他人: 3 }
+              : { 我的人: 0, 王家: 1, 常来往: 2, 其他人: 3 };
             const ax = o[x.group] ?? 9;
             const ay = o[y.group] ?? 9;
             if (ax !== ay) return ax - ay;
