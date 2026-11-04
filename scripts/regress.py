@@ -278,6 +278,20 @@ console.log(ok1 ? 'PASS' : 'FAIL missing marriage fact in summary');
     return 'PASS' in out, out
 
 
+@case('日常口语不造景位移（相公稳居原处不乱瞬移）')
+def c15():
+    out = run_node(HEAD + """
+w.actors.husband.location = 'husband_room';
+saveState(dir, w);
+const { applySummon } = await import('./src/world/summon.js');
+const res = applySummon(dir, '你补上就行了', '妾身就挑个好日子补上。', 'husband');
+const s = loadState(dir);
+const ok = s.actors.husband.location === 'husband_room' && !Object.values(s.places || {}).some(p => p.name === '就行');
+console.log(ok ? 'PASS' : 'FAIL moved to ' + s.actors.husband.location);
+""" + TAIL)
+    return 'PASS' in out, out
+
+
 def main():
     passed = failed = 0
     for name, fn in CASES:

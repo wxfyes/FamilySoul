@@ -3,346 +3,956 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>天道世界 · 看板</title>
+<title>大道乾坤 · 天道中枢看板</title>
 <style>
-  :root{
-    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --line:#2a2f3a;
-    --txt:#e8eaee; --dim:#98a1b0; --good:#39c07a; --warn:#e0a13a; --bad:#e05a5a; --accent:#6ea8fe;
+  :root {
+    --bg-main: #0c0e12;
+    --bg-sidebar: #12151c;
+    --bg-card: #171b24;
+    --bg-card-hover: #1c222e;
+    --bg-card-sub: #1e2430;
+    --border-color: #262c3b;
+    --border-light: rgba(255,255,255,0.08);
+    --border-glow: rgba(110,168,254,0.25);
+    
+    --text-main: #e8ecf4;
+    --text-muted: #8b95a8;
+    --text-dim: #646f82;
+    
+    --accent-blue: #38bdf8;
+    --accent-gold: #fbbf24;
+    --accent-pink: #f472b6;
+    --accent-green: #34d399;
+    --accent-purple: #c084fc;
+    --accent-red: #f87171;
+    
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 18px rgba(0,0,0,0.4);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
   }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
-  header{position:sticky;top:0;z-index:9;background:rgba(15,17,21,.96);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  header h1{font-size:15px;margin:0;font-weight:600}
-  .pill{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--dim)}
-  .pill b{color:var(--txt);font-weight:600}
-  main{padding:14px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));max-width:1400px;margin:0 auto}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-  .card h2{font-size:13px;margin:0 0 10px;color:var(--dim);font-weight:600;letter-spacing:.04em}
-  .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.04)}
-  .row:last-child{border-bottom:0}
-  .row span:first-child{color:var(--dim)}
-  .big{font-size:22px;font-weight:700}
-  .good{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{padding:5px 6px;text-align:left;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
-  th{color:var(--dim);font-weight:500;font-size:12px}
-  td.num{font-variant-numeric:tabular-nums}
-  .tag{display:inline-block;border-radius:6px;padding:0 6px;font-size:11px;border:1px solid var(--line);color:var(--dim)}
-  .tag.bad{border-color:var(--bad);color:var(--bad)}
-  .tag.warn{border-color:var(--warn);color:var(--warn)}
-  .tag.good{border-color:var(--good);color:var(--good)}
-  .bar{height:6px;background:#0c0e12;border-radius:4px;overflow:hidden;min-width:46px}
-  .bar i{display:block;height:100%;background:var(--accent)}
-  pre{white-space:pre-wrap;word-break:break-word;background:#0c0e12;border:1px solid var(--line);border-radius:8px;padding:10px;margin:0;font-size:12.5px;line-height:1.75;max-height:420px;overflow:auto}
-  .full{grid-column:1/-1}
-  button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px}
-  button:hover{border-color:var(--accent)}
-  input{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;width:260px}
-  .ev{font-size:12.5px;color:var(--dim);padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.04)}
-  .ev b{color:var(--txt);font-weight:500}
-  .muted{color:var(--dim);font-size:12px}
-  /* 天下：城池卡片式 */
-  .geo-region { border-top: 1px solid #232833; padding: 6px 0; }
-  .geo-head { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 2px; }
-  .geo-head b { font-size: 13px; }
-  .geo-head .geo-arrow { margin-left: auto; color: #6b7280; transition: transform .15s; }
-  .geo-region.open .geo-arrow { transform: rotate(90deg); }
-  .geo-chips { display: none; flex-wrap: wrap; gap: 6px; padding: 6px 0 2px 4px; }
-  .geo-region.open .geo-chips { display: flex; }
-  .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
-          background: #1b2029; border: 1px solid #2a303c; color: #cfd6e2; font-size: 12px; line-height: 1.4; }
-  .chip.mine { background: #17301f; border-color: #2f6b46; color: #9fe0b8; }
-  /* 朝中 / 天下：横向网格 */
-  .off-block { margin-bottom: 8px; }
-  .off-title { font-size: 12px; color: #8b93a7; margin: 4px 0 6px; }
-  .off-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px; }
-  .off-item { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px;
-              background: #1b2029; border: 1px solid #262c37; border-radius: 6px; font-size: 12px; }
-  .off-item b { font-weight: 600; color: #dfe5ee; }
-  .geo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; align-items: start; }
-  .geo-region { border: 1px solid #232833; border-radius: 8px; padding: 6px 8px; background: #171b22; }
-  .bind-table { width: 100%; border-collapse: collapse; }
-  .bind-table th { text-align: left; font-size: 11.5px; color: #7d8598; font-weight: 500; padding: 4px 8px; }
-  .bind-table td { padding: 6px 8px; border-top: 1px solid #232833; vertical-align: middle; }
-  .bind-title { white-space: nowrap; }
-  .bind-select { background: #1e222b; color: #e8eaee; border: 1px solid #2a2f3a; border-radius: 6px; padding: 4px 8px; min-width: 180px; max-width: 260px; }
-  .todo-del { color:#e05a5a; margin-left:10px; cursor:pointer; font-weight:600; }
-  .todo-del:hover { color:#ff8080; }
-  .row.todo-armed { background:#3a1c1c; border-radius:6px; outline:1px solid #e05a5a; }
+  
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-main);
+    color: var(--text-main);
+    font: 13.5px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    overflow-x: hidden;
+  }
 
-main section.card.collapsed > .card-body { display: none; }
-main section.card > h2 { user-select: none; }
-main section.card.collapsed > h2::after { content: '　▸'; opacity: .5; font-size: 12px; }
-main section.card:not(.collapsed) > h2::after { content: '　▾'; opacity: .35; font-size: 12px; }
+  /* 整体 App 容器布局 */
+  .app-container {
+    display: flex;
+    min-height: 100vh;
+    background: radial-gradient(circle at 15% 15%, #151a24 0%, #0c0e12 55%);
+  }
 
-.nav-cols{display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:14px}
-@media(max-width:900px){.nav-cols{grid-template-columns:1fr}}
-.nav-title{font-size:12px;opacity:.6;margin-bottom:4px}
-.nav-chips{display:flex;flex-wrap:wrap;gap:6px}
-.nav-btn{background:rgba(120,150,255,.12);border:1px solid rgba(120,150,255,.28);color:#cfe0ff;border-radius:8px;padding:4px 9px;font-size:12px;cursor:pointer}
-.nav-btn:hover{background:rgba(120,150,255,.22)}
-.nav-btn.sm{padding:2px 8px;font-size:11px}
-.nav-btn.ghost{background:transparent;border-color:rgba(255,255,255,.18);color:#9aa4b8}
-.nav-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12.5px}
+  /* 侧边栏 Sidebar */
+  .sidebar {
+    width: 240px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+    transition: transform 0.25s ease, width 0.25s ease;
+    flex-shrink: 0;
+  }
+
+  .sidebar-brand {
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(18, 21, 28, 0.8);
+    backdrop-filter: blur(8px);
+  }
+  .brand-icon {
+    font-size: 22px;
+    filter: drop-shadow(0 0 8px rgba(251,191,36,0.5));
+  }
+  .brand-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: linear-gradient(135deg, #fbbf24 0%, #fef08a 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 10px;
+  }
+  .nav-group-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    padding: 10px 10px 4px;
+    font-weight: 600;
+  }
+
+  .nav-tab {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 12px;
+    margin-bottom: 3px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    border: 1px solid transparent;
+  }
+  .nav-tab:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+  }
+  .nav-tab.active {
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.15) 0%, rgba(56, 189, 248, 0.04) 100%);
+    color: #e0f2fe;
+    border-color: rgba(56, 189, 248, 0.35);
+    font-weight: 600;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.1);
+  }
+  .tab-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+  }
+  .tab-badge {
+    margin-left: auto;
+    font-size: 10.5px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    background: var(--bg-card-sub);
+    color: var(--text-dim);
+    border: 1px solid var(--border-color);
+  }
+  .tab-badge.warm {
+    background: rgba(244, 114, 182, 0.2);
+    color: var(--accent-pink);
+    border-color: rgba(244, 114, 182, 0.4);
+  }
+
+  .sidebar-footer {
+    padding: 12px 14px;
+    border-top: 1px solid var(--border-color);
+    background: rgba(14, 17, 23, 0.6);
+  }
+  .husband-mini-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .husband-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    box-shadow: 0 0 10px rgba(217, 119, 6, 0.4);
+  }
+  .husband-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #fef3c7;
+  }
+  .husband-loc {
+    font-size: 11px;
+    color: var(--good);
+  }
+
+  /* 右侧主体 Wrapper */
+  .main-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* 顶部 Topbar */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    background: rgba(18, 21, 28, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .menu-toggle {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .header-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    padding: 3px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pill b { color: var(--text-main); font-weight: 600; }
+  .pill.primary { border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); color: #bae6fd; }
+  .pill.primary b { color: #38bdf8; }
+  .pill.info { border-color: rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.08); color: #a7f3d0; }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 6px var(--good); }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .token-input {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    font-size: 12px;
+    width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .token-input:focus { border-color: var(--accent-blue); }
+
+  .btn {
+    background: var(--bg-card-sub);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(255,255,255,0.2);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(14, 165, 233, 0.3) 100%);
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #e0f2fe;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.35) 0%, rgba(14, 165, 233, 0.45) 100%);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+  }
+
+  /* 内容展示区 Content Container */
+  .tab-content-area {
+    flex: 1;
+    padding: 18px 24px 40px;
+    max-width: 1480px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .tab-pane {
+    display: none;
+    animation: fadeIn 0.2s ease-out;
+  }
+  .tab-pane.active {
+    display: block;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 通用网格与卡片 */
+  .grid-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .grid-4cols {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media(max-width: 1200px) { .grid-4cols { grid-template-columns: repeat(2, 1fr); } }
+  @media(max-width: 640px) { .grid-4cols { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .card.full { width: 100%; margin-bottom: 16px; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card h2 {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+  }
+
+  .big { font-size: 24px; font-weight: 700; font-family: var(--font-number, inherit); }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.05);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: var(--text-muted); }
+  .muted { color: var(--text-muted); font-size: 12px; }
+
+  .good { color: var(--good); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+
+  .tag {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 11px;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    background: var(--bg-card-sub);
+  }
+  .tag.good { border-color: rgba(52, 211, 153, 0.4); color: var(--good); background: rgba(52, 211, 153, 0.08); }
+  .tag.warn { border-color: rgba(251, 191, 36, 0.4); color: var(--warn); background: rgba(251, 191, 36, 0.08); }
+  .tag.bad { border-color: rgba(248, 113, 113, 0.4); color: var(--bad); background: rgba(248, 113, 113, 0.08); }
+
+  /* 表格美化 */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 12px; background: rgba(0,0,0,0.15); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #090b0e;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+    max-height: 480px;
+    overflow: auto;
+    color: #cfd8dc;
+  }
+
+  /* 搜索框与筛选条 */
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    background: var(--bg-card-sub);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    font-size: 12.5px;
+    color: var(--text-main);
+    width: 260px;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent-blue); }
+
+  /* 优雅出行导航栏 */
+  .nav-cols { display: grid; grid-template-columns: 1.2fr 1.3fr 1fr; gap: 18px; }
+  @media(max-width: 960px) { .nav-cols { grid-template-columns: 1fr; } }
+  .nav-title { font-size: 12px; color: var(--accent-blue); font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .nav-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .nav-btn {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    color: #bae6fd;
+    border-radius: var(--radius-sm);
+    padding: 5px 11px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .nav-btn:hover {
+    background: rgba(56, 189, 248, 0.22);
+    border-color: rgba(56, 189, 248, 0.5);
+  }
+  .nav-btn.sm { padding: 3px 9px; font-size: 11.5px; }
+  .nav-btn.ghost { background: transparent; border-color: var(--border-color); color: var(--text-muted); }
+  .nav-btn.ghost:hover { border-color: rgba(255,255,255,0.3); color: var(--text-main); }
+  .nav-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.05);
+    font-size: 12.5px;
+  }
+
+  /* 遮罩层 (移动端抽屉遮罩) */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 95;
+    backdrop-filter: blur(4px);
+  }
+
+  @media(max-width: 960px) {
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      transform: translateX(-100%);
+      box-shadow: 4px 0 20px rgba(0,0,0,0.6);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.open { display: block; }
+    .menu-toggle { display: block; }
+    .tab-content-area { padding: 14px 14px 30px; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>天道世界 · 看板</h1>
-  <span class="pill">世界 <b id="h-clock">—</b></span>
-  <span class="pill">时空 <b id="h-epoch">—</b></span>
-  <span class="pill">体检 <b id="h-audit">—</b></span>
-  <span class="pill" id="h-updated">—</span>
-  <span style="flex:1"></span>
-  <input id="token" placeholder="令牌（husband token）">
-  <button onclick="saveToken()">保存</button>
-  <button onclick="load()">刷新</button>
-</header>
 
-<main>
-  <!-- 🌅 今日晨报（放看板最顶部一行，点开看全文） -->
-  <section class="card full" id="morning-banner" style="display:none; background: linear-gradient(90deg, #1d2330 0%, #171a21 100%); border-left: 4px solid var(--accent);">
-    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleMorningReport()">
-      <div style="display:flex; align-items:center; gap:10px; flex:1; overflow:hidden;">
-        <span style="font-size:16px;">🌅</span>
-        <b style="font-size:13.5px; color:#e0e6ed; white-space:nowrap;">今日晨报 · 阿吉报送</b>
-        <span id="morning-short" class="muted" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">—</span>
+<div class="app-container">
+  <!-- 移动端侧边栏遮罩 -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- 🏮 左侧主导航侧边栏 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🏮</div>
+      <div>
+        <div class="brand-title">大道乾坤</div>
+        <div class="brand-sub">相公专属中枢看板</div>
       </div>
-      <button type="button" id="morning-btn" style="margin-left:12px; font-size:11px; padding:2px 8px;">展开全文</button>
     </div>
-    <div id="morning-full" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); line-height:1.8; color:#d1d5db; font-size:13px; white-space:pre-wrap;"></div>
-  </section>
+    
+    <nav class="sidebar-nav">
+      <div class="nav-group-title">核心枢纽</div>
+      <a class="nav-tab active" data-tab="tab-overview">
+        <span class="tab-icon">🌟</span>
+        <span class="tab-label">总览主台</span>
+        <span class="tab-badge" id="badge-overview">主</span>
+      </a>
+      <a class="nav-tab" data-tab="tab-travel">
+        <span class="tab-icon">🧭</span>
+        <span class="tab-label">天下行踪</span>
+        <span class="tab-badge" id="badge-here">出行</span>
+      </a>
 
-  <section class="card full" id="card-nav">
-  <h2>🧭 出门 · 找人 · 赴约</h2>
-  <div class="muted" id="nav-where" style="margin:4px 0 8px">—</div>
-  <div id="nav-body"></div>
-</section>
+      <div class="nav-group-title">家业生计</div>
+      <a class="nav-tab" data-tab="tab-family">
+        <span class="tab-icon">🏡</span>
+        <span class="tab-label">后院内宅</span>
+        <span class="tab-badge warm" id="badge-preg">有喜</span>
+      </a>
+      <a class="nav-tab" data-tab="tab-business">
+        <span class="tab-icon">💰</span>
+        <span class="tab-label">商贾产业</span>
+      </a>
+      <a class="nav-tab" data-tab="tab-actors">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label">城中人物</span>
+      </a>
 
-<section class="card" id="card-household">
-    <h2>🏡 家宅</h2>
-    <div class="row" style="padding-bottom:6px;"><span class="big" id="h-family-top" style="color:#f472b6;">正妻 — · 侧室 — · 有孕 —</span></div>
-    <div id="family-detail" style="margin-top:6px;"></div>
-  </section>
+      <div class="nav-group-title">风云激荡</div>
+      <a class="nav-tab" data-tab="tab-court">
+        <span class="tab-icon">🏛️</span>
+        <span class="tab-label">庙堂朝政</span>
+      </a>
+      <a class="nav-tab" data-tab="tab-military">
+        <span class="tab-icon">⚔️</span>
+        <span class="tab-label">江山兵符</span>
+      </a>
+      <a class="nav-tab" data-tab="tab-rumors">
+        <span class="tab-icon">📜</span>
+        <span class="tab-label">市井风闻</span>
+      </a>
 
-  <section class="card" id="card-accounts">
-    <h2>💰 账目</h2>
-    <div class="row" style="padding-bottom:6px;"><span class="big" id="a-acc-top" style="color:#fbbf24;">现存 — 两 · 日入 — 两</span></div>
-    <div id="acc-detail" style="margin-top:6px;"></div>
-  </section>
-
-  <section class="card" id="card-court-core">
-    <h2>🏛️ 朝堂</h2>
-    <div class="row" style="padding-bottom:6px;"><span class="big" id="c-court-top" style="color:#60a5fa;">官职 — · 派系 —</span></div>
-    <div id="court-detail" style="margin-top:6px;"></div>
-  </section>
-
-  <section class="card" id="card-military-core">
-    <h2>⚔️ 军中</h2>
-    <div class="row" style="padding-bottom:6px;"><span class="big" id="m-military-top" style="color:#34d399;">兵 — · 士气 —</span></div>
-    <div id="military-detail" style="margin-top:6px;"></div>
-  </section>
-
-  <section class="card">
-    <h2>城中动静（各人自己的事）</h2>
-    <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>案子</h2>
-    <div id="cases" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>街面风评</h2>
-    <div id="rumors" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>关系网（谁跟谁一伙，谁跟谁有仇）</h2>
-    <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>大事记时间线</h2>
-    <div id="timeline" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>各自的主线（她们自己的人生）</h2>
-    <div id="arcs">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>待办（按时间排序）</h2>
-    <div id="todo"></div>
-  </section>
-
-  <section class="card">
-    <h2>线索（查到的底细）</h2>
-    <div id="clues">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>朝中（官职）</h2>
-    <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
-    <div id="treasury" class="muted" style="margin:0 0 10px">—</div>
-    <div id="court">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>人物（数值 + 她此刻的态度）<span class="muted" style="font-size:11px;font-weight:400">　点人名看人物志；官员见「朝中」</span></h2>
-    <table>
-      <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>私房钱</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
-      <tbody id="actors"></tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>天下（行会 · 外交 · 驻军）</h2>
-    <div id="realm" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>势力与兵力</h2>
-    <div class="row"><span>护院家丁</span><span id="m-guards" class="big">0</span></div>
-    <div class="row"><span>乡勇团练</span><span id="m-militia">0</span></div>
-    <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
-    <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
-    <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
-    <div class="row"><span>身份</span><span id="m-standing">—</span></div>
-    <div class="row"><span>名声 / 通缉</span><span id="m-rep">—</span></div>
-    <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
-  </section>
-
-  <section class="card full">
-    <h2>天下（城池归属）</h2>
-    <div id="cities">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>山川（地形）</h2>
-    <div id="terrain">—</div>
-  </section>
-
-  <section class="card">
-    <h2>基础设施</h2>
-    <div id="infra">—</div>
-  </section>
-
-  <section class="card full">
-    <h2>产业表（开遍全国）</h2>
-    <table>
-      <thead><tr><th>产业</th><th>东家</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
-      <tbody id="props"></tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>天机（她每轮看到的实况）</h2>
-    <pre id="summary">—</pre>
-  </section>
-
-  <section class="card">
-    <h2>她们亲口说过的话（原文）</h2>
-    <div id="quotes">—</div>
-  </section>
-
-  <section class="card">
-    <h2>最近事件</h2>
-    <div id="events">—</div>
-  </section>
-
-  <section class="card">
-    <h2>趋势（近 14 日）</h2>
-    <div id="trend" style="margin-top:6px">—</div>
-  </section>
-
-  <section class="card">
-    <h2>盘点（为什么没动静）</h2>
-    <div id="diag" class="muted" style="margin-top:6px">—</div>
-  </section>
-
-<section class="card" id="card-diag">
-  <h2>🩺 系统诊断</h2>
-  <div class="muted" id="diag-summary" style="margin:4px 0 6px">点开看：运行状态 · 花费 · 体检结果</div>
-  <details>
-    <summary style="cursor:pointer;font-size:12px;opacity:.8">展开明细</summary>
-    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
-      <div class="muted" style="margin-bottom:4px">运行状态</div>
-    <div class="row"><span>已运行</span><span id="r-uptime">—</span></div>
-    <div class="row"><span>内存占用</span><span id="r-rss">—</span></div>
-    <div class="row"><span>Node / PID / 端口</span><span id="r-node">—</span></div>
-    <div class="row"><span>回执率（近20轮）</span><span id="r-receipt">—</span></div>
-    <div class="row"><span>健康提示</span><span id="r-health">—</span></div>
+      <div class="nav-group-title">底层架构</div>
+      <a class="nav-tab" data-tab="tab-system">
+        <span class="tab-icon">⚙️</span>
+        <span class="tab-label">天机法阵</span>
+      </a>
+    </nav>
+    
+    <div class="sidebar-footer">
+      <div class="husband-mini-card">
+        <div class="husband-avatar">甯</div>
+        <div>
+          <div class="husband-name">王甯 · 相公</div>
+          <div class="husband-loc" id="sb-husband-loc">身在：正房</div>
+        </div>
+      </div>
     </div>
-    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
-      <div class="muted" style="margin-bottom:4px">花费</div>
-    <div class="row"><span>累计轮数</span><span id="c-rounds" class="big">—</span></div>
-    <div class="row"><span>平均每轮输入</span><span id="c-avg">—</span></div>
-    <div class="row"><span>缓存命中率</span><span id="c-hit">—</span></div>
-    <div class="row"><span>估算花费</span><span id="c-cost" class="big">—</span></div>
-    <div class="muted" id="c-note" style="margin-top:6px"></div>
-    </div>
-    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
-      <div class="muted" style="margin-bottom:4px">体检结果</div>
-    <div id="audit-box" class="muted">—</div>
-    </div>
-  </details>
-</section>
+  </aside>
 
-  <section class="card full">
-    <h2>成员绑定（这个账号演谁）</h2>
-    <table class="bind-table">
-      <thead><tr><th style="width:200px">成员</th><th style="width:160px">令牌</th><th>绑定到世界人物</th><th style="width:70px"></th></tr></thead>
-      <tbody id="bind"></tbody>
-    </table>
-    <div class="muted" style="margin-top:6px">没绑定的账号，看到的会是「相公」那份数据。</div>
-  </section>
+  <!-- 右侧主展示区 -->
+  <div class="main-wrapper">
+    <!-- 顶部统一 Sticky Header -->
+    <header class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()">☰ 目录</button>
+      
+      <div class="header-pills">
+        <span class="pill primary"><span class="pill-dot"></span>世界 <b id="h-clock">—</b></span>
+        <span class="pill">时空 <b id="h-epoch">—</b></span>
+        <span class="pill info">体检 <b id="h-audit">—</b></span>
+        <span class="pill muted" id="h-updated">—</span>
+      </div>
 
-  <section class="card">
-    <h2>真人（谁在用手机登着）</h2>
-    <div id="humans">—</div>
-  </section>
+      <div class="header-right">
+        <input id="token" class="token-input" placeholder="令牌 (husband token)">
+        <button class="btn btn-primary" onclick="saveToken()">保存</button>
+        <button class="btn" onclick="load()" title="一键刷新数据">🔄 刷新</button>
+      </div>
+    </header>
 
-  <section class="card" data-dup="1" style="display:none">
-    <h2>家底</h2>
-    <div class="row"><span>现银</span><span id="a-silver" class="big">—</span></div>
-    <div class="row"><span>日入合计</span><span id="a-income" class="big">—</span></div>
-    <div id="a-props"></div>
-  </section>
+    <!-- 主展示内容 Tabs -->
+    <main class="tab-content-area">
 
-  <section class="card">
-    <h2>清空记忆（危险 · 需二次确认）</h2>
-    <div class="row"><span>选择人物</span>
-      <select id="resetWho" style="background:#1e222b;color:#e8eaee;border:1px solid #2a2f3a;border-radius:8px;padding:4px 8px"></select>
+      <!-- ══════════════════════════════════════════════════
+           1. 🌟 总览主台 Tab (极度清爽大方，核心信息一目了然)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane active" id="tab-overview">
+        <!-- 今日晨报 Banner -->
+        <section class="card full" id="morning-banner" style="display:none; background: linear-gradient(90deg, #1d2535 0%, #151a24 100%); border-left: 4px solid var(--accent-blue);">
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleMorningReport()">
+            <div style="display:flex; align-items:center; gap:10px; flex:1; overflow:hidden;">
+              <span style="font-size:18px;">🌅</span>
+              <b style="font-size:13.5px; color:#e0e6ed; white-space:nowrap;">今日晨报 · 阿吉报送</b>
+              <span id="morning-short" class="muted" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">—</span>
+            </div>
+            <button type="button" id="morning-btn" class="btn" style="font-size:11px; padding:2px 8px;">展开全文</button>
+          </div>
+          <div id="morning-full" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border-color); line-height:1.8; color:#d1d5db; font-size:13px; white-space:pre-wrap;"></div>
+        </section>
+
+        <!-- 核心四大卡片网格 -->
+        <div class="grid-4cols">
+          <section class="card" id="card-household">
+            <h2>🏡 后院内眷</h2>
+            <div class="row" style="padding-bottom:6px;"><span class="big" id="h-family-top" style="color:var(--accent-pink);">正妻 — · 侧室 — · 有孕 —</span></div>
+            <div id="family-detail" style="margin-top:6px;"></div>
+          </section>
+
+          <section class="card" id="card-accounts">
+            <h2>💰 银两与日入</h2>
+            <div class="row" style="padding-bottom:6px;"><span class="big" id="a-acc-top" style="color:var(--accent-gold);">现存 — 两 · 日入 — 两</span></div>
+            <div id="acc-detail" style="margin-top:6px;"></div>
+          </section>
+
+          <section class="card" id="card-court-core">
+            <h2>🏛️ 庙堂派系</h2>
+            <div class="row" style="padding-bottom:6px;"><span class="big" id="c-court-top" style="color:var(--accent-blue);">官职 — · 派系 —</span></div>
+            <div id="court-detail" style="margin-top:6px;"></div>
+          </section>
+
+          <section class="card" id="card-military-core">
+            <h2>⚔️ 军中兵马</h2>
+            <div class="row" style="padding-bottom:6px;"><span class="big" id="m-military-top" style="color:var(--accent-green);">兵 — · 士气 —</span></div>
+            <div id="military-detail" style="margin-top:6px;"></div>
+          </section>
+        </div>
+
+        <!-- 当务之急待办与大事速览 -->
+        <div class="grid-cards">
+          <section class="card">
+            <h2>⏳ 今日待办约定</h2>
+            <div id="todo"></div>
+          </section>
+          <section class="card">
+            <h2>👀 城中人物动静</h2>
+            <div id="npcarcs" class="muted" style="margin-top:6px">—</div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           2. 🧭 天下行踪 Tab (出行、找人、待办，宽敞大气)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-travel">
+        <section class="card full" id="card-nav">
+          <div class="card-header">
+            <h2>🧭 出门 · 找人 · 赴约</h2>
+            <div class="muted" id="nav-where" style="font-size:13px; color:#38bdf8;">—</div>
+          </div>
+          <div id="nav-body"></div>
+        </section>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           3. 🏡 后院内宅 Tab (各房眷属、身孕名分、各自心事)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-family">
+        <section class="card full">
+          <h2>🌸 各自主线与心事（她们自己的人生羁绊）</h2>
+          <div id="arcs">—</div>
+        </section>
+        <section class="card full">
+          <h2>💬 佳人原话（字字句句，亲口道来）</h2>
+          <div id="quotes">—</div>
+        </section>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           4. 💰 商贾产业 Tab (全国产业总表、借贷、基础设施)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-business">
+        <section class="card full">
+          <h2>🏢 全国产业总览（开遍全国）</h2>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr><th>产业</th><th>东家</th><th>城市</th><th>地点</th><th>掌柜</th><th>人手</th><th>日入</th><th>状态</th><th>开张</th></tr></thead>
+              <tbody id="props"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card full">
+          <h2>🧱 基础设施建设</h2>
+          <div id="infra">—</div>
+        </section>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           5. 👥 城中人物 Tab (大表筛选与彼此恩怨关系网)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-actors">
+        <section class="card full">
+          <div class="card-header">
+            <h2>👥 城中人物名录 <span class="muted" style="font-weight:400">（点击人名查阅人物志；官员见「朝政」）</span></h2>
+          </div>
+          <div class="filter-bar">
+            <input type="text" id="actorSearch" class="search-input" placeholder="🔍 快速搜索人物名、身份、地点...">
+            <button class="btn sm" onclick="filterActors('', 'all')">全部</button>
+            <button class="btn sm" onclick="filterActors('', 'here')">在场之人</button>
+            <button class="btn sm" onclick="filterActors('', 'house')">府中内眷</button>
+            <button class="btn sm" onclick="filterActors('', 'love')">红颜相好</button>
+            <button class="btn sm" onclick="filterActors('', 'court')">官府官员</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>私房钱</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
+              <tbody id="actors"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card full">
+          <h2>🕸️ 恩怨关系网（谁跟谁一伙，谁跟谁结仇）</h2>
+          <div id="bondmap" style="margin-top:6px;overflow:auto">—</div>
+        </section>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           6. 🏛️ 庙堂朝政 Tab (朝中文武、案子、国库律令)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-court">
+        <section class="card full">
+          <h2>🏛️ 朝中官职与百官</h2>
+          <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
+          <div id="treasury" class="muted" style="margin:0 0 10px">—</div>
+          <div id="court">—</div>
+        </section>
+        <section class="card full">
+          <h2>⚖️ 官府案卷（公堂卷宗）</h2>
+          <div id="cases" class="muted" style="margin-top:6px">—</div>
+        </section>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           7. ⚔️ 江山兵符 Tab (兵力势力、天下城池、山川)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-military">
+        <div class="grid-cards">
+          <section class="card">
+            <h2>⚔️ 势力与兵力编制</h2>
+            <div class="row"><span>护院家丁</span><span id="m-guards" class="big">0</span></div>
+            <div class="row"><span>乡勇团练</span><span id="m-militia">0</span></div>
+            <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
+            <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
+            <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
+            <div class="row"><span>身份</span><span id="m-standing">—</span></div>
+            <div class="row"><span>名声 / 通缉</span><span id="m-rep">—</span></div>
+            <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
+          </section>
+          <section class="card">
+            <h2>🚩 天下行会 · 外交 · 驻军</h2>
+            <div id="realm" class="muted" style="margin-top:6px">—</div>
+          </section>
+        </div>
+        <section class="card full">
+          <h2>🗺️ 天下城池归属版图</h2>
+          <div id="cities">—</div>
+        </section>
+        <section class="card full">
+          <h2>⛰️ 山川地理（山河地形）</h2>
+          <div id="terrain">—</div>
+        </section>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           8. 📜 市井风闻 Tab (风评、线索、大事记、事件流)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-rumors">
+        <div class="grid-cards">
+          <section class="card">
+            <h2>🗣️ 街面风评（市井口舌）</h2>
+            <div id="rumors" class="muted" style="margin-top:6px">—</div>
+          </section>
+          <section class="card">
+            <h2>🔎 查探线索（底细密辛）</h2>
+            <div id="clues">—</div>
+          </section>
+        </div>
+        <section class="card full">
+          <h2>📜 大事记时间线（天下纪实）</h2>
+          <div id="timeline" class="muted" style="margin-top:6px">—</div>
+        </section>
+        <div class="grid-cards">
+          <section class="card">
+            <h2>⚡ 最近世界事件</h2>
+            <div id="events">—</div>
+          </section>
+          <section class="card">
+            <h2>📈 近 14 日大势走向趋势</h2>
+            <div id="trend" style="margin-top:6px">—</div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════
+           9. ⚙️ 天机法阵 Tab (天机原文、成员绑定、诊断、重置)
+           ══════════════════════════════════════════════════ -->
+      <div class="tab-pane" id="tab-system">
+        <section class="card full">
+          <h2>🔮 天机实况（大模型每轮注入的客观账本原文）</h2>
+          <pre id="summary">—</pre>
+        </section>
+
+        <section class="card full">
+          <h2>📱 家庭成员账号绑定（角色身份承载）</h2>
+          <table class="bind-table">
+            <thead><tr><th style="width:200px">成员</th><th style="width:160px">令牌</th><th>绑定到世界人物</th><th style="width:70px"></th></tr></thead>
+            <tbody id="bind"></tbody>
+          </table>
+          <div class="muted" style="margin-top:8px">没绑定的账号，看到的会是「相公」那份全景数据。</div>
+        </section>
+
+        <div class="grid-cards">
+          <section class="card" id="card-diag">
+            <h2>🩺 系统运行诊断与花费</h2>
+            <div class="row"><span>已运行</span><span id="r-uptime">—</span></div>
+            <div class="row"><span>内存占用</span><span id="r-rss">—</span></div>
+            <div class="row"><span>Node / PID / 端口</span><span id="r-node">—</span></div>
+            <div class="row"><span>回执率（近20轮）</span><span id="r-receipt">—</span></div>
+            <div class="row"><span>健康提示</span><span id="r-health">—</span></div>
+            <div class="row" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-color);">
+              <span>估算花费</span><span id="c-cost" class="big" style="color:var(--accent-gold);">—</span>
+            </div>
+            <div class="row"><span>累计轮数</span><span id="c-rounds">—</span></div>
+            <div class="row"><span>缓存命中率</span><span id="c-hit">—</span></div>
+            <div id="audit-box" class="muted" style="margin-top:8px">—</div>
+          </section>
+
+          <section class="card">
+            <h2>⚠️ 记忆抹除与改名（需输入名字确认）</h2>
+            <div class="row"><span>选择人物</span>
+              <select id="resetWho" style="background:#1e2430;color:#e8ecf4;border:1px solid #262c3b;border-radius:6px;padding:4px 8px"></select>
+            </div>
+            <div class="row"><span>清空范畴</span>
+              <span>
+                <label class="muted"><input type="checkbox" id="rsHistory" checked> 对话历史</label>
+                <label class="muted"><input type="checkbox" id="rsWorld" checked> 关系身孕</label>
+                <label class="muted"><input type="checkbox" id="rsMem" checked> 记忆</label>
+                <label class="muted"><input type="checkbox" id="rsDeep"> 深度抹除</label>
+              </span>
+            </div>
+            <div class="row"><span>确认执行</span><span>
+              <input id="resetConfirm" placeholder="输入姓名以确认" style="width:130px;background:#1e2430;border:1px solid #262c3b;color:#fff;padding:4px 8px;border-radius:6px;">
+              <button class="btn btn-primary" onclick="doReset()">执行清空</button>
+            </span></div>
+            <div class="muted" id="resetMsg" style="margin-top:6px"></div>
+            <div class="row" style="margin-top:12px;border-top:1px dashed var(--border-color);padding-top:8px">
+              <span>人物改名</span>
+              <span>
+                <input id="renameTo" placeholder="输入新名字" style="width:110px;background:#1e2430;border:1px solid #262c3b;color:#fff;padding:4px 8px;border-radius:6px;">
+                <button class="btn" onclick="doRename()">改名</button>
+              </span>
+            </div>
+            <div class="muted" id="renameMsg" style="margin-top:4px"></div>
+          </section>
+        </div>
+
+        <section class="card" style="margin-top:14px;">
+          <h2>👥 真人登录状态（正在连接的家庭成员）</h2>
+          <div id="humans">—</div>
+        </section>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 人物志弹窗 Modal -->
+<div id="actorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;backdrop-filter:blur(4px)" onclick="if(event.target===this)closeActor()">
+  <div style="max-width:580px;margin:7vh auto;background:#181c24;border:1px solid var(--border-color);border-radius:16px;padding:20px;max-height:82vh;overflow:auto;box-shadow:var(--shadow-md);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border-color);">
+      <b id="amName" style="font-size:17px;color:#fef08a"></b>
+      <a href="javascript:void(0)" onclick="closeActor()" class="btn sm" style="text-decoration:none">✕ 关闭</a>
     </div>
-    <div class="row"><span>清什么</span>
-      <span>
-        <label class="muted"><input type="checkbox" id="rsHistory" checked> 聊天历史</label>
-        <label class="muted"><input type="checkbox" id="rsWorld" checked> 关系/身孕</label>
-        <label class="muted"><input type="checkbox" id="rsMem" checked> 她的记忆</label>
-        <label class="muted"><input type="checkbox" id="rsDeep"> 深度抹除（原话/约定/事件/对话）</label>
-      </span>
-    </div>
-    <div class="row"><span>确认</span><span>
-      <input id="resetConfirm" placeholder="输入她的名字以确认" style="width:150px">
-      <button onclick="doReset()">执行清空</button>
-    </span></div>
-    <div class="muted" id="resetMsg" style="margin-top:6px"></div>
-    <div class="row" style="margin-top:10px;border-top:1px dashed #2a2f3a;padding-top:8px">
-      <span>改名</span>
-      <span>
-        <input id="renameTo" placeholder="新名字" style="width:110px">
-        <button onclick="doRename()">改名</button>
-      </span>
-    </div>
-    <div class="muted" id="renameMsg" style="margin-top:4px"></div>
-  </section>
-
-</main>
+    <div id="amBody" style="font-size:13px;line-height:1.75;color:#e2e8f0"></div>
+  </div>
+</div>
 
 <script>
+
+// ── 侧边栏与选项卡切换系统 ──────────────────────────────────────
+function switchTab(tabId) {
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.toggle('active', p.id === tabId);
+  });
+  try {
+    localStorage.setItem('fs_active_tab', tabId);
+    history.replaceState(null, null, '#' + tabId);
+  } catch(e) {}
+  // 若切换到行踪，触发一次行踪数据加载
+  if (tabId === 'tab-travel' && typeof window.__navLoad === 'function') {
+    window.__navLoad();
+  }
+}
+
+function initTabs() {
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabId = t.getAttribute('data-tab');
+      if (tabId) switchTab(tabId);
+      // 移动端点击后自动收起侧边栏
+      if (window.innerWidth <= 960) {
+        document.getElementById('sidebar')?.classList.remove('open');
+        document.getElementById('sidebarOverlay')?.classList.remove('open');
+      }
+    });
+  });
+
+  const hash = location.hash.replace('#', '');
+  const saved = localStorage.getItem('fs_active_tab');
+  const target = hash && document.getElementById(hash) ? hash : (saved && document.getElementById(saved) ? saved : 'tab-overview');
+  switchTab(target);
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebarOverlay');
+  if (sb) sb.classList.toggle('open');
+  if (ov) ov.classList.toggle('open');
+}
+
+// ── 人物列表即时搜索与过滤 ──────────────────────────────────────
+function filterActors(term = '', category = 'all') {
+  const query = (term || '').trim().toLowerCase();
+  const rows = document.querySelectorAll('#actors tr');
+  rows.forEach(tr => {
+    const text = (tr.textContent || '').toLowerCase();
+    const matchesQuery = !query || text.includes(query);
+    let matchesCat = true;
+    if (category === 'here') matchesCat = tr.querySelector('.tag.good') != null || text.includes('在场');
+    else if (category === 'house') matchesCat = text.includes('正妻') || text.includes('二房') || text.includes('通房') || text.includes('内宅');
+    else if (category === 'love') matchesCat = text.includes('相好') || text.includes('外室') || text.includes('有喜');
+    else if (category === 'court') matchesCat = text.includes('知府') || text.includes('典吏') || text.includes('官府') || text.includes('衙门') || text.includes('尚书');
+    
+    tr.style.display = (matchesQuery && matchesCat) ? '' : 'none';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initTabs();
+  const searchInput = document.getElementById('actorSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => filterActors(e.target.value));
+  }
+});
+
+
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => new Intl.NumberFormat('zh-CN').format(Math.round(n));
 
@@ -1404,15 +2014,7 @@ async function navPost(path, payload) {
 document.addEventListener('DOMContentLoaded', () => { setTimeout(navLoad, 600); });
 window.__navLoad = navLoad;
 
+
 </script>
-<div id="actorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99" onclick="if(event.target===this)closeActor()">
-  <div style="max-width:560px;margin:6vh auto;background:#161a21;border:1px solid #2a2f3a;border-radius:12px;padding:18px;max-height:82vh;overflow:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <b id="amName" style="font-size:16px"></b>
-      <a href="javascript:void(0)" onclick="closeActor()" style="color:#888">关闭</a>
-    </div>
-    <div id="amBody" style="font-size:13px;line-height:1.7"></div>
-  </div>
-</div>
 </body>
 </html>

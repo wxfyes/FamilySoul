@@ -218,3 +218,11 @@ export function recentActivities(world, withinDays = 2) {
   }
   return list.sort((a, b) => b.day - a.day).slice(0, 4);
 }
+
+/** 统一角色标识解析器，消除历史别名与错别字隐患 */
+export function normalizeActorId(id) {
+  if (!id) return id;
+  const str = String(id).trim();
+  if (str === 'yunniang') return 'yunnia';
+  return str;
+}

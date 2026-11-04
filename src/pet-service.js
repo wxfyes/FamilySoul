@@ -1507,12 +1507,21 @@ export class PetService {
         partnerName = null;
       }
 
+      const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
+      const isHusbandInHome = HOME_MANSION.includes(hereP);
+
       const allowed = Object.values(wP.actors || {})
-        .filter((a) => a?.name && a.location === hereP)
+        .filter((a) => {
+          if (!a || !a.name || a.dead || a.id === 'husband') return false;
+          if (a.location === hereP) return true;
+          // 主宅内院（正房、暖阁、茶坊）同属一家，相公在府内时妻妾仆从随时应声侍奉
+          if (isHusbandInHome && a.household && HOME_MANSION.includes(a.location)) return true;
+          return false;
+        })
         .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name, a.label].filter(Boolean));
       // 相公本轮明确要请/叫的人，也放行
       for (const n of summonedNames) allowed.push(n);
-      if (partnerName) allowed.push(partnerName);
+      if (partnerName && (isHusbandInHome || allowed.some((x) => partnerName.includes(x)))) allowed.push(partnerName);
       const res = this.enforcePresence(reply, allowed);
       if (res.dropped.length > 0) {
         console.log(`[Scene] 已掐掉不在场的段落：${[...new Set(res.dropped)].join('、')}`);
@@ -2980,6 +2989,13 @@ export class PetService {
    * 只放行「此刻就在相公所在之处」的人，以及相公明说要请/叫的人。
    */
   enforcePresence(text, allowedNames) {
+    const cleanSpeaker = (s) => String(s || '').replace(/^[^\w\u4e00-\u9fa5]*?(?:正妻|侧妾|二房|如夫人|通房|丫鬟|伙计|掌柜|知县|老板娘|夫人|姑娘|姐姐|妹妹)[·・\s]*/, '').trim();
+
+    const cleanAllowed = (allowedNames || []).flatMap((n) => {
+      const c = cleanSpeaker(n);
+      return [c, c.length > 2 ? c.slice(-2) : c];
+    }).filter(Boolean);
+
     const segs = String(text || '').split(/(?=【[^】\n]{1,12}】)/);
     const kept = [];
     const dropped = [];
@@ -2990,20 +3006,32 @@ export class PetService {
         kept.push(seg);
         continue;
       }
-      const speaker = m[1].trim();
-      // 只有「账本里真有的人」才算说话人；【压着声道】这种动作描写不能当人名删
-      const known = (this._knownNames || []).some(
-        (n) => n && (speaker === n || speaker.endsWith(n) || n.endsWith(speaker)),
-      );
-      if (!known) {
+      const rawSpeaker = m[1].trim();
+      if (/^天道/.test(rawSpeaker)) {
         kept.push(seg);
         continue;
       }
-      const ok = (allowedNames || []).some(
-        (n) => n && (speaker === n || speaker.includes(n) || n.includes(speaker)),
+      const pureSpeaker = cleanSpeaker(rawSpeaker);
+      const pureShort = pureSpeaker.length > 2 ? pureSpeaker.slice(-2) : pureSpeaker;
+
+      // 只有「账本里真有的人」才算说话人；动作描写不参与在场删除
+      const isKnown = (this._knownNames || []).some((n) => {
+        const cn = cleanSpeaker(n);
+        return cn && (pureSpeaker.includes(cn) || cn.includes(pureSpeaker));
+      });
+      if (!isKnown) {
+        kept.push(seg);
+        continue;
+      }
+
+      const isAllowed = cleanAllowed.some(
+        (a) => a && (pureSpeaker.includes(a) || a.includes(pureSpeaker) || pureShort === a),
       );
-      if (ok) kept.push(seg);
-      else dropped.push(speaker);
+      if (isAllowed) {
+        kept.push(seg);
+      } else {
+        dropped.push(rawSpeaker);
+      }
     }
     const out = kept.join('').trim();
     return { text: out || String(text || ''), dropped };

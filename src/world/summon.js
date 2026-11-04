@@ -371,35 +371,12 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
         }
       }
       saveState(dataDir, world);
-      // 观测点打点
       const party = [me.name || '相公', ...comers];
       console.log(`[Party] 同行名单：${party.join(' + ')}`);
       console.log(`[Move] ${me.name || '相公'} → ${pl.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
       return { moved: party, summoned: [], visited: null, wentTo: pl.name };
     }
-    // 没造过 → 现造一处新景，落在长街或沿江上，能进能出
-    // 【军规铁律】：严禁代码正则硬塞造人！新人物必须由天道大模型根据因果自然长出！
-    world.flags = world.flags || {};
-    world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
-    const pid = `place_${world.flags.placeSeq}`;
-    world.places[pid] = {
-      name: wantName, exits: ['street'], dynamic: true, createdDay: world.clock?.day || 1,
-    };
-    me.location = pid;
-    const comers = [];
-    for (const c of companions) {
-      if (c && !c.dead && c.id !== me.id) {
-        c.location = pid;
-        c.activity = { text: `随相公前往${wantName}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
-        comers.push(c.name);
-      }
-    }
-    saveState(dataDir, world);
-    // 观测点打点
-    const party = [me.name || '相公', ...comers];
-    console.log(`[Party] 同行名单：${party.join(' + ')}`);
-    console.log(`[Move] ${me.name || '相公'} → ${wantName}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
-    return { moved: party, summoned: [], visited: null, wentTo: wantName, created: wantName };
+    // 【架构铁律】：代码绝不盲目造景瞬移相公！未知地点保持相公原处不动，交由天道大模型与后续交互系统裁定
   }
 
   // 「去X家 / X的绣坊」：认到那个人真实所在，别另建一处

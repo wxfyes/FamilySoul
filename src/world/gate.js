@@ -244,27 +244,37 @@ export function checkGate(world = {}, intent = {}) {
 
     case VERBS.INTIMATE: {
       context.isPrivateScene = true;
-      // 检查当前地点是否有伴侣同在
+      const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
+      const isActorInHome = HOME_MANSION.includes(curLocId);
+
+      // 检查当前地点或主宅同场是否有伴侣同在
       const companionsInRoom = [];
+      const companionsInMansion = [];
       if (world?.actors) {
         for (const [id, a] of Object.entries(world.actors)) {
           if (!a || a.dead || id === actorId) continue;
           if (a.location === curLocId) {
             companionsInRoom.push(a);
+          } else if (isActorInHome && HOME_MANSION.includes(a.location)) {
+            companionsInMansion.push(a);
           }
         }
       }
 
-      if (companionsInRoom.length === 0) {
+      // 如果当前正在解禁欢好（unlocked），或者同屋有人，或者在主宅且宅内有妻妾在场：
+      const isRitualUnlocked = Object.values(world?.actors || {}).some((a) => a?.intimacy?.ritual === 'unlocked');
+      const hasPartnerPresent = companionsInRoom.length > 0 || isRitualUnlocked || (isActorInHome && companionsInMansion.length > 0);
+
+      if (!hasPartnerPresent) {
         ok = false;
         blocked = true;
-        reasons.push(`当前【${curLocName}】唯相公一人独坐，身旁并无佳人陪伴，不可行闺房云雨之礼`);
-        alternatives.push('先去唤佳人前来说话，或前往佳人厢房');
+        reasons.push(`当前所在【${curLocName}】并无女眷在场`);
+        alternatives.push('先唤佳人前来说话，或前往佳人所在处');
       } else {
-        // 场所隐秘性：用真实中文地名判断！
-        const isPublic = /(码头|大街|官道|大堂|公堂|衙门|茶坊老店|集市|书院|牢)/.test(curLocName) ||
+        // 场所隐秘性：大庭广众不可露骨
+        const isPublic = /(码头|大街|官道|大堂|公堂|衙门|集市|书院|牢)/.test(curLocName) ||
                          ['street', 'yamen', 'canal_dock', 'academy', 'jail_male', 'jail_female'].includes(curLocId);
-        if (isPublic) {
+        if (isPublic && !isRitualUnlocked) {
           reasons.push(`当前身处【${curLocName}】广庭大众之所，众目睽睽之下行房有伤风化`);
           alternatives.push('移步至后院暖阁或客栈上房再叙鱼水之欢');
         }
