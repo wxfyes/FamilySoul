@@ -745,6 +745,20 @@ const STARTED_AT = Date.now();
         self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
         here: hereNames,
         pendingAction: world.pendingAction || null,
+        // 我这一日：只给"我自己"的事，绝不广播别人的私事
+        daily: (() => {
+          try {
+            const evs = readRecentEvents(DATA_DIR, 200) || [];
+            const today = Number(world.clock?.day) || 1;
+            const myName = me?.name || '';
+            if (!myName) return [];
+            const lines = evs
+              .filter((e) => e && Number(e.day) >= today - 1 && String(e.text || '').includes(myName))
+              .slice(-5)
+              .map((e) => String(e.text || '').slice(0, 48));
+            return [{ name: myName, place: place?.name || '', lines }];
+          } catch { return []; }
+        })(),
         date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
         assets: {
           silver: isHusband ? Number(world.assets?.silver) || 0 : Number(world.wallets?.[actorId]) || 0,
@@ -3299,3 +3313,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.warn('[World] 世界时钟启动失败：', err.message);
   }
 });
+

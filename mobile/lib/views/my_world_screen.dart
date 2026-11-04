@@ -129,6 +129,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     final todos = (d['todos'] as List?) ?? const [];
     final clues = (d['clues'] as List?) ?? const [];
     final news = (d['news'] as List?) ?? const [];
+    final daily = (d['daily'] as List?) ?? const [];
     final arc = (d['arc'] as Map?)?.cast<String, dynamic>();
     final mil = (d['military'] as Map?)?.cast<String, dynamic>();
     final standing = (d['standing'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -188,6 +189,43 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
           ],
         ),
       ),
+
+      // 我这一日（只有自己的事）
+      if (daily.isNotEmpty) ...[
+        _sectionTitle('我这一日'),
+        _cardShell(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final g in daily.cast<Map>())
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text('${g['name']}',
+                              style: const TextStyle(color: Color(0xFFE7ECF5), fontSize: 13.5, fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 6),
+                          if ('${g['place'] ?? ''}'.isNotEmpty)
+                            Text('在${g['place']}',
+                                style: const TextStyle(color: _muted, fontSize: 11.5)),
+                        ],
+                      ),
+                      for (final line in ((g['lines'] as List?) ?? const []))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text('· $line',
+                              style: const TextStyle(color: Color(0xFFB6BFD0), fontSize: 12.5, height: 1.35)),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
 
       // 家底
       _sectionTitle('家底'),
