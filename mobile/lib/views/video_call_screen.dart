@@ -54,6 +54,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
   String _subtitleText = '正在建立视讯连线……';
   String _visualFactNotice = '';
 
+  Map<String, dynamic>? _worldData;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +63,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
     _initAnimations();
     _initCamera();
     _initSpeech();
+    _loadWorldContext();
 
     // 接通 1.2 秒后主动问候
     Future.delayed(const Duration(milliseconds: 1200), () {
@@ -68,6 +71,15 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
         _triggerVideoGreeting();
       }
     });
+  }
+
+  Future<void> _loadWorldContext() async {
+    try {
+      final data = await context.read<ChatProvider>().api.fetchMyWorld();
+      if (mounted && data != null) {
+        setState(() => _worldData = data);
+      }
+    } catch (_) {}
   }
 
   /// 彻底清洗字幕中的 [image:...] / [music:...] / URL 等乱码标签
@@ -540,21 +552,69 @@ class _VideoCallScreenState extends State<VideoCallScreen> with TickerProviderSt
       );
     }
 
-    // 3. 相公端 / 小娘子 (傲娇助手)
+    // 3. 相公专属尊贵视角 (wxf_husband 令牌或相公身份)
+    if (provider.isHusband) {
+      return _RoleMeta(
+        key: 'husband',
+        title: '闺房视讯对聊',
+        characterDisplayName: name.isNotEmpty ? name : '名门正妻 · 婉儿',
+        userCallName: '相公',
+        userViewLabel: '相公视角',
+        inspectBtnLabel: '看相公',
+        defaultGreeting: '相公，视频已接通啦……让妾身好好瞧瞧你~',
+        greetingPrompt: '视频通话接通了，相公正在手机屏幕前，请你用娇媚亲昵的名门正妻口吻主动向相公视频问好，1~2句短促甜美。',
+        inspectingText: '妾身正在凝眸细细端详相公……',
+        inspectPrompt: '相公正在镜头前，请端详他的穿搭神色，娇嗔夸奖点评一番。',
+        inspectErrorText: '相公，网络稍有些卡顿，不过妾身满心都是相公~',
+        speakingStatus: '正在对相公呢喃软语……',
+        idleStatus: '深情倾听相公中……',
+      );
+    }
+
+    // 4. 自由江湖角色视角（紫嫣 / 子非 / 陆青舟等入世江湖侠客）：依同场正主动态连线
+    final self = (_worldData?['self'] is Map) ? _worldData!['self'] as Map : const {};
+    final hereList = (_worldData?['here'] is List) ? _worldData!['here'] as List : const [];
+    final selfName = (self['name']?.toString() ?? '').trim().isNotEmpty ? self['name'].toString().trim() : '你';
+    final placeName = (self['place']?.toString() ?? '').trim().isNotEmpty ? self['place'].toString().trim() : '此地';
+
+    if (hereList.isNotEmpty) {
+      final firstNpc = hereList.first is Map ? hereList.first as Map : const {};
+      final npcName = (firstNpc['name']?.toString() ?? '身前之人').trim();
+      final npcRole = (firstNpc['role']?.toString() ?? '同场').trim();
+      final isFemale = RegExp(r'娘|女|妹|姐|妻|妾|娥|雪|嫣|翠|婆|侍女|丫鬟|姑娘').hasMatch(npcName + npcRole);
+
+      return _RoleMeta(
+        key: isFemale ? 'companion_female' : 'companion_male',
+        title: '面对面 · $npcName',
+        characterDisplayName: '$npcName（$npcRole）',
+        userCallName: selfName,
+        userViewLabel: '$selfName视角',
+        inspectBtnLabel: '端详我',
+        defaultGreeting: '$selfName，视频对聊已接通。此处人来人往，有何计较但说无妨。',
+        greetingPrompt: '视频面对面对聊接通了，请你以【$npcName】（$npcRole）的身份与立场，主动向眼前的【$selfName】打声招呼，1~2句市井古风短促自然。',
+        inspectingText: '$npcName正凝神端详你的神情仪态……',
+        inspectPrompt: '【$selfName】正在镜头跟前，请以【$npcName】的视角细细端详其气色、神态与穿着，给出切合身份与处境的点评。',
+        inspectErrorText: '$selfName稍候，气息微窒，片刻即畅。',
+        speakingStatus: '正在与$selfName温存商议……',
+        idleStatus: '静待$selfName言说中……',
+      );
+    }
+
+    // 四下无人独白形态
     return _RoleMeta(
-      key: 'husband',
-      title: '闺房视讯对聊',
-      characterDisplayName: name.isNotEmpty ? name : '傲娇小娘子',
-      userCallName: '相公',
-      userViewLabel: '相公视角',
-      inspectBtnLabel: '看相公',
-      defaultGreeting: '相公，视频已接通啦……让妾身好好瞧瞧你~',
-      greetingPrompt: '视频通话接通了，相公正在手机屏幕前，请你用娇媚亲昵的名门正妻口吻主动向相公视频问好，1~2句短促甜美。',
-      inspectingText: '妾身正在凝眸细细端详相公……',
-      inspectPrompt: '相公正在镜头前，请端详他的穿搭神色，娇嗔夸奖点评一番。',
-      inspectErrorText: '相公，网络稍有些卡顿，不过妾身满心都是相公~',
-      speakingStatus: '正在对相公呢喃软语……',
-      idleStatus: '深情倾听相公中……',
+      key: 'companion_female',
+      title: '置身「$placeName」',
+      characterDisplayName: '四下清静 · 驻足自语',
+      userCallName: selfName,
+      userViewLabel: '$selfName视角',
+      inspectBtnLabel: '端详我',
+      defaultGreeting: '四周静悄悄的，暂无旁人路过。你可在此驻足自语、调理气息，或唤人前来相见。',
+      greetingPrompt: '视频连通，四周暂时无人。请以场景叙事旁白口吻，简述眼下「$placeName」的一缕静谧声色与氛围，简明优雅。',
+      inspectingText: '凝视镜中神采……',
+      inspectPrompt: '【$selfName】正独坐自省，请端详其容颜风采与周围天色，给出如诗如画的环境寄托。',
+      inspectErrorText: '山重水复，略有停滞。',
+      speakingStatus: '四周回音悠长……',
+      idleStatus: '静听风声中……',
     );
   }
 
@@ -1093,7 +1153,7 @@ class Soul3DAvatarPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2.2;
 
-    if (roleKey == 'wife') {
+    if (roleKey == 'wife' || roleKey == 'companion_male') {
       _paintMaleButler(canvas, center, radius);
     } else if (roleKey == 'kid') {
       _paintTutor(canvas, center, radius);

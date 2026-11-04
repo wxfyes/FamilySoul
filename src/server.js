@@ -465,13 +465,22 @@ const STARTED_AT = Date.now();
         }
       } catch { /* 忽略 */ }
 
+      // 先清洗正文（去掉机器标记），再落历史，免得标记被存下来反复显示
+      const cleanText = String(text).replace(/\[\[[^\]]+\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+
       a.opened = { day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
       saveState(DATA_DIR, world);
 
       try {
         const h = petService.readHistory(actorId) || {};
         const msgs = Array.isArray(h.messages) ? h.messages : [];
-        msgs.push({ role: 'assistant', text, at: Date.now() });
+        const speakerMatch0 = cleanText.match(/【([^】]{1,8})】：/);
+        msgs.push({
+          role: 'assistant',
+          text: cleanText,
+          speaker: speakerMatch0 ? speakerMatch0[1] : (spawnedName || '旁白'),
+          at: Date.now(),
+        });
         petService.saveHistory(actorId, { ...h, messages: msgs });
       } catch { /* 忽略 */ }
 

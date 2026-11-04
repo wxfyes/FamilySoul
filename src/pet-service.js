@@ -2392,6 +2392,7 @@ export class PetService {
             try {
               const hisLine = await this._proxyHusbandRemote({ world: wPost, say, viewerId: this._viewerActorId, profileKey });
               if (hisLine && !String(reply || '').includes('王甯')) {
+                global.__husbandRemoteAnswered = true;
                 reply = `${String(reply || '').trim()}\n【王甯】：${String(hisLine).replace(/^【[^】]+】：/, '').trim()}`.trim();
                 console.log('[Proxy] 隔空应声：王甯');
               }
@@ -2402,11 +2403,30 @@ export class PetService {
             (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband'
               && a.location === locPost && a.name && (String(say || '').includes(a.name) || (namedSpouse && (a.id === mePost?.spouse || a.spouse === this._viewerActorId || /于子归|于杰/.test(a.name)))),
           );
+          global.__husbandRemoteAnswered = false;
           console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
           // 极简与事实驱动：仅当玩家明确叫了在场某人、或当前交谈对象在场且主回复未出时极窄补位；绝不乱抓路人
           const replyIsNarration = /(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
           const replyHasPresentSpeaker = !replyIsNarration && presentNamesNow.some((n) => String(reply || '').includes(n));
-          const proxyTargets = namedPresent.length ? namedPresent : (partnerHere.length && !replyHasPresentSpeaker ? partnerHere : []);
+          // 没人被点名时，谁接话？规则：
+          //   ① 他上次跟谁说话，就还是谁
+          //   ② 否则此处在场者只有一个 → 就是他
+          //   ③ 否则取最近在聊天记录里说过话的那位
+          // 这样新人进屋，隔壁邻居会真的应声，而不是"四下清静"
+          let fallbackTarget = [];
+          if (!namedPresent.length && !partnerHere.length && !replyHasPresentSpeaker
+              && !global.__husbandRemoteAnswered && !/【[^】]{1,8}】：/.test(String(reply || ''))) {
+            const presentOthers = Object.values(wPost.actors || {})
+              .filter((a) => a && !a.dead && a.name && a.location === locPost && a.id !== this._viewerActorId && a.id !== 'husband');
+            if (presentOthers.length === 1) fallbackTarget = presentOthers;
+            else if (presentOthers.length > 1) {
+              const recentText = (this.readHistory(profileKey).messages || []).slice(-6).map((m) => String(m?.text || '')).join('\n');
+              const spoke = presentOthers.find((a) => recentText.includes(`【${a.name}】`));
+              fallbackTarget = spoke ? [spoke] : [presentOthers[0]];
+            }
+          }
+          const proxyTargets = namedPresent.length ? namedPresent
+            : (partnerHere.length && !replyHasPresentSpeaker ? partnerHere : fallbackTarget);
           for (const npc of proxyTargets.slice(0, 1)) {
             const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
             if (already) continue;

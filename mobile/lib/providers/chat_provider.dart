@@ -65,6 +65,13 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool get isPlayingAudio => _isPlayingAudio;
   String? get currentPlayingUrl => _currentPlayingUrl;
 
+  bool get isHusband {
+    final t = _config.token.trim();
+    if (t.isEmpty) return false;
+    if (t.contains('wife') || t.contains('kid') || t.startsWith('token_')) return false;
+    return t == 'wxf_husband_exclusive_token_2026' || t == 'husband' || !t.contains('_');
+  }
+
   ChatProvider() {
     _config = const ServerConfig(host: '192.168.1.213', port: 3088, token: '');
     _apiClient = SurfCoreApiClient(_config);
@@ -256,10 +263,10 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_messages.isNotEmpty) return;
     try {
       final raw = await _apiClient.fetchOpening();
-      if (raw == null || raw.trim().isEmpty) return;
-      final parts = raw.split('\u0001');
-      final speaker = parts.length > 1 ? parts[0] : '旁白';
-      final text = parts.length > 1 ? parts[1] : raw;
+      if (raw == null) return;
+      final text = (raw['text'] ?? '').trim();
+      final speaker = (raw['speaker'] ?? '旁白').trim();
+      if (text.isEmpty) return;
       _messages.add(ChatMessage(
         id: 'opening_${DateTime.now().millisecondsSinceEpoch}',
         text: text,
@@ -527,6 +534,20 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       // 当手机本地已提取视觉特征时，不再向服务端传 imageBase64，彻底杜绝服务端再去调 Google Gemini 或报代理错误
+      if (text != null && text.trim().isNotEmpty && !text.contains('正在镜头前') && !text.contains('接通了') && !text.contains('视频对聊接通')) {
+        final now = DateTime.now();
+        final userMsg = ChatMessage(
+          id: 'u_' + now.millisecondsSinceEpoch.toString(),
+          text: text.trim(),
+          isUser: true,
+          timestamp: now,
+          modality: 'voice',
+        );
+        _messages.add(userMsg);
+        _persistMessages();
+        notifyListeners();
+      }
+
       final res = await _apiClient.sendVideoChat(
         text: effectiveText,
         imageBase64: localFact.isNotEmpty ? null : imageBase64,

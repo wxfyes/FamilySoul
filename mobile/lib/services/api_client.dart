@@ -471,16 +471,19 @@ class SurfCoreApiClient {
     }
     return {'ok': false, 'error': '未知错误'};
   }
-  /// 落地第一幕：新人进世界时天道主动开口（只成功一次）
-  Future<String?> fetchOpening() async {
+  /// 落地第一幕：返回 {text, speaker}（没有就给 null）
+  Future<Map<String, String>?> fetchOpening() async {
     try {
       final res = await _dio.post('${config.baseUrl}/api/world/opening',
           queryParameters: {'token': config.token.trim()});
       if (res.statusCode == 200 && res.data is Map) {
         final t = res.data['text'];
-        final sp = res.data['speaker'];
         if (t is String && t.trim().isNotEmpty) {
-          return '${sp is String && sp.isNotEmpty ? sp : '旁白'}\u0001${t.trim()}';
+          final sp = res.data['speaker'];
+          return {
+            'text': t.trim(),
+            'speaker': (sp is String && sp.isNotEmpty) ? sp : '旁白',
+          };
         }
       }
     } catch (_) {}
