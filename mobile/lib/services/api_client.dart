@@ -318,7 +318,7 @@ class SurfCoreApiClient {
   /// 出门菜单：我去哪 / 找谁 / 有何待办（交互层，一次取回）
   Future<Map<String, dynamic>?> fetchMenu() async {
     try {
-      final res = await _dio.get('/api/world/menu',
+      final res = await _dio.get('${config.baseUrl}/api/world/menu',
           queryParameters: {'token': config.token.trim()});
       if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
         return res.data as Map<String, dynamic>;
@@ -330,7 +330,7 @@ class SurfCoreApiClient {
   /// 我去某处
   Future<bool> goTo(String place) async {
     try {
-      final res = await _dio.post('/api/world/go',
+      final res = await _dio.post('${config.baseUrl}/api/world/go',
           queryParameters: {'token': config.token.trim()},
           data: {'place': place});
       return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;
@@ -341,7 +341,7 @@ class SurfCoreApiClient {
   /// 叫她过来
   Future<bool> summon(String id) async {
     try {
-      final res = await _dio.post('/api/world/summon',
+      final res = await _dio.post('${config.baseUrl}/api/world/summon',
           queryParameters: {'token': config.token.trim()},
           data: {'id': id});
       return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;
@@ -352,7 +352,7 @@ class SurfCoreApiClient {
   /// 待办：赴约 / 取消
   Future<bool> todoAction(String id, String action) async {
     try {
-      final res = await _dio.post('/api/world/todo',
+      final res = await _dio.post('${config.baseUrl}/api/world/todo',
           queryParameters: {'token': config.token.trim()},
           data: {'id': id, 'action': action});
       return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;

@@ -641,11 +641,10 @@ class _ChatScreenState extends State<ChatScreen> {
                               builder: (context, snap) {
                                 final self = (snap.data?['self'] is Map) ? snap.data!['self'] as Map : const {};
                                 final place = (self['place'] ?? '').toString();
-                                final date = (snap.data?['date'] is Map) ? snap.data!['date'] as Map : const {};
-                                final day = (snap.data?['clock'] is Map) ? snap.data!['clock'] as Map : const {};
+                                final day = (snap.data?['date'] is Map) ? snap.data!['date'] as Map : const {};
                                 final txt = place.isEmpty
                                     ? '正在确认你在哪儿…'
-                                    : '$place · 第${day['day'] ?? date['day'] ?? '-'}日 ${day['hour'] ?? '-'}时';
+                                    : '$place · 第${day['day'] ?? '-'}日 ${day['hour'] ?? '-'}时';
                                 return Text(txt, style: const TextStyle(color: Colors.white54, fontSize: 12));
                               },
                             ),
@@ -817,20 +816,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
-          // 我的世界：时辰、家底、待办、线索（只看自己那一份）
-          IconButton(
-            tooltip: '我的世界',
-            icon: const Icon(Icons.public_rounded, size: 21),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => MyWorldScreen(api: provider.api),
-                  fullscreenDialog: true,
-                ),
-              );
-            },
-          ),
           // 豆包同款语音播报开关（开启才请求火山TTS，关闭省额度）
           IconButton(
             icon: Icon(
@@ -864,16 +849,6 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const VideoCallScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: '服务器配置',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
               );
             },
           ),

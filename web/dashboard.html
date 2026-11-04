@@ -1044,10 +1044,10 @@ function render(w){
   if ($('card-household')) {
     const women = Object.values(w.actors || {}).filter(a => a && a.gender === 'female' && a.id !== 'husband');
     const inHouse = women.filter(a => a.household);
+    const isPreg = (a) => Boolean(a.pregnancy && !a.pregnancy.born && (a.household || a.pregnancy.father === 'husband'));
     const outHouse = women.filter(a => !a.household && (
-      Boolean(a.intimacy && a.intimacy.consummated) || Boolean(a.pregnancy && !a.pregnancy.born)
+      Boolean(a.intimacy && a.intimacy.consummated) || isPreg(a)
     ));
-    const isPreg = (a) => Boolean(a.pregnancy && !a.pregnancy.born);
     const pregCount = (arr) => arr.filter(isPreg).length;
     const rankOf = (a) => {
       const r = String(a.role || '');
