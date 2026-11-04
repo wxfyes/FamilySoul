@@ -851,10 +851,20 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.videocam_rounded, color: Color(0xFF8B5CF6)),
-              title: const Text('闺房视讯', style: TextStyle(color: Colors.white)),
-              onTap: () {
+              title: Text(
+                provider.isHusband ? '闺房视讯' : '面对面对聊',
+                style: const TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                provider.isHusband ? '与内人红颜面对面' : '音画视讯 · 免打字推演',
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+              onTap: () async {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const VideoCallScreen()));
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const VideoCallScreen()));
+                if (mounted) {
+                  _jumpToBottom();
+                }
               },
             ),
             const Divider(height: 1, color: Colors.white10),
@@ -1039,16 +1049,19 @@ class _ChatScreenState extends State<ChatScreen> {
               );
             },
           ),
-          // 📹 闺房视讯·视频通话
+          // 📹 面对面对聊·视频通话
           IconButton(
             icon: const Icon(Icons.videocam_rounded, color: Color(0xFF8B5CF6)),
-            tooltip: '发起闺房视频通话',
-            onPressed: () {
+            tooltip: provider.isHusband ? '发起闺房视频通话' : '发起面对面视讯对聊',
+            onPressed: () async {
               HapticFeedback.mediumImpact();
-              Navigator.push(
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const VideoCallScreen()),
               );
+              if (mounted) {
+                _jumpToBottom();
+              }
             },
           ),
           const SizedBox(width: 8),

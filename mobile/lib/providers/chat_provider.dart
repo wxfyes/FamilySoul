@@ -537,7 +537,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (text != null && text.trim().isNotEmpty && !text.contains('正在镜头前') && !text.contains('接通了') && !text.contains('视频对聊接通')) {
         final now = DateTime.now();
         final userMsg = ChatMessage(
-          id: 'u_' + now.millisecondsSinceEpoch.toString(),
+          id: 'u_${now.millisecondsSinceEpoch}',
           text: text.trim(),
           isUser: true,
           timestamp: now,
