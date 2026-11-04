@@ -2599,6 +2599,8 @@ const STARTED_AT = Date.now();
             home: a.home || null,
             homeName: a.home ? (world.places?.[a.home]?.name || '') : '',
             marital: a.marital || null,
+            spouseId: a.spouse || null,
+            spouseName: a.spouse ? (world.actors?.[a.spouse]?.name || '') : '',
             residence: a.residence ? { type: a.residence.type, placeId: a.residence.placeId, placeName: world.places?.[a.residence.placeId]?.name || '' } : null,
             onPeriod: Boolean(a.menses?.on),
             fertile: (() => {
