@@ -615,6 +615,8 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 交互系统已在客户端完全接管（转场/找人/付钱等），聊天中绝不偷听正则乱挂待付款打断剧情
+
     // 将 Gate 门禁客观事实注入为天道推演的刚性阻力边界
     if (gate && gate.reasons.length > 0) {
       contextHintEarly += `（【天道门禁客观事实】：${gate.reasons.join('；')}。请天道根据此客观事实进行生动合理裁决，绝不可让不在场之人瞬间穿墙同行。）\n`;
