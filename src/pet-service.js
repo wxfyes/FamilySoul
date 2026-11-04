@@ -168,6 +168,7 @@ export class PetService {
     const lines = [];
     const timeCtx = this.getTemporalContext();
 
+
     // 独立绑定人物视角（🌟 严格静态在前、动态置后，保障 DeepSeek 前缀缓存 90%+ 命中）
     if (this._viewerActorId && this._actorPersonaOverride) {
       // ════════════════════════════════════════════════════════════════
@@ -298,6 +299,7 @@ export class PetService {
     lines.push('- 外人（杨采云、紫嫣、静儿、杨振华等）按各自身份称呼，一律不得僭越。');
 
     lines.push('');
+    // （天条临时移除待验）
     lines.push('【天道回执（强制格式，相公看不到，系统自动摘除）】');
     lines.push('- 每轮回复末尾必须有一行回执；什么可变的事都没发生，就只写 [[world:none]]。');
     lines.push('- 改变了世界才写，可多行：');
@@ -950,7 +952,7 @@ export class PetService {
         if (a) {
           this._actorPersonaOverride = [
             `玩家扮演的是${a.name}（${a.role || ''}）。**你不演她**——她已经由真人控制。`,
-            '你负责演这个世界的其他人：在场的人（王甯、于杰、翟长盛、随科、小翠、阿吉、钱通海…）以及路人掌柜。',
+            '你负责演这个世界的其他人：**严格只限当前真实在场的人**。不在场的人一律不会说话、不能凭空出现，绝不许生造路人掌柜或无关NPC插嘴打断。',
             '**谁在场，就由谁开口**；不在场的人不会说话，也不能凭空出现。',
             '每个人的身份、性情、对玩家的态度，由【在场】与【你此刻知道的实况】决定。',
             '绝不替玩家说话、绝不替她做决定、绝不描写她的心理活动，也不要写"她心想"。',
@@ -1809,6 +1811,11 @@ export class PetService {
             : `（${lead}，四下冷清，没什么人。）`;
         }
 
+        const presentNamesNow = Object.values(wPost.actors || {})
+          .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId)
+          .map((a) => String(a.name || ''))
+          .filter(Boolean);
+
         // 点了王甯、他也在场，却没写他的台词 → 单独代演一句（小调用）
         const lastTurns = [...(this.readHistory(profileKey).messages || [])].slice(-3).map((m) => String(m?.text || '')).join(' ');
         const said = String(say || '');
@@ -1971,7 +1978,14 @@ export class PetService {
               }
             } catch { /* 忽略 */ }
             if (line) {
-              const otherSpeakers = String(reply).split('\n').filter((x) => /^【[^】]+】/.test(x) && !/王甯/.test(x));
+              // 严格在场校验：只有真实在场的其他NPC段落才允许并存
+              const otherSpeakers = String(reply).split('\n').filter((x) => {
+                const m = x.match(/^【([^】\n]+)】/);
+                if (!m) return false;
+                const spk = m[1].replace(/^[^w\u4e00-\u9fa5]*?(?:正妻|侧妾|二房|丫鬟|伙计|掌柜|老板娘|夫人|工头)[·・\s]*/, '').trim();
+                if (spk.includes('王甯')) return false;
+                return presentNamesNow.some((pName) => pName && (pName === spk || pName.includes(spk) || spk.includes(pName)));
+              });
               reply = otherSpeakers.length > 0 ? `${line}\n${otherSpeakers.join('\n')}`.trim() : line;
               try {
                 const wp = loadState(this.dataDir);
@@ -1994,6 +2008,19 @@ export class PetService {
           const partnerHere = partnerActor && !partnerActor.dead && partnerActor.location === locPost && partnerActor.name && !String(say || '').includes(partnerActor.name)
             ? [partnerActor]
             : [];
+          // 隔着地方喊相公：他不能瞬移，但可以应一声（他是真人，由天道代他开口）
+          const husActor = wPost.actors?.husband;
+          const calledHusband = /(王甯|王掌柜|少掌柜|当家的|相公)/.test(String(say || ''));
+          if (husActor && !husActor.dead && calledHusband && husActor.location !== locPost) {
+            try {
+              const hisLine = await this._proxyHusbandRemote({ world: wPost, say, viewerId: this._viewerActorId, profileKey });
+              if (hisLine && !String(reply || '').includes('王甯')) {
+                reply = `${String(reply || '').trim()}\n【王甯】：${String(hisLine).replace(/^【[^】]+】：/, '').trim()}`.trim();
+                console.log('[Proxy] 隔空应声：王甯');
+              }
+            } catch { /* 忽略 */ }
+          }
+
           const namedPresent = Object.values(wPost.actors || {}).filter(
             (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband'
               && a.location === locPost && a.name && (String(say || '').includes(a.name) || (namedSpouse && (a.id === mePost?.spouse || a.spouse === this._viewerActorId || /于子归|于杰/.test(a.name)))),
@@ -2001,14 +2028,15 @@ export class PetService {
           console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
           // 没人被点名、也没有对话对象，且回复已空 → 让在场最亲近的人开口
           let autoPick = [];
-          const presentNamesNow = Object.values(wPost.actors || {})
+          // presentNamesNow 已在上方统一定义
+          const _unusedNames = Object.values(wPost.actors || {})
             .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId)
             .map((a) => String(a.name || ''))
             .filter(Boolean);
           const replyIsNarration = /(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
           const replyHasPresentSpeaker = !replyIsNarration && presentNamesNow.some((n) => String(reply || '').includes(n));
           // 问的是某个具体的人（可能不在场）→ 不许路人乱插话
-          const askedAnyActor = Object.values(wPost.actors || {}).some((a) => {
+          const askedAnyActor = /(王甯|王掌柜|少掌柜|相公|当家的|于子归|子归)/.test(String(say || '')) || Object.values(wPost.actors || {}).some((a) => {
             if (!a || !a.name) return false;
             const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
             return String(say || '').includes(a.name) || (short && String(say || '').includes(short));
@@ -2054,7 +2082,14 @@ export class PetService {
             });
             const npLine = wrapProxyLine(npc.name, npRes?.text);
             if (npLine) {
-              const otherSpeakers = String(reply).split('\n').filter((x) => /^【[^】]+】/.test(x) && !x.includes(npc.name));
+              // 严格在场校验：只有真实在场的其他NPC段落才允许并存，严禁拼接不在场路人
+              const otherSpeakers = String(reply).split('\n').filter((x) => {
+                const m = x.match(/^【([^】\n]+)】/);
+                if (!m) return false;
+                const spk = m[1].replace(/^[^w\u4e00-\u9fa5]*?(?:正妻|侧妾|二房|丫鬟|伙计|掌柜|老板娘|夫人|工头)[·・\s]*/, '').trim();
+                if (spk.includes(npc.name) || npc.name.includes(spk)) return false;
+                return presentNamesNow.some((pName) => pName && (pName === spk || pName.includes(spk) || spk.includes(pName)));
+              });
               reply = otherSpeakers.length > 0 ? `${npLine}\n${otherSpeakers.join('\n')}`.trim() : npLine;
               console.log('[Proxy] 代演' + npc.name + '：' + npLine.slice(0, 40));
               try {
@@ -2899,6 +2934,24 @@ export class PetService {
    * 天道主动开口：根据当前世界状态现写一句话。
    * 引擎只负责「该她说话了」这个事实，措辞由天道裁定（不套模板、不写死台词）。
    */
+  // 隔空应一声：他人在别处，只答一句，不挪窝（不制造瞬移）
+  async _proxyHusbandRemote({ world, say, viewerId }) {
+    try {
+      if (!this.llmClient?.isReady?.()) return null;
+      const me = world.actors?.husband;
+      const her = world.actors?.[viewerId];
+      const where = world.places?.[me?.location]?.name || '';
+      const sys = '你在演王甯（茶商，说话简短，不客套）。只回他此刻会说的一两句话，不要旁白。';
+      const usr = [
+        `${her?.name || '她'}在${world.places?.[her?.location]?.name || '别处'}隔空问起你：${String(say || '').slice(0, 40)}`,
+        `你此刻在${where}。你答一句，别写你过去了。`,
+      ].join('\\n');
+      const out = await this.llmClient.complete({ system: sys, messages: [{ role: 'user', content: usr }], temperature: 0.7, maxTokens: 160 });
+      const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '');
+      return String(text || '').trim().replace(/^【[^】]+】：/, '');
+    } catch { return null; }
+  }
+
   async generateProactive({ memberKey = 'husband', roleName = null, asName = null, reason = 'proactive', facts = {} } = {}) {
     try {
       if (!this.llmClient.isReady()) return null;
@@ -3180,8 +3233,10 @@ export class PetService {
       // 【省 token】只给一行名册，不再附整段天机
       let roster = '';
       let props = '';
+      let w0 = null;
+      try { w0 = loadState(this.dataDir); } catch {} 
       try {
-        const w0p = loadState(this.dataDir);
+        const w0p = w0 || loadState(this.dataDir);
         props = (w0p.assets?.properties || [])
           .map((p) => `${p.name}(id=${p.id}, 日入${p.incomePerDay}, ${p.status || ''})`)
           .join(' / ') || '（无）';
