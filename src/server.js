@@ -26,6 +26,7 @@ import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
+import { renameActor, syncNames } from './world/identity.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1884,75 +1885,16 @@ const STARTED_AT = Date.now();
     if (req.method === 'POST' && pathname === '/api/admin/actor/rename') {
       try {
         const body = await parseJsonBody(req, 64 * 1024);
-        const world = peek(DATA_DIR);
-        const id = String(body.id || '').trim();
-        const newName = String(body.name || '').trim().slice(0, 12);
-        const a = world.actors?.[id];
-        if (!a) return sendJson(res, 404, { ok: false, error: '没有这个人物' });
-        if (!newName) return sendJson(res, 400, { ok: false, error: '新名字不能为空' });
-        const oldName = a.name;
-        const oldShort = oldName && oldName.length > 2 ? oldName.slice(-2) : oldName;
-        const newShort = newName.length > 2 ? newName.slice(-2) : newName;
-        const repl = (s) => String(s || '').split(oldName).join(newName).split(oldShort).join(newShort);
-
-        a.name = newName;
-        for (const m of world.memories || []) m.text = repl(m.text);
-        for (const q of world.quotes || []) {
-          q.text = repl(q.text);
-          if (q.actor === id) q.name = newName;
-        }
-        for (const ap of world.appointments || []) if (ap.actorId === id || ap.name === oldName) ap.name = newName;
-        for (const pr of world.promises || []) pr.text = repl(pr.text);
-        for (const pd of world.pending || []) pd.desc = repl(pd.desc);
-        for (const k of Object.keys(world.flags?.partner || {})) {
-          if (world.flags.partner[k] === oldName) world.flags.partner[k] = newName;
-        }
-        // 事件流里的名字
-        try {
-          const evFile = path.join(DATA_DIR, 'world', 'events.jsonl');
-          if (fs.existsSync(evFile)) {
-            const lines = fs.readFileSync(evFile, 'utf8').split('\n').filter(Boolean);
-            const out = lines.map((line) => repl(line));
-            fs.writeFileSync(evFile, out.join('\n') + '\n', 'utf8');
-          }
-        } catch (err) {
-          console.warn('[Rename] 事件改名失败：', err.message);
-        }
-        // 成员配置里的标题
-        let memberUpdated = null;
-        for (const [key, p] of Object.entries(config.family || {})) {
-          if (p?.actor === id) {
-            config.family[key].title = newName;
-            memberUpdated = key;
-          }
-        }
-        if (memberUpdated) {
-          try {
-            fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
-          } catch {
-            /* 忽略 */
-          }
-        }
+        const world = loadState(DATA_DIR);
+        const r = renameActor(world, String(body.id || '').trim(), String(body.name || ''), { by: 'husband' });
+        if (!r.ok) return sendJson(res, 400, { ok: false, error: r.error });
         saveState(DATA_DIR, world);
-        console.log(`[Rename] ${oldName} → ${newName}（成员 ${memberUpdated || '无'}）`);
-        return sendJson(res, 200, { ok: true, id, from: oldName, to: newName, member: memberUpdated });
+        return sendJson(res, 200, { ok: true, from: r.from, to: r.to, touched: r.touched || 0 });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
     }
 
-    // 9.30b 读取某个成员的聊天历史 GET /api/admin/history?member=xxx
-    if (req.method === 'GET' && pathname === '/api/admin/history') {
-      try {
-        const member = String(url.searchParams.get('member') || 'husband').trim();
-        const history = petService.readHistory(member);
-        return sendJson(res, 200, { ok: true, member, messages: history.messages || [] });
-      } catch (err) {
-        return sendJson(res, 500, { ok: false, error: err.message });
-      }
-    }
-
-    // 9.31 清空某个成员的聊天历史 POST /api/admin/history/clear {member}
     if (req.method === 'POST' && pathname === '/api/admin/history/clear') {
       try {
         const body = await parseJsonBody(req, 64 * 1024);

@@ -5,6 +5,7 @@
  * 所有数据结构见 docs/world-engine.md 第 3、4 节。
  */
 import { ensureBonds } from './bonds.js';
+import { syncNames } from './identity.js';
 import fs from 'node:fs';
 import { lunarFromTable } from './lunar-table.js';
 import path from 'node:path';
@@ -928,6 +929,8 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 名字只是标签：按 id 把派生字段里的名字对齐（改过名也不会乱）
+  try { syncNames(world); } catch { /* 忽略 */ }
   // 孤儿雇工：有雇主、却没记录是谁招的——一律归到"府里代办"的差事上，
   // 从此世界记得这批人是怎么来的（谁办的、哪天办的），不再是凭空出现的人。
   try {
