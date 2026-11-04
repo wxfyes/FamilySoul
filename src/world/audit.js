@@ -305,6 +305,14 @@ export function inspectStructure(world) {
     if (!ex.length && id !== 'street') issues.push({ kind: 'place', id, detail: `「${pl.name}」没有出处` });
   }
 
+  // 没有来历的人：世界里的每个人都有出处，孤儿要被认领或清掉
+  for (const [id, a] of Object.entries(actors)) {
+    if (!a || !a.name || a.dead || a.id === 'husband') continue;
+    if (String(id).startsWith('npc_') && !a.hiredBy && !a.sourceTask && a.origin !== 'dm_hired') {
+      issues.push({ kind: 'orphan', who: a.name, id, detail: `${a.name}（${a.role || '来路不明'}）没有来历` });
+    }
+  }
+
   // 产业有没有人在岗：开张却空无一人的，报给天道
   for (const prop of world.assets?.properties || []) {
     if (!prop || !prop.placeId) continue;

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 雇佣：全世界只有这里能把一个人放进某处产业。
  *
  * 以前"雇人"这段逻辑抄在三个地方（天道招人、自检修账、管理接口），
@@ -15,7 +15,7 @@
 import { moveActor } from './position.js';
 import { isPlaceName } from './naming.js';
 
-export function hireStaff(world, { propName = '', name = '', role = '伙计', via = 'dm' } = {}) {
+export function hireStaff(world, { propName = '', name = '', role = '伙计', via = 'dm', hiredBy = null, taskId = null } = {}) {
   const nm = String(name || '').trim();
   if (!isPlaceName(nm)) return { ok: false, error: `名字「${nm}」不像人名` };
 
@@ -39,7 +39,17 @@ export function hireStaff(world, { propName = '', name = '', role = '伙计', vi
     moveActor(world, a.id, prop.placeId, via === 'admin' ? 'ui' : 'world', '到岗');
   }
 
+  // 来历：谁招进来的、因为哪桩差事。没有来历的人在世界里站不住
   a.employer = prop.owner || 'husband';
+  a.hiredBy = a.hiredBy || hiredBy || null;
+  a.sourceTask = a.sourceTask || taskId || null;
+  a.hiredDay = a.hiredDay || (world.clock?.day || 1);
+  world.events = world.events || [];
+  world.events.push({
+    day: world.clock?.day || 1,
+    hour: world.clock?.hour || 0,
+    text: `${a.hiredBy ? (world.actors?.[a.hiredBy]?.name || '府里') + '替' : ''}${prop.name}请了${a.name}做${a.role}`,
+  });
   a.workplace = prop.name;
   a.workplaceId = prop.placeId;
   if (!a.home) a.home = prop.placeId;
