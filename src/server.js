@@ -418,7 +418,8 @@ const STARTED_AT = Date.now();
   if (req.method === 'POST' && (pathname === '/api/assistant/chat' || pathname === '/dsh-surfcore/pet-api/api/assistant/chat' || pathname === '/dsh-surfcore/pet-api/assistant/chat')) {
     try {
       const member = resolveMember(req, url);
-      const memberKey = member?.memberKey || 'husband';
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
+      const memberKey = member.memberKey;
       const body = await parseJsonBody(req, 64 * 1024);
       const replyObj = await assistantService.chat(memberKey, body.text, { newSession: Boolean(body.newSession) });
       return sendJson(res, 200, replyObj);
@@ -431,7 +432,8 @@ const STARTED_AT = Date.now();
   if (req.method === 'GET' && (pathname === '/api/assistant/history' || pathname === '/dsh-surfcore/pet-api/api/assistant/history' || pathname === '/dsh-surfcore/pet-api/assistant/history')) {
     try {
       const member = resolveMember(req, url);
-      const memberKey = member?.memberKey || 'husband';
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
+      const memberKey = member.memberKey;
       const limit = parseInt(url.searchParams.get('limit') || '30', 10);
       const history = assistantService.getHistory(memberKey, limit);
       return sendJson(res, 200, { ok: true, history });
@@ -444,7 +446,8 @@ const STARTED_AT = Date.now();
   if (req.method === 'POST' && (pathname === '/api/assistant/clear' || pathname === '/dsh-surfcore/pet-api/api/assistant/clear' || pathname === '/dsh-surfcore/pet-api/assistant/clear')) {
     try {
       const member = resolveMember(req, url);
-      const memberKey = member?.memberKey || 'husband';
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
+      const memberKey = member.memberKey;
       assistantService.clearHistory(memberKey);
       return sendJson(res, 200, { ok: true });
     } catch (err) {

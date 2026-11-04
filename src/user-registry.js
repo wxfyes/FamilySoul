@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { loadState, saveState } from './world/state.js';
+import { loadState, saveState, worldDate } from './world/state.js';
 import { isPlaceName } from './world/naming.js';
 
 /**
@@ -13,6 +13,7 @@ export class UserRegistry {
   constructor({ dataDir = './data' } = {}) {
     this.dataDir = dataDir;
     this.usersFile = path.join(this.dataDir, 'users.json');
+    this.eventsFile = path.join(this.dataDir, 'world', 'events.jsonl');
     this._ensureFile();
   }
 
@@ -67,9 +68,11 @@ export class UserRegistry {
     const safeGender = gender === 'female' ? 'female' : 'male';
     const world = loadState(this.dataDir);
 
-    // 重名检查：不得与现有主要角色重名
-    const nameUsed = Object.values(world.actors || {}).some(a => a && a.name === rawName && !a.dead);
-    if (nameUsed) {
+    // 重名检查：不得与现有主要角色及已发用户重名
+    const users = this.loadUsers();
+    const nameInUsers = Object.values(users).some(u => u && u.name === rawName);
+    const nameInActors = Object.values(world.actors || {}).some(a => a && a.name === rawName && !a.dead);
+    if (nameInUsers || nameInActors) {
       return { ok: false, error: '此姓名在城中已有人用，请另选雅号' };
     }
 
@@ -84,8 +87,9 @@ export class UserRegistry {
       wanderer: '初来乍到的游侠',
     };
     const roleName = ROLE_MAP[originKind] || '初入临江的布衣';
+    const genderDesc = safeGender === 'female' ? '坤身女子' : '乾身男子';
 
-    // 录入世界账本（落脚临江客栈，绝不动态造房污染地图）
+    // 录入世界账本（初来乍到投宿临江客栈，信赖度从 0 开始）
     world.actors[actorId] = {
       id: actorId,
       name: rawName,
@@ -99,7 +103,7 @@ export class UserRegistry {
       location: 'inn',
       money: 20, // 20两碎银起步盘缠
       relations: {
-        husband: { trust: 40, desire: 0, fear: 0, grievance: 0 },
+        husband: { trust: 0, desire: 0, fear: 0, grievance: 0 },
       },
       intimacy: { level: 1, tone: 0, lastAt: 0 },
       schedule: [
@@ -109,10 +113,34 @@ export class UserRegistry {
       ],
     };
 
+    // 给天道主脑注入初见事实记忆，让 NPC 认识这位新面孔
+    world.memories = Array.isArray(world.memories) ? world.memories : [];
+    world.memories.push({
+      id: `mem_${Date.now().toString(36)}`,
+      day: world.clock?.day || 1,
+      text: `新面孔入城：【${rawName}】（${genderDesc}，春秋${numAge}，${roleName}），初到临江府，暂投宿于临江客栈大堂。`,
+      about: [actorId, 'inn'],
+      visible: 'public',
+      createdAt: Date.now(),
+    });
+
     saveState(this.dataDir, world);
 
+    // 写入事件流 events.jsonl
+    try {
+      const eventRecord = JSON.stringify({
+        at: Date.now(),
+        day: world.clock?.day || 1,
+        hour: world.clock?.hour || 0,
+        type: 'actor_arrival',
+        actorId,
+        actorName: rawName,
+        desc: `新面孔入城：【${rawName}】（${genderDesc}，${numAge}岁），初涉江湖，落脚客栈。`,
+      }) + '\n';
+      fs.appendFileSync(this.eventsFile, eventRecord, 'utf8');
+    } catch (_) {}
+
     // 记录用户身份档案
-    const users = this.loadUsers();
     users[token] = {
       token,
       actorId,
@@ -124,7 +152,7 @@ export class UserRegistry {
     };
     this.saveUsers(users);
 
-    console.log(`[UserRegistry] 新玩家入世：${rawName}（${actorId}），落脚临江客栈`);
+    console.log(`[UserRegistry] 新玩家入世：${rawName}（${actorId}），落脚临江客栈，天道已建档`);
 
     return {
       ok: true,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
+import '../views/settings_screen.dart';
 
 class RegisterDialog extends StatefulWidget {
   final SurfCoreApiClient apiClient;
@@ -217,6 +218,17 @@ class _RegisterDialogState extends State<RegisterDialog> {
                         '立牒入世',
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                       ),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                },
+                child: const Text(
+                  '已有通关令印？前往设置填入令牌',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF8B5CF6)),
+                ),
               ),
             ],
           ),

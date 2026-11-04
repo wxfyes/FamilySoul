@@ -30,6 +30,8 @@ class _ChatScreenState extends State<ChatScreen> {
   int _lastMessageCount = 0;
   int _activeDomainIndex = 0; // 0: 宿命乾坤 (虚拟世界), 1: 天机助手 (纯问答解耦)
   String _lastContentSig = '';
+  bool _hasScrolledToBottomInitially = false;
+  bool _hasCheckedToken = false;
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
   final ImagePicker _imagePicker = ImagePicker();
@@ -620,6 +622,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// 滚到底。是否该滚由调用方在「布局之前」判断，这里不再重复判断。
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
   void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -899,12 +908,52 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+    void _openRegisterDialog(BuildContext context, ChatProvider provider) {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => RegisterDialog(
+        apiClient: provider.api,
+        onRegistered: (token, actorId, name) async {
+          final newConfig = provider.config.copyWith(token: token);
+          await provider.saveConfig(newConfig);
+          scaffoldMessenger.showSnackBar(
+            SnackBar(content: Text('欢迎【】立牒入世，已落脚临江客栈！')),
+          );
+          _refreshPlace();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ChatProvider>();
     final isOnline = provider.isConnected;
     final characterName = provider.petStatus.characterName;
 
+
+    // 冷启动未设置 token 时自动弹出立牒入世名册
+    if (provider.isInitialized && provider.config.token.trim().isEmpty && !_hasCheckedToken) {
+      _hasCheckedToken = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _openRegisterDialog(context, provider);
+      });
+    }
+
+    // 关键：首次加载出历史消息时，无条件直接 jumpTo 最底部！告别滑半天！
+    if (!_hasScrolledToBottomInitially && provider.messages.isNotEmpty) {
+      _hasScrolledToBottomInitially = true;
+      _jumpToBottom();
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) _jumpToBottom();
+      });
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted) _jumpToBottom();
+      });
+    }
 
     // 关键：必须在「新内容布局之前」判断当时是否贴在底部。
     // 放进 postFrame 再判断就晚了——新消息已经把列表撑长，永远会被判成"不在底部"。

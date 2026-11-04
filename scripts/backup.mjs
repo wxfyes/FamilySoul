@@ -76,11 +76,12 @@ function doBackup() {
   }
 
   const want = [];
-  for (const rel of ['world/state.json', 'world/milestones.json']) {
+  for (const rel of ['world/state.json', 'world/milestones.json', 'users.json']) {
     const p = path.join(DATA, rel);
     if (fs.existsSync(p)) want.push(p);
   }
   for (const p of walk(path.join(DATA, 'chat'), (f) => f.endsWith('.json'))) want.push(p);
+  for (const p of walk(path.join(DATA, 'assistant'), (f) => f.endsWith('.json'))) want.push(p);
 
   if (!want.length) {
     log('✗ data/ 里没有可备份的文件（world/state.json 都不在），中止');
