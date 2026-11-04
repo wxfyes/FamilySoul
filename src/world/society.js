@@ -1,3 +1,4 @@
+import { moveActor } from './position.js';
 ﻿/**
  * 民间自愈（society）
  *

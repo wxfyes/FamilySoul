@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 世界时钟 —— 纯规则模拟，全程不调用大模型
  *
  * 真人机时比：默认 1 真实小时 = 1 世界日（即 2.5 真实分钟 = 1 世界小时）。
@@ -407,7 +407,7 @@ function runPettyCrimes(world, events) {
   for (const a of Object.values(world.actors || {})) {
     if (!a || !a.jailed) continue;
     if (day >= Number(a.jailed.untilDay || 0)) {
-      a.location = a.home || 'street';
+      moveActor(world, a.id, a.home || 'street', 'world', '刑满');
       delete a.jailed;
       events.push(nextEvent(world, { action: 'released', actor: a.id, place: a.location, payload: { text: `${a.name}刑满出狱` }, isPublic: true }));
     }
@@ -1068,7 +1068,7 @@ function runStudy(world, events) {
   if (youths.length) {
     const go = youths.slice(0, 3);
     for (const a of go) {
-      if (a.location !== 'academy') a.location = 'academy';
+      if (a.location !== 'academy') moveActor(world, a.id, 'academy', 'world', '上学');
     }
   }
   // 在书院的人，学识每天长一点
@@ -1443,7 +1443,7 @@ function fireAppointments(world, events) {
     const meetPlace = ap.place || world.actors?.husband?.location;
     const husbandThere = !meetPlace || world.actors?.husband?.location === meetPlace;
     // 她按时去了约定的地方（不管相公来没来）
-    if (actor && meetPlace) actor.location = meetPlace;
+    if (actor && meetPlace) moveActor(world, actor.id, meetPlace, 'world', '赴约');
 
     if (husbandThere) {
       // 会面成了
@@ -1610,7 +1610,7 @@ function advanceHour(world, events, nowMs) {
       if (a.location === home) continue;
       // 哪怕就在相公跟前，天黑了也要回自己家；只有正在私会时例外
       if (a.intimacy?.ritual === 'unlocked') continue; // 正在私会，别打断
-      a.location = home;
+      moveActor(world, a.id, home, 'world', '天黑回家');
       events.push(
         nextEvent(world, {
           action: 'npc_home',

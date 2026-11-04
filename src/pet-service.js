@@ -2604,18 +2604,32 @@ export class PetService {
         const wHome = loadState(this.dataDir);
         const myActorId = this._viewerActorId || 'husband';
         const myLoc = wHome.actors?.[myActorId]?.location || 'husband_room';
-        const hereOthers = Object.values(wHome.actors || {}).filter(
-          (a) => a && !a.dead && a.id !== myActorId && a.location === myLoc
-        );
         const pNow = String(wHome.places?.[myLoc]?.name || '');
-        if (hereOthers.length > 0) {
-          const prime = (turnTarget && turnTarget.actor && hereOthers.some((x) => x.id === turnTarget.actor.id))
-            ? turnTarget.actor
-            : (hereOthers.find((x) => x.gender === 'female') || hereOthers[0]);
-          const short = prime.name && prime.name.length > 2 ? prime.name.slice(-2) : prime.name;
-          reply = `【${prime.label || prime.name || short}】：“相公吩咐，妾身在这儿听着呢。这桩事相公既说了，妾身这就照办。”`;
+
+        // 1. 若相公问的是不在场的人，报其位置（杜绝省略号）
+        const absent = Object.values(wHome.actors || {}).find((a) => {
+          if (!a || a.dead || !a.name || a.id === myActorId) return false;
+          const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+          const named = say.includes(a.name) || (short && say.includes(short));
+          return named && a.location !== myLoc;
+        });
+        if (absent) {
+          const whereA = String(wHome.places?.[absent.location]?.name || wHome.places?.[absent.home]?.name || '别处');
+          reply = `【${pNow || '这里'}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
         } else {
-          reply = engineMovedHusband && pNow ? `【${pNow}】：（你到了${pNow}。）` : '……';
+          // 2. 正常对话被误杀：由在场正主自然接话，绝不冷场
+          const hereOthers = Object.values(wHome.actors || {}).filter(
+            (a) => a && !a.dead && a.id !== myActorId && a.location === myLoc
+          );
+          if (hereOthers.length > 0) {
+            const prime = (turnTarget && turnTarget.actor && hereOthers.some((x) => x.id === turnTarget.actor.id))
+              ? turnTarget.actor
+              : (hereOthers.find((x) => x.gender === 'female') || hereOthers[0]);
+            const short = prime.name && prime.name.length > 2 ? prime.name.slice(-2) : prime.name;
+            reply = `【${prime.label || prime.name || short}】：“相公吩咐，妾身在这儿听着呢。这桩事相公既说了，妾身这就照办。”`;
+          } else {
+            reply = engineMovedHusband && pNow ? `【${pNow}】：（你到了${pNow}。）` : '……';
+          }
         }
       }
     // 记下相公原本位置：她走动不该把他一起搬走

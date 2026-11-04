@@ -939,9 +939,13 @@ export function migrateOwnership(world) {
       if (prop.placeId && world.places[prop.placeId]) continue;
 
       // ① 先找同名或包含关系的地点（含"三层/大"这类修饰）
+      // 只认同名或只差两字以内的说法（"运河码头" 不能代表 "运河码头三层大酒楼"）
       const cands = Object.entries(world.places).filter(([, pl]) => {
         const pn = String(pl?.name || '');
-        return pn && (pn === nm || pn.includes(nm) || nm.includes(pn));
+        if (!pn) return false;
+        if (pn === nm) return true;
+        const near = Math.abs(pn.length - nm.length) <= 2;
+        return near && (pn.includes(nm) || nm.includes(pn));
       });
       if (cands.length) {
         // 优先取 id 与产业一致的那个，其次取名字最接近的
