@@ -617,6 +617,44 @@ export class PetService {
 
     // 交互系统已在客户端完全接管（转场/找人/付钱等），聊天中绝不偷听正则乱挂待付款打断剧情
 
+    // 告诉天道：要收钱就这么声明（由相公自己点确认）
+    try {
+      contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
+    } catch { /* 忽略 */ }
+
+    // 天道自己声明"要收钱/要付钱"：解析它输出里的 [[pay:标题|选项=价|选项=价]]
+    // 这不是偷听玩家说的话，是听天道的裁定；玩家点确认后才真扣钱
+    try {
+      const payTag = String(reply || '').match(/\[\[pay:([^\]]+)\]\]/);
+      if (payTag) {
+        const body2 = payTag[1];
+        const [title2, ...optParts] = body2.split('|');
+        const opts2 = optParts
+          .map((x) => {
+            const m2 = /^(.+?)=([\d.]+)$/.exec(String(x).trim());
+            return m2 ? { key: m2[1], label: m2[1], price: Number(m2[2]) || 0 } : null;
+          })
+          .filter(Boolean);
+        if (opts2.length > 0) {
+          const wPay = loadState(this.dataDir);
+          const mePay = this._viewerActorId ? wPay.actors?.[this._viewerActorId] : wPay.actors?.husband;
+          wPay.pendingAction = {
+            kind: 'lodging',
+            id: `pend_${Date.now()}`,
+            title: String(title2 || '花银子').slice(0, 12),
+            inn: 'inn',
+            options: opts2,
+            by: mePay?.id || 'husband',
+            askedDay: wPay.clock?.day || 1,
+            askedHour: wPay.clock?.hour || 0,
+          };
+          saveState(this.dataDir, wPay);
+          reply = String(reply || '').replace(payTag[0], '').trim();
+          console.log(`[Pay] 天道声明付费：${title2} ${opts2.map((o) => o.label + o.price).join('/')}`);
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 将 Gate 门禁客观事实注入为天道推演的刚性阻力边界
     if (gate && gate.reasons.length > 0) {
       contextHintEarly += `（【天道门禁客观事实】：${gate.reasons.join('；')}。请天道根据此客观事实进行生动合理裁决，绝不可让不在场之人瞬间穿墙同行。）\n`;

@@ -43,6 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _locTimer;
   List<String> _partyNames = const [];
   List<String> _hereNames = const [];
+  Map? _pendingAction;
 
   // 豆包风格语音按住说话状态
   bool _isVoiceMode = false; // 是否处于底部按住说话大按钮模式
@@ -581,13 +582,17 @@ class _ChatScreenState extends State<ChatScreen> {
             .where((x) => x.isNotEmpty)
             .toList();
       }
-      if (place != _placeName || day != _worldDay || hour != _worldHour || here.join(',') != _hereNames.join(',')) {
+      final pend = (d['pendingAction'] is Map) ? d['pendingAction'] as Map : null;
+      if (place != _placeName || day != _worldDay || hour != _worldHour
+          || here.join(',') != _hereNames.join(',')
+          || '${pend?['id']}' != '${_pendingAction?['id']}') {
         setState(() {
           _placeName = place;
           _worldDay = day;
           _worldHour = hour;
           _partyNames = names;
           _hereNames = here;
+          _pendingAction = pend;
         });
       }
     } catch (_) {}
@@ -985,6 +990,66 @@ class _ChatScreenState extends State<ChatScreen> {
                   }
                   return const SizedBox.shrink();
                 }),
+                // 💰 待付款：要花银子的事，必须你亲手点头
+                if (_pendingAction != null)
+                  Container(
+                    width: double.infinity,
+                    color: const Color(0xFF241E12),
+                    padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.payments_rounded, size: 16, color: Color(0xFFE0B252)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '要花银子：${_pendingAction!['title'] ?? ''}',
+                            style: const TextStyle(color: Color(0xFFE8C87A), fontSize: 12.5),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        ...(((_pendingAction!['options'] as List?) ?? const []).map((o) {
+                          final opt = (o is Map) ? o : <String, dynamic>{};
+                          final label = (opt['label'] ?? '').toString();
+                          final price = opt['price'];
+                          final key = (opt['key'] ?? label).toString();
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                backgroundColor: const Color(0xFF3A2F1A),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () async {
+                                HapticFeedback.lightImpact();
+                                final messenger = ScaffoldMessenger.of(context);
+                                final line = await provider.api.confirmPayment(key,
+                                    actionId: _pendingAction!['id']?.toString());
+                                if (!mounted) return;
+                                setState(() => _pendingAction = null);
+                                if (line != null) {
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text(line), duration: const Duration(milliseconds: 2200), behavior: SnackBarBehavior.floating),
+                                  );
+                                }
+                                _refreshPlace();
+                              },
+                              child: Text('$label $price 两',
+                                  style: const TextStyle(color: Color(0xFFE8C87A), fontSize: 12)),
+                            ),
+                          );
+                        })),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white24),
+                          onPressed: () async {
+                            // 不付：只清掉提示，什么都不发生
+                            setState(() => _pendingAction = null);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 if (!isOnline && provider.isInitialized)
                   GestureDetector(
                     onTap: () {
