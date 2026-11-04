@@ -929,6 +929,26 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 约定的"人"必须是活人：老数据里存过 id/拼音的，一律纠正成现名
+  try {
+    const byName = new Set(Object.values(world.actors || {}).filter((a) => a?.name).map((a) => a.name));
+    for (const ap of world.appointments || []) {
+      if (!ap) continue;
+      let nm = String(ap.name || '');
+      if (ap.actorId && world.actors?.[ap.actorId]?.name) { ap.name = world.actors[ap.actorId].name; continue; }
+      if (byName.has(nm)) continue;
+      const direct = Object.values(world.actors || {}).find((a) => a?.name === nm);
+      if (direct) { ap.name = direct.name; continue; }
+      const frag = nm.toLowerCase().replace(/[^a-z]/g, '');
+      if (frag.length >= 3) {
+        for (const len of [frag.length, 5, 4, 3]) {
+          const part = frag.slice(0, len);
+          const hit = Object.entries(world.actors || {}).find(([id]) => id.toLowerCase().includes(part));
+          if (hit?.[1]?.name) { ap.name = hit[1].name; console.log(`[Name] 约定 ${nm} → ${hit[1].name}`); break; }
+        }
+      }
+    }
+  } catch { /* 忽略 */ }
   // 名字只是标签：按 id 把派生字段里的名字对齐（改过名也不会乱）
   try { syncNames(world); } catch { /* 忽略 */ }
   // 孤儿雇工：有雇主、却没记录是谁招的——一律归到"府里代办"的差事上，

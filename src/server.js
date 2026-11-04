@@ -589,7 +589,23 @@ const STARTED_AT = Date.now();
           todos.push({
             kind: '约定', id: ap.id || `${ap.day}-${ap.hour}-${ap.name}`,
             when: `第${ap.day}日${ap.hour}时`,
-            who: (ap.actorId && world.actors?.[ap.actorId]?.name) || ap.name || '',
+            who: (() => {
+              const byId = ap.actorId ? world.actors?.[ap.actorId]?.name : null;
+              if (byId) return byId;
+              const rawName = String(ap.name || '');
+              // 老数据把 id 当名字存进来了：能对上人就用真名
+              const byName = world.actors?.[rawName]?.name;
+              if (byName) return byName;
+              const hit = Object.values(world.actors || {}).find((a) => a && a.name === rawName);
+              if (hit) return hit.name;
+              // 老数据里可能是拼音/拉丁写法（jing'er）：按 id 片段认人
+              const frag = rawName.toLowerCase().replace(/[^a-z]/g, '');
+              if (frag.length >= 3) {
+                const byIdFrag = Object.entries(world.actors || {}).find(([aid]) => aid.toLowerCase().includes(frag));
+                if (byIdFrag?.[1]?.name) return byIdFrag[1].name;
+              }
+              return '';
+            })(),
             text: ap.text || '', day: ap.day, hour: ap.hour,
             place: apTargetPlace(world, ap) || '',
             status: ap.engaged ? 'engaged' : 'open',
