@@ -25,6 +25,7 @@ import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
 import { buildTimeline, eventText } from './world/events-view.js';
+import { spendSilver, recentLedger } from './world/ledger.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
@@ -694,7 +695,24 @@ const STARTED_AT = Date.now();
         const me = world.actors?.[actorId] || world.actors?.husband;
         const pend = world.pendingAction;
 
-        if (!pend) return sendJson(res, 200, { ok: false, error: '没有待付的账' });
+        // 没有天道报的价，也可以自己记一笔（手动付账）
+        if (!pend) {
+          const amount = Math.max(0.01, Math.round((Number(body.amount) || 0) * 100) / 100);
+          const title = String(body.title || '花销').slice(0, 20);
+          if (!body.amount) return sendJson(res, 200, { ok: false, error: '没有待付的账' });
+          const silver0 = Number(world.assets?.silver) || 0;
+          if (silver0 < amount) {
+            return sendJson(res, 200, { ok: false, error: `钱不够：要 ${amount} 两，手头 ${silver0.toFixed(2)} 两` });
+          }
+          const spent0 = spendSilver(world, amount, title, me?.id || 'husband');
+          if (!spent0.ok) return sendJson(res, 200, { ok: false, error: spent0.error });
+          world.notes = Array.isArray(world.notes) ? world.notes : [];
+          world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}花了${amount}两：${title}` });
+          world.events = Array.isArray(world.events) ? world.events : [];
+          world.events.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}花${amount}两${title}` });
+          saveState(DATA_DIR, world);
+          return sendJson(res, 200, { ok: true, line: `（付了 ${amount} 两：${title}。余 ${world.assets.silver.toFixed(2)} 两）`, paid: amount });
+        }
         if (body.actionId && pend.id && String(body.actionId) !== String(pend.id)) {
           return sendJson(res, 200, { ok: false, error: '这笔账已经过时了' });
         }
@@ -712,8 +730,12 @@ const STARTED_AT = Date.now();
         }
 
         // 扣钱
-        if (actorId === 'husband') world.assets.silver = Math.round((silver - price) * 100) / 100;
-        else world.wallets = { ...(world.wallets || {}), [actorId]: Math.round((silver - price) * 100) / 100 };
+        if (actorId === 'husband') {
+          const spent1 = spendSilver(world, price, `${pend.title || '花销'}·${opt?.label || ''}`, 'husband');
+          if (!spent1.ok) return sendJson(res, 200, { ok: false, error: spent1.error });
+        } else {
+          world.wallets = { ...(world.wallets || {}), [actorId]: Math.round((silver - price) * 100) / 100 };
+        }
 
         let line = `（付了 ${price} 两。）`;
         const comers = [];
@@ -1913,6 +1935,21 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 读某个成员最近的聊天记录（诊断用，只读）
+    if (req.method === 'GET' && pathname === '/api/admin/history/read') {
+      try {
+        const member = String(url.searchParams.get('member') || 'husband');
+        const limit = Math.min(60, Number(url.searchParams.get('limit')) || 20);
+        const h = petService.readHistory(member) || {};
+        const msgs = (h.messages || []).slice(-limit).map((m) => ({
+          role: m.role, text: String(m.text || '').slice(0, 200), at: m.at || null,
+        }));
+        return sendJson(res, 200, { ok: true, member, count: msgs.length, messages: msgs });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     if (req.method === 'POST' && pathname === '/api/admin/history/clear') {
       try {
         const body = await parseJsonBody(req, 64 * 1024);
@@ -2687,6 +2724,7 @@ const STARTED_AT = Date.now();
             return out.slice(-12);
           })(),
           timeline: buildTimeline(world, readRecentEvents(DATA_DIR, 40), 14),
+          ledger: recentLedger(world, 8),
           summary: buildStateSummary(DATA_DIR),
           marriages,
           factions,

@@ -769,7 +769,8 @@
             <h2>💰 银两与日入</h2>
             <div class="row" style="padding-bottom:6px;"><span class="big" id="a-acc-top" style="color:var(--accent-gold);">现存 — 两 · 日入 — 两</span></div>
             <div id="acc-detail" style="margin-top:6px;"></div>
-          </section>
+            <div id="ledger" style="margin-top:10px"></div>
+</section>
 
           <section class="card" id="card-court-core">
             <h2>🏛️ 庙堂派系</h2>
@@ -1766,7 +1767,7 @@ function render(w){
     </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
 
   window.__lastWorld = w;
-  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderLedger(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
   const officialIds = new Set(w.officeHolders || []);
   // 官员一律只进「朝中」卡，不进人物表（按 id 与身份双重判定）
   const OFFICIAL_ROLE_RE = /知县|知府|尚书|侍郎|巡抚|宰相|天子|御史|总督|按察|布政|通判|典史|主簿|县令|县丞|知州|同知|参军|都尉|统领/;
@@ -2030,6 +2031,19 @@ function renderWorldExtras(w) {
       + (w.envoy ? `<div class="row"><span>使节</span><span class="muted">${w.envoy.name} 求${w.envoy.demand}</span></div>` : '')
       + (w.imperialArmy ? `<div class="row"><span>官军</span><span class="muted" style="color:#e05a5a">${w.imperialArmy.count}人 → ${w.imperialArmy.target}（第${w.imperialArmy.arriveDay}日到）</span></div>` : '');
   }
+}
+
+
+function renderLedger(w) {
+  const el = $('ledger');
+  if (!el) return;
+  const rows = (w.ledger || []).filter(Boolean);
+  if (!rows.length) { el.innerHTML = '<div class="muted" style="font-size:12px">还没有银两流水</div>'; return; }
+  el.innerHTML = '<div class="muted" style="font-size:12px;margin-bottom:4px">最近流水</div>' + rows.map((r) => {
+    const sign = Number(r.delta) > 0 ? '+' : '';
+    const color = Number(r.delta) > 0 ? '#4ade80' : '#f87171';
+    return `<div class="row" style="font-size:12.5px"><span>第${r.day}日${r.hour}时 ${r.title}</span><span style="color:${color}">${sign}${r.delta} 两</span></div>`;
+  }).join('');
 }
 
 function renderTreasury(court) {

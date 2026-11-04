@@ -380,4 +380,18 @@ class SurfCoreApiClient {
     } catch (_) {}
     return null;
   }
+  /// 手动记一笔花销
+  Future<String?> payManual(double amount, String title) async {
+    try {
+      final res = await _dio.post('${config.baseUrl}/api/world/pay',
+          queryParameters: {'token': config.token.trim()},
+          data: {'amount': amount, 'title': title});
+      if (res.statusCode == 200 && res.data is Map) {
+        if (res.data['ok'] == true) return (res.data['line'] ?? '（已付。）').toString();
+        final err = res.data['error'];
+        if (err is String) return '（$err）';
+      }
+    } catch (_) {}
+    return null;
+  }
 }
