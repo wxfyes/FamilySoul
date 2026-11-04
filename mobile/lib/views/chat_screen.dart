@@ -890,6 +890,49 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Column(
               children: [
+                // 📍 位置条：随时知道自己在哪（点一下＝出门）
+                InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
+                    ).then((_) => _refreshPlace());
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    color: const Color(0xFF1B1E28),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.place_rounded, size: 15, color: Color(0xFF8B5CF6)),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            _placeName.isEmpty ? '定位中…' : _placeName,
+                            style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_worldDay > 0)
+                          Text(
+                            '第$_worldDay日 $_worldHour时',
+                            style: const TextStyle(color: Colors.white30, fontSize: 11.5),
+                          ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_right_rounded, size: 15, color: Colors.white24),
+                      ],
+                    ),
+                  ),
+                ),
+                Builder(builder: (_) {
+                  if (_placeName.isEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((__) => _refreshPlace());
+                  }
+                  return const SizedBox.shrink();
+                }),
                 if (!isOnline && provider.isInitialized)
                   GestureDetector(
                     onTap: () {
