@@ -401,6 +401,40 @@ const STARTED_AT = Date.now();
       return byName?.location || null;
     };
 
+    // 约定没地点时：当场请天道从"世上已有的地方"里挑一个（它挑，引擎不猜）
+    const askDmForPlace = async (world, ap) => {
+      try {
+        if (!llmClient.isReady()) return null;
+        const places = Object.entries(world.places || {})
+          .filter(([, pl]) => pl && pl.name && !pl.private)
+          .map(([, pl]) => pl.name)
+          .slice(0, 80)
+          .join('、');
+        const sys = '你是这个世界的天道。只输出一个地点名，别的都不许写。';
+        const usr = [
+          `第${world.clock?.day}日 ${world.clock?.hour}时，有一桩约要去赴：`,
+          `与${ap.name || '某人'}：${String(ap.text || '').slice(0, 40)}`,
+          `世上现有的地方：${places}`,
+          '这桩约最合场景是在哪？只回一个上面列表里的地点名。',
+        ].join('\n');
+        const out = await llmClient.complete({ system: sys, messages: [{ role: 'user', content: usr }], temperature: 0.2, maxTokens: 40 });
+        const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '');
+        const name = String(text || '').trim().split(/[\s，。,.、\n]/)[0];
+        const hit = Object.entries(world.places || {}).find(([, pl]) => pl && String(pl.name) === name);
+        if (hit) {
+          ap.place = hit[0];
+          world.notes = Array.isArray(world.notes) ? world.notes : [];
+          world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `与${ap.name || '人'}的约定定在「${name}」` });
+          console.log(`[Place] 天道定下地点：${name}`);
+          return hit[0];
+        }
+        console.log(`[Place] 天道给的「${name}」不在名册里，不用`);
+      } catch (err) {
+        console.warn('[Place] 问地点失败：', err.message);
+      }
+      return null;
+    };
+
     // ═══ 交互层：去哪 / 找人 / 约定（只读 + 走同一条管道） ═══
 
     // GET /api/world/menu  → 一次取回：我在哪、可去的地方、可找的人、待办
@@ -493,6 +527,7 @@ const STARTED_AT = Date.now();
             when: `第${ap.day}日${ap.hour}时`, who: ap.name || '',
             text: ap.text || '', day: ap.day, hour: ap.hour,
             place: apTargetPlace(world, ap) || '',
+            status: ap.engaged ? 'engaged' : 'open',
             placeName: (() => {
               const pid = apTargetPlace(world, ap);
               return pid ? (world.places?.[pid]?.name || '') : '';
@@ -506,6 +541,7 @@ const STARTED_AT = Date.now();
             kind: '承诺', id: pr.id || String(pr.text || '').slice(0, 20),
             when: `第${pr.due}日`, who: '', text: String(pr.text || '').slice(0, 40), due: pr.due,
             place: '', placeName: '', overdue: Number(pr.due) < (Number(world.clock?.day) || 1),
+            status: pr.engaged ? 'engaged' : 'open',
           });
         }
         // 天道最近该知道的事（你的决定会记在这里）
@@ -686,20 +722,34 @@ const STARTED_AT = Date.now();
           }
           world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}把一件事改天了` });
         } else if (action === 'do') {
+          // 启程去办：只把人送过去、记成"进行中"；成不成由天道在后面判
           if (apt) {
-            const pid = apTargetPlace(world, apt);
+            let pid = apTargetPlace(world, apt);
+            if (!pid) pid = await askDmForPlace(world, apt);   // 没有地点就当场请天道定
             if (pid && world.places?.[pid]) {
               me.location = pid;
-              line = `（你去了「${world.places[pid].name}」赴约。）`;
+              line = `（你动身去了「${world.places[pid].name}」。）`;
             } else {
-              line = '（这桩约当初没记地点，先记在心上。）';
+              line = '（你动身去办这事了，地点还没个准。）';
             }
-            world.appointments = (world.appointments || []).filter((x) => x !== apt);
-            world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}去赴了${apt.name || '人'}的约` });
+            apt.engaged = { day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
+            world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}已去赴${apt.name || '人'}的约（${String(apt.text || '').slice(0, 20)}），能不能成没说定` });
           } else {
             for (const pr of (world.promises || [])) {
               const key = pr.id || String(pr.text || '').slice(0, 20);
-              if (key === id) { pr.done = true; line = '（这件事办了，记下了。）'; }
+              if (key !== id) continue;
+              pr.engaged = { day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
+              // 承诺也得动身：去哪儿由天道定
+              const fakeAp = { name: '', text: pr.text, place: pr.place || null };
+              let pid2 = apTargetPlace(world, fakeAp);
+              if (!pid2) pid2 = await askDmForPlace(world, fakeAp);
+              if (pid2 && world.places?.[pid2]) {
+                me.location = pid2;
+                line = `（你动身去了「${world.places[pid2].name}」，去办这桩事。）`;
+              } else {
+                line = '（你动身去办这桩事了，去处还没定准。）';
+              }
+              world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}动身去办一桩旧诺（${String(pr.text || '').slice(0, 20)}），结果未定` });
             }
           }
         } else {
@@ -724,6 +774,7 @@ const STARTED_AT = Date.now();
 
         world.notes = world.notes.slice(-40);
         saveState(DATA_DIR, world);
+        if (!line) line = '（没找到这件事，可能已经了了。）';
         return sendJson(res, 200, { ok: true, line });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });

@@ -617,8 +617,82 @@ export class PetService {
 
     // 交互系统已在客户端完全接管（转场/找人/付钱等），聊天中绝不偷听正则乱挂待付款打断剧情
 
+    // 没地点的约定：让天道从"世上现有的地方"里指派一个，不许乱起名
+    try {
+      const wPlace = loadState(this.dataDir);
+      const noPlace = (wPlace.appointments || []).filter((a) => a && !a.place);
+      if (noPlace.length) {
+        const names = Object.entries(wPlace.places || {})
+          .filter(([, pl]) => pl && pl.name && !pl.private)
+          .slice(0, 60)
+          .map(([, pl]) => pl.name)
+          .join('、');
+        contextHintEarly += `（【约在哪】有约还没定地方。请从这些现成地点里挑一个最合场景的，附 [[place:约定片段|地点名]]：${names}。不许自己新起地名。）\n`;
+        const tags = String(reply || '').match(/\[\[place:([^\]]+)\]\]/g);
+        if (tags && tags.length) {
+          for (const tag of tags) {
+            const m = /\[\[place:(.+?)\|([^\]]+)\]\]/.exec(tag);
+            if (!m) continue;
+            const frag = String(m[1]).trim();
+            const placeName = String(m[2]).trim();
+            const hit = Object.entries(wPlace.places || {}).find(([, pl]) => pl && String(pl.name) === placeName);
+            if (!hit) {
+              console.log(`[Place] 天道想指派的「${placeName}」世上没有，不认`);
+              continue;
+            }
+            const apt = (wPlace.appointments || []).find((x) => x && (String(x.text || '').includes(frag) || String(x.name || '') === frag));
+            if (!apt) continue;
+            apt.place = hit[0];
+            wPlace.notes = Array.isArray(wPlace.notes) ? wPlace.notes : [];
+            wPlace.notes.push({ day: wPlace.clock?.day, hour: wPlace.clock?.hour, text: `与${apt.name || '人'}的约定在「${placeName}」` });
+            console.log(`[Place] 约定落在「${placeName}」`);
+          }
+          wPlace.notes = (wPlace.notes || []).slice(-40);
+          saveState(this.dataDir, wPlace);
+          reply = String(reply || '').replace(/\[\[place:[^\]]+\]\]/g, '').trim();
+        }
+      }
+    } catch { /* 忽略 */ }
+
+    // 事情办完没有，由天道说了算：[[deal:片段|成]] 或 [[deal:片段|不成]]
+    try {
+      const dealTags = String(reply || '').match(/\[\[deal:([^\]]+)\]\]/g);
+      if (dealTags && dealTags.length) {
+        const wDeal = loadState(this.dataDir);
+        wDeal.notes = Array.isArray(wDeal.notes) ? wDeal.notes : [];
+        for (const tag of dealTags) {
+          const m = /\[\[deal:(.+?)\|(成|不成)\]\]/.exec(tag);
+          if (!m) continue;
+          const frag = String(m[1]).trim();
+          const ok = m[2] === '成';
+          // 约定
+          const apIdx = (wDeal.appointments || []).findIndex((x) => x && (String(x.text || '').includes(frag) || String(x.name || '') === frag));
+          if (apIdx >= 0) {
+            const ap = wDeal.appointments[apIdx];
+            wDeal.appointments.splice(apIdx, 1);
+            wDeal.notes.push({ day: wDeal.clock?.day, hour: wDeal.clock?.hour, text: `与${ap.name || '人'}的约${ok ? '已了' : '没成'}` });
+            continue;
+          }
+          // 承诺
+          for (const pr of (wDeal.promises || [])) {
+            if (!pr || pr.done) continue;
+            if (!String(pr.text || '').includes(frag)) continue;
+            if (ok) { pr.done = true; pr.settledBy = 'dm'; }
+            else { pr.settled = 'failed'; pr.settledBy = 'dm'; }
+            wDeal.notes.push({ day: wDeal.clock?.day, hour: wDeal.clock?.hour, text: `旧诺「${String(pr.text || '').slice(0, 14)}」${ok ? '办成了' : '没办成'}` });
+            break;
+          }
+        }
+        wDeal.notes = wDeal.notes.slice(-40);
+        saveState(this.dataDir, wDeal);
+        reply = String(reply || '').replace(/\[\[deal:[^\]]+\]\]/g, '').trim();
+        console.log(`[Deal] 天道了结 ${dealTags.length} 桩事`);
+      }
+    } catch { /* 忽略 */ }
+
     // 告诉天道：要收钱就这么声明（由相公自己点确认）
     try {
+      contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
     } catch { /* 忽略 */ }
 
