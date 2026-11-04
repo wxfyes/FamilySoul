@@ -929,6 +929,37 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 承诺去重：同一个人、同一件事、同一天之内，只留最新一条
+  // （天道常把一句话记成好几条，攒久了列表会炸）
+  try {
+    const keyOf = (p) => {
+      const who = String(p?.actorId || p?.name || '');
+      const day = String(p?.due ?? p?.dueDay ?? '');
+      const body = String(p?.text || '').replace(/[，。、！？\s“”"'']/g, '').slice(0, 10);
+      return `${who}|${day}|${body}`;
+    };
+    const seen = new Map();
+    const kept = [];
+    for (const pr of world.promises || []) {
+      if (!pr) continue;
+      const k = keyOf(pr);
+      if (seen.has(k)) {
+        const prev = seen.get(k);
+        // 留文本更完整的那条
+        if (String(pr.text || '').length > String(prev.text || '').length) {
+          kept[kept.indexOf(prev)] = pr;
+          seen.set(k, pr);
+        }
+        continue;
+      }
+      seen.set(k, pr);
+      kept.push(pr);
+    }
+    if (kept.length !== (world.promises || []).length) {
+      console.log(`[Promise] 去重：${(world.promises || []).length} → ${kept.length}`);
+      world.promises = kept;
+    }
+  } catch { /* 忽略 */ }
   // 约定的"人"必须是活人：老数据里存过 id/拼音的，一律纠正成现名
   try {
     const byName = new Set(Object.values(world.actors || {}).filter((a) => a?.name).map((a) => a.name));

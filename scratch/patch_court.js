@@ -57,3 +57,4 @@ patched = patched.replace(target2, replacement2);
 
 fs.writeFileSync('src/server.js', patched, 'utf8');
 console.log('Successfully patched src/server.js!');
+
