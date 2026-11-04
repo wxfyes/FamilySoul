@@ -19,19 +19,32 @@ export function detectRitual(text) {
 }
 
 export function resolveRitualActor(world, roleName, memberKey = 'husband') {
-  // ① 你正在跟谁说话，就解禁谁（对话对象优先）
-  const partner = (world.chatPartners || {})[memberKey];
-  if (partner && world.actors?.[partner] && partner !== 'husband') return partner;
-  // ② 屋里只有一位主子，那就是她
   const place = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
+  // ① 你正在跟谁说话，优先看她，但必须同场（同处一室，严禁隔空跨地点欢好）
+  const partner = (world.chatPartners || {})[memberKey];
+  if (partner && world.actors?.[partner] && partner !== 'husband') {
+    if (place && world.actors[partner].location === place) return partner;
+  }
+  // ② 屋里在场的主子（排除自己、死者、仆从）
   const here = Object.entries(world.actors || {}).filter(
     ([id, a]) => a && !a.dead && a.location === place && id !== 'husband' && id !== memberKey && !a.servant,
   );
   if (here.length === 1) return here[0][0];
-  // ③ 退回角色名
+  // ③ 若同屋有多位主子（如婉儿、芸娘同在），优先正妻沈婉儿
+  if (here.length > 1) {
+    const wanerInHere = here.find(([id]) => id === 'waner');
+    if (wanerInHere) return 'waner';
+    return here[0][0];
+  }
+  // ④ 若屋里只有通房丫鬟（如小翠）：
+  const hereAny = Object.entries(world.actors || {}).filter(
+    ([id, a]) => a && !a.dead && a.location === place && id !== 'husband' && id !== memberKey,
+  );
+  if (hereAny.length > 0) return hereAny[0][0];
+  // ⑤ 仅当屋里空无一人且角色是傲娇助手时兜底正妻；外人若不在场绝不跨空选中
   if (roleName === '傲娇助手') return 'waner';
   for (const [id, a] of Object.entries(world.actors || {})) {
-    if (a?.role === roleName) return id;
+    if (a?.role === roleName && (!place || a.location === place)) return id;
   }
   return null;
 }

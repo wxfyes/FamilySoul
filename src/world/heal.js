@@ -84,6 +84,22 @@ export function healWorld(world) {
     fixes.push(`重名地点「${nm}」合并`);
   }
 
+  // ⑤.5 非法/口语误伤地点清理（如"就行"、"不行"、"什么铺"等）
+  const junkPlaceRe = /^(?:院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外|就行|不行|可行|成行|得行|行不行|过去|过去看|过去坐|应付|对付|应付过去|看看|看一下|商量一下|知会一声)$/;
+  for (const [id, pl] of Object.entries(world.places || {})) {
+    if (!pl) continue;
+    const nm = String(pl.name || '').trim();
+    if (junkPlaceRe.test(nm)) {
+      delete world.places[id];
+      fixes.push(`清理垃圾地点「${nm}」(${id})`);
+      for (const a of Object.values(world.actors || {})) {
+        if (a && a.location === id) {
+          a.location = a.id === 'husband' ? 'husband_room' : 'tea_house';
+        }
+      }
+    }
+  }
+
   // ⑥ 数组上限
   const trim = (key, max, label) => {
     if (Array.isArray(world[key]) && world[key].length > max) {

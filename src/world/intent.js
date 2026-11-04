@@ -28,6 +28,7 @@ export function isValidPlaceName(name) {
   if (s.length <= 1 || s.length > 10) return false;
   if (INVALID_PLACE_WORDS.test(s)) return false;
   if (/(?:就行|不行|不便|不可|没有|算了|应付)/.test(s)) return false;
+  if (/(?:到底|究竟|什么|哪家|哪个|这是|那是|谁的|算什么|怎么|怎样|如何|为何|凭什么|哪儿|哪里)/.test(s)) return false;
   return true;
 }
 

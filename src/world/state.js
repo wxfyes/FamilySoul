@@ -1033,6 +1033,27 @@ export function migrateOwnership(world) {
     }
   } catch (e) { console.warn('[State] 幽灵地点清理异常:', e.message); }
 
+  // 确保相公的家宅永久锁定在临江茶坊，绝不随任何移动被篡改
+  try {
+    if (world.actors?.husband) {
+      world.actors.husband.home = 'tea_house';
+    }
+  } catch { /* 忽略 */ }
+
+  // 清除“底是什么铺”等疑问词误建的垃圾地点
+  try {
+    for (const [pid, pl] of Object.entries(world.places || {})) {
+      if (!pl || !pl.name) continue;
+      if (/(底是什么|是什么|什么铺|算什么|怎么|怎样|凭什么)/.test(pl.name)) {
+        delete world.places[pid];
+        for (const a of Object.values(world.actors || {})) {
+          if (a && a.location === pid) a.location = a.home || 'street';
+        }
+        console.log(`[State] 清除疑问词垃圾地点：「${pl.name}」`);
+      }
+    }
+  } catch { /* 忽略 */ }
+
   try {
     const fallback = world.places?.street ? 'street' : (world.places?.backyard ? 'backyard' : Object.keys(world.places || {})[0]);
     for (const a of Object.values(world.actors || {})) {
@@ -1049,7 +1070,7 @@ export function migrateOwnership(world) {
   } catch { /* 忽略 */ }
   // 清掉误建的模糊地名（院中/屋里/房中…），人挪回后院暖阁
   try {
-    const junk = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外)$/;
+    const junk = /^(院中|院子里|庭院|院里|院|屋里|屋中|房中|屋内|屋里头|厅上|堂中|门口|门外|就行|不行|可行|成行|得行|行不行|过去|过去看|过去坐|应付|对付|应付过去|看看|看一下|商量一下|知会一声)$/;
     for (const [pid, pl] of Object.entries(world.places || {})) {
       if (!pl || !junk.test(String(pl.name || ''))) continue;
       const exitPlace = pl.exits && pl.exits[0] && world.places?.[pl.exits[0]] ? pl.exits[0] : null;

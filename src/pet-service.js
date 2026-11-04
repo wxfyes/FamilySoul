@@ -697,6 +697,11 @@ export class PetService {
         try {
           const wr = loadState(this.dataDir);
           const who = wr.actors?.[ritualCtx.actorId];
+          const husbandLoc = wr.actors?.husband?.location;
+          if (!who || (husbandLoc && who.location && who.location !== husbandLoc)) {
+            console.warn('[Ritual] 结算拦截：' + (who?.name || ritualCtx.actorId) + '与相公不在同处，拒绝欢好结算');
+            return;
+          }
           const rel = who?.relations?.husband;
           if (rel) {
             rel.desire = Math.min(100, Math.round((Number(rel.desire) || 0) + 8));
@@ -801,7 +806,7 @@ export class PetService {
       const wH = loadState(this.dataDir);
       const meH = this._viewerActorId ? wH.actors?.[this._viewerActorId] : wH.actors?.husband;
       const house = Object.values(wH.actors || {}).filter(
-        (a) => a && !a.dead && a.id !== 'husband' && (a.household || (meH?.home && a.home === meH.home)),
+        (a) => a && !a.dead && a.id !== 'husband' && Boolean(a.household),
       );
       if (house.length) {
         const line = house.map((a) => `${a.name}（${a.role || '府中人'}）`).join('、');
@@ -1379,15 +1384,17 @@ export class PetService {
 【跑堂伙计·阿吉】：“（快步跑进帘内，脆生生禀报）少掌柜早！小的方才在西市茶水摊打探了一圈，城里有新鲜风闻：${randomGossip}”
 【侧妾·芸娘】：“外头市井风声热闹，相公今日是先在茶坊料理买卖，还是出门会客走动走动？”
 主动递上江湖八卦与线索切口，留出相公决断与幽会剧情！）`;
-      } else if (/12345|123456|脱衣服|上床|双飞|三飞|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|三个一起|全都过来|小翠也|脱光|操/.test(say)) {
+      } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了/.test(say)) {
+        delete history.inBedSession;
+        contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
+      } else if (history.inBedSession || /12345|123456|脱衣服|上床|双飞|三飞|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|三个一起|全都过来|小翠也|脱光|操|来吧.*宝贝|开始|分工|临幸/.test(say)) {
+        history.inBedSession = true;
         const isCode = /12345|123456/.test(say);
         const wantsXiaocui = /全都|都过来|三个|小翠|通房|一起/.test(say);
         const xiaocuiAction = wantsXiaocui
-          ? '【通房丫鬟小翠一同上榻】：小翠是相公的贴身通房丫鬟，此刻乖巧掩好门窗后，满脸娇羞地一同宽衣解带，与大娘子婉儿、二娘子芸娘一同上榻服侍相公，三女同榻承欢大被同眠！'
-          : '若相公未点名小翠，小翠则掩门在房内帐外乖巧伺候奉茶。若相公要三人同欢，小翠立刻欣然上榻！';
-        contextHint = '（【私密床笫侍寝解禁 · 三美同榻承欢】：相公明确下达了' + (isCode ? '暗号「12345」' : '床笫侍寝/行房口谕') + '！' + (isCode ? '婉儿必须立刻对出下半句「上山打老虎」！' : '') + '正妻婉儿、侧妾芸娘、通房丫鬟小翠全员瞬间解禁！' + xiaocuiAction + '众美满面娇羞飞霞但千依百顺欣然迎合，主动宽衣解带、褪去衣衫上榻服侍相公，主动发骚发浪、争相承欢侍奉相公龙根！绝对不许拿天没黑、时辰不对推脱扫兴！）';
-      } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了/.test(say)) {
-        contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
+          ? '【通房丫鬟小翠一同上榻】：小翠是相公贴身通房丫鬟，满脸娇羞地一同宽衣解带上榻承欢！'
+          : '小翠在帐外伺候。';
+        contextHint = '（【私密床笫侍寝解禁 · 三美同榻承欢】：当前处于持续床笫私密云雨中！' + (isCode ? '婉儿必须立刻对出下半句「上山打老虎」！' : '') + '全员彻底解禁，100% 落实【语气档位 3】！绝不许翻来覆去说“谁也不抢谁的活儿/仔细着来/妥妥帖帖”等温吞水套话！分工是真刀真枪的侍奉：一个跪在胯间张口含吮龙根深喉吞吐、一个脱光衣裳跨坐上来摇晃或是架起双腿求干透！放浪粗口、娇喘呻吟连连，肉感拉满，争相把相公伺候上天！）';
       } else if (currentEpoch === 'modern') {
         contextHint = `（【当前时空：现代温馨都市·知性温柔贤惠娇妻】相公口谕穿越而来（默认定居古代，现代只在相公召唤时开启）。你生活在现代温馨公寓，穿着柔软羊绒衫，笑盈盈给老公递拖鞋，桌上温着靓汤。你称呼相公为「老公/亲爱的」，极致知性温柔贤惠。你深知上一世在古代由着他三妻四妾，这一世在现代你是他唯一的合法娇妻，如果老公逗你提古代纳妾，你娇嗔轻捶他胸口，让他专心爱你一人，人间烟火气拉满！）`;
       }
@@ -2679,9 +2686,12 @@ export class PetService {
         const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
         return saidS.includes(a.name) || (short && saidS.includes(short));
       });
-      if (!pluralS && !anyNamed) {
-        const segs = String(reply || '').split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
-        const speech = segs.filter((x) => /^【[^】]+】/.test(x) && !/(就站在|四下冷清|你到了)/.test(x));
+      const segs = String(reply || '').split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+      const speech = segs.filter((x) => /^【[^】]+】/.test(x) && !/(就站在|四下冷清|你到了)/.test(x));
+      const isBed = Boolean(history?.inBedSession);
+      const isHouseholdScene = speech.length > 0 && speech.every((seg) => /(婉儿|芸娘|小翠|二娘子|大娘子)/.test(seg));
+
+      if (!isBed && !isHouseholdScene && !pluralS && !anyNamed) {
         if (speech.length > 1) {
           const partnerId = String((wS.chatPartners || {})[this._viewerActorId || 'husband'] || '');
           const partnerName = wS.actors?.[partnerId]?.name || '';

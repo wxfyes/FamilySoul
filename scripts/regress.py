@@ -253,6 +253,31 @@ console.log(t && t !== '……' && t.includes('苏娘') ? 'PASS' : 'FAIL ' + t.s
     return 'PASS' in out, out
 
 
+@case('行房必须在场（严禁隔空洞房受孕）')
+def c13():
+    out = run_node(HEAD + """
+w.actors.suniang = { id:'suniang', name:'苏娘', role:'绣坊寡妇', gender:'female', home:'street', location:'street', relations:{husband:{trust:30,desire:10}}, intimacy:{level:0,tone:0,ritual:'solemn'}, schedule:[] };
+w.actors.husband.location = 'husband_room';
+w.chatPartners = { husband: 'suniang' };
+saveState(dir, w);
+const { resolveRitualActor } = await import('./src/world/ritual.js');
+const target = resolveRitualActor(w, '傲娇助手', 'husband');
+console.log(target !== 'suniang' ? 'PASS' : 'FAIL selected suniang');
+""" + TAIL)
+    return 'PASS' in out, out
+
+
+@case('芸娘在婚书谱系且名分已定（绝不失忆重定名分）')
+def c14():
+    out = run_node(HEAD + """
+const { buildStateSummary } = await import('./src/world/summarize.js');
+const summary = buildStateSummary(dir, { roleName: '傲娇助手', memberKey: 'husband' });
+const ok1 = summary.includes('林芸娘') && summary.includes('二房侧室') && summary.includes('名分早定');
+console.log(ok1 ? 'PASS' : 'FAIL missing marriage fact in summary');
+""" + TAIL)
+    return 'PASS' in out, out
+
+
 def main():
     passed = failed = 0
     for name, fn in CASES:

@@ -280,6 +280,7 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
             })
             .join('、')}`,
         );
+        lines.push('【明媒妻妾】正妻 沈婉儿（掌中馈大娘子，契约正配）、二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室）；名分早定，全府上下人尽皆知，绝不可说“还没定名分/张罗名分”。');
       }
     } catch {
       /* 忽略 */
