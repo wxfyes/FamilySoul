@@ -413,13 +413,14 @@ const STARTED_AT = Date.now();
         for (const a of people) {
           if (!a.location || !a.name) continue;
           occupied[a.location] = occupied[a.location] || [];
-          if (occupied[a.location].length < 4) occupied[a.location].push(a.name);
+          if (occupied[a.location].length < 3) occupied[a.location].push(a.name);
         }
-        const places = Object.entries(occupied)
-          .map(([id, names]) => ({ id, name: placeName(id), names }))
-          .filter((x) => x.id !== curId)
-          .sort((x, y) => y.names.length - x.names.length)
-          .slice(0, 12);
+        // 全城名册都算可去：有人的排前面，其次按名字排；私密房间（客栈房）不进公共列表
+        const places = Object.entries(world.places || {})
+          .filter(([id, pl]) => id !== curId && pl && pl.name && !pl.private)
+          .map(([id, pl]) => ({ id, name: pl.name, names: occupied[id] || [], count: (occupied[id] || []).length }))
+          .sort((x, y) => (y.count - x.count) || x.name.localeCompare(y.name, 'zh'))
+          .slice(0, 300);
 
         // 可找的人：府内 / 相好 / 其他
         const rel = (a) => a.relations?.husband || {};
@@ -454,9 +455,11 @@ const STARTED_AT = Date.now();
             const ax = o[x.group] ?? 9;
             const ay = o[y.group] ?? 9;
             if (ax !== ay) return ax - ay;
+            // 同组：在跟前的排前，其次信任高的
+            if (x.here !== y.here) return x.here ? -1 : 1;
             return y.trust - x.trust;
           })
-          .slice(0, 40);
+          .slice(0, 120);
 
         // 待办：约定 + 承诺
         const todos = [];
