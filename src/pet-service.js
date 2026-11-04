@@ -1,5 +1,5 @@
-import fs from 'node:fs';
-import { isPlaceName, extractPlaceCandidates, matchActor } from './world/naming.js';
+﻿import fs from 'node:fs';
+import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } from './world/naming.js';
 import { moveActor } from './world/position.js';
 import { hireStaff } from './world/employment.js';
 import path from 'node:path';
@@ -189,8 +189,7 @@ export class PetService {
       lines.push('记住：这一场里，除了玩家（紫嫣）之外，所有人（含王甯、阿吉）都由你演。');
       lines.push('- **你就是天机里写的那个人**（你的名字就是你自己的名字）。别人提到你的名字，是在叫你，不是第三个人；绝不许把自己当成外人来说（不许说「那位老板娘」「她」）。');
       lines.push('- **你现在站的地方，就是【所在】【场合】写的那一处**。那里是谁的铺子、当家的叫什么，照天机写；天机没写的别编，更不许把别处的铺子安到眼前。');
-      lines.push('- **【公共世界产业最高既定事实铁律】**：【运河码头三层大酒楼】是临江茶坊【王甯（相公）】此前斥资白银五百一十两全款买下的王家私产，房契红押全在沈婉儿妆匣！绝对严禁任何人（包括周有福、伙计或路人）说成是赵主簿或外人的产业，更绝对严禁说是“租门面”！周有福、陈二、何顺等全是王相公雇来打理的掌柜伙计！');
-      lines.push('- 别人问「这是谁家的产业/你们掌柜东家呢」，必须据实回答东家是王甯；绝不许否认天机里写明的王家全资产权。');
+      lines.push('- 别人问「你们掌柜/东家呢」，知道就照天机说（例如东家是谁），不知道就说不知道；绝不许否认天机里写明的东家。');
       lines.push('- 在场的人只知道自己身份和听来的事。问别人家的私密账目、家事、借据，只能说「不清楚」「只听人提过一点」，绝不许凭空知道细节。');
       lines.push('- 谁惹的祸就说谁：她铺子的债是**于子归拿铺子名号借的**，不是天上掉下来的。');
       lines.push('- 故事里要用到某个行当的人（郎中、稳婆、仵作、媒婆…）而世上没有时，给他一个姓再写，如「陈郎中」「王稳婆」。');
@@ -248,7 +247,7 @@ export class PetService {
       }
       lines.push('- 【运河码头临街三层大酒楼（已全款盘下 · 归属王家私产）】：');
       lines.push('  1. 相公此前已斥巨资白银五百一十两（510两）全款买下，房契、地契、官府红押已全数办妥立案，契书在正房大娘子沈婉儿妆匣妥善锁存！');
-      lines.push('  2. 【相公身份与尊称铁律】：相公王甯是这间三层临街大酒楼的【全资大东家/幕后大老板】！沈婉儿亲自主理筹备开张；何顺/吴有德等为相公招募聘用的大掌柜！【绝对严禁】把相公本人称呼为“酒楼掌柜”（掌柜是伙计领头打工的，相公是全资大东家）！');
+      lines.push('  2. 【相公身份与尊称铁律】：相公王甯是这间三层临街大酒楼的【全资大东家/幕后大老板】！大娘子沈婉儿亲自主理筹备开张，楼内掌柜伙计皆为王家雇工，绝不可称相公为“酒楼掌柜”（掌柜是伙计领头打工，相公是全资大东家）！');
       lines.push('  3. 职能定位：江南两淮水运咽喉第一站，定位为掌控两淮往来客商与天下消息的第一情报总中枢！');
       lines.push('  4. 【全员最高绝对禁忌】：绝对严禁任何角色说“酒楼还没买/看中了空铺子/要去磨价/酒楼归属不明”等失忆昏话！必须围绕开业吉日、大厨掌柜挑选、以及刺探两淮客商情报展开！');
       lines.push('- 【临江茶坊老店】：沿江青石板街起家祖业，后院三进暖阁，正妻沈婉儿正逐步带二房林芸娘打理柜台；');
@@ -978,6 +977,7 @@ export class PetService {
     try {
       contextHintEarly += '（【用人规矩】要开张、要添人手时，你替产业点人：[[staff:产业名|人名|身份]]，例如 [[staff:运河码头三层大酒楼|周有福|掌柜]]。没有这个人就现起一个名字，世上就真有这个人了。）\n';
       contextHintEarly += '（【习性规矩】长期相处真的改了某个人的性子（更顺从、更敢顶嘴、开始怕你…），你可以在回复末尾附 [[trait:谁|哪一样|+5]]，一次最多动 5~10，别乱给。这东西会跟着她一辈子。）\n';
+      contextHintEarly += '（【打探规矩】相公若差人去打听一个人的底细，或某处生意的实情，你把这桩事记成差事；等有了结果，用 [[clue:一句话底细|谁打探的]] 落进世界。打探可能只得到传言、也可能打草惊蛇，别一次给全。）\n';
       contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
@@ -992,6 +992,32 @@ export class PetService {
         .slice(0, 12)
         .map((a) => `${a.name}是相公${a.workplace}的${a.role || '伙计'}`);
       if (lines.length) contextHintEarly += `（【用人】${lines.join('；')}。这些人都认相公是东家，说话要带这层本分。）\n`;
+    } catch { /* 忽略 */ }
+
+    // 线索：天道把打探到的底细落进世界（唯一入口：这里）
+    try {
+      const clueTags = String(reply || '').match(/\[\[clue:([^\]]+)\]\]/g);
+      if (clueTags && clueTags.length) {
+        const wC = loadState(this.dataDir);
+        wC.clues = Array.isArray(wC.clues) ? wC.clues : [];
+        for (const tag of clueTags) {
+          const m = /\[\[clue:([^|\]]+)(?:\|([^\]]+))?\]\]/.exec(tag);
+          if (!m) continue;
+          const text = String(m[1] || '').trim().slice(0, 80);
+          if (!text) continue;
+          if (wC.clues.some((c) => String(c?.text || '') === text)) continue;
+          wC.clues.push({
+            text,
+            day: wC.clock?.day || 1,
+            source: String(m[2] || '打探').slice(0, 20),
+            owner: this._viewerActorId || 'husband',
+          });
+          console.log(`[Clue] 记下：${text.slice(0, 20)}（${String(m[2] || '打探')}）`);
+        }
+        wC.clues = wC.clues.slice(-120);
+        saveState(this.dataDir, wC);
+        reply = String(reply || '').replace(/\[\[clue:[^\]]+\]\]/g, '').trim();
+      }
     } catch { /* 忽略 */ }
 
     // 雇人：天道替产业点人（唯一入口 hireStaff）
@@ -1700,47 +1726,45 @@ export class PetService {
 
           if (/采云|杨采云|翟长盛|翟家货栈/i.test(say)) {
             if (isActorPresent(/杨采云|采云/, /yangcaiyun/)) {
-              let name = '杨采云';
-              targetSpeaker = name;
-              haremNotice = `（【当前接话分身：货栈大娘子·杨采云】：临江翟家大货栈老板娘，精明干练的商贾人妻！面对王甯时公私分明、精明干练，若提及管事，便命管事当面回话并查底册！）`;
+              targetSpeaker = '杨采云';
+              haremNotice = '（【在场交谈对象：杨采云】：杨采云就在相公跟前，由其根据自身身份与当前事实应答。）';
             } else {
               targetSpeaker = '婉儿';
-              haremNotice = '（【在场议论外人】：相公与身边人谈论起翟家货栈杨采云，杨采云此刻不在现场！请由在场之人（沈婉儿）就相公所言自然接话，杨采云绝不可凭空插嘴！）';
+              haremNotice = '（【议论不在场之人】：相公提及杨采云，杨采云此刻不在现场，由在场之人接话，不在场者绝不插嘴。）';
             }
           } else if (/文霞|刘文霞|于杰|城南酒肆|紫嫣/i.test(say)) {
             if (isActorPresent(/紫嫣|文霞/, /ziyan|liuwenxia/)) {
-              let name = '紫嫣';
-              targetSpeaker = name;
-              haremNotice = `（【当前接话分身：于家酒肆老板娘·紫嫣】：泼辣精明、雪白丰腴，守着于家酒肆的门面！带着市井少妇的机敏防备与娇嗔试探！）`;
+              targetSpeaker = '紫嫣';
+              haremNotice = '（【在场交谈对象：紫嫣】：紫嫣就在相公跟前，由其根据酒肆老板娘身份与自身处境应答。）';
             } else {
               targetSpeaker = '婉儿';
-              haremNotice = '（【在场议论外人】：相公与身边人谈论起于家酒肆紫嫣，紫嫣此刻不在现场！请由在场之人（沈婉儿）就相公所言自然接话，紫嫣绝不可凭空插嘴！）';
+              haremNotice = '（【议论不在场之人】：相公提及紫嫣，紫嫣此刻不在现场，由在场之人接话，不在场者绝不插嘴。）';
             }
           } else if (/(?:随科|随典吏|随书办)/i.test(say)) {
             if (isActorPresent(/随科/, /suike|npc_4/)) {
               targetSpeaker = '随科';
-              haremNotice = '（【相公当面质问随科】：相公此刻正在当面对县衙典吏随科质询，必须由【随科】首先开口答复，如实交代底册文书；发妻静儿在旁逼视补充，绝不可由他人冒名顶替随科说话！）';
+              haremNotice = '（【在场交谈对象：随科】：随科就在相公跟前，由其如实作答。）';
             } else {
               targetSpeaker = '婉儿';
-              haremNotice = '（【在场议论外人】：相公提及随科，随科此刻不在现场，请由在场之人自然回应，随科绝不可凭空出现！）';
+              haremNotice = '（【议论不在场之人】：相公提及随科，随科此刻不在现场，由在场之人接话，随科绝不可凭空出现。）';
             }
           } else if (/(?:静儿|战静|随娘子)/i.test(say)) {
             if (isActorPresent(/静儿|战静/, /zhanjing/)) {
               let name = '静儿';
               try { name = loadState(this.dataDir).actors?.zhanjing?.name || '静儿'; } catch {}
               targetSpeaker = name;
-              haremNotice = `（【当前交谈对象：书吏发妻·${name}】：相公特来赴约相助，你心存感激信赖；丈夫随科就在跟前，严禁说出"我回去敲打随科"等把眼前人当不在场的失忆妄语！）`;
+              haremNotice = `（【在场交谈对象：${name}】：${name}就在相公跟前，由其以发妻身份应答。）`;
             } else {
               targetSpeaker = '婉儿';
-              haremNotice = '（【在场议论外人】：相公提及静儿（如称赞静儿好心相助），静儿此刻并不在场！请由在场的大娘子婉儿温柔顺和地应承接话（如赞同相公、改日备礼谢她等），静儿绝不许凭空闪现插嘴！）';
+              haremNotice = '（【议论不在场之人】：相公提及静儿，静儿此刻不在现场，由在场之人自然回应，静儿绝不许凭空插嘴。）';
             }
           } else if (/苏慕雪|慕雪|书院山长/i.test(say)) {
             if (isActorPresent(/苏慕雪|慕雪/, /sumuxue/)) {
               targetSpeaker = '苏慕雪';
-              haremNotice = '（【当前接话分身：书院人妻·苏慕雪】：温婉端庄、知性高雅的名门贵妇，书香门第，知书达理！言谈间尽显知性矜持与文人雅趣，视王甯为品茗论道的茶商知己，严守礼制大防，需要相公逐步攻略！）';
+              haremNotice = '（【在场交谈对象：苏慕雪】：苏慕雪就在相公跟前，由其知性矜持应答。）';
             } else {
               targetSpeaker = '婉儿';
-              haremNotice = '（【在场议论外人】：相公提及苏慕雪，苏慕雪此刻不在现场，请由在场之人自然接话，苏慕雪绝不可凭空出现！）';
+              haremNotice = '（【议论不在场之人】：相公提及苏慕雪，苏慕雪此刻不在现场，由在场之人接话，苏慕雪绝不插嘴。）';
             }
           } else if (isDirectCallingXiaoCui) {
             targetSpeaker = '小翠';
@@ -2512,9 +2536,8 @@ export class PetService {
           // 全被掐掉：点的人不在场 → 照实报他在哪，别剩省略号
           const named3 = Object.values(wLoc.actors || {}).find((a) => a && a.name && String(say || '').includes(a.name));
           if (named3) {
-            const where3 = String(wLoc.places?.[named3.location]?.name || '别处');
-            const here3 = String(wLoc.places?.[locId2]?.name || '这里');
-            reply = `【${here3}】：${named3.name}在「${where3}」，眼下不在这儿。`;
+            const where3 = getPlaceDisplayName(wLoc, named3.location);
+            reply = `（${named3.name}此刻人在「${where3}」，眼下并不在跟前。）`;
             console.log(`[Scene] ${named3.name}不在场，照实报位置：${where3}`);
           } else {
             // 不在场角色严禁放行，杜绝隔空千里传音
@@ -2737,8 +2760,8 @@ export class PetService {
           return named && a.location !== myLoc;
         });
         if (absent) {
-          const whereA = String(wHome.places?.[absent.location]?.name || wHome.places?.[absent.home]?.name || '别处');
-          reply = `【${pNow || '这里'}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
+          const whereA = getPlaceDisplayName(wHome, absent.location || absent.home);
+          reply = `（${absent.name}此刻人在「${whereA}」，眼下并不在跟前。）`;
         } else {
           // 2. 正常对话被误杀：由在场正主自然接话，绝不冷场
           const hereOthers = Object.values(wHome.actors || {}).filter(
@@ -2981,9 +3004,8 @@ export class PetService {
       } else if (!namedPresent.length && namedAbsent.length === 1 && (!reply || !/【[^】]+】/.test(String(reply)) || /(没人接话|没人应声)/.test(String(reply)))) {
         // 专程找不在场的人且现场无人应答：照实报位置
         const abs = namedAbsent[0];
-        const where = String(wEnd.places?.[abs.location]?.name || '别处');
-        const here = String(wEnd.places?.[curLoc]?.name || '这里');
-        reply = `【${here}】：${abs.name}在「${where}」，眼下不在这儿。`;
+        const where = getPlaceDisplayName(wEnd, abs.location);
+        reply = `（${abs.name}此刻人在「${where}」，眼下并不在跟前。）`;
         console.log(`[Scene] ${abs.name}不在场，照实报位置：${where}`);
       }
     } catch { /* 忽略 */ }
@@ -3056,12 +3078,11 @@ export class PetService {
       });
       const absentIsHousehold = absent && (absent.household || ['waner', 'yunnia', 'xiaocui'].includes(absent.id));
       if (absent && !absentIsHousehold && !String(reply || '').includes(String(wAbs.places?.[absent.location]?.name || ''))) {
-        const whereA = String(wAbs.places?.[absent.location]?.name || '别处');
-        const hereA = String(wAbs.places?.[meA2?.location]?.name || '这里');
+        const whereA = getPlaceDisplayName(wAbs, absent.location);
         // 先只把事实塞进提示，让天道用自己的话说；只有它一个字没写时才兜底
         contextHint += `（【事实】${absent.name}此刻在「${whereA}」，不在这儿。若对方问起，就照实说，别装作他/她在场。）\n`;
         if (!String(reply || '').trim() || /^\.{2,}$/.test(String(reply || '').trim())) {
-          reply = `【${hereA}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
+          reply = `（${absent.name}此刻人在「${whereA}」，眼下并不在跟前。）`;
         }
         console.log(`[Scene] 点名不在场：${absent.name}@${whereA}（交给天道措辞）`);
       }
