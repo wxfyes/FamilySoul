@@ -608,6 +608,13 @@ export class PetService {
     let engineMovedHusband = false; // 引擎这轮已经决定过相公去哪，模型无权再改
     let leftScene = false;          // 这一轮相公是『离场』
 
+    // 若相公说到"去某地"，只当商量：告诉天道别写"已经到了"
+    try {
+      if (/(去|往|到|上|回|进)(一|那|这|[\u4e00-\u9fa5]{2,6}(馆|铺|楼|坊|堂|店|院|阁|局|庄|街|巷|客栈|酒楼|茶坊|衙门))/.test(say)) {
+        contextHintEarly += '（【规矩】相公说要动身，只是商量；真正动身由他自己在界面上点「出门」。你这轮别写"已经到了某处"，最多写到应声或起身。）\n';
+      }
+    } catch { /* 忽略 */ }
+
     // 将 Gate 门禁客观事实注入为天道推演的刚性阻力边界
     if (gate && gate.reasons.length > 0) {
       contextHintEarly += `（【天道门禁客观事实】：${gate.reasons.join('；')}。请天道根据此客观事实进行生动合理裁决，绝不可让不在场之人瞬间穿墙同行。）\n`;
@@ -618,7 +625,7 @@ export class PetService {
 
     try {
       // 管道第 ⑤ 层：若为位移或开房，且通过门禁，由 applyAction 统一调度结算与自动造景
-      if (intent && intent.verb === VERBS.MOVE && intent.target && !gate?.blocked) {
+      if (false && intent && intent.verb === VERBS.MOVE && intent.target && !gate?.blocked) {
         const wNow = loadState(this.dataDir);
         const isConsensus = Boolean(intent.params?.isConsensus);
         // 若双方已达成共识，伴侣直接同行；若为相公单方面邀请，伴侣作为受邀者，交由天道裁定意愿 (稍后补齐或留守)
@@ -659,7 +666,8 @@ export class PetService {
         // 注意：这里 history 还没加载，直接读一次历史文件取她上一句（本地 JSON，开销极小）
         const lastBotSaid =
           [...(this.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
-        const summonResult = applySummon(this.dataDir, say, lastBotSaid, actorId && actorId !== 'husband' ? actorId : 'husband');
+        // 移动改由界面（位置条 → 出门）发起，聊天里不再瞬移
+      const summonResult = null;
       summonedNames = summonResult?.summoned || [];
       if (summonResult?.moved?.length || summonResult?.wentTo) engineMovedHusband = true;
       leftScene = Boolean(summonResult?.left || summonResult?.alreadyHome);

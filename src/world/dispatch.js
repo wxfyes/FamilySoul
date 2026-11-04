@@ -356,6 +356,11 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
       } else if (kind === 'move') {
         const id = resolveActor(world, args.who);
         if (!id) continue;
+        // 铁律：移动只由界面发起（点「出门」），聊天里说到去哪只算商量，不许瞬移
+        if (!opts || !opts.byUi) {
+          applied.push('拒绝:文字不触发移动（要走请点上面的位置条）');
+          continue;
+        }
         // 真人成员在自己的账号里走动，绝不许顺带把相公搬过去
         const caller = String((opts && (opts.selfId || opts.memberKey)) || '');
         if (id === 'husband' && caller && caller !== 'husband') {

@@ -52,13 +52,13 @@ fs.rmSync(root, { recursive: true, force: true });
 '''
 
 
-@case('她回家 → 只动她自己')
+@case('文字说回家 → 谁都不动（移动只认界面）')
 def c1():
     out = run_node(HEAD + r'''
 const svc = new PetService({ rolesManager:{ getActiveRole:()=>'x', getRolePersona:()=>'x', listRoles:()=>[] }, llmClient: mkLlm(), ttsService:null, visionService:null, dataDir: dir });
 await svc.chat({ text: '回家', modality:'text', profileKey:'liuwenxia', roleName:'x', actorId:'liuwenxia' });
 const s = loadState(dir);
-console.log(s.actors.liuwenxia.location === 'wine_shop' && s.actors.husband.location === 'tea_house' ? 'PASS' : 'FAIL 她=' + s.actors.liuwenxia.location + ' 他=' + s.actors.husband.location);
+console.log(s.actors.liuwenxia.location === 'street' && s.actors.husband.location === 'tea_house' ? 'PASS（文字不移动）' : 'FAIL 她=' + s.actors.liuwenxia.location + ' 他=' + s.actors.husband.location);
 ''' + TAIL)
     return 'PASS' in out, out
 
