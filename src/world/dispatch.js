@@ -470,7 +470,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           day,
           hour,
           every: Number(args.every) > 0 ? Number(args.every) : undefined, // 每 N 天重复
-          place: resolvePlace(world, args.place) || world.actors?.husband?.location || null, // 约在哪见
+          place: resolvePlace(world, args.place) || actor?.location || world.actors?.husband?.location || null, // 没写地点就约在她此刻所在
           text: String(args.text || '').slice(0, 80),
           madeAt: { day: world.clock.day, hour: world.clock.hour },
         });

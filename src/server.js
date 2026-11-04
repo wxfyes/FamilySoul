@@ -390,6 +390,16 @@ const STARTED_AT = Date.now();
   }
 
   // ── 个人世界看板（每个账号只看自己的）────────────────────────
+    // 约定的地点：优先记下的地点，否则就是对方此刻所在（老记录没 actorId 就按名字找）
+    const apTargetPlace = (w, ap) => {
+      if (!ap) return null;
+      if (ap.place && w.places?.[ap.place]) return ap.place;
+      const byId = ap.actorId ? w.actors?.[ap.actorId] : null;
+      if (byId?.location) return byId.location;
+      const byName = Object.values(w.actors || {}).find((a) => a && a.name === ap.name);
+      return byName?.location || null;
+    };
+
     // ═══ 交互层：去哪 / 找人 / 约定（只读 + 走同一条管道） ═══
 
     // GET /api/world/menu  → 一次取回：我在哪、可去的地方、可找的人、待办
@@ -481,7 +491,11 @@ const STARTED_AT = Date.now();
             kind: '约定', id: ap.id || `${ap.day}-${ap.hour}-${ap.name}`,
             when: `第${ap.day}日${ap.hour}时`, who: ap.name || '',
             text: ap.text || '', day: ap.day, hour: ap.hour,
-            place: ap.place || '', placeName: ap.place ? (world.places?.[ap.place]?.name || '') : '',
+            place: apTargetPlace(world, ap) || '',
+            placeName: (() => {
+              const pid = apTargetPlace(world, ap);
+              return pid ? (world.places?.[pid]?.name || '') : '';
+            })(),
             overdue: Number(ap.day) * 24 + Number(ap.hour) < (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0),
           });
         }
@@ -672,9 +686,10 @@ const STARTED_AT = Date.now();
           world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}把一件事改天了` });
         } else if (action === 'do') {
           if (apt) {
-            if (apt.place && world.places?.[apt.place]) {
-              me.location = apt.place;
-              line = `（你去了「${world.places[apt.place].name}」赴约。）`;
+            const pid = apTargetPlace(world, apt);
+            if (pid && world.places?.[pid]) {
+              me.location = pid;
+              line = `（你去了「${world.places[pid].name}」赴约。）`;
             } else {
               line = '（这桩约当初没记地点，先记在心上。）';
             }
