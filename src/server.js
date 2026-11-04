@@ -2009,6 +2009,22 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 删掉误记的产业（管理用）：按名字
+    if (req.method === 'POST' && pathname === '/api/admin/property/delete') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const name = String(body.name || '').trim();
+        const world = loadState(DATA_DIR);
+        const before = (world.assets?.properties || []).length;
+        world.assets = world.assets || {};
+        world.assets.properties = (world.assets.properties || []).filter((x) => x && String(x.name) !== name);
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, removed: before - world.assets.properties.length, left: world.assets.properties.length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 删掉误立的地方，把人送回一处（管理用）
     if (req.method === 'POST' && pathname === '/api/admin/place/delete') {
       try {

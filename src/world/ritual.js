@@ -8,41 +8,35 @@
  */
 import { loadState, saveState, appendEvents, nextEvent } from './state.js';
 import { sceneAudience } from './scene.js';
-
-// 只认 12345 / 123456 这种独立出现的暗号，避免误伤普通数字
-const UNLOCK_RE = /(?:^|[^0-9])123456?(?:[^0-9]|$)|脱衣服|上床|双飞|三飞|三个一起|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|一起伺候|同榻|加入|全都过来/;
-const FINISH_RE = /(?:做完了|完事了|收兵|穿衣服|擦干净|下山了|下山|打完了|结束了|歇息吧|收拾一下|好了|射了)/;
+import { evaluateBedIntent, resolveBedPartner } from './bedchamber.js';
 
 export function detectRitual(text) {
-  const t = String(text || '');
-  return { unlock: UNLOCK_RE.test(t), finish: FINISH_RE.test(t) };
+  const res = evaluateBedIntent(text);
+  return { unlock: res.inBed, finish: res.shouldEnd };
 }
 
 export function resolveRitualActor(world, roleName, memberKey = 'husband') {
-  const place = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
-  // ① 你正在跟谁说话，优先看她，但必须同场（同处一室，严禁隔空跨地点欢好）
-  const partner = (world.chatPartners || {})[memberKey];
-  if (partner && world.actors?.[partner] && partner !== 'husband') {
-    if (place && world.actors[partner].location === place) return partner;
-  }
-  // ② 屋里在场的主子（排除自己、死者、仆从）
+  const self = world.actors?.[memberKey] || (memberKey === 'husband' ? world.actors?.husband : null);
+  const partner = resolveBedPartner(world, memberKey, '');
+  if (partner) return partner.id;
+
+  const place = self?.location || world.actors?.husband?.location;
+  // 屋里在场的主子（排除自己、死者）
   const here = Object.entries(world.actors || {}).filter(
-    ([id, a]) => a && !a.dead && a.location === place && id !== 'husband' && id !== memberKey && !a.servant,
+    ([id, a]) => a && !a.dead && a.location === place && id !== memberKey
   );
   if (here.length === 1) return here[0][0];
-  // ③ 若同屋有多位主子（如婉儿、芸娘同在），优先正妻沈婉儿
-  if (here.length > 1) {
+
+  // 男性角色优先正妻沈婉儿，其次如夫人、通房
+  if (self?.gender !== 'female') {
     const wanerInHere = here.find(([id]) => id === 'waner');
     if (wanerInHere) return 'waner';
-    return here[0][0];
+    const yunniaInHere = here.find(([id]) => id === 'yunnia');
+    if (yunniaInHere) return 'yunnia';
   }
-  // ④ 若屋里只有通房丫鬟（如小翠）：
-  const hereAny = Object.entries(world.actors || {}).filter(
-    ([id, a]) => a && !a.dead && a.location === place && id !== 'husband' && id !== memberKey,
-  );
-  if (hereAny.length > 0) return hereAny[0][0];
-  // ⑤ 仅当屋里空无一人且角色是傲娇助手时兜底正妻；外人若不在场绝不跨空选中
-  if (roleName === '傲娇助手') return 'waner';
+
+  // 仅当屋里空无一人且角色是傲娇助手时兜底正妻
+  if (roleName === '傲娇助手' && self?.gender !== 'female') return 'waner';
   for (const [id, a] of Object.entries(world.actors || {})) {
     if (a?.role === roleName && (!place || a.location === place)) return id;
   }
@@ -61,85 +55,42 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
   const actorId = resolveRitualActor(world, roleName, memberKey);
   if (!actorId || !world.actors?.[actorId]) return null;
 
-  // 公开场合铁律：只要还有别的真人在同一处，暗号一律不生效（私密绝不可外露）
-  // 闺房欢好：相公发起暗号/侍寝/欢好时，相公与当事妾室理所当然移步回后院正房寝榻
-  let myPlace = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
-  const isChamber = /正房|暖阁|卧房|闺房|husband_room|backyard|warm_pavilion|ling_room/.test(
-    String(myPlace) + String(world.places?.[myPlace]?.name || '')
-  );
-  if (hit.unlock && !isChamber) {
-    const targetRoom = world.places?.husband_room ? 'husband_room' : (world.places?.backyard ? 'backyard' : myPlace);
-    if (world.actors?.[memberKey]) world.actors[memberKey].location = targetRoom;
-    if (world.actors?.husband) world.actors.husband.location = targetRoom;
-    if (world.actors?.[actorId]) world.actors[actorId].location = targetRoom;
-    if (/小翠/.test(text) && world.actors?.xiaocui) world.actors.xiaocui.location = targetRoom;
-    if (/芸娘|二房/.test(text) && world.actors?.yunnia) world.actors.yunnia.location = targetRoom;
-    if (/婉儿|大娘子/.test(text) && world.actors?.waner) world.actors.waner.location = targetRoom;
-    myPlace = targetRoom;
-    console.log('[Ritual] 相公携诸娘子移步寝榻');
-  }
+  const myPlace = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
+  // 遵循军规第八条：物理挪移全由客户端交互控制，暗号欢好就地在当前榻上展开，绝不在聊天中偷听瞬移
   const audience = myPlace ? sceneAudience(world, myPlace, memberKey) : { isPublic: false, otherHumans: [] };
   if (hit.unlock && audience.isPublic) {
     return {
       unlock: false,
       finish: false,
-      refused: true,
-      reason: `同场还有 ${audience.otherHumans.map((h) => h.name).join('、')} 在场`,
       actorId,
+      tone: 0,
+      ritual: 'solemn',
+      refused: true,
+      reason: 'public_place',
+      otherHumans: audience.otherHumans,
     };
   }
 
-  const actor = world.actors[actorId];
-  actor.intimacy = actor.intimacy || { level: 2, tone: 0, lastAt: 0, ritual: 'solemn' };
-  const events = [];
-
-  // 她可以不愿意：信任不够、心里有怨，就不接这个暗号
-  if (hit.unlock) {
-    const rel = actor.relations?.husband || {};
-    const trust = Number(rel.trust ?? 30);
-    const grievance = Number(rel.grievance ?? 0);
-    // 三档：很生分才拒绝；中间是半推半就；很亲近才完全放开
-    if (trust < 25 || grievance >= 40) {
-      rel.grievance = Math.min(100, grievance + 3);
-      actor.relations = actor.relations || {};
-      actor.relations.husband = rel;
-      events.push(nextEvent(world, { actor: actorId, action: 'ritual_refused', payload: { actorId, trust }, isPublic: false }));
-      saveState(dataDir, world);
-      appendEvents(dataDir, events);
-      return {
-        unlock: false,
-        finish: false,
-        refused: true,
-        actorId,
-        reason: `${actor.name}不愿意（信任 ${Math.round(trust)}，怨怼 ${Math.round(grievance)}）——太生分了`,
-      };
-    }
-  }
+  const target = world.actors[actorId];
+  target.intimacy = target.intimacy || { level: 0, tone: 0, lastAt: 0, ritual: 'solemn' };
 
   if (hit.unlock) {
-    const relU = actor.relations?.husband || {};
-    const tU = Number(relU.trust ?? 30);
-    actor.intimacy.ritual = 'unlocked';
-    actor.intimacy.tone = tU >= 70 ? 3 : tU >= 45 ? 2 : 1; // 越亲近越放得开
-    actor.intimacy.willing = tU >= 70 ? 'eager' : tU >= 45 ? 'half' : 'reluctant';
-    actor.intimacy.level = 4;
-    actor.intimacy.since = `${world.clock.day}:${world.clock.hour}`;
-    events.push(nextEvent(world, { actor: 'husband', action: 'ritual_unlock', payload: { actorId }, isPublic: false }));
-  } else {
-    actor.intimacy.ritual = 'solemn';
-    actor.intimacy.tone = 0;
-    actor.intimacy.level = 3;
-    actor.intimacy.lastAt = world.clock.day;
-    delete actor.intimacy.since;
-    events.push(nextEvent(world, { actor: 'husband', action: 'ritual_finish', payload: { actorId }, isPublic: false }));
+    target.intimacy.ritual = 'unlocked';
+    target.intimacy.tone = 3;
+    target.intimacy.lastAt = world.clock?.day || 1;
+    saveState(dataDir, world);
+    return { unlock: true, finish: false, actorId, tone: 3, ritual: 'unlocked' };
   }
 
-  saveState(dataDir, world);
-  appendEvents(dataDir, events);
+  if (hit.finish) {
+    target.intimacy.ritual = 'solemn';
+    target.intimacy.tone = target.intimacy.level >= 2 ? 1 : 0;
+    saveState(dataDir, world);
+    return { unlock: false, finish: true, actorId, tone: target.intimacy.tone, ritual: 'solemn' };
+  }
 
-  return { ...hit, actorId, tone: actor.intimacy.tone, ritual: actor.intimacy.ritual };
+  return null;
 }
-
 /**
  * 契约强制：暗号命中而回复里没有「上山打老虎」，补齐。
  * 宁可机械一拍，也不能让契约失灵。

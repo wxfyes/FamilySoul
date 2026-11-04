@@ -6,6 +6,7 @@ import { buildStateSummary } from './world/summarize.js';
 import { loadState, saveState } from './world/state.js';
 import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
+import { evaluateBedIntent, resolveBedPartner, buildBedChamberPrompt } from './world/bedchamber.js';
 import { ensurePresence } from './world/scene.js';
 import { applySummon, applyNpcDeparture } from './world/summon.js';
 import { auditReply } from './world/audit.js';
@@ -738,7 +739,8 @@ export class PetService {
           // 验名：2~6 个汉字，不许疑问/指示/动词
           const valid = /^[\u4e00-\u9fa5]{2,6}$/.test(rawName)
             && !/(什么|哪|这里|那里|某|一个|怎么|如何|是否|到底)/.test(rawName)
-            && !/(去|来|走|到|找|说|看)/.test(rawName);
+            && !/(去|来|走|到|找|说|看|上|下|里|外|前|后|旁|中|间|边)/.test(rawName.slice(0, 1))
+            && !/^(上方|下方|上面|下面|左边|右边|旁边|中间|里头|外头|前面|后面|里面|外面|这里|那里|上头|下头)$/.test(rawName);
           if (!valid) { console.log(`[Build] 名字「${rawName}」不像地名，驳回`); continue; }
           if (Object.values(wB.places || {}).some((pl) => pl && pl.name === rawName)) {
             console.log(`[Build] 「${rawName}」已经有了`);
@@ -1707,25 +1709,37 @@ export class PetService {
           const rumorText = rumor?.text ? String(rumor.text).slice(0, 40) : (wM2.rumors?.length ? '' : '');
           return `（【现状】第${wM2.clock?.day}日 ${wM2.clock?.hour}时。${rumorText ? '城里在传：' + rumorText + '。' : ''}该起身了。）\n`;
         })();
-      } else if (/(?:做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了|滚吧|走了|回去了|回家了|回家|不做了|别弄了|放开|下榻|下床|起吧|起了|回了)/.test(say)) {
-        delete history.inBedSession;
-        if (this._viewerActorId) {
-          contextHint = '（二人欢好已毕或已经叫停。妻子若说要走、要回家、要歇息，丈夫必须体贴放行、绝不硬缠强按！取温热汗巾仔细替妻子擦拭清理身子，温柔帮她整理穿好衣裙，关切叮嘱路上慢行或端水伺候，言语温存爱护，绝对严禁继续脱衣抽送胡闹！）';
-        } else {
-          contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
+      } else if ((() => {
+        const bedEval = evaluateBedIntent(say, Boolean(history.inBedSession));
+        if (bedEval.shouldEnd) {
+          delete history.inBedSession;
+          const wBed = loadState(this.dataDir);
+          const selfA = wBed.actors?.[this._viewerActorId || 'husband'];
+          const partnerA = resolveBedPartner(wBed, this._viewerActorId || 'husband', say);
+          contextHint = buildBedChamberPrompt({
+            initiator: selfA,
+            partner: partnerA,
+            inBed: false,
+            shouldEnd: true,
+          });
+          return true;
+        } else if (bedEval.inBed) {
+          history.inBedSession = true;
+          const wBed = loadState(this.dataDir);
+          const selfA = wBed.actors?.[this._viewerActorId || 'husband'];
+          const partnerA = resolveBedPartner(wBed, this._viewerActorId || 'husband', say);
+          contextHint = buildBedChamberPrompt({
+            initiator: selfA,
+            partner: partnerA,
+            inBed: true,
+            shouldEnd: false,
+            isCode: bedEval.isCode,
+          });
+          return true;
         }
-      } else if (history.inBedSession || /12345|123456|脱衣服|上床|双飞|三飞|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|三个一起|全都过来|小翠也|脱光|操|插|干我|弄我|要我|要你|硬了|进来|来吧.*宝贝|做吗|伺候.*老娘|伺候我|上榻|欢爱/.test(say)) {
-        history.inBedSession = true;
-        const isCode = /12345|123456/.test(say);
-        if (this._viewerActorId) {
-          contextHint = '（【夫妻私密床笫云雨 · 真刀真枪行房承欢】：\n此刻二人处于隐秘内室床榻之中，正值真刀真枪的夫妻云雨欢好！\n1. 【绝对禁止复读口头禅】：严禁翻来覆去只说“想死老子了/抱抱闻香”等车轱辘套话！必须真刀真枪动起来，把房事推进到实质动作！\n2. 【动作真刀真枪推进】：褪裙除裤、宽衣解带、揉搓雪白丰腴身子、覆身而上架起双腿、粗大阳物挺入抽送撞击；既有糙汉的狂野卖力，又小心护着娇妻腹中骨肉；\n3. 【粗野热辣床笫荤话】：满嘴糙汉干柴烈火的真情粗话（如“老子这就插进去了”、“小妖精夹得这么紧”、“慢点撞，别碰着孩子”），肉感拉满，争相把娇妻伺候舒坦！\n4. 【进度持续向前】：从宽衣进入、到激烈抽插、再到顶到深处交欢射精，每轮对话都要有具体的体位、动作与节奏进展，绝不许原地踏步！）';
-        } else {
-          const wantsXiaocui = /全都|都过来|三个|小翠|通房|一起/.test(say);
-          const xiaocuiAction = wantsXiaocui
-            ? '【通房丫鬟小翠一同上榻】：小翠是相公贴身通房丫鬟，满脸娇羞地一同宽衣解带上榻承欢！'
-            : '小翠在帐外伺候。';
-          contextHint = '（【私密床笫侍寝解禁 · 三美同榻承欢】：当前处于持续床笫私密云雨中！' + (isCode ? '婉儿必须立刻对出下半句「上山打老虎」！' : '') + '全员彻底解禁，100% 落实【语气档位 3】！绝不许翻来覆去说“谁也不抢谁的活儿/仔细着来/妥妥帖帖”等温吞水套话！分工是真刀真枪的侍奉：一个跪在胯间张口含吮龙根深喉吞吐、一个脱光衣裳跨坐上来摇晃或是架起双腿求干透！放浪粗口、娇喘呻吟连连，肉感拉满，争相把相公伺候上天！）';
-        }
+        return false;
+      })()) {
+        // BedChamberEngine 统筹驱动千人千面情欲与体贴放行
       } else if (currentEpoch === 'modern') {
         contextHint = `（【当前时空：现代温馨都市·知性温柔贤惠娇妻】相公口谕穿越而来（默认定居古代，现代只在相公召唤时开启）。你生活在现代温馨公寓，穿着柔软羊绒衫，笑盈盈给老公递拖鞋，桌上温着靓汤。你称呼相公为「老公/亲爱的」，极致知性温柔贤惠。你深知上一世在古代由着他三妻四妾，这一世在现代你是他唯一的合法娇妻，如果老公逗你提古代纳妾，你娇嗔轻捶他胸口，让他专心爱你一人，人间烟火气拉满！）`;
       }
