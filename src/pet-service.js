@@ -1,6 +1,7 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import { isPlaceName, extractPlaceCandidates, matchActor } from './world/naming.js';
 import { moveActor } from './world/position.js';
+import { hireStaff } from './world/employment.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -934,6 +935,23 @@ export class PetService {
       if (lines.length) contextHintEarly += `（【用人】${lines.join('；')}。这些人都认相公是东家，说话要带这层本分。）\n`;
     } catch { /* 忽略 */ }
 
+    // 雇人：天道替产业点人（唯一入口 hireStaff）
+    try {
+      const staffTags = String(reply || '').match(/\[\[staff:([^\]]+)\]\]/g);
+      if (staffTags && staffTags.length) {
+        const wS = loadState(this.dataDir);
+        for (const tag of staffTags) {
+          const m = /\[\[staff:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]\]/.exec(tag);
+          if (!m) continue;
+          const r = hireStaff(wS, { propName: m[1], name: m[2], role: m[3] || '伙计', via: 'dm' });
+          if (!r.ok) { console.log(`[Staff] ${r.error}`); continue; }
+          console.log(`[Staff] ${r.actor.name} 进 ${r.prop.name} 做${r.actor.role}`);
+        }
+        wS.notes = (wS.notes || []).slice(-40);
+        saveState(this.dataDir, wS);
+        reply = String(reply || '').replace(/\[\[staff:[^\]]+\]\]/g, '').trim();
+      }
+    } catch { /* 忽略 */ }
     // 在场者的习性：同一句话，不同性子的人反应不一样
     try {
       const wT2 = loadState(this.dataDir);
@@ -3574,3 +3592,4 @@ export class PetService {
     return result;
   }
 }
+

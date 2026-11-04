@@ -380,28 +380,8 @@ export function applyRepairs(world, text) {
       continue;
     }
     if (f?.kind === 'staff') {
-      const propName = String(f?.who || '');
-      const prop = (world.assets?.properties || []).find((x) => x && String(x.name).includes(propName));
-      const newName = String(f?.name || '').trim();
-      if (prop && prop.placeId && world.places?.[prop.placeId] && newName.length >= 2) {
-        let a = Object.values(world.actors || {}).find((x) => x && x.name === newName);
-        if (!a) {
-          const id = `npc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          a = { id, name: newName, role: String(f?.role || '伙计').slice(0, 8), gender: 'unknown',
-            home: prop.placeId, work: prop.placeId, location: prop.placeId,
-            money: 0, relations: {}, schedule: [], origin: 'dm_hired', createdDay: world.clock?.day || 1 };
-          world.actors[id] = a;
-        } else {
-          a.location = prop.placeId;
-        }
-        prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
-        if (!prop.staffIds.includes(a.id)) prop.staffIds.push(a.id);
-        prop.staff = prop.staffIds.length;
-        a.employer = prop.owner || 'husband';
-        a.workplace = prop.name;
-        a.workplaceId = prop.placeId || null;
-        fixed += 1;
-      }
+      const r = hireStaff(world, { propName: f?.who, name: f?.name, role: f?.role || '伙计', via: 'audit' });
+      if (r.ok) fixed += 1;
       continue;
     }
 

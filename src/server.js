@@ -25,6 +25,7 @@ import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
 import { isPlaceName } from './world/naming.js';
+import { hireStaff } from './world/employment.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2011,37 +2012,17 @@ const STARTED_AT = Date.now();
       }
     }
 
-    // 雇一个人进某处产业（管理用 / 人工纠错）：{prop, name, role}
+    // 雇一个人进某处产业（管理用 / 人工纠错）—— 走唯一入口 hireStaff
     if (req.method === 'POST' && pathname === '/api/admin/staff/hire') {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
-        const propName = String(body.prop || '').trim();
-        const whoName = String(body.name || '').trim();
-        const role = String(body.role || '伙计').trim().slice(0, 8);
         const world = loadState(DATA_DIR);
-        const prop = (world.assets?.properties || []).find((x) => x && String(x.name).includes(propName));
-        if (!prop) return sendJson(res, 404, { ok: false, error: '没这个产业' });
-        if (!prop.placeId || !world.places?.[prop.placeId]) return sendJson(res, 400, { ok: false, error: '这处产业还没挂地点' });
-        if (!/^[\u4e00-\u9fa5]{2,4}$/.test(whoName)) return sendJson(res, 400, { ok: false, error: '名字不像人名' });
-
-        let a = Object.values(world.actors || {}).find((x) => x && x.name === whoName);
-        if (!a) {
-          const id = `npc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          a = { id, name: whoName, role, gender: 'unknown',
-            home: prop.placeId, work: prop.placeId, location: prop.placeId,
-            money: 0, relations: {}, schedule: [], origin: 'hired', createdDay: world.clock?.day || 1 };
-          world.actors[id] = a;
-        } else {
-          moveActor(world, a.id, prop.placeId, 'ui', '到岗');
-        }
-        prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
-        if (!prop.staffIds.includes(a.id)) prop.staffIds.push(a.id);
-        prop.staff = prop.staffIds.length;
-        a.employer = prop.owner || 'husband';
-        a.workplace = prop.name;
-        a.workplaceId = prop.placeId || null;
+        const r = hireStaff(world, {
+          propName: body.prop, name: body.name, role: body.role || '伙计', via: 'admin',
+        });
+        if (!r.ok) return sendJson(res, 400, { ok: false, error: r.error });
         saveState(DATA_DIR, world);
-        return sendJson(res, 200, { ok: true, hired: a.name, role, prop: prop.name, staff: prop.staff });
+        return sendJson(res, 200, { ok: true, hired: r.actor.name, role: r.actor.role, prop: r.prop.name, staff: r.prop.staff });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
