@@ -680,7 +680,7 @@
       <a class="nav-tab" data-tab="tab-family">
         <span class="tab-icon">🏡</span>
         <span class="tab-label">后院内宅</span>
-        <span class="tab-badge warm" id="badge-preg">有喜</span>
+        <span class="tab-badge warm" id="badge-preg" style="display:none;">有喜</span>
       </a>
       <a class="nav-tab" data-tab="tab-business">
         <span class="tab-icon">💰</span>
@@ -1298,9 +1298,15 @@ function render(w){
     const mainCnt = (k) => inHouse.filter(a => rankOf(a) === k).length;
     const outPreg = pregCount(outHouse);
 
+    const inPreg = pregCount(inHouse);
+    if ($('badge-preg')) {
+      $('badge-preg').style.display = inPreg > 0 ? 'inline-block' : 'none';
+      $('badge-preg').textContent = inPreg > 0 ? (inPreg === 1 ? '有喜' : `${inPreg}有喜`) : '';
+    }
+
     $('h-family-top').textContent =
       `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
-      + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
+      + (inPreg ? `（${inPreg} 有孕）` : '');
 
     const rowOf = (a, tag) => `<div class="row">
         <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}${a.onPeriod ? '<span class="tag" style="margin-left:4px">月事</span>' : ''}${a.fertile ? '<span class="tag good" style="margin-left:4px">易孕</span>' : ''}</span>
@@ -1323,7 +1329,7 @@ function render(w){
       const allWomen = [...inHouse, ...outHouse];
       $('f-house-summary').textContent =
         `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
-        + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
+        + (inPreg ? `（${inPreg} 有孕）` : '');
 
       $('family-full-rows').innerHTML = allWomen.map(a => {
         const isOut = !a.household;

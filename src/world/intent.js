@@ -63,7 +63,13 @@ export function parseIntent({ text = '', actorId = 'husband', world = null, last
                          /^(?:好|好的|行|成|去吧|听你的|好啊|嗯|成啊|好嘞)[。！!~\s]*$/.test(rawText);
   const isRejectingWord = /(不去|算了|改天|不走|没空|不想去|改日|且慢|稍后)/.test(rawText);
 
-  const isMoveCandidate = /(去|往|到|上|回|进|移步|转到|走吧|开房|歇息|回房|回家)/.test(rawText) ||
+  // 严格区分纯移动指令 vs 复杂对话/情绪言语（拒绝把台词偷听为瞬移）
+  const isComplexDialogue = /(?:你|您|老娘|他妈|凭什么|为何|怎么|研究|改字据|坑|私改|蛀虫|对个明白|发毛|空响|听说|改的|算账|这事|这桩|空口|凭据)/.test(rawText) || rawText.length > 15;
+  const isBracketMove = /^\[\s*(?:前往|去|回|动身|移步|起驾|出门|离开)\s*([^\]]+)\]$/.test(rawText);
+  const isPureMoveCmd = /^(?:前往|移步|起驾|动身去|转去|去|回|到)\s*([一-龥]{2,8})[。！!~]*$/.test(rawText) ||
+                        /^(?:回家|回府|回屋|回房|出府|出门|动身|启程)[。！!~]*$/.test(rawText);
+
+  const isMoveCandidate = (!isComplexDialogue && (isBracketMove || isPureMoveCmd)) ||
                           (Boolean(world?.pendingInvitation) && isAgreeingWord);
   const isIntimateCandidate = /(12345|123456|行房|云雨|做爱|操你|肉棒|口交|自慰|舔舔|撅起来|插进去|射满|打老虎|快活)/.test(rawText);
   const isTradeCandidate = /(付钱|多少钱|买|卖|结账|付账|借银|银两|铜钱|开价|还债)/.test(rawText);

@@ -282,12 +282,14 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
   const summoned = [];
   let visited = null;
 
-  // ── 离场判断（必须放在"没提到人就返回"之前，否则"我走了"永远不生效）──
-  const leaveWords = /(走了|我走|告辞|先回|回去|回家|出门|离开|散了|不坐了)/;
+  // ── 离场判断（严格区分纯离场短指令 vs 复杂言辞/日常台词）──
+  const isComplexChat = /(?:你|您|老娘|他妈|凭什么|为何|怎么|研究|改字据|坑|私改|蛀虫|对个明白|发毛|空响|听说|改的|算账|这事|这桩|空口|凭据)/.test(say) || say.length > 12;
+  const leaveWords = /^(?:走了|我走|告辞|先回|回去|回家|出门|离开|散了|不坐了)[。！!~]*$/;
   const ackWords = /^(好|好的|嗯|嗯嗯|行|知道了|好嘞|成|去吧)[。！!~\s]*$/;
   const farewell = /(慢走|走好|门掩上|掩门|送出|送到门口|回头见|改日|下回|路上|仔细着)/;
   const leaving =
     mentioned.length === 0 &&
+    !isComplexChat &&
     (leaveWords.test(say) || (ackWords.test(say) && farewell.test(String(lastBotSaid || ''))));
 
   if (leaving) {
@@ -562,8 +564,8 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
-  // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公与同行伴侣挪过去
-  if (mentioned.length === 0 && hasRealMoveVerb(say)) {
+  // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公与同行伴侣挪过去（复杂对话案情讨论绝不触发）
+  if (mentioned.length === 0 && !isComplexChat && hasRealMoveVerb(say)) {
     // "回我房间/去正房"这类说法：先按别名认
     const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 回房: 'husband_room', 回屋: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
     const placeHit = resolveStandardPlace(world, selfId, say);
