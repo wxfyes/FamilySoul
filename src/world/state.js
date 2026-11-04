@@ -979,8 +979,10 @@ export function migrateOwnership(world) {
         prop.placeId = id;
         console.log(`[Prop] ${nm} 立了地点 ${id}`);
       }
-      // 在册人手：有 staffIds 就按实际在岗刷新人数
+      // 在册人手：只认同在岗的人，不在岗的从名册里剔掉
       const onDuty = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.location === prop.placeId);
+      const dutyIds = new Set(onDuty.map((a) => a.id));
+      if (Array.isArray(prop.staffIds)) prop.staffIds = prop.staffIds.filter((id) => dutyIds.has(id));
       prop.staff = onDuty.length;
     }
   } catch { /* 忽略 */ }
