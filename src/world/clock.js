@@ -407,9 +407,21 @@ function runPettyCrimes(world, events) {
   for (const a of Object.values(world.actors || {})) {
     if (!a || !a.jailed) continue;
     if (day >= Number(a.jailed.untilDay || 0)) {
-      moveActor(world, a.id, a.home || 'street', 'world', '刑满');
       delete a.jailed;
+      moveActor(world, a.id, a.home || 'street', 'world', '刑满释放');
+      a.activity = { text: '重获自由', at: world.clock?.hour || 0, day };
       events.push(nextEvent(world, { action: 'released', actor: a.id, place: a.location, payload: { text: `${a.name}刑满出狱` }, isPublic: true }));
+    } else {
+      if (!/(jail|牢|大牢)/.test(String(a.location || ''))) {
+        const jailLoc = a.gender === 'female' ? 'jail_female' : 'jail_male';
+        if (world.places?.[jailLoc]) {
+          a.location = jailLoc;
+        }
+      }
+      a.activity = { text: '大牢服刑', at: world.clock?.hour || 0, day };
+      if (Array.isArray(world.party?.husband)) {
+        world.party.husband = world.party.husband.filter((pid) => pid !== a.id);
+      }
     }
   }
   // 每天只查一次（卯时或之后第一次到）；步进/补算也能触发
@@ -1377,10 +1389,11 @@ function runSchedules(world) {
     if (!Array.isArray(actor.schedule)) continue;
     for (const slot of actor.schedule) {
       if (slot.at === world.clock.hour && slot.place) {
+        if (actor.jailed) continue;
         actor.activity = { text: String(slot.do || ''), at: world.clock.hour, day: world.clock.day };
         if (actor.location === slot.place) continue;
         // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来；在押服刑者严禁外出走动作息
-        if (actor.jailed) continue;
+        if (actor.intimacy?.ritual === 'unlocked') continue;
         if (actor.intimacy?.ritual === 'unlocked') continue;
         if (actor.away && Number(actor.away.untilDay) >= Number(world.clock.day)) continue;
         moveActor(world, actor.id, slot.place, 'world', String(slot.do || ''));

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 天道回执（World Tags）—— 让「一句话改变命运」真正落账
  *
  * 铁律：**谁发生了什么事，由天道（大模型）自己申报**，引擎只负责记账。
@@ -468,7 +468,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         world.appointments = Array.isArray(world.appointments) ? world.appointments : [];
         world.appointments.push({
           actorId: id || null,
-          name: actor?.name || String(args.who || '').slice(0, 12),
+          name: actor?.name || (world.actors?.[String(args.who || '')]?.name) || String(args.who || '').slice(0, 12),
           day,
           hour,
           every: Number(args.every) > 0 ? Number(args.every) : undefined, // 每 N 天重复

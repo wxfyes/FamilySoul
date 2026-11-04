@@ -193,7 +193,7 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
         const partyIds = Array.isArray(world.party?.husband) ? world.party.husband : [];
         for (const pId of partyIds) {
           const pA = world.actors?.[pId];
-          if (pA && !pA.dead && pA.location !== oldLoc && pA.location !== finalTargetId) {
+          if (pA && !pA.dead && !pA.jailed && pA.location !== oldLoc && pA.location !== finalTargetId) {
             pA.activity = {
               text: `随后赶往${targetPlaceName}`,
               to: finalTargetId,

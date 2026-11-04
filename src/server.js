@@ -588,7 +588,8 @@ const STARTED_AT = Date.now();
           if (!ap) continue;
           todos.push({
             kind: '约定', id: ap.id || `${ap.day}-${ap.hour}-${ap.name}`,
-            when: `第${ap.day}日${ap.hour}时`, who: ap.name || '',
+            when: `第${ap.day}日${ap.hour}时`,
+            who: (ap.actorId && world.actors?.[ap.actorId]?.name) || ap.name || '',
             text: ap.text || '', day: ap.day, hour: ap.hour,
             place: apTargetPlace(world, ap) || '',
             status: ap.engaged ? 'engaged' : 'open',
@@ -3365,6 +3366,10 @@ server.listen(PORT, '0.0.0.0', () => {
         const culprit = w3.actors?.[cc.againstId];
         if (jailDays > 0 && culprit && culprit.id !== 'husband') {
           culprit.jailed = { untilDay: (Number(w3.clock?.day) || 1) + jailDays, caseId: cc.id };
+          culprit.activity = { text: '大牢服刑', day: w3.clock?.day || 1, hour: w3.clock?.hour || 0 };
+          if (Array.isArray(w3.party?.husband)) {
+            w3.party.husband = w3.party.husband.filter((pid) => pid !== culprit.id);
+          }
           const cityName = String(cc.city || '');
           if (cityName && cityName !== '临江府') {
             const jailName = `${cityName}·大牢`;
@@ -3374,9 +3379,9 @@ server.listen(PORT, '0.0.0.0', () => {
               jp = `place_${w3.flags.placeSeq}`;
               w3.places[jp] = { name: jailName, exits: ['street'], owner: 'court', dynamic: true, city: cityName };
             }
-            moveActor(world, culprit.id, jp, 'world', '收监');
+            moveActor(w3, culprit.id, jp, 'world', '收监');
           } else {
-            moveActor(world, culprit.id, culprit.gender === 'male' ? 'jail_male' : 'jail_female', 'world', '收监');
+            moveActor(w3, culprit.id, culprit.gender === 'male' ? 'jail_male' : 'jail_female', 'world', '收监');
           }
         }
         if (Number(pen.rep) > 0) w3.reputation = Math.max(0, (Number(w3.reputation) || 50) - Number(pen.rep));
@@ -3419,7 +3424,7 @@ server.listen(PORT, '0.0.0.0', () => {
           const a = w3.actors?.[pid];
           if (!a || pid === 'husband') continue;
           if (a.jailed) continue;
-          if (a.location === 'yamen') moveActor(world, a.id, a.home || 'street', 'world', '下值回家');
+          if (a.location === 'yamen') moveActor(w3, a.id, a.home || 'street', 'world', '下值回家');
         }
       } catch { /* 忽略 */ }
 

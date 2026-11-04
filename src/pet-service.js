@@ -359,7 +359,9 @@ export class PetService {
         lines.push('- 【对话指向与第一应答者法则】：');
         lines.push('  1. 【呼名必应，谁被问谁答】：相公若明确叫了某人（如叫随科、或向随科发问），被问者必须首先以自身独立身份正面开口回应！绝不可由其他人替其代言或冒名答非所问！');
         lines.push('  2. 【同场鲜活群戏】：现场在场其他人就在身旁，可在主应答者说话后，根据各自立场、性格或恩怨自然插话、斥责、补充或表态；');
-        lines.push('  3. 每位开口的人物必须以「【姓名】：“台词”」严格标明分角，呈现真实生动的同场多人交涉！');
+        lines.push('  3. 【每人独立分角】：每位开口的人物必须各自独立成行，且必须以「【姓名】：“台词”」严格标明分角，呈现真实生动的同场多人交涉！');
+        lines.push('  4. 【严禁一人包揽多人对话】：绝不可在一个人名下把其他角色的应答塞在同一段或同一气泡里；');
+        lines.push('  5. 【严禁裸露孤立冒号】：严禁输出如“： “台词””这样不带人名的残缺格式，下属领命或伙计应声也必须明确写出【某某】！');
         lines.push('  4. 【严禁空间失忆妄语】：在场之人就在眼前同一桌/同一屋，绝不许说"我去找他"、"我回去敲打他"等把眼前人当成不在场的失忆怪话！');
         lines.push('- 【在场人物立场与身份特征】：');
         for (const actor of presentOutActors) {
@@ -584,6 +586,41 @@ export class PetService {
   processNarrativeTags(replyText, sayText = '') {
     let reply = String(replyText || '');
     const dataDir = this.dataDir;
+
+    // 0. 好感/心境变动：[[world:relation ...]] 或 [[relation:谁|哪样|+-数]] ➔ 落账转古风中文展示
+    try {
+      const relMatches = [...reply.matchAll(/\[\[(?:world\s*:\s*)?relation(?:\s*who=([^\s\]]+)\s*field=([^\s\]]+)\s*delta=([+-]?\d+)|:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*\|\s*([+-]?\d+))[^\]]*\]\]/gi)];
+      if (relMatches.length > 0) {
+        const wRel = loadState(dataDir);
+        for (const m of relMatches) {
+          const rawTag = m[0];
+          const whoRaw = m[1] || m[4];
+          const fieldRaw = m[2] || m[5];
+          const deltaRaw = Number(m[3] || m[6]) || 0;
+          const who = matchActor(wRel.actors, whoRaw);
+          const whoName = who?.name || whoRaw;
+          let cnField = '好感';
+          const sign = deltaRaw > 0 ? `+${deltaRaw}` : `${deltaRaw}`;
+          if (fieldRaw === 'trust') cnField = '信任';
+          else if (fieldRaw === 'desire') cnField = '情愫';
+          else if (fieldRaw === 'grievance') cnField = '怨怼';
+          else if (fieldRaw === 'fear') cnField = '敬畏';
+          else cnField = String(fieldRaw);
+
+          let mood = '好感渐增';
+          if (deltaRaw < 0) {
+            mood = fieldRaw === 'grievance' ? '释怀释怨' : '心生防备';
+          } else {
+            if (fieldRaw === 'desire') mood = '情愫暗生';
+            else if (fieldRaw === 'grievance') mood = '心生芥蒂';
+          }
+          const cnTag = `\n（【${mood} · ${whoName}】${cnField} ${sign}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+      }
+    } catch (err) {
+      console.warn('[RelationTag] 转换失败：', err.message);
+    }
 
     // 1. 习性变动：[[trait:谁|哪一样|+-数]] ➔ 落账并转为优雅古风中文展示
     try {
@@ -867,6 +904,23 @@ export class PetService {
       applyNpcDeparture(dataDir, reply, sayText);
     } catch (err) {
       console.warn('[Departure] 离场处理失败：', err.message);
+    }
+
+    // 11. 孤立与未闭合中文括号治理（彻底杜绝末尾单挂 "（" 或残缺括号）
+    reply = reply.replace(/[（(]\s*$/g, '').trim();
+    reply = reply.replace(/[（(]\s*[）)]/g, '').trim();
+    const openCount = (reply.match(/[（(]/g) || []).length;
+    const closeCount = (reply.match(/[）)]/g) || []).length;
+    if (openCount > closeCount) {
+      const lastOpenIdx = Math.max(reply.lastIndexOf('（'), reply.lastIndexOf('('));
+      if (lastOpenIdx >= 0) {
+        const inside = reply.slice(lastOpenIdx + 1).trim();
+        if (!inside || !/[\u4e00-\u9fa5]/.test(inside)) {
+          reply = reply.slice(0, lastOpenIdx).trim();
+        } else {
+          reply = reply + '）';
+        }
+      }
     }
 
     return reply.trim();
@@ -3342,10 +3396,18 @@ export class PetService {
         map.set(a.name, label);
         if (short !== a.name) map.set(short, label);
       }
-      return String(text || '').replace(/【([^】\n]{1,10})】/g, (whole, name) => {
+      let res = String(text || '').replace(/【([^】\n]{1,10})】/g, (whole, name) => {
         const hit = map.get(String(name).trim());
         return hit ? `【${hit}】` : whole;
       });
+      // 容错：如果模型输出 "张三：“台词”" 而漏了方括号，自动补齐 "【张三】：“台词”"
+      for (const [name, label] of map.entries()) {
+        if (name.length >= 2) {
+          const rawRegex = new RegExp(`(^|\\n)(${name})\\s*[:：]\\s*([“"'])`, 'g');
+          res = res.replace(rawRegex, `$1【${label}】：$3`);
+        }
+      }
+      return res;
     } catch {
       return text;
     }
