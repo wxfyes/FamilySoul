@@ -250,6 +250,24 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+
+  /// 落地第一幕：本地没有历史时，请天道主动开口一次
+  Future<void> ensureOpening() async {
+    if (_messages.isNotEmpty) return;
+    try {
+      final text = await _apiClient.fetchOpening();
+      if (text == null || text.trim().isEmpty) return;
+      _messages.add(ChatMessage(
+        id: 'opening_${DateTime.now().millisecondsSinceEpoch}',
+        text: text,
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
+      _persistMessages();
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<void> saveRoutineConfig(RoutineConfig newConfig) async {
     _routineConfig = newConfig;
     final prefs = await SharedPreferences.getInstance();

@@ -48,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _locTimer;
   List<String> _partyNames = const [];
   List<String> _hereNames = const [];
+  String _homeName = '';
   Map? _pendingAction;
 
   // 豆包风格语音按住说话状态
@@ -559,8 +560,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _refreshPlace() async {
+    // 本地没有历史时，请天道把"落地第一幕"补上（只成功一次）
+    ChatProvider? provider0;
+    try { provider0 = context.read<ChatProvider>(); } catch (_) {}
     try {
-      final d = await context.read<ChatProvider>().api.fetchMyWorld();
+      if (provider0 != null && provider0.messages.isEmpty) {
+        await provider0.ensureOpening();
+      }
+    } catch (_) {}
+    final api0 = provider0?.api;
+
+    try {
+      final d = await api0?.fetchMyWorld();
       if (!mounted || d == null) return;
       final self = (d['self'] is Map) ? d['self'] as Map : const {};
       final date = (d['date'] is Map) ? d['date'] as Map : const {};
@@ -587,6 +598,7 @@ class _ChatScreenState extends State<ChatScreen> {
             .where((x) => x.isNotEmpty)
             .toList();
       }
+      final homeName2 = (self['homeName'] ?? '').toString();
       final pend = (d['pendingAction'] is Map) ? d['pendingAction'] as Map : null;
       if (place != _placeName || day != _worldDay || hour != _worldHour
           || here.join(',') != _hereNames.join(',')
@@ -597,6 +609,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _worldHour = hour;
           _partyNames = names;
           _hereNames = here;
+          _homeName = homeName2;
           _pendingAction = pend;
         });
       }
@@ -1078,6 +1091,34 @@ class _ChatScreenState extends State<ChatScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (_homeName.isNotEmpty && _placeName != _homeName)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: InkWell(
+                              onTap: () async {
+                                HapticFeedback.lightImpact();
+                                final messenger = ScaffoldMessenger.of(context);
+                                final line = await provider.api.goTo(_homeName);
+                                if (!mounted) return;
+                                _refreshPlace();
+                                if (line != null) {
+                                  messenger.showSnackBar(SnackBar(
+                                    content: Text(line),
+                                    duration: const Duration(milliseconds: 1800),
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                                }
+                              },
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.home_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                                  SizedBox(width: 2),
+                                  Text('回家', style: TextStyle(color: Color(0xFF9B8CF6), fontSize: 11.5)),
+                                ],
+                              ),
+                            ),
+                          ),
                         if (_partyNames.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(right: 8),

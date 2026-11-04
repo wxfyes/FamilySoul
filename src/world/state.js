@@ -935,6 +935,15 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 待办归属：老数据没写 owner 的，一律算相公的（那是当时唯一的主角）
+  try {
+    for (const pr of world.promises || []) {
+      if (pr && !pr.owner) pr.owner = 'husband';
+    }
+    for (const ap of world.appointments || []) {
+      if (ap && !ap.owner) ap.owner = ap.actorId === 'husband' ? 'husband' : 'husband';
+    }
+  } catch { /* 忽略 */ }
   // 注册玩家补齐"一人一院 + 婚配 + 住处"（历史注册没写这三样）
   try {
     world.places = world.places || {};
@@ -942,6 +951,12 @@ export function migrateOwnership(world) {
       if (!a || !a.name || a.dead) continue;
       if (!String(id).startsWith('usr_')) continue;
 
+      // 旧记忆里"暂投宿于临江客栈"与"有自家小院"矛盾，统一改掉
+      for (const m of world.memories || []) {
+        if (m && String(m.text || '').includes(a.name) && String(m.text).includes('投宿于临江客栈')) {
+          m.text = String(m.text).replace('暂投宿于临江客栈大堂', '落脚在自家小院').replace('投宿于临江客栈大堂', '落脚在自家小院');
+        }
+      }
       if (!a.marital) a.marital = 'single';
       if (a.spouse === undefined) a.spouse = null;
 
@@ -963,6 +978,7 @@ export function migrateOwnership(world) {
         }
         a.residence = { type: 'own', placeId: houseId };
         if (!a.home || a.home === 'inn') a.home = houseId;
+        if (a.location === 'inn') a.location = houseId;   // 有院子就别再"投宿客栈"
         console.log(`[Reg] ${a.name} 补上住处：${world.places[houseId].name}`);
       } else {
         // 已有住处：名字统一成"某某的小院"（老数据里可能叫"陆家小院"，同姓会撞）
@@ -972,6 +988,7 @@ export function migrateOwnership(world) {
           world.places[pid].name = want;
         }
         if (!a.home || a.home === 'inn') a.home = pid;
+        if (a.location === 'inn') a.location = pid;   // 已有院子的，也从客栈搬回家
       }
     }
   } catch { /* 忽略 */ }

@@ -986,6 +986,22 @@ export class PetService {
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
     } catch { /* 忽略 */ }
 
+    // 在场者的底细：他有没有成婚、住哪、在哪当差——谁问都得对得上
+    try {
+      const wPF = loadState(this.dataDir);
+      const mePF = this._viewerActorId ? wPF.actors?.[this._viewerActorId] : wPF.actors?.husband;
+      const others = Object.values(wPF.actors || {})
+        .filter((a) => a && !a.dead && a.name && a.id !== (mePF?.id || 'husband') && a.location === mePF?.location)
+        .slice(0, 4);
+      const facts = others
+        .map((a) => {
+          const t = personFacts(wPF, a.id);
+          return t ? `${a.name}：${t.replace('【你的底细】', '')}` : '';
+        })
+        .filter(Boolean);
+      if (facts.length) contextHintEarly += `（【在场者底细】${facts.join(' ／ ')}）\n`;
+    } catch { /* 忽略 */ }
+
     // 用人事实：谁在相公哪家店做事（免得雇工装作不认识东家）
     try {
       const wEmp = loadState(this.dataDir);

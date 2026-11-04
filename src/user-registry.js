@@ -107,7 +107,7 @@ export class UserRegistry {
       world.dynamicPlaces[houseId] = world.places[houseId];
     }
 
-    // 录入世界账本（先投宿客栈落脚，另有自家小院）
+    // 录入世界账本（直接住进自己的小院）
     world.actors[actorId] = {
       id: actorId,
       name: rawName,
@@ -118,7 +118,7 @@ export class UserRegistry {
       playerControlled: true,
       humanBound: true,
       home: houseId,
-      location: 'inn',
+      location: houseId,
       marital: 'single',
       spouse: null,
       residence: { type: 'own', placeId: houseId },
@@ -139,7 +139,7 @@ export class UserRegistry {
     world.memories.push({
       id: `mem_${Date.now().toString(36)}`,
       day: world.clock?.day || 1,
-      text: `新面孔入城：【${rawName}】（${genderDesc}，春秋${numAge}，${roleName}），初到临江府，暂投宿于临江客栈大堂。`,
+      text: `新面孔入城：【${rawName}】（${genderDesc}，春秋${numAge}，${roleName}），初到临江府，落脚在自家小院。`,
       about: [actorId, 'inn'],
       visible: 'public',
       createdAt: Date.now(),
@@ -156,7 +156,7 @@ export class UserRegistry {
         type: 'actor_arrival',
         actorId,
         actorName: rawName,
-        desc: `新面孔入城：【${rawName}】（${genderDesc}，${numAge}岁），初涉江湖，落脚客栈。`,
+        desc: `新面孔入城：【${rawName}】（${genderDesc}，${numAge}岁），初涉江湖，落脚自家小院。`,
       }) + '\n';
       fs.appendFileSync(this.eventsFile, eventRecord, 'utf8');
     } catch (_) {}
@@ -173,7 +173,7 @@ export class UserRegistry {
     };
     this.saveUsers(users);
 
-    console.log(`[UserRegistry] 新玩家入世：${rawName}（${actorId}），落脚临江客栈，天道已建档`);
+    console.log(`[UserRegistry] 新玩家入世：${rawName}（${actorId}），落脚自家小院，天道已建档`);
 
     return {
       ok: true,

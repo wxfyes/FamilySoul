@@ -471,4 +471,16 @@ class SurfCoreApiClient {
     }
     return {'ok': false, 'error': '未知错误'};
   }
+  /// 落地第一幕：新人进世界时天道主动开口（只成功一次）
+  Future<String?> fetchOpening() async {
+    try {
+      final res = await _dio.post('${config.baseUrl}/api/world/opening',
+          queryParameters: {'token': config.token.trim()});
+      if (res.statusCode == 200 && res.data is Map) {
+        final t = res.data['text'];
+        if (t is String && t.trim().isNotEmpty) return t.trim();
+      }
+    } catch (_) {}
+    return null;
+  }
 }

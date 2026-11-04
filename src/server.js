@@ -30,6 +30,7 @@ import { getMoney, setMoney, spendMoney, syncMoney } from './world/money.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
+import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { AssistantService } from './assistant-service.js';
 import { UserRegistry } from './user-registry.js';
 
@@ -422,6 +423,42 @@ const STARTED_AT = Date.now();
     }
   }
 
+  // 0.05 落地第一幕：新人进世界，天道主动开口（只生成一次）
+  if (req.method === 'POST' && (pathname === '/api/world/opening' || pathname === '/dsh-surfcore/pet-api/api/world/opening')) {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const actorId = member.actor || member.memberKey;
+      const world = loadState(DATA_DIR);
+      const a = world.actors?.[actorId];
+      if (!a) return sendJson(res, 404, { ok: false, error: '世界里没有这个角色' });
+      if (a.opened) return sendJson(res, 200, { ok: true, text: '', done: true });
+      if (!llmClient.isReady()) return sendJson(res, 200, { ok: false, error: '天道未就绪' });
+
+      const facts = buildOpeningFacts(world, actorId);
+      const { system, user } = buildOpeningPrompt(facts);
+      const out = await llmClient.complete({ system, messages: [{ role: 'user', content: user }], temperature: 0.85, maxTokens: 400 });
+      const text = (typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '')).trim();
+      if (!text) return sendJson(res, 200, { ok: false, error: '天道没写出第一幕' });
+
+      a.opened = { day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
+      saveState(DATA_DIR, world);
+
+      try {
+        const h = petService.readHistory(actorId) || {};
+        const msgs = Array.isArray(h.messages) ? h.messages : [];
+        msgs.push({ role: 'assistant', text, at: Date.now() });
+        petService.saveHistory(actorId, { ...h, messages: msgs });
+      } catch { /* 忽略 */ }
+
+      console.log(`[Opening] ${a.name} 落地第一幕已生成（${text.length} 字）`);
+      return sendJson(res, 200, { ok: true, text });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
   // 0.1 AI 助手专属解耦接口（物理级隔离于虚拟世界之外，只做纯净知性问答）
   // POST /api/assistant/chat
   if (req.method === 'POST' && matchRoute('/assistant/chat')) {
@@ -671,8 +708,18 @@ const STARTED_AT = Date.now();
 
         // 待办：约定 + 承诺
         const todos = [];
+        const viewerTodoOwner = actorId || 'husband';
+        const mineTodo = (x) => {
+          if (!x) return false;
+          const owner = x.owner || 'husband';
+          if (owner === viewerTodoOwner) return true;
+          // 约定里另一方也算当事人
+          if (x.actorId && x.actorId === viewerTodoOwner) return true;
+          return false;
+        };
         for (const ap of (world.appointments || [])) {
           if (!ap) continue;
+          if (!mineTodo(ap)) continue;
           todos.push({
             kind: '约定', id: ap.id || `${ap.day}-${ap.hour}-${ap.name}`,
             when: `第${ap.day}日${ap.hour}时`,
@@ -705,6 +752,7 @@ const STARTED_AT = Date.now();
         }
         for (const pr of (world.promises || [])) {
           if (!pr || pr.done) continue;
+          if (!mineTodo(pr)) continue;
           todos.push({
             kind: '承诺', id: pr.id || String(pr.text || '').slice(0, 20),
             when: `第${pr.due}日`, who: '', text: String(pr.text || '').slice(0, 40), due: pr.due,
@@ -715,6 +763,8 @@ const STARTED_AT = Date.now();
         // 仆人手上的差事
         for (const t of (world.tasks || [])) {
           if (!t || t.status !== 'doing') continue;
+          const ownerOk = (t.owner || t.by || 'husband') === viewerTodoOwner || t.actorId === viewerTodoOwner;
+          if (!ownerOk) continue;
           todos.push({
             kind: '差事',
             id: t.id,
@@ -1126,6 +1176,8 @@ const STARTED_AT = Date.now();
             : res?.type === 'family' ? `寄居${resName || ''}` : '';
           return {
             name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband,
+            homeId: me?.home || null,
+            homeName: me?.home ? (world.places?.[me.home]?.name || '') : '',
             married: maritalMap[me?.marital || 'single'] || '未婚',
             spouseName,
             residence: resText,
