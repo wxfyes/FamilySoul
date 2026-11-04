@@ -10,3 +10,4 @@ const replyText = `【随科】：“王掌柜是个明白人，差爷我也不�
 
 const ops = await pet.extractWorldOpsFromTurn({ userText, replyText, profileKey: 'husband' });
 console.log('Ops extracted:', ops);
+

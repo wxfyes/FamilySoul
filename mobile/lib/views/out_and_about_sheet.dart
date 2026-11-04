@@ -195,17 +195,35 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
       ));
       for (final p in list.take(g == '其他人' ? 8 : 12)) {
         final here = p['here'] == true;
+        final canSummon = p['canSummon'] != false;
+        final isMale = (p['gender'] ?? '') == 'male';
+        final he = isMale ? '他' : '她';
+        final placeName = (p['place'] ?? '').toString();
         children.add(_row(
           title: (p['name'] ?? '').toString(),
-          subtitle: '${p['role'] ?? ''} · ${here ? '就在跟前' : (p['place'] ?? '')}',
+          subtitle: '${p['role'] ?? ''} · ${here ? '就在跟前' : placeName}',
           action: here
               ? const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8),
                   child: Text('在场', style: TextStyle(fontSize: 12, color: Color(0xFF22C55E))),
                 )
-              : TextButton(
-                  onPressed: () => _run(() => widget.api.summon((p['id'] ?? '').toString()), '（${p['name']}应声赶来。）'),
-                  child: const Text('叫她来'),
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 过去找她/他
+                    TextButton(
+                      onPressed: placeName.isEmpty
+                          ? null
+                          : () => _run(() => widget.api.goTo(placeName), '（你去找${p['name']}了。）'),
+                      child: Text('去$he这'),
+                    ),
+                    // 叫她/他来（真人不给这个）
+                    if (canSummon)
+                      TextButton(
+                        onPressed: () => _run(() => widget.api.summon((p['id'] ?? '').toString()), '（${p['name']}应声赶来。）'),
+                        child: Text('叫$he来'),
+                      ),
+                  ],
                 ),
         ));
       }

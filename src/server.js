@@ -440,7 +440,8 @@ const STARTED_AT = Date.now();
         };
         const peopleOut = people
           .map((a) => ({
-            id: a.id, name: a.name, role: a.role || '', place: placeName(a.location || ''),
+            id: a.id, name: a.name, role: a.role || '', gender: a.gender || 'female',
+            place: placeName(a.location || ''),
             here: a.location === curId, group: group(a),
             trust: Number(rel(a).trust) || 0, grievance: Number(rel(a).grievance) || 0,
             // 相公是真人账号，不能被别人"叫过来"——只能自己过去

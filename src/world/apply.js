@@ -98,7 +98,8 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
           world.flags = world.flags || {};
           world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
           finalTargetId = `place_${world.flags.placeSeq}`;
-          world.places[finalTargetId] = {
+          world.dynamicPlaces = world.dynamicPlaces || {};
+          world.dynamicPlaces[finalTargetId] = {
             id: finalTargetId,
             name: targetPlaceName,
             exits: ['street'],
@@ -107,6 +108,7 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
             createdDay: world.clock?.day || 1,
             desc: `天道应时辟建之新景：${targetPlaceName}`,
           };
+          world.places[finalTargetId] = world.dynamicPlaces[finalTargetId];
           console.log(`[Apply:${intent.id}] 天道造景入册: 成功辟建【${targetPlaceName}】(id=${finalTargetId})`);
           stateChanged = true;
         }
