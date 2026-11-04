@@ -30,11 +30,31 @@ class _RegisterDialogState extends State<RegisterDialog> {
       setState(() => _errorMessage = '姓名须为 2~4 个汉字');
       return;
     }
+    const functionChars = '只会那个上来什么不是就可以已经的着了和与我你他她它们这没有在到把被让给对从向为因所但而或且如若虽然很太更最都也还又再才';
+    if (name.characters.every((ch) => functionChars.contains(ch))) {
+      setState(() => _errorMessage = '此名不似人名，请取一个有姓氏或雅号的名字');
+      return;
+    }
     final age = int.tryParse(_ageController.text.trim()) ?? 0;
     if (age < 14 || age > 60) {
       setState(() => _errorMessage = '年龄须在 14 至 60 岁之间');
       return;
     }
+
+    // 名字不可逆：让他亲眼确认一遍再进去
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认入世'),
+        content: Text('你将以「$name」之名入世，年 $age 岁。\n此名不可再改（日后欲改须寻天道）。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('返回重填')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('就是他')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
 
     setState(() {
       _submitting = true;
@@ -107,6 +127,7 @@ class _RegisterDialogState extends State<RegisterDialog> {
               TextField(
                 controller: _nameController,
                 maxLength: 4,
+                onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: '雅号姓名',
                   hintText: '如：李慕白、沈念',
@@ -116,6 +137,19 @@ class _RegisterDialogState extends State<RegisterDialog> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
+              if (_nameController.text.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '你将名为「${_nameController.text.trim()}」',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 12),
 
               // 年龄与性别

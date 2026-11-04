@@ -60,6 +60,12 @@ export class UserRegistry {
       return { ok: false, error: '年龄须在 14 至 60 岁之间' };
     }
 
+    // 虚词规则：两个字全是"只/会/那/个/上/来/什/么"这类虚词，就不是名字
+    const FUNCTION_CHARS = new Set('只会那个上来什么不是就可以已经的着了和与我你他她它们这没有在到把被让给对从向为因所但而或且如若虽然很太更最都也还又再才其因此则乃');
+    if ([...rawName].every((ch) => FUNCTION_CHARS.has(ch))) {
+      return { ok: false, error: '此名不似人名，请取一个有姓氏或雅号的名字' };
+    }
+
     const placeCheck = isPlaceName(rawName);
     if (placeCheck.ok && placeCheck.looksLikePlace) {
       return { ok: false, error: '地名不可作为人物姓名' };

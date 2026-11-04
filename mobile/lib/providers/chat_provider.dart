@@ -255,13 +255,17 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> ensureOpening() async {
     if (_messages.isNotEmpty) return;
     try {
-      final text = await _apiClient.fetchOpening();
-      if (text == null || text.trim().isEmpty) return;
+      final raw = await _apiClient.fetchOpening();
+      if (raw == null || raw.trim().isEmpty) return;
+      final parts = raw.split('\u0001');
+      final speaker = parts.length > 1 ? parts[0] : '旁白';
+      final text = parts.length > 1 ? parts[1] : raw;
       _messages.add(ChatMessage(
         id: 'opening_${DateTime.now().millisecondsSinceEpoch}',
         text: text,
         isUser: false,
         timestamp: DateTime.now(),
+        speaker: speaker,
       ));
       _persistMessages();
       notifyListeners();

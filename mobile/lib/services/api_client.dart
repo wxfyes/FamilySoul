@@ -478,7 +478,10 @@ class SurfCoreApiClient {
           queryParameters: {'token': config.token.trim()});
       if (res.statusCode == 200 && res.data is Map) {
         final t = res.data['text'];
-        if (t is String && t.trim().isNotEmpty) return t.trim();
+        final sp = res.data['speaker'];
+        if (t is String && t.trim().isNotEmpty) {
+          return '${sp is String && sp.isNotEmpty ? sp : '旁白'}\u0001${t.trim()}';
+        }
       }
     } catch (_) {}
     return null;

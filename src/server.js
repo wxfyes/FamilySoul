@@ -441,6 +441,30 @@ const STARTED_AT = Date.now();
       const text = (typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '')).trim();
       if (!text) return sendJson(res, 200, { ok: false, error: '天道没写出第一幕' });
 
+      // 开场里的人：天道声明了就用引擎真立起来，并放到他身边
+      let spawnedName = '';
+      try {
+        const spawnTags = String(text).match(/\[\[spawn:([^\]]+)\]\]/g);
+        if (spawnTags) {
+          for (const tag of spawnTags) {
+            const mm = /\[\[spawn:([^|\]]+)(?:\|([^\]]+))?\]\]/.exec(tag);
+            if (!mm) continue;
+            const whoName = String(mm[1]).trim().slice(0, 4);
+            const whoRole = String(mm[2] || '街坊').trim().slice(0, 10);
+            if (!/^[\u4e00-\u9fa5]{2,4}$/.test(whoName)) continue;
+            if (Object.values(world.actors || {}).some((x) => x && x.name === whoName)) { spawnedName = whoName; continue; }
+            const nid = `npc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            world.actors[nid] = {
+              id: nid, name: whoName, role: whoRole, gender: 'unknown',
+              home: a.location, location: a.location, money: 0, relations: {}, schedule: [],
+              origin: 'dm_opening', createdDay: world.clock?.day || 1,
+            };
+            spawnedName = whoName;
+            console.log(`[Opening] 天道立了个过门人：${whoName}（${whoRole}）`);
+          }
+        }
+      } catch { /* 忽略 */ }
+
       a.opened = { day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
       saveState(DATA_DIR, world);
 
