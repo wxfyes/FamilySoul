@@ -327,6 +327,15 @@
   @media(max-width: 1200px) { .grid-4cols { grid-template-columns: repeat(2, 1fr); } }
   @media(max-width: 640px) { .grid-4cols { grid-template-columns: 1fr; } }
 
+  .grid-3cols {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media(max-width: 1100px) { .grid-3cols { grid-template-columns: repeat(2, 1fr); } }
+  @media(max-width: 680px) { .grid-3cols { grid-template-columns: 1fr; } }
+
   .card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -387,6 +396,129 @@
   .tag.good { border-color: rgba(52, 211, 153, 0.4); color: var(--good); background: rgba(52, 211, 153, 0.08); }
   .tag.warn { border-color: rgba(251, 191, 36, 0.4); color: var(--warn); background: rgba(251, 191, 36, 0.08); }
   .tag.bad { border-color: rgba(248, 113, 113, 0.4); color: var(--bad); background: rgba(248, 113, 113, 0.08); }
+
+  /* 🏛️ 庙堂朝政与百官自适应网格卡片 */
+  .off-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .off-scroll-box {
+    max-height: 480px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .off-scroll-box::-webkit-scrollbar { width: 6px; }
+  .off-scroll-box::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 3px;
+  }
+  .off-scroll-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .off-card {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all var(--transition-fast);
+  }
+  .off-card:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
+  }
+  .off-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+    padding-bottom: 6px;
+  }
+  .off-post {
+    font-size: 12px;
+    font-weight: 600;
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+  .off-post.central {
+    color: #fde047;
+    background: rgba(234, 179, 8, 0.12);
+    border-color: rgba(234, 179, 8, 0.25);
+  }
+  .off-who {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+  }
+  .off-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+  }
+  .off-name:hover {
+    color: var(--accent-cyan);
+    text-decoration: underline;
+  }
+  .off-tags {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .off-sub-box {
+    margin-top: 4px;
+    padding-top: 5px;
+    border-top: 1px dotted rgba(255, 255, 255, 0.08);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* 📜 表格滚动容器与吸顶表头 (下拉滚动式) */
+  .table-scroll-container {
+    max-height: 520px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.12);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .table-scroll-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .table-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .table-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 3px;
+  }
+  .table-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .table-scroll-container thead th {
+    position: sticky;
+    top: 0;
+    background: #151922;
+    z-index: 5;
+    box-shadow: 0 1px 0 var(--border-color);
+  }
 
   /* 表格美化 */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -631,14 +763,8 @@
           <div id="morning-full" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border-color); line-height:1.8; color:#d1d5db; font-size:13px; white-space:pre-wrap;"></div>
         </section>
 
-        <!-- 核心四大卡片网格 -->
-        <div class="grid-4cols">
-          <section class="card" id="card-household">
-            <h2>🏡 后院内眷</h2>
-            <div class="row" style="padding-bottom:6px;"><span class="big" id="h-family-top" style="color:var(--accent-pink);">正妻 — · 侧室 — · 有孕 —</span></div>
-            <div id="family-detail" style="margin-top:6px;"></div>
-          </section>
-
+        <!-- 核心三大支柱：银两资产 · 庙堂朝政 · 江山兵马 (首页堂堂正正，后院私密收纳至专属Tab) -->
+        <div class="grid-3cols">
           <section class="card" id="card-accounts">
             <h2>💰 银两与日入</h2>
             <div class="row" style="padding-bottom:6px;"><span class="big" id="a-acc-top" style="color:var(--accent-gold);">现存 — 两 · 日入 — 两</span></div>
@@ -688,8 +814,39 @@
            3. 🏡 后院内宅 Tab (各房眷属、身孕名分、各自心事)
            ══════════════════════════════════════════════════ -->
       <div class="tab-pane" id="tab-family">
+        <!-- 🏡 后院各房名分与私密外室 (专属收纳于内宅，不扎眼) -->
+        <section class="card full" id="card-household" style="margin-bottom:14px;">
+          <h2>🏡 后院各房名分与私密外室</h2>
+          <div class="row" style="padding-bottom:6px;"><span class="big" id="h-family-top" style="color:var(--accent-pink);">正妻 — · 侧室 — · 有孕 —</span></div>
+          <div id="family-detail" style="margin-top:6px;"></div>
+        </section>
+
+        <!-- 🏡 后院妻妾眷属与身孕谱系独立大卡 -->
+        <section class="card full" id="card-family-full">
+          <div class="card-header">
+            <h2>🏡 后院内宅眷属与身孕谱系 <span class="muted" style="font-size:13px;font-weight:400">（名分位份 · 居所卧房 · 怀胎身孕 · 房事心境）</span></h2>
+            <span class="pill primary" id="f-house-summary">正妻 — · 侧室 — · 通房 —</span>
+          </div>
+          <div class="table-scroll-container" style="max-height: 420px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>佳人</th>
+                  <th>位份名分</th>
+                  <th>所居处所</th>
+                  <th>身孕与气血</th>
+                  <th>私房银两</th>
+                  <th>对相公心境</th>
+                  <th>同榻亲密</th>
+                </tr>
+              </thead>
+              <tbody id="family-full-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="card full">
-          <h2>🌸 各自主线与心事（她们自己的人生羁绊）</h2>
+          <h2>🌸 各房主线与心事（她们自己的人生羁绊）</h2>
           <div id="arcs">—</div>
         </section>
         <section class="card full">
@@ -742,7 +899,7 @@
             <button class="btn sm" onclick="filterActors('', 'love')">红颜相好</button>
             <button class="btn sm" onclick="filterActors('', 'court')">官府官员</button>
           </div>
-          <div style="overflow-x:auto;">
+          <div class="table-scroll-container">
             <table>
               <thead><tr><th>名字</th><th>来源</th><th>身份</th><th>所在</th><th>私房钱</th><th>信任</th><th>欲望</th><th>怨怼</th><th>态度</th><th>亲密</th></tr></thead>
               <tbody id="actors"></tbody>
@@ -756,15 +913,44 @@
       </div>
 
       <!-- ══════════════════════════════════════════════════
-           6. 🏛️ 庙堂朝政 Tab (朝中文武、案子、国库律令)
+           6. 🏛️ 庙堂朝政 Tab (朝中文武、国库圣谕、案卷公堂)
            ══════════════════════════════════════════════════ -->
       <div class="tab-pane" id="tab-court">
-        <section class="card full">
-          <h2>🏛️ 朝中官职与百官</h2>
-          <div id="decrees" class="muted" style="margin:6px 0 4px">—</div>
-          <div id="treasury" class="muted" style="margin:0 0 10px">—</div>
-          <div id="court">—</div>
+        <!-- 顶部天子圣意与国库财赋横幅 -->
+        <div class="grid-cards" style="margin-bottom: 14px;">
+          <section class="card" style="margin-bottom:0;">
+            <h2>📜 当今天子与当朝圣谕</h2>
+            <div id="court-mandate" style="margin:6px 0 8px;">—</div>
+            <div id="decrees" class="muted">—</div>
+          </section>
+          <section class="card" style="margin-bottom:0;">
+            <h2>🏛️ 大内国库与天下仓储</h2>
+            <div id="treasury" style="margin-top:6px;">—</div>
+          </section>
+        </div>
+
+        <!-- 中枢内阁与六部重臣 -->
+        <section class="card full" style="margin-bottom: 14px;">
+          <div class="card-header">
+            <h2>👑 中枢内阁与六部尚书 <span class="muted" style="font-size:12px;font-weight:400">（首辅掌国、尚书治事）</span></h2>
+          </div>
+          <div id="court-central" class="off-grid"></div>
         </section>
+
+        <!-- 各省各府父母官（带滚动与工整卡片网格） -->
+        <section class="card full" style="margin-bottom: 14px;">
+          <div class="card-header">
+            <h2>🏯 两淮与各省府衙父母官 <span class="muted" style="font-size:12px;font-weight:400" id="court-local-count">（共 56 府）</span></h2>
+          </div>
+          <div class="off-scroll-box">
+            <div id="court-local" class="off-grid"></div>
+          </div>
+        </section>
+
+        <!-- 保持对老 DOM ID #court 的隐藏兼容 -->
+        <div id="court" style="display:none;"></div>
+
+        <!-- 官府案卷 -->
         <section class="card full">
           <h2>⚖️ 官府案卷（公堂卷宗）</h2>
           <div id="cases" class="muted" style="margin-top:6px">—</div>
@@ -1131,6 +1317,43 @@ function render(w){
       html += outHouse.map(a => rowOf(a, '相好')).join('');
     }
     $('family-detail').innerHTML = html || '<div class="muted">府中尚无内眷</div>';
+
+    // ── 🏡 后院内宅专属 Tab 完整谱系表格渲染 ──────────────────
+    if ($('family-full-rows')) {
+      const allWomen = [...inHouse, ...outHouse];
+      $('f-house-summary').textContent =
+        `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+        + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
+
+      $('family-full-rows').innerHTML = allWomen.map(a => {
+        const isOut = !a.household;
+        const rankTag = isOut ? '<span class="tag warn">外室 · 相好</span>' : `<span class="tag good">${rankOf(a)}</span>`;
+        const pregDays = Number(a.pregnancy?.days) || 0;
+        const pregMonth = Math.floor(pregDays / 30);
+        let pregHtml = '<span class="muted">未孕</span>';
+        if (isPreg(a)) {
+          pregHtml = `<span class="tag good" style="font-weight:600">🤱 有喜 ${pregDays} 天 (${pregMonth}个月)</span>`;
+        } else if (a.onPeriod) {
+          pregHtml = '<span class="tag warn">🩸 月事中</span>';
+        } else if (a.fertile) {
+          pregHtml = '<span class="tag good">🌸 易孕期</span>';
+        }
+
+        const r = a.relations || {};
+        const im = a.intimacy || {};
+        let intimacyText = im.ritual === 'unlocked' ? `解禁 · 档${im.tone ?? 0}` : (im.consummated ? '已欢好 · 相好' : '端庄守礼');
+
+        return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
+          <td><b>${a.name}</b> ${a.household ? '<span class="tag" style="margin-left:4px">府内</span>' : '<span class="tag muted" style="margin-left:4px">外室</span>'}</td>
+          <td>${rankTag} <span class="muted" style="margin-left:4px">${a.role || ''}</span></td>
+          <td class="muted">${a.place || '—'}</td>
+          <td>${pregHtml}</td>
+          <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + ' 两' : '—'}</td>
+          <td class="muted">${attitude({...a, household: a.household, consummated: im.consummated, relations: r})}</td>
+          <td><span class="tag">${intimacyText}</span></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:12px;">暂无内眷女眷数据</td></tr>';
+    }
   }
 
 
@@ -1322,39 +1545,79 @@ function render(w){
   const offsAll = Object.entries(court.offices || {});
   const central = offsAll.filter(([k]) => !k.startsWith('city:'));
   const local = offsAll.filter(([k]) => k.startsWith('city:'));
-  const labelOf = (o) => {
+
+  const cardHtmlOf = (o, isCentral = false, sub = '') => {
     const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
-    if (!o.holder) return '<span class="bad">空缺</span>';
-    if (!actor) return o.holder + '（未入世）';
-    const r = actor.relations || {};
-    const t = Number(r.trust) || 0;
-    const g = Number(r.grievance) || 0;
-    const d = Number(r.desire) || 0;
-    return `${actor.name} <span class="muted" style="font-size:11px">信${t} 怨${g} 欲${d}</span>`;
+    let nameHtml = '';
+    let tagsHtml = '';
+    if (!o.holder) {
+      nameHtml = '<span class="bad" style="font-size:13px">职位空缺</span>';
+    } else if (!actor) {
+      nameHtml = `<span class="muted" style="font-size:13px">${o.holder}（未入世）</span>`;
+    } else {
+      const r = actor.relations || {};
+      const t = Number(r.trust) || 0;
+      const g = Number(r.grievance) || 0;
+      const d = Number(r.desire) || 0;
+      nameHtml = `<span class="off-name" onclick="openActor('${actor.id}')">${actor.name}</span>`;
+      tagsHtml = `<div class="off-tags">
+        <span class="tag ${t>=60?'good':t>=30?'':'muted'}">信${t}</span>
+        <span class="tag ${d>=50?'warn':'muted'}">欲${d}</span>
+        ${g>0 ? `<span class="tag bad">怨${g}</span>` : ''}
+      </div>`;
+    }
+    return `<div class="off-card">
+      <div class="off-card-top">
+        <span class="off-post ${isCentral ? 'central' : ''}">${o.title}</span>
+        <span class="muted" style="font-size:11px">${isCentral ? '正二品至从一品' : '正四品知府'}</span>
+      </div>
+      <div class="off-who">
+        ${nameHtml}
+        ${tagsHtml}
+      </div>
+      ${sub ? `<div class="off-sub-box">${sub}</div>` : ''}
+    </div>`;
   };
+
   const mnd = court.mandate || {};
   const decCount = (court.decisions || []).length;
-  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君·被蒙蔽' : '当今天子';
-  const mandateHtml = mnd.quality
-    ? `<div class="row" style="border:1px dashed #2a2f3a;border-radius:6px;padding:6px 8px;margin-bottom:8px"><span>天意</span><span class="muted">${mandateTxt} · ${mnd.note || ''}${mnd.wrath ? ' · <span class="bad">天罚已降</span>' : ''}${decCount ? ' · <span class="bad">有弑君待决</span>' : ''}</span></div>`
-    : '';
-  const courtBody = offsAll.length
-    ? `<div class="off-block"><div class="off-title">中枢</div><div class="off-grid">` +
-      central.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
-      `</div></div><div class="off-block"><div class="off-title">各府父母官（${local.length}）</div><div class="off-grid">` +
-      local.map(([k, o]) => {
-        const cityName = String(k).replace(/^city:/, '');
-        const county = (w.actors || []).find(a => String(a.role || '') === `${cityName}知县`);
-        let sub = '';
-        if (county) {
-          const cr = county.relations || {};
-          sub = `<div class="muted" style="font-size:11px;margin-top:2px">└ 知县 ${county.name} <span style="opacity:.75">信${Number(cr.trust)||0} 怨${Number(cr.grievance)||0} 欲${Number(cr.desire)||0}</span></div>`;
-        }
-        return `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b>${sub}</div>`;
-      }).join('') +
-      `</div></div>`
-    : '<div class="muted">朝廷未设官</div>';
-  $('court').innerHTML = mandateHtml + courtBody;
+  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君 · 被蒙蔽' : '当今天子';
+  if ($('court-mandate')) {
+    $('court-mandate').innerHTML = mnd.quality
+      ? `<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:6px;padding:8px 10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="color:#fde047;font-weight:600">👑 ${mandateTxt}</span>
+            <span class="tag ${mnd.wrath ? 'bad' : 'good'}">${mnd.wrath ? '天罚已降' : '天命安定'}</span>
+          </div>
+          <div class="muted" style="font-size:12px;line-height:1.6">${mnd.note || '海内初平，四方归心。'} ${decCount ? ' · <span class="bad">有要案待决</span>' : ''}</div>
+        </div>`
+      : '<div class="muted">天命清明</div>';
+  }
+
+  if ($('court-central')) {
+    $('court-central').innerHTML = central.length
+      ? central.map(([, o]) => cardHtmlOf(o, true)).join('')
+      : '<div class="muted">中枢官职未立</div>';
+  }
+
+  if ($('court-local')) {
+    if ($('court-local-count')) $('court-local-count').textContent = `（共 ${local.length} 府）`;
+    $('court-local').innerHTML = local.length
+      ? local.map(([k, o]) => {
+          const cityName = String(k).replace(/^city:/, '');
+          const county = (w.actors || []).find(a => String(a.role || '') === `${cityName}知县`);
+          let sub = '';
+          if (county) {
+            const cr = county.relations || {};
+            sub = `<span>└ 辖下知县：<b>${county.name}</b></span><span class="muted">信${Number(cr.trust)||0} 欲${Number(cr.desire)||0}</span>`;
+          }
+          return cardHtmlOf(o, false, sub);
+        }).join('')
+      : '<div class="muted">地方未设知府</div>';
+  }
+
+  // 兜底赋值
+  if ($('court')) $('court').innerHTML = 'ok';
 
   // ── 山川 ──────────────────────────────
   const ter = w.terrain || [];
@@ -1521,8 +1784,8 @@ function render(w){
       if (tb !== ta) return tb - ta;
       return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
     });
-  const shown = window.__actorExpand ? list : list.slice(0, 10);
-  $('actors').innerHTML = shown.map(a=>{
+  // 全量渲染列表，通过表格外层 table-scroll-container 实现丝滑下拉滚动
+  $('actors').innerHTML = list.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};
     // 相公本人：没有"对自己的好感"，改显示他自己的实况
     if (a.id === 'husband') {
@@ -1554,9 +1817,7 @@ function render(w){
       <td>${a.id==='husband'?'—':attitude({...a, household:a.household, consummated:im.consummated, relations:r})}</td>
       <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
     </tr>`;
-  }).join('') + (list.length > 10
-    ? `<tr><td colspan="10" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__actorExpand=!window.__actorExpand;load();" style="color:#7fb4ff">${window.__actorExpand ? '收起' : '展开全部（共 ' + list.length + ' 人）'}</a></td></tr>`
-    : '');
+  }).join('');
 
   $('summary').textContent = w.summary || '—';
 
@@ -1771,10 +2032,16 @@ function renderTreasury(court) {
   const t = court?.treasury || {};
   const silver = Number(t.silver) || 0;
   const grain = Number(t.grain) || 0;
-  const color = silver < 100 ? '#e05a5a' : silver < 500 ? '#d8c48a' : '#7BD88F';
-  el.innerHTML = `国库 <b style="color:${color}">${silver.toFixed(1)} 两</b>　`
-    + `粮仓 <b>${grain} 石</b>　`
-    + `<span class="muted">日收 ${(Number(t.lastIncome)||0).toFixed(1)} / 日支 ${(Number(t.lastExpense)||0).toFixed(1)}</span>`;
+  const inc = Number(t.lastIncome) || 0;
+  const exp = Number(t.lastExpense) || 0;
+  const diff = inc - exp;
+  el.innerHTML = `
+    <div class="row"><span>国库现存金银</span><b class="big" style="color:var(--accent-gold);">${silver.toFixed(1)} 两</b></div>
+    <div class="row"><span>天下粮仓储备</span><b class="big" style="color:var(--accent-green);">${grain} 石</b></div>
+    <div class="row" style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.06);padding-top:4px;">
+      <span>国库日流水结余</span>
+      <span class="${diff >= 0 ? 'good' : 'bad'}" style="font-weight:600">${diff >= 0 ? '+' : ''}${diff.toFixed(1)} 两/日 <span class="muted" style="font-weight:400;margin-left:4px">(收 ${inc.toFixed(1)} / 支 ${exp.toFixed(1)})</span></span>
+    </div>`;
 }
 
 function renderDecrees(court) {
@@ -1782,8 +2049,10 @@ function renderDecrees(court) {
   if (!el) return;
   const ds = (court?.decisions || []).slice(-3).reverse();
   el.innerHTML = ds.length
-    ? '最近旨意：' + ds.map((d) => `<span style="color:#d8c48a">第${d.day}日「${d.text}」</span>`).join('　')
-    : '最近旨意：暂无';
+    ? `<div style="font-size:12.5px;color:#d8c48a;line-height:1.6">` +
+      ds.map((d) => `<div style="margin-bottom:3px">📜 <b>第${d.day}日圣谕</b>：<span>「${d.text}」</span></div>`).join('') +
+      `</div>`
+    : '<div class="muted">最近旨意：暂无颁布</div>';
 }
 
 async function whoSearch() {

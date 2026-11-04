@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +36,12 @@ class _ChatScreenState extends State<ChatScreen> {
   final bool _usingFallbackRecorder = false;
   String _currentLocaleId = 'zh_CN';
 
+  // 首页位置条：随时知道自己在哪
+  String _placeName = '';
+  int _worldDay = 0;
+  int _worldHour = 0;
+  Timer? _locTimer;
+
   // 豆包风格语音按住说话状态
   bool _isVoiceMode = false; // 是否处于底部按住说话大按钮模式
   bool _isHoldingRecord = false; // 是否当前正按住录音
@@ -46,6 +53,8 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _refreshPlace();
+    _locTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refreshPlace());
     if (Platform.isAndroid) {
       OfflineAsrService.instance.ensureInitialized();
     } else {
@@ -541,8 +550,29 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _refreshPlace() async {
+    try {
+      final d = await context.read<ChatProvider>().api.fetchMyWorld();
+      if (!mounted || d == null) return;
+      final self = (d['self'] is Map) ? d['self'] as Map : const {};
+      final date = (d['date'] is Map) ? d['date'] as Map : const {};
+      final place = (self['place'] ?? '').toString();
+      if (place.isEmpty) return;
+      final day = (date['day'] ?? 0) is int ? date['day'] as int : int.tryParse('${date['day']}') ?? 0;
+      final hour = (date['hour'] ?? 0) is int ? date['hour'] as int : int.tryParse('${date['hour']}') ?? 0;
+      if (place != _placeName || day != _worldDay || hour != _worldHour) {
+        setState(() {
+          _placeName = place;
+          _worldDay = day;
+          _worldHour = hour;
+        });
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    _locTimer?.cancel();
     _speech.stop();
     _audioRecorder.dispose();
     _textController.dispose();
@@ -1164,6 +1194,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 }
+
 
 
 

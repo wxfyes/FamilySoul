@@ -215,6 +215,43 @@ function render(w){
       html += outHouse.map(a => rowOf(a, '相好')).join('');
     }
     $('family-detail').innerHTML = html || '<div class="muted">府中尚无内眷</div>';
+
+    // ── 🏡 后院内宅专属 Tab 完整谱系表格渲染 ──────────────────
+    if ($('family-full-rows')) {
+      const allWomen = [...inHouse, ...outHouse];
+      $('f-house-summary').textContent =
+        `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+        + (outHouse.length ? ` ｜ 外室 ${outHouse.length}${outPreg ? `（${outPreg} 有孕）` : ''}` : '');
+
+      $('family-full-rows').innerHTML = allWomen.map(a => {
+        const isOut = !a.household;
+        const rankTag = isOut ? '<span class="tag warn">外室 · 相好</span>' : `<span class="tag good">${rankOf(a)}</span>`;
+        const pregDays = Number(a.pregnancy?.days) || 0;
+        const pregMonth = Math.floor(pregDays / 30);
+        let pregHtml = '<span class="muted">未孕</span>';
+        if (isPreg(a)) {
+          pregHtml = `<span class="tag good" style="font-weight:600">🤱 有喜 ${pregDays} 天 (${pregMonth}个月)</span>`;
+        } else if (a.onPeriod) {
+          pregHtml = '<span class="tag warn">🩸 月事中</span>';
+        } else if (a.fertile) {
+          pregHtml = '<span class="tag good">🌸 易孕期</span>';
+        }
+
+        const r = a.relations || {};
+        const im = a.intimacy || {};
+        let intimacyText = im.ritual === 'unlocked' ? `解禁 · 档${im.tone ?? 0}` : (im.consummated ? '已欢好 · 相好' : '端庄守礼');
+
+        return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
+          <td><b>${a.name}</b> ${a.household ? '<span class="tag" style="margin-left:4px">府内</span>' : '<span class="tag muted" style="margin-left:4px">外室</span>'}</td>
+          <td>${rankTag} <span class="muted" style="margin-left:4px">${a.role || ''}</span></td>
+          <td class="muted">${a.place || '—'}</td>
+          <td>${pregHtml}</td>
+          <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + ' 两' : '—'}</td>
+          <td class="muted">${attitude({...a, household: a.household, consummated: im.consummated, relations: r})}</td>
+          <td><span class="tag">${intimacyText}</span></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:12px;">暂无内眷女眷数据</td></tr>';
+    }
   }
 
 
@@ -406,39 +443,79 @@ function render(w){
   const offsAll = Object.entries(court.offices || {});
   const central = offsAll.filter(([k]) => !k.startsWith('city:'));
   const local = offsAll.filter(([k]) => k.startsWith('city:'));
-  const labelOf = (o) => {
+
+  const cardHtmlOf = (o, isCentral = false, sub = '') => {
     const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
-    if (!o.holder) return '<span class="bad">空缺</span>';
-    if (!actor) return o.holder + '（未入世）';
-    const r = actor.relations || {};
-    const t = Number(r.trust) || 0;
-    const g = Number(r.grievance) || 0;
-    const d = Number(r.desire) || 0;
-    return `${actor.name} <span class="muted" style="font-size:11px">信${t} 怨${g} 欲${d}</span>`;
+    let nameHtml = '';
+    let tagsHtml = '';
+    if (!o.holder) {
+      nameHtml = '<span class="bad" style="font-size:13px">职位空缺</span>';
+    } else if (!actor) {
+      nameHtml = `<span class="muted" style="font-size:13px">${o.holder}（未入世）</span>`;
+    } else {
+      const r = actor.relations || {};
+      const t = Number(r.trust) || 0;
+      const g = Number(r.grievance) || 0;
+      const d = Number(r.desire) || 0;
+      nameHtml = `<span class="off-name" onclick="openActor('${actor.id}')">${actor.name}</span>`;
+      tagsHtml = `<div class="off-tags">
+        <span class="tag ${t>=60?'good':t>=30?'':'muted'}">信${t}</span>
+        <span class="tag ${d>=50?'warn':'muted'}">欲${d}</span>
+        ${g>0 ? `<span class="tag bad">怨${g}</span>` : ''}
+      </div>`;
+    }
+    return `<div class="off-card">
+      <div class="off-card-top">
+        <span class="off-post ${isCentral ? 'central' : ''}">${o.title}</span>
+        <span class="muted" style="font-size:11px">${isCentral ? '正二品至从一品' : '正四品知府'}</span>
+      </div>
+      <div class="off-who">
+        ${nameHtml}
+        ${tagsHtml}
+      </div>
+      ${sub ? `<div class="off-sub-box">${sub}</div>` : ''}
+    </div>`;
   };
+
   const mnd = court.mandate || {};
   const decCount = (court.decisions || []).length;
-  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君·被蒙蔽' : '当今天子';
-  const mandateHtml = mnd.quality
-    ? `<div class="row" style="border:1px dashed #2a2f3a;border-radius:6px;padding:6px 8px;margin-bottom:8px"><span>天意</span><span class="muted">${mandateTxt} · ${mnd.note || ''}${mnd.wrath ? ' · <span class="bad">天罚已降</span>' : ''}${decCount ? ' · <span class="bad">有弑君待决</span>' : ''}</span></div>`
-    : '';
-  const courtBody = offsAll.length
-    ? `<div class="off-block"><div class="off-title">中枢</div><div class="off-grid">` +
-      central.map(([, o]) => `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b></div>`).join('') +
-      `</div></div><div class="off-block"><div class="off-title">各府父母官（${local.length}）</div><div class="off-grid">` +
-      local.map(([k, o]) => {
-        const cityName = String(k).replace(/^city:/, '');
-        const county = (w.actors || []).find(a => String(a.role || '') === `${cityName}知县`);
-        let sub = '';
-        if (county) {
-          const cr = county.relations || {};
-          sub = `<div class="muted" style="font-size:11px;margin-top:2px">└ 知县 ${county.name} <span style="opacity:.75">信${Number(cr.trust)||0} 怨${Number(cr.grievance)||0} 欲${Number(cr.desire)||0}</span></div>`;
-        }
-        return `<div class="off-item"><span class="muted">${o.title}</span><b>${labelOf(o)}</b>${sub}</div>`;
-      }).join('') +
-      `</div></div>`
-    : '<div class="muted">朝廷未设官</div>';
-  $('court').innerHTML = mandateHtml + courtBody;
+  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君 · 被蒙蔽' : '当今天子';
+  if ($('court-mandate')) {
+    $('court-mandate').innerHTML = mnd.quality
+      ? `<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:6px;padding:8px 10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="color:#fde047;font-weight:600">👑 ${mandateTxt}</span>
+            <span class="tag ${mnd.wrath ? 'bad' : 'good'}">${mnd.wrath ? '天罚已降' : '天命安定'}</span>
+          </div>
+          <div class="muted" style="font-size:12px;line-height:1.6">${mnd.note || '海内初平，四方归心。'} ${decCount ? ' · <span class="bad">有要案待决</span>' : ''}</div>
+        </div>`
+      : '<div class="muted">天命清明</div>';
+  }
+
+  if ($('court-central')) {
+    $('court-central').innerHTML = central.length
+      ? central.map(([, o]) => cardHtmlOf(o, true)).join('')
+      : '<div class="muted">中枢官职未立</div>';
+  }
+
+  if ($('court-local')) {
+    if ($('court-local-count')) $('court-local-count').textContent = `（共 ${local.length} 府）`;
+    $('court-local').innerHTML = local.length
+      ? local.map(([k, o]) => {
+          const cityName = String(k).replace(/^city:/, '');
+          const county = (w.actors || []).find(a => String(a.role || '') === `${cityName}知县`);
+          let sub = '';
+          if (county) {
+            const cr = county.relations || {};
+            sub = `<span>└ 辖下知县：<b>${county.name}</b></span><span class="muted">信${Number(cr.trust)||0} 欲${Number(cr.desire)||0}</span>`;
+          }
+          return cardHtmlOf(o, false, sub);
+        }).join('')
+      : '<div class="muted">地方未设知府</div>';
+  }
+
+  // 兜底赋值
+  if ($('court')) $('court').innerHTML = 'ok';
 
   // ── 山川 ──────────────────────────────
   const ter = w.terrain || [];
@@ -605,8 +682,8 @@ function render(w){
       if (tb !== ta) return tb - ta;
       return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
     });
-  const shown = window.__actorExpand ? list : list.slice(0, 10);
-  $('actors').innerHTML = shown.map(a=>{
+  // 全量渲染列表，通过表格外层 table-scroll-container 实现丝滑下拉滚动
+  $('actors').innerHTML = list.map(a=>{
     const r = a.relations||{}, im = a.intimacy||{};
     // 相公本人：没有"对自己的好感"，改显示他自己的实况
     if (a.id === 'husband') {
@@ -625,22 +702,20 @@ function render(w){
         <td><span class="tag">—</span></td>
       </tr>`;
     }
-    const bar = v => `<div class="bar"><i style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
+    const bar = (v, cls = '') => `<div class="bar"><i class="${cls}" style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
     if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
     if (a.onPeriod) intimacy = '月事中';
     return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${a.place||''}</td>
       <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + (a.debt ? ' <span class="bad">欠'+a.debt+'</span>' : '') : '—'}</td>
-      <td class="num">${r.trust??'—'} ${bar(r.trust||0)}</td>
-      <td class="num">${r.desire??'—'} ${bar(r.desire||0)}</td>
-      <td class="num">${r.grievance??0} ${bar(r.grievance||0)}</td>
+      <td class="num">${r.trust??'—'} ${bar(r.trust||0, 'trust')}</td>
+      <td class="num">${r.desire??'—'} ${bar(r.desire||0, 'desire')}</td>
+      <td class="num">${r.grievance??0} ${bar(r.grievance||0, 'grievance')}</td>
       <td>${a.id==='husband'?'—':attitude({...a, household:a.household, consummated:im.consummated, relations:r})}</td>
       <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
     </tr>`;
-  }).join('') + (list.length > 10
-    ? `<tr><td colspan="10" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__actorExpand=!window.__actorExpand;load();" style="color:#7fb4ff">${window.__actorExpand ? '收起' : '展开全部（共 ' + list.length + ' 人）'}</a></td></tr>`
-    : '');
+  }).join('');
 
   $('summary').textContent = w.summary || '—';
 
@@ -855,10 +930,16 @@ function renderTreasury(court) {
   const t = court?.treasury || {};
   const silver = Number(t.silver) || 0;
   const grain = Number(t.grain) || 0;
-  const color = silver < 100 ? '#e05a5a' : silver < 500 ? '#d8c48a' : '#7BD88F';
-  el.innerHTML = `国库 <b style="color:${color}">${silver.toFixed(1)} 两</b>　`
-    + `粮仓 <b>${grain} 石</b>　`
-    + `<span class="muted">日收 ${(Number(t.lastIncome)||0).toFixed(1)} / 日支 ${(Number(t.lastExpense)||0).toFixed(1)}</span>`;
+  const inc = Number(t.lastIncome) || 0;
+  const exp = Number(t.lastExpense) || 0;
+  const diff = inc - exp;
+  el.innerHTML = `
+    <div class="row"><span>国库现存金银</span><b class="big" style="color:var(--accent-gold);">${silver.toFixed(1)} 两</b></div>
+    <div class="row"><span>天下粮仓储备</span><b class="big" style="color:var(--accent-green);">${grain} 石</b></div>
+    <div class="row" style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.06);padding-top:4px;">
+      <span>国库日流水结余</span>
+      <span class="${diff >= 0 ? 'good' : 'bad'}" style="font-weight:600">${diff >= 0 ? '+' : ''}${diff.toFixed(1)} 两/日 <span class="muted" style="font-weight:400;margin-left:4px">(收 ${inc.toFixed(1)} / 支 ${exp.toFixed(1)})</span></span>
+    </div>`;
 }
 
 function renderDecrees(court) {
@@ -866,8 +947,10 @@ function renderDecrees(court) {
   if (!el) return;
   const ds = (court?.decisions || []).slice(-3).reverse();
   el.innerHTML = ds.length
-    ? '最近旨意：' + ds.map((d) => `<span style="color:#d8c48a">第${d.day}日「${d.text}」</span>`).join('　')
-    : '最近旨意：暂无';
+    ? `<div style="font-size:12.5px;color:#d8c48a;line-height:1.6">` +
+      ds.map((d) => `<div style="margin-bottom:3px">📜 <b>第${d.day}日圣谕</b>：<span>「${d.text}」</span></div>`).join('') +
+      `</div>`
+    : '<div class="muted">最近旨意：暂无颁布</div>';
 }
 
 async function whoSearch() {
