@@ -116,7 +116,8 @@ export function applyPlacements(world, text) {
     if (!a || !placeId || a.dead || a.id === 'husband' || a.humanBound) continue;
     if (a.intimacy?.ritual === 'unlocked') continue;
     const moved = a.location !== placeId;
-    a.location = placeId;
+    const mv = moveActor(world, a.id, placeId, 'world', '天道安顿');
+    if (!mv.ok) continue;
     if (item.activity) a.activity = { text: String(item.activity).slice(0, 12), day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
     if (moved) changed += 1;
     notes.push(`${a.name}→${item.place}`);

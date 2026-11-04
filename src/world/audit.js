@@ -354,7 +354,7 @@ export function applyRepairs(world, text) {
     if (actor) {
       if (f?.kind === 'pos' || f?.kind === 'dead') {
         if (actor.dead) delete actor.location;
-        else actor.location = target || 'street';
+        else moveActor(world, actor.id, target || 'street', 'world', '自检归位');
         fixed += 1;
       } else if (f?.kind === 'money') {
         actor.money = Math.max(0, Number(actor.money) || 0);

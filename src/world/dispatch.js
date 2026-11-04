@@ -14,6 +14,8 @@
 import { loadState, saveState, appendEvents, nextEvent, round2, forceOf } from './state.js';
 import { queueProactive } from './clock.js';
 import { propagateMood, easeBonds } from './bonds.js';
+import { moveActor } from './position.js';
+
 
 function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
 
@@ -405,7 +407,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           }
         }
         if (!place) continue;
-        world.actors[id].location = place;
+        moveActor(world, id, place, 'ui', '界面');
         applied.push(`移动:${world.actors[id].name}→${world.places[place]?.name || place}`);
       } else if (kind === 'companion_consent') {
         const whoId = resolveActor(world, args.who);
@@ -415,7 +417,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           const cActor = world.actors[whoId];
           const hus = world.actors.husband;
           if (consent && hus?.location) {
-            cActor.location = hus.location;
+            moveActor(world, cActor.id, hus.location, 'world', '随行');
             applied.push(`同行应允:${cActor.name}随相公移步至${world.places?.[hus.location]?.name || hus.location}`);
             console.log(`[Party] 同行名单：${hus.name || '相公'} + ${cActor.name}`);
             console.log(`[Move] ${hus.name || '相公'} → ${world.places?.[hus.location]?.name || hus.location} (同行: ${cActor.name})`);

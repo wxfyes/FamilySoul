@@ -23,6 +23,8 @@ import { ensureCities, ensureCourt, ensureTerrain, seedPersonalMoney, loadState 
 import { applyAction } from './world/apply.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
+import { moveActor } from './world/position.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -710,14 +712,14 @@ const STARTED_AT = Date.now();
           } else {
             world.places[roomId].name = `${world.places[innId]?.name || '临江客栈'}·${roomName}`;
           }
-          me.location = roomId;
+          moveActor(world, me.id, roomId, 'ui', '开房');
           const partnerId = String(pend.with || (world.chatPartners || {})[actorId] || '');
           const partyIds = Array.isArray(world.party?.[actorId]) ? world.party[actorId] : [];
           for (const pid of [partnerId, ...partyIds]) {
             const a = world.actors?.[pid];
             if (!a || a.dead || a.id === actorId) continue;
             if (a.location !== innId && a.location !== roomId && !partyIds.includes(a.id)) continue;
-            a.location = roomId;
+            moveActor(world, a.id, roomId, 'world', '同行进房');
             a.activity = { text: '进房歇息', day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
             comers.push(a.name);
           }
@@ -798,7 +800,7 @@ const STARTED_AT = Date.now();
             let pid = apTargetPlace(world, apt);
             if (!pid) pid = await askDmForPlace(world, apt);   // 没有地点就当场请天道定
             if (pid && world.places?.[pid]) {
-              me.location = pid;
+              moveActor(world, me.id, pid, 'ui', '赴约');
               line = `（你动身去了「${world.places[pid].name}」。）`;
             } else {
               line = '（你动身去办这事了，地点还没个准。）';
@@ -815,7 +817,7 @@ const STARTED_AT = Date.now();
               let pid2 = apTargetPlace(world, fakeAp);
               if (!pid2) pid2 = await askDmForPlace(world, fakeAp);
               if (pid2 && world.places?.[pid2]) {
-                me.location = pid2;
+                moveActor(world, me.id, pid2, 'ui', '去办差事');
                 line = `（你动身去了「${world.places[pid2].name}」，去办这桩事。）`;
               } else {
                 line = '（你动身去办这桩事了，去处还没定准。）';
@@ -1591,7 +1593,7 @@ const STARTED_AT = Date.now();
           pid = `place_${world.flags.placeSeq}`;
           world.places[pid] = { name: placeName, exits: ['street'], owner: id, dynamic: true };
         }
-        actor.location = pid;
+        moveActor(world, actor.id, pid, 'ui', '管理改位');
         if (!actor.home || actor.home === 'street') actor.home = pid;
         saveState(DATA_DIR, world);
         console.log(`[Actor] ${actor.name} → ${placeName}`);
@@ -2023,7 +2025,7 @@ const STARTED_AT = Date.now();
         const name = world.places[id].name;
         const back = world.places[to] ? to : 'street';
         for (const a of Object.values(world.actors || {})) {
-          if (a && a.location === id) a.location = back;
+          if (a && a.location === id) moveActor(world, a.id, back, 'world', '地点撤销');
         }
         delete world.places[id];
         if (world.dynamicPlaces) delete world.dynamicPlaces[id];
@@ -2076,7 +2078,7 @@ const STARTED_AT = Date.now();
         if (body.location != null) {
           const locStr = String(body.location).trim();
           let pid = world.places?.[locStr] ? locStr : Object.keys(world.places || {}).find(k => world.places[k]?.name === locStr || k === locStr);
-          if (pid && world.places?.[pid]) { a.location = pid; changed.location = world.places[pid].name; }
+          if (pid && world.places?.[pid]) { moveActor(world, a.id, pid, 'ui', '管理改位'); changed.location = world.places[pid].name; }
         }
         if (body.trust != null || body.desire != null || body.grievance != null) {
           if (!a.relations) a.relations = {};
@@ -2320,7 +2322,7 @@ const STARTED_AT = Date.now();
           const id = String(m?.id || '').trim();
           const to = String(m?.to || '').trim();
           if (!world.actors?.[id] || !world.places?.[to]) continue;
-          world.actors[id].location = to;
+          moveActor(world, id, to, 'world', '拖去牢里');
           done.push(`${world.actors[id].name}→${world.places[to].name}`);
         }
         saveState(DATA_DIR, world);
@@ -3174,6 +3176,15 @@ server.listen(PORT, '0.0.0.0', () => {
     ensureCourt(wA);
     ensureTerrain(wA);
     try { seedPersonalMoney(wA); } catch { /* 忽略 */ }
+      // 登记真人登着的角色：世界不许引擎搬他们
+      try {
+        const cfgH = fs.existsSync(CONFIG_FILE) ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) : {};
+        const humans = Object.values(cfgH.family || {}).map((m) => m?.actor).filter(Boolean);
+        wA.flags = wA.flags || {};
+        wA.flags.humanActors = humans;
+        for (const hid of humans) if (wA.actors?.[hid]) wA.actors[hid].humanBound = true;
+        if (humans.length) console.log(`[World] 真人角色 ${humans.length} 位：${humans.join('、')}`);
+      } catch { /* 忽略 */ }
     saveState(DATA_DIR, wA);
     console.log(`[Arc] 已播种 ${Object.keys(wA.arcs || {}).length} 条个人主线`);
   } catch (err) {
@@ -3382,9 +3393,9 @@ server.listen(PORT, '0.0.0.0', () => {
               jp = `place_${w3.flags.placeSeq}`;
               w3.places[jp] = { name: jailName, exits: ['street'], owner: 'court', dynamic: true, city: cityName };
             }
-            culprit.location = jp;
+            moveActor(world, culprit.id, jp, 'world', '收监');
           } else {
-            culprit.location = culprit.gender === 'male' ? 'jail_male' : 'jail_female';
+            moveActor(world, culprit.id, culprit.gender === 'male' ? 'jail_male' : 'jail_female', 'world', '收监');
           }
         }
         if (Number(pen.rep) > 0) w3.reputation = Math.max(0, (Number(w3.reputation) || 50) - Number(pen.rep));
@@ -3427,7 +3438,7 @@ server.listen(PORT, '0.0.0.0', () => {
           const a = w3.actors?.[pid];
           if (!a || pid === 'husband') continue;
           if (a.jailed) continue;
-          if (a.location === 'yamen') a.location = a.home || 'street';
+          if (a.location === 'yamen') moveActor(world, a.id, a.home || 'street', 'world', '下值回家');
         }
       } catch { /* 忽略 */ }
 
@@ -3696,4 +3707,5 @@ server.listen(PORT, '0.0.0.0', () => {
     console.warn('[World] 世界时钟启动失败：', err.message);
   }
 });
+
 

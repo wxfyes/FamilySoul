@@ -19,6 +19,8 @@ import { healWorld } from './heal.js';
 import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
 import { spreadRumors } from './rumors.js';
+import { moveActor } from './position.js';
+
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
 export const DEFAULT_TICK_INTERVAL_MS = 2 * 60 * 1000; // 2 分钟心跳：世界推进更细，不用干等 10 分钟
@@ -321,8 +323,8 @@ function runHearings(world, events) {
       const hus = world.actors.husband;
       if (!hus || hus.location !== 'yamen') continue;
     }
-    if (p1 && p1.id !== 'husband') p1.location = 'yamen';
-    if (p2 && p2.id !== 'husband') p2.location = 'yamen';
+    if (p1 && p1.id !== 'husband') moveActor(world, p1.id, 'yamen', 'world', '升堂');
+    if (p2 && p2.id !== 'husband') moveActor(world, p2.id, 'yamen', 'world', '升堂');
     c.status = 'hearing';
     events.push(nextEvent(world, { action: 'hearing', actor: c.againstId, place: 'yamen', payload: { text: `县衙开审：${c.who}告${c.against}` }, isPublic: true }));
   }
@@ -1380,7 +1382,7 @@ function runSchedules(world) {
         // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来
         if (actor.intimacy?.ritual === 'unlocked') continue;
         if (actor.away && Number(actor.away.untilDay) >= Number(world.clock.day)) continue;
-        actor.location = slot.place;
+        moveActor(world, actor.id, slot.place, 'world', String(slot.do || ''));
         actor.activity = { text: String(slot.do || ''), at: world.clock.hour, day: world.clock.day };
         // 主子（不含正妻本人）走到相公所在之处 → 主动来见
         if (

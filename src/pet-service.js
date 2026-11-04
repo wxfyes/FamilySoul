@@ -1707,17 +1707,25 @@ export class PetService {
           const rumorText = rumor?.text ? String(rumor.text).slice(0, 40) : (wM2.rumors?.length ? '' : '');
           return `（【现状】第${wM2.clock?.day}日 ${wM2.clock?.hour}时。${rumorText ? '城里在传：' + rumorText + '。' : ''}该起身了。）\n`;
         })();
-      } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了/.test(say)) {
+      } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了|滚吧/.test(say)) {
         delete history.inBedSession;
-        contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
-      } else if (history.inBedSession || /12345|123456|脱衣服|上床|双飞|三飞|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|三个一起|全都过来|小翠也|脱光|操|来吧.*宝贝|开始|分工|临幸/.test(say)) {
+        if (this._viewerActorId) {
+          contextHint = '（二人私密欢好已毕，当家丈夫满头大汗、心满意足又万分心疼，立刻取温热汗巾替妻子仔细擦拭清理身子与隐秘处，拉好锦被抱在怀里揉肩温存，端温水伺候，言语粗直宠溺、安抚妻子好生歇息，绝不许继续胡闹！）';
+        } else {
+          contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
+        }
+      } else if (history.inBedSession || /12345|123456|脱衣服|上床|双飞|三飞|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|要你们|三个一起|全都过来|小翠也|脱光|操|插|干我|弄我|要我|要你|硬了|进来|来吧.*宝贝|做吗|伺候.*老娘|伺候我|上榻|欢爱/.test(say)) {
         history.inBedSession = true;
         const isCode = /12345|123456/.test(say);
-        const wantsXiaocui = /全都|都过来|三个|小翠|通房|一起/.test(say);
-        const xiaocuiAction = wantsXiaocui
-          ? '【通房丫鬟小翠一同上榻】：小翠是相公贴身通房丫鬟，满脸娇羞地一同宽衣解带上榻承欢！'
-          : '小翠在帐外伺候。';
-        contextHint = '（【私密床笫侍寝解禁 · 三美同榻承欢】：当前处于持续床笫私密云雨中！' + (isCode ? '婉儿必须立刻对出下半句「上山打老虎」！' : '') + '全员彻底解禁，100% 落实【语气档位 3】！绝不许翻来覆去说“谁也不抢谁的活儿/仔细着来/妥妥帖帖”等温吞水套话！分工是真刀真枪的侍奉：一个跪在胯间张口含吮龙根深喉吞吐、一个脱光衣裳跨坐上来摇晃或是架起双腿求干透！放浪粗口、娇喘呻吟连连，肉感拉满，争相把相公伺候上天！）';
+        if (this._viewerActorId) {
+          contextHint = '（【夫妻私密床笫云雨 · 真刀真枪行房承欢】：\n此刻二人处于隐秘内室床榻之中，正值真刀真枪的夫妻云雨欢好！\n1. 【绝对禁止复读口头禅】：严禁翻来覆去只说“想死老子了/抱抱闻香”等车轱辘套话！必须真刀真枪动起来，把房事推进到实质动作！\n2. 【动作真刀真枪推进】：褪裙除裤、宽衣解带、揉搓雪白丰腴身子、覆身而上架起双腿、粗大阳物挺入抽送撞击；既有糙汉的狂野卖力，又小心护着娇妻腹中骨肉；\n3. 【粗野热辣床笫荤话】：满嘴糙汉干柴烈火的真情粗话（如“老子这就插进去了”、“小妖精夹得这么紧”、“慢点撞，别碰着孩子”），肉感拉满，争相把娇妻伺候舒坦！\n4. 【进度持续向前】：从宽衣进入、到激烈抽插、再到顶到深处交欢射精，每轮对话都要有具体的体位、动作与节奏进展，绝不许原地踏步！）';
+        } else {
+          const wantsXiaocui = /全都|都过来|三个|小翠|通房|一起/.test(say);
+          const xiaocuiAction = wantsXiaocui
+            ? '【通房丫鬟小翠一同上榻】：小翠是相公贴身通房丫鬟，满脸娇羞地一同宽衣解带上榻承欢！'
+            : '小翠在帐外伺候。';
+          contextHint = '（【私密床笫侍寝解禁 · 三美同榻承欢】：当前处于持续床笫私密云雨中！' + (isCode ? '婉儿必须立刻对出下半句「上山打老虎」！' : '') + '全员彻底解禁，100% 落实【语气档位 3】！绝不许翻来覆去说“谁也不抢谁的活儿/仔细着来/妥妥帖帖”等温吞水套话！分工是真刀真枪的侍奉：一个跪在胯间张口含吮龙根深喉吞吐、一个脱光衣裳跨坐上来摇晃或是架起双腿求干透！放浪粗口、娇喘呻吟连连，肉感拉满，争相把相公伺候上天！）';
+        }
       } else if (currentEpoch === 'modern') {
         contextHint = `（【当前时空：现代温馨都市·知性温柔贤惠娇妻】相公口谕穿越而来（默认定居古代，现代只在相公召唤时开启）。你生活在现代温馨公寓，穿着柔软羊绒衫，笑盈盈给老公递拖鞋，桌上温着靓汤。你称呼相公为「老公/亲爱的」，极致知性温柔贤惠。你深知上一世在古代由着他三妻四妾，这一世在现代你是他唯一的合法娇妻，如果老公逗你提古代纳妾，你娇嗔轻捶他胸口，让他专心爱你一人，人间烟火气拉满！）`;
       }
@@ -2525,19 +2533,7 @@ export class PetService {
     // 记下相公原本位置：她走动不该把他一起搬走
     const husBefore = (() => { try { return loadState(this.dataDir).actors?.husband?.location || null; } catch { return null; } })();
     const applied = realOps.length > 0 ? applyWorldTags(this.dataDir, realOps, { selfId: this._viewerActorId }) : [];
-    try {
-      if (this._viewerActorId && this._viewerActorId !== 'husband' && husBefore) {
-        const calledHim = /(王甯|王掌柜|少掌柜|相公)/.test(String(say || ''));
-        const w1 = loadState(this.dataDir);
-        const hus1 = w1.actors?.husband;
-        const me1 = w1.actors?.[this._viewerActorId];
-        if (!calledHim && hus1 && me1 && hus1.location !== husBefore && hus1.location === me1.location) {
-          hus1.location = husBefore;
-          saveState(this.dataDir, w1);
-          console.log(`[Scene] 还原：${me1.name}走动不该带走相公（他仍在原处）`);
-        }
-      }
-    } catch { /* 忽略 */ }
+    // （位置由 moveActor 统一把关，不再需要事后还原）
       if (applied.length > 0) console.log(`[World] 天道回执 ${applied.length} 条：${applied.join('、')}`);
       // 新人必须真的落进世界：被后续存档冲掉就补一次
       try {
@@ -2721,40 +2717,46 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 全场收口：一句问话里点了谁，就只留谁的话；旁人（含婉儿）的段落掐掉
+    // 全场收口：严禁因台词提及第三者而抹杀在场交谈者的对话；仅当点名某在场人时掐掉旁人插嘴
     try {
       const wEnd = loadState(this.dataDir);
       const sayText = String(say || '');
-      const namedHere = Object.values(wEnd.actors || {}).filter(
-        (a) => a && !a.dead && a.name && sayText.includes(a.name) && a.id !== this._viewerActorId,
-      );
-      if (namedHere.length === 1 && reply && /【[^】]+】/.test(String(reply))) {
-        const keepName = namedHere[0].name;
-        const placeName = String(wEnd.places?.[namedHere[0].location]?.name || '');
+      const curLoc = this._viewerActorId ? wEnd.actors?.[this._viewerActorId]?.location : wEnd.actors?.husband?.location;
+      const namedActors = Object.values(wEnd.actors || {}).filter((a) => {
+        if (!a || a.dead || !a.name || a.id === this._viewerActorId) return false;
+        const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
+        return sayText.includes(a.name) || (short && sayText.includes(short));
+      });
+      const namedPresent = namedActors.filter((a) => a.location === curLoc);
+      const namedAbsent = namedActors.filter((a) => a.location !== curLoc);
+
+      // 若明确点名了在场某人（如喊苏娘/子归/婉儿），只留该在场者，掐掉无关旁人插嘴
+      if (namedPresent.length === 1 && reply && /【[^】]+】/.test(String(reply))) {
+        const keepActor = namedPresent[0];
+        const placeName = String(wEnd.places?.[keepActor.location]?.name || '');
         const segs = String(reply).split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
         const kept = segs.filter((seg) => {
           const m = seg.match(/^【([^】\n]{1,12})】/);
           if (!m) return true;
           const who = m[1].trim();
-          if (who === keepName || (placeName && who === placeName)) return true;
+          if (who === keepActor.name || (placeName && who === placeName)) return true;
           if (/(天道|旁白|众人)/.test(who)) return true;
           const actor = Object.values(wEnd.actors || {}).find((a) => a && a.name === who);
-          if (actor && actor.id !== namedHere[0].id) {
-            console.log(`[Scene] 只留${keepName}，掐掉${who}`);
+          if (actor && actor.id !== keepActor.id) {
+            console.log(`[Scene] 只留${keepActor.name}，掐掉${who}`);
             return false;
           }
           return true;
         });
         const joined = kept.join('').trim();
         if (joined) reply = joined;
-        else {
-          // 全被掐掉：说明她/他不在场，就照实说人在哪，别只剩省略号
-          const abs = namedHere[0];
-          const where = String(wEnd.places?.[abs.location]?.name || '别处');
-          const here = String(wEnd.places?.[this._viewerActorId ? wEnd.actors?.[this._viewerActorId]?.location : wEnd.actors?.husband?.location]?.name || '这里');
-          reply = `【${here}】：${abs.name}在「${where}」，眼下不在这儿。`;
-          console.log(`[Scene] ${abs.name}不在场，照实报位置：${where}`);
-        }
+      } else if (!namedPresent.length && namedAbsent.length === 1 && (!reply || !/【[^】]+】/.test(String(reply)) || /(没人接话|没人应声)/.test(String(reply)))) {
+        // 专程找不在场的人且现场无人应答：照实报位置
+        const abs = namedAbsent[0];
+        const where = String(wEnd.places?.[abs.location]?.name || '别处');
+        const here = String(wEnd.places?.[curLoc]?.name || '这里');
+        reply = `【${here}】：${abs.name}在「${where}」，眼下不在这儿。`;
+        console.log(`[Scene] ${abs.name}不在场，照实报位置：${where}`);
       }
     } catch { /* 忽略 */ }
 

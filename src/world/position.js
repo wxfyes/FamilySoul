@@ -1,0 +1,41 @@
+/**
+ * 位置：全世界只有这里能改人的所在地。
+ *
+ * 为什么要有这一层：
+ *   以前时钟、场景同步、自愈、命令各写各的，玩家会莫名其妙被搬走。
+ *   现在所有移动都走 moveActor()，它只认两种理由：
+ *     - 'ui'    ：玩家自己在界面上点的（他要去哪儿/叫人过来）
+ *     - 'world' ：世界自己在动（作息、自愈、差事）
+ *   真人登着的角色（humanBound）只接受 'ui'，其它一律拒绝。
+ */
+
+export const MOVE_REASONS = new Set(['ui', 'world']);
+
+function humanBoundSet(world) {
+  const s = new Set();
+  if (Array.isArray(world?.flags?.humanActors)) for (const id of world.flags.humanActors) s.add(String(id));
+  for (const [id, a] of Object.entries(world?.actors || {})) if (a?.humanBound) s.add(id);
+  return s;
+}
+
+export function isHumanBound(world, actorId) {
+  return humanBoundSet(world).has(String(actorId));
+}
+
+export function moveActor(world, actorId, placeId, reason = 'world', note = '') {
+  if (!MOVE_REASONS.has(reason)) return { ok: false, error: '未知的移动理由' };
+  const a = world?.actors?.[actorId];
+  if (!a || a.dead) return { ok: false, error: '没有这个人' };
+  if (!placeId || !world.places?.[placeId]) return { ok: false, error: '没有这个地点' };
+  if (a.location === placeId) return { ok: true, moved: false };
+
+  // 真人登着的角色：只有他自己点界面才动
+  if (isHumanBound(world, actorId) && reason !== 'ui') {
+    return { ok: false, error: '真人角色不接受世界移动' };
+  }
+
+  const from = a.location || null;
+  a.location = placeId;
+  a.lastMove = { from, to: placeId, by: reason, note: String(note || '').slice(0, 30), day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
+  return { ok: true, moved: true, from, to: placeId };
+}
