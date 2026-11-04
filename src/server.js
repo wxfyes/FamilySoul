@@ -443,6 +443,8 @@ const STARTED_AT = Date.now();
             id: a.id, name: a.name, role: a.role || '', place: placeName(a.location || ''),
             here: a.location === curId, group: group(a),
             trust: Number(rel(a).trust) || 0, grievance: Number(rel(a).grievance) || 0,
+            // 相公是真人账号，不能被别人"叫过来"——只能自己过去
+            canSummon: !isHusbandViewer ? a.id !== 'husband' : true,
           }))
           .sort((x, y) => {
             const o = isHusbandViewer
@@ -514,6 +516,9 @@ const STARTED_AT = Date.now();
         const me = world.actors?.[actorId] || world.actors?.husband;
         const her = world.actors?.[id];
         if (!her || her.dead) return sendJson(res, 404, { ok: false, error: '没有这个人' });
+        if (id === 'husband' && actorId !== 'husband') {
+          return sendJson(res, 200, { ok: false, error: '相公是真人，得你自己过去找他' });
+        }
         const hereName = world.places?.[me?.location]?.name || '';
         const intent = {
           id: `ui_come_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -1612,8 +1617,9 @@ const STARTED_AT = Date.now();
         if (body.role != null) { a.role = String(body.role).slice(0, 24); changed.role = a.role; }
         if (body.money != null) { a.money = Math.max(0, Number(body.money) || 0); changed.money = a.money; }
         if (body.location != null) {
-          const pid = String(body.location);
-          if (world.places?.[pid]) { a.location = pid; changed.location = world.places[pid].name; }
+          const locStr = String(body.location).trim();
+          let pid = world.places?.[locStr] ? locStr : Object.keys(world.places || {}).find(k => world.places[k]?.name === locStr || k === locStr);
+          if (pid && world.places?.[pid]) { a.location = pid; changed.location = world.places[pid].name; }
         }
         if (body.trust != null || body.desire != null || body.grievance != null) {
           if (!a.relations) a.relations = {};

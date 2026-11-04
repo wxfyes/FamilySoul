@@ -73,6 +73,15 @@ export function resolveStandardPlace(world, selfId, text) {
   return findPlace(world, t);
 }
 
+export function hasRealMoveVerb(text) {
+  const stripped = String(text || '')
+    .replace(/(到底|到处|到期|看到|听到|提到|拿到|办到|想到|说到|账到|查到|遇到|等到|到手|找到)/g, '')
+    .replace(/(怎么回事|回事|回话|回答|收回|回绝|回过神|回信|回头|收不回|还回)/g, '')
+    .replace(/(上头|账上|身上|看上|不上|手上|纸上|面上|心上|字据上|底册上|打上|赶上)/g, '')
+    .replace(/(省去|除去|免去|褪去|失去|过去|怎么去说|信得过不去|相去|去你的|何去何从)/g, '');
+  return /(去|往|移步|转到|回|逛|奔|赶往|到)/.test(stripped);
+}
+
 /** 按"最长公共片段"找一个地点，容忍「酒楼盯着」「长街买炭」这种带后缀的说法 */
 function findPlace(world, text) {
   const t = String(text || '');
@@ -88,7 +97,17 @@ function findPlace(world, text) {
     for (let n = nm.length; n >= 2; n--) {
       let hit = false;
       for (let i = 0; i + n <= nm.length; i++) {
-        if (t.includes(nm.slice(i, i + n))) { hit = true; break; }
+        const seg = nm.slice(i, i + n);
+        const idx = t.indexOf(seg);
+        if (idx !== -1) {
+          // 防人物/物件/事务误伤：若匹配的是姓氏前缀（如"翟家"），后面紧跟人或物词汇，不算地点
+          const after = t.slice(idx + seg.length, idx + seg.length + 4);
+          if (/(老板|掌柜|管事|下人|伙计|娘子|大娘子|姑娘|少爷|夫人|老爷|字据|银子|借条|借契|文书|暗账|账|事|案子|人|钱)/.test(after)) {
+            continue;
+          }
+          hit = true;
+          break;
+        }
       }
       if (hit) {
         if (n > bestLen) { bestLen = n; best = [id, p]; }
@@ -380,7 +399,7 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
   }
 
   // 「去X家 / X的绣坊」：认到那个人真实所在，别另建一处
-  if (/(去|往|到|上|回)/.test(say)) {
+  if (hasRealMoveVerb(say)) {
     const homeHit = Object.values(world.actors || {}).find((a) => {
       if (!a || !a.name || a.id === selfId || (selfId === 'husband' && a.id === 'husband')) return false;
       return new RegExp(a.name + '(?:的)?(?:家|那儿|屋里|房里|处|那|住处|铺子|绣坊)').test(say);
@@ -513,7 +532,7 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
   }
 
   // 「去某城」：城里没有长街就先修一条（不能把人塞进府衙）
-  if (mentioned.length === 0 && /(去|往|到|上|回)/.test(say)) {
+  if (mentioned.length === 0 && hasRealMoveVerb(say)) {
     const cityHit = Object.keys(world.cities || {}).find((c) => String(say).includes(c));
     if (cityHit) {
       const streetName = `${cityHit}·长街`;
@@ -544,27 +563,33 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
   }
 
   // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公与同行伴侣挪过去
-  if (mentioned.length === 0 && /(去|往|上|到|回|逛)/.test(say)) {
+  if (mentioned.length === 0 && hasRealMoveVerb(say)) {
     // "回我房间/去正房"这类说法：先按别名认
     const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 回房: 'husband_room', 回屋: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
     const placeHit = resolveStandardPlace(world, selfId, say);
     if (placeHit) {
       const [pid, p] = placeHit;
-      const companions = findCompanions(world, selfId, say);
-      me.location = pid;
-      const comers = [];
-      for (const c of companions) {
-        if (c && !c.dead && c.id !== me.id) {
-          c.location = pid;
-          c.activity = { text: `随相公前往${p.name}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
-          comers.push(c.name);
+      const pName = String(p?.name || '');
+      // 必须有真实位移动词作用于该地点或其简称，或者是强日常别名（回房/回家），避免随口提及地点相关词汇误瞬移
+      const moveRe = new RegExp(`(?:去|往|到|回|逛|移步|转到|奔|赶往)\\s*(?:一趟|那|那个|这)?\\s*([一-龥]{0,4}${pName.slice(0, 2)}|[一-龥]{0,4}${pName.slice(-2)})`);
+      const isStrongAlias = /(回家|回铺子|回店|回房|回屋|正房)/.test(say);
+      if (isStrongAlias || moveRe.test(say)) {
+        const companions = findCompanions(world, selfId, say);
+        me.location = pid;
+        const comers = [];
+        for (const c of companions) {
+          if (c && !c.dead && c.id !== me.id) {
+            c.location = pid;
+            c.activity = { text: `随相公前往${p.name}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+            comers.push(c.name);
+          }
         }
+        saveState(dataDir, world);
+        const party = [me.name || '相公', ...comers];
+        console.log(`[Party] 同行名单：${party.join(' + ')}`);
+        console.log(`[Move] ${me.name || '相公'} → ${p.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
+        return { moved: party, summoned: [], visited: null, wentTo: p.name };
       }
-      saveState(dataDir, world);
-      const party = [me.name || '相公', ...comers];
-      console.log(`[Party] 同行名单：${party.join(' + ')}`);
-      console.log(`[Move] ${me.name || '相公'} → ${p.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
-      return { moved: party, summoned: [], visited: null, wentTo: p.name };
     }
   }
 

@@ -292,6 +292,25 @@ console.log(ok ? 'PASS' : 'FAIL moved to ' + s.actors.husband.location);
     return 'PASS' in out, out
 
 
+@case('提及家族人物字据或到底口语不误位移（相公稳居茶摊）')
+def c16():
+    out = run_node(HEAD + """
+w.actors.husband.location = 'tea_stall';
+saveState(dir, w);
+const { applySummon } = await import('./src/world/summon.js');
+const res1 = applySummon(dir, '我自己挑明了说，别跟我说无用的，翟家字据一分变三分的事到底怎么回事，你家娘子为你的事找到我的，别跟我拐弯抹角直接说明白，我也好帮你们处理此事', '【随科】：“哟，这不是王掌柜么。”', 'husband');
+const s1 = loadState(dir);
+const ok1 = s1.actors.husband.location === 'tea_stall';
+
+const res2 = applySummon(dir, '你意思是翟家老板私自改的？', '【随科】：“翟家那笔银子...”', 'husband');
+const s2 = loadState(dir);
+const ok2 = s2.actors.husband.location === 'tea_stall';
+
+console.log(ok1 && ok2 ? 'PASS' : 'FAIL: loc1=' + s1.actors.husband.location + ' loc2=' + s2.actors.husband.location);
+""" + TAIL)
+    return 'PASS' in out, out
+
+
 def main():
     passed = failed = 0
     for name, fn in CASES:

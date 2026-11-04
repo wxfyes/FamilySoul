@@ -928,6 +928,29 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 天道造过的地方，任何迁移都不许弄丢——先补回 places
+  try {
+    if (world.dynamicPlaces && typeof world.dynamicPlaces === 'object') {
+      world.places = world.places || {};
+      let restored = 0;
+      for (const [id, pl] of Object.entries(world.dynamicPlaces)) {
+        if (!pl || !pl.name) continue;
+        if (!world.places[id]) {
+          // 同名地点已存在就复用，不重复造
+          const same = Object.entries(world.places).find(([, q]) => q && q.name === pl.name);
+          if (same) {
+            for (const a of Object.values(world.actors || {})) {
+              if (a && a.location === id) a.location = same[0];
+            }
+          } else {
+            world.places[id] = pl;
+            restored += 1;
+          }
+        }
+      }
+      if (restored) console.log(`[State] 补回动态地点 ${restored} 处`);
+    }
+  } catch { /* 忽略 */ }
   // 清理不合生理的怀孕（年龄过大/过小，或身份明确不该有的）
   try {
     let cleared = 0;
@@ -1112,11 +1135,11 @@ export function migrateOwnership(world) {
         if (a && a.home === 'teahouse_shop') a.home = 'tea_house';
       }
     }
-    // 清掉误建的雅阁等茶坊子地点，把人归并到 tea_house
+    // 只清理「地点·雅阁」这类把格式词当日名的垃圾，不再误杀真正的雅阁
     for (const [pid, p] of Object.entries(world.places || {})) {
       if (pid === 'tea_house') continue;
       const n = String(p?.name || '');
-      if (/^(雅阁|二楼雅阁|茶坊雅阁|雅间|茶阁)$/.test(n) || (p?.dynamic && /雅阁/.test(n))) {
+      if (/^(地点|场景|场所|时空)[·・]/.test(n)) {
         delete world.places[pid];
         for (const a of Object.values(world.actors || {})) {
           if (a && a.location === pid) a.location = 'tea_house';
@@ -1218,6 +1241,26 @@ export function migrateOwnership(world) {
   for (const c of world.clues || []) {
     if (c && !c.owner) c.owner = 'husband';
   }
+  // 最后一步：把天道造过的地方补回来（任何清理都不许弄丢）
+  try {
+    if (world.dynamicPlaces && typeof world.dynamicPlaces === 'object') {
+      world.places = world.places || {};
+      let restored = 0;
+      for (const [id, pl] of Object.entries(world.dynamicPlaces)) {
+        if (!pl || !pl.name || world.places[id]) continue;
+        const same = Object.entries(world.places).find(([, q]) => q && q.name === pl.name);
+        if (same) {
+          for (const a of Object.values(world.actors || {})) {
+            if (a && a.location === id) a.location = same[0];
+          }
+        } else {
+          world.places[id] = pl;
+          restored += 1;
+        }
+      }
+      if (restored) console.log(`[State] 补回动态地点 ${restored} 处`);
+    }
+  } catch { /* 忽略 */ }
   return world;
 }
 
@@ -1283,7 +1326,23 @@ function __loadStateInner(dataDir) {
       ...(raw.assets || {}),
       properties: Array.isArray(raw.assets?.properties) ? raw.assets.properties : base.assets.properties,
     },
-    places: normalizePlaces({ ...base.places, ...(raw.places || {}) }, mergedActors),
+    places: (() => {
+      const merged = normalizePlaces({ ...base.places, ...(raw.places || {}) }, mergedActors);
+      // 兜底：动态辟建的地点（医馆/雅阁/小茶摊…）不许在加载时凭空消失
+      for (const [id, pl] of Object.entries(raw.places || {})) {
+        if (!pl || !pl.name || merged[id]) continue;
+        const same = Object.entries(merged).find(([, q]) => q && q.name === pl.name);
+        if (same) {
+          // 同名地点已存在：把站在这里的人改指过去
+          for (const a of Object.values(mergedActors)) {
+            if (a && a.location === id) a.location = same[0];
+          }
+        } else {
+          merged[id] = pl;
+        }
+      }
+      return merged;
+    })(),
     actors: mergedActors,
 
     pending: Array.isArray(raw.pending) ? raw.pending : base.pending,
@@ -1349,10 +1408,10 @@ function __loadStateInner(dataDir) {
     const places = resWorld.places || {};
     const actors = resWorld.actors || {};
     for (const [pid, p] of Object.entries(places)) {
-      if (!p || pid === 'yamen' || pid === 'street' || pid === 'tea_house' || pid === 'jiusi' || pid === 'restaurant' || pid === 'jail_male' || pid === 'jail_female') continue;
+      if (!p || pid === 'yamen' || pid === 'street' || pid === 'tea_house' || pid === 'jiusi' || pid === 'restaurant' || pid === 'jail_male' || pid === 'jail_female' || pid === 'tea_stall') continue;
       const nm = String(p.name || '');
       let targetPid = null;
-      if (/(县衙|后堂|县衙后堂|后院|偏厅)/.test(nm) && !/(牢|狱)/.test(nm) && places.yamen) targetPid = 'yamen';
+      if (!/(牢|狱|茶摊)/.test(nm) && /(县衙|后堂|县衙后堂|后院|偏厅)/.test(nm) && places.yamen) targetPid = 'yamen';
       else if (/(长街|青石板|大街)/.test(nm) && places.street) targetPid = 'street';
       else if (/(茶坊|茶楼)/.test(nm) && places.tea_house) targetPid = 'tea_house';
       else if (/(酒楼)/.test(nm) && places.restaurant) targetPid = 'restaurant';
