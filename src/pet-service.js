@@ -620,6 +620,82 @@ export class PetService {
 
     // 交互系统已在客户端完全接管（转场/找人/付钱等），聊天中绝不偷听正则乱挂待付款打断剧情
 
+    // 差事：天道把"谁去办什么"记成差事，后面办到哪一步都能追
+    try {
+      const taskTags = String(reply || '').match(/\[\[task:([^\]]+)\]\]/g);
+      if (taskTags && taskTags.length) {
+        const wT = loadState(this.dataDir);
+        wT.tasks = Array.isArray(wT.tasks) ? wT.tasks : [];
+        for (const tag of taskTags) {
+          const parts = /\[\[task:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]\]/.exec(tag);
+          if (!parts) continue;
+          const whoName = String(parts[1] || '').trim();
+          const what = String(parts[2] || '').trim().slice(0, 60);
+          const days = Number(parts[3]) || 3;
+          const who = Object.values(wT.actors || {}).find((a) => a && a.name === whoName);
+          if (!who || !what) continue;
+          wT.tasks.push({
+            id: `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            actorId: who.id,
+            name: who.name,
+            what,
+            status: 'doing',
+            startDay: wT.clock?.day || 1,
+            dueDay: (wT.clock?.day || 1) + days,
+            log: [],
+          });
+          console.log(`[Task] ${who.name} 领了差事：${what}`);
+        }
+        saveState(this.dataDir, wT);
+        reply = String(reply || '').replace(/\[\[task:[^\]]+\]\]/g, '').trim();
+      }
+
+      // 差事有进展：[[tasklog:片段|进展一句话]]
+      const logTags = String(reply || '').match(/\[\[tasklog:([^\]]+)\]\]/g);
+      if (logTags && logTags.length) {
+        const wL = loadState(this.dataDir);
+        for (const tag of logTags) {
+          const m = /\[\[tasklog:(.+?)\|([^\]]+)\]\]/.exec(tag);
+          if (!m) continue;
+          const frag = String(m[1]).trim();
+          const note = String(m[2]).trim().slice(0, 60);
+          const t = (wL.tasks || []).find((x) => x && x.status === 'doing' && (String(x.what).includes(frag) || String(x.name) === frag));
+          if (t) {
+            t.log = Array.isArray(t.log) ? t.log : [];
+            t.log.push({ day: wL.clock?.day || 1, hour: wL.clock?.hour || 0, text: note });
+            wL.notes = Array.isArray(wL.notes) ? wL.notes : [];
+            wL.notes.push({ day: wL.clock?.day, hour: wL.clock?.hour, text: `${t.name}办差：${note}` });
+          }
+        }
+        wL.notes = (wL.notes || []).slice(-40);
+        saveState(this.dataDir, wL);
+        reply = String(reply || '').replace(/\[\[tasklog:[^\]]+\]\]/g, '').trim();
+      }
+
+      // 差事办完：[[taskdone:片段|结果]]
+      const doneTags = String(reply || '').match(/\[\[taskdone:([^\]]+)\]\]/g);
+      if (doneTags && doneTags.length) {
+        const wD = loadState(this.dataDir);
+        for (const tag of doneTags) {
+          const m = /\[\[taskdone:(.+?)\|([^\]]+)\]\]/.exec(tag);
+          if (!m) continue;
+          const frag = String(m[1]).trim();
+          const result = String(m[2]).trim().slice(0, 60);
+          const t = (wD.tasks || []).find((x) => x && x.status === 'doing' && (String(x.what).includes(frag) || String(x.name) === frag));
+          if (t) {
+            t.status = 'done';
+            t.result = result;
+            t.doneDay = wD.clock?.day || 1;
+            wD.notes = Array.isArray(wD.notes) ? wD.notes : [];
+            wD.notes.push({ day: wD.clock?.day, hour: wD.clock?.hour, text: `${t.name}办完了：${result}` });
+          }
+        }
+        wD.notes = (wD.notes || []).slice(-40);
+        saveState(this.dataDir, wD);
+        reply = String(reply || '').replace(/\[\[taskdone:[^\]]+\]\]/g, '').trim();
+      }
+    } catch { /* 忽略 */ }
+
     // 天道要造物：[[build:地名|父地点名]]（父地点可省，默认他现在所在）
     try {
       const buildTags = String(reply || '').match(/\[\[build:([^\]]+)\]\]/g);
@@ -751,6 +827,7 @@ export class PetService {
 
     // 告诉天道：要收钱就这么声明（由相公自己点确认）
     try {
+      contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
@@ -1103,6 +1180,13 @@ export class PetService {
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        const activePartnerId = String((wHere.chatPartners || {})[this._viewerActorId] || '');
+        const activePartner = (wHere.actors || {})[activePartnerId];
+        if (activePartner && !activePartner.dead && activePartner.location === locId) {
+          bits.push(`当前对话对象是「${activePartner.name}」——玩家正在与他当面对话，除非玩家明确叫了别人，否则必须由他继续接话，在场其他人切勿突兀插话打断沉浸感`);
+        } else if (hereNames.length === 1) {
+          bits.push('眼前只有这一人，自然由他开口应承');
+        }
         const acts = Object.values(wHere.actors || {})
           .filter((a) => a && !a.dead && a.location === locId && a.id !== this._viewerActorId && a.activity?.text)
           .map((a) => `${a.name}正在${a.activity.text}`)
@@ -2027,28 +2111,11 @@ export class PetService {
               && a.location === locPost && a.name && (String(say || '').includes(a.name) || (namedSpouse && (a.id === mePost?.spouse || a.spouse === this._viewerActorId || /于子归|于杰/.test(a.name)))),
           );
           console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
-          // 没人被点名、也没有对话对象，且回复已空 → 让在场最亲近的人开口
-          let autoPick = [];
-          // presentNamesNow 已在上方统一定义
-          const _unusedNames = Object.values(wPost.actors || {})
-            .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId)
-            .map((a) => String(a.name || ''))
-            .filter(Boolean);
+          // 极简与事实驱动：仅当玩家明确叫了在场某人、或当前交谈对象在场且主回复未出时极窄补位；绝不乱抓路人
           const replyIsNarration = /(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
           const replyHasPresentSpeaker = !replyIsNarration && presentNamesNow.some((n) => String(reply || '').includes(n));
-          // 问的是某个具体的人（可能不在场）→ 不许路人乱插话
-          const askedAnyActor = /(王甯|王掌柜|少掌柜|相公|当家的|于子归|子归)/.test(String(say || '')) || Object.values(wPost.actors || {}).some((a) => {
-            if (!a || !a.name) return false;
-            const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
-            return String(say || '').includes(a.name) || (short && String(say || '').includes(short));
-          });
-          if (!askedAnyActor && !namedPresent.length && !partnerHere.length && !replyHasPresentSpeaker) {
-            const here2 = Object.values(wPost.actors || {})
-              .filter((a) => a && !a.dead && a.location === locPost && a.id !== this._viewerActorId && a.id !== 'husband')
-              .sort((x, y) => (Number(y.relations?.husband?.trust) || 0) - (Number(x.relations?.husband?.trust) || 0));
-            autoPick = here2.slice(0, 1);
-          }
-          for (const npc of (namedPresent.length ? namedPresent : (partnerHere.length ? partnerHere : autoPick)).slice(0, 2)) {
+          const proxyTargets = namedPresent.length ? namedPresent : (partnerHere.length && !replyHasPresentSpeaker ? partnerHere : []);
+          for (const npc of proxyTargets.slice(0, 1)) {
             const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
             if (already) continue;
             const npcMem = (wPost.memories || [])

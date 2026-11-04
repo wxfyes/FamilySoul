@@ -602,6 +602,19 @@ const STARTED_AT = Date.now();
             status: pr.engaged ? 'engaged' : 'open',
           });
         }
+        // 仆人手上的差事
+        for (const t of (world.tasks || [])) {
+          if (!t || t.status !== 'doing') continue;
+          todos.push({
+            kind: '差事',
+            id: t.id,
+            when: `第${t.dueDay}日办完`,
+            who: t.name,
+            text: `${t.what}${(t.log || []).slice(-1)[0]?.text ? '（' + (t.log || []).slice(-1)[0].text + '）' : ''}`,
+            place: '', placeName: '', status: 'engaged',
+          });
+        }
+
         // 天道最近该知道的事（你的决定会记在这里）
         const brief = (world.notes || []).slice(-8).map((n) => String(n.text || n).slice(0, 60));
 
@@ -973,6 +986,10 @@ const STARTED_AT = Date.now();
         self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
         here: hereNames,
         pendingAction: world.pendingAction || null,
+        tasks: (world.tasks || []).filter((t) => t && t.status === 'doing').map((t) => ({
+          id: t.id, who: t.name, what: t.what,
+          dueDay: t.dueDay, last: (t.log || []).slice(-1)[0]?.text || '',
+        })),
         // 我这一日：只给"我自己"的事，绝不广播别人的私事
         daily: (() => {
           try {
