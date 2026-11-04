@@ -2213,6 +2213,21 @@ const STARTED_AT = Date.now();
           let pid = world.places?.[locStr] ? locStr : Object.keys(world.places || {}).find(k => world.places[k]?.name === locStr || k === locStr);
           if (pid && world.places?.[pid]) { moveActor(world, a.id, pid, 'ui', '管理改位'); changed.location = world.places[pid].name; }
         }
+        // 婚配：给谁当配偶（双向写，避免一边有一边没有）
+        if (body.spouse !== undefined) {
+          const sid = body.spouse ? String(body.spouse) : null;
+          if (sid && !world.actors?.[sid]) return sendJson(res, 400, { ok: false, error: '没有这个配偶' });
+          if (a.spouse && world.actors?.[a.spouse] && world.actors[a.spouse].spouse === a.id) {
+            world.actors[a.spouse].spouse = null;   // 解开旧的一对
+          }
+          a.spouse = sid;
+          if (sid) {
+            world.actors[sid].spouse = a.id;
+            if (!world.actors[sid].marital) world.actors[sid].marital = 'married';
+          }
+          changed.spouse = sid ? (world.actors[sid].name || sid) : null;
+        }
+        if (body.marital != null) { a.marital = String(body.marital); changed.marital = a.marital; }
         if (body.jailed !== undefined) {
           if (body.jailed === null || body.jailed === false) { delete a.jailed; changed.jailed = null; }
           else if (typeof body.jailed === 'object') { a.jailed = body.jailed; changed.jailed = a.jailed; }
