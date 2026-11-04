@@ -51,12 +51,24 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
+      final text = (_serverLine != null && _serverLine!.isNotEmpty) ? _serverLine! : okText;
+      _serverLine = null;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(okText), duration: const Duration(milliseconds: 1200), behavior: SnackBarBehavior.floating),
+        SnackBar(content: Text(text), duration: const Duration(milliseconds: 2200), behavior: SnackBarBehavior.floating),
       );
       widget.onChanged?.call();
       await _load();
     }
+  }
+
+  String? _serverLine;
+
+  /// 去某地：把服务端的"到达提示"接住
+  Future<bool> _goTo(String place) async {
+    final line = await widget.api.goTo(place);
+    if (line == null) return false;
+    _serverLine = line;
+    return true;
   }
 
   @override
@@ -144,7 +156,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                 title: (h['name'] ?? '').toString(),
                 subtitle: '日入 ${h['income'] ?? 0} 两',
                 action: TextButton(
-                  onPressed: () => _run(() => widget.api.goTo((h['name'] ?? '').toString()), '（你走到了「${h['name']}」。）'),
+                  onPressed: () => _run(() => _goTo((h['name'] ?? '').toString()), '（你走到了「${h['name']}」。）'),
                   child: const Text('过去'),
                 ),
               )),
@@ -159,7 +171,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                 title: (p['name'] ?? '').toString(),
                 subtitle: ((p['names'] as List?) ?? const []).join('、'),
                 action: TextButton(
-                  onPressed: () => _run(() => widget.api.goTo((p['name'] ?? '').toString()), '（你走到了「${p['name']}」。）'),
+                  onPressed: () => _run(() => _goTo((p['name'] ?? '').toString()), '（你走到了「${p['name']}」。）'),
                   child: const Text('过去'),
                 ),
               )),
@@ -214,7 +226,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                     TextButton(
                       onPressed: placeName.isEmpty
                           ? null
-                          : () => _run(() => widget.api.goTo(placeName), '（你去找${p['name']}了。）'),
+                          : () => _run(() => _goTo(placeName), '（你去找${p['name']}了。）'),
                       child: Text('去$he这'),
                     ),
                     // 叫她/他来（真人不给这个）

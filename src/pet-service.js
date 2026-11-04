@@ -1374,12 +1374,15 @@ export class PetService {
         currentEpoch = 'ancient';
         delete history.inPrivateWorld;
 
-        contextHint = `（【天道大导演实时空间转场引擎 · 立即切入目标现场】：
-相公此刻已明确下达动身出发指令（相公口谕：“${say}”）！
-【天道最高运镜铁律 · 严禁原地目送拉扯 & 严禁套用死板模板】：
-1. **立即转场**：绝不许婉儿、芸娘继续在家里反复叮嘱“相公慢走/相公去吧/妾身在家里等您”原地踏步！本轮回复必须【直接将镜头切入相公前往的目的地现场】！
-2. **100% 紧扣前文真实语境**：仔细阅读前几轮对话中相公与娘子们正在谈论的具体去处或要见的具体人物（例如去见胡老板、去分号、去酒楼、去码头、或是去拜访某位好友），直接描写抵达该现场后的真实交锋与互动！
-3. **严禁无脑照抄无关人物**：如果前文只是去见某个人，就只让那个人和随行人员出场，严禁凭空塞入前文根本没提到的无关NPC！）`;
+        contextHint = (() => {
+          const wT = loadState(this.dataDir);
+          const meT = this._viewerActorId ? wT.actors?.[this._viewerActorId] : wT.actors?.husband;
+          const placeT = String(wT.places?.[meT?.location]?.name || '');
+          const hereT = Object.values(wT.actors || {})
+            .filter((a) => a && !a.dead && a.name && a.location === meT?.location && a.id !== (meT?.id || 'husband'))
+            .slice(0, 4).map((a) => a.name);
+          return `（【现状】相公此刻在「${placeT}」。${hereT.length ? '此处：' + hereT.join('、') + '。' : '此处无人。'}）\n`;
+        })();
       } else if (/查账|报家底|咱家有多少钱|有多少银子|还有多少钱|账本|家当|资产/i.test(say)) {
         currentEpoch = 'ancient';
         contextHint = `（【查账】：相公要看家底。所有数目一律以【天机】里「家底」那一行为准——现银多少、日入多少、产业什么状况，必须与账本完全一致。【绝对严禁】凭记忆编造金额，绝不许说出与账本不符的数字。报完账可顺带提一句眼下的难处或打算。）`;
@@ -1391,13 +1394,12 @@ export class PetService {
           '一是县衙典吏随科仗着油水昨夜在赌场和娼寮喝到天明，发妻静儿性子清冷刚正受尽委屈，正与相公商谈脏账文书；二是徽州客商正打听咱们紫阳山的二春茶价呢；'
         ];
         const randomGossip = morningGossipPool[Math.floor(Math.random() * morningGossipPool.length)];
-        contextHint = `（【每日晨间江湖邸报与市井新气象】：
-相公晨起开启新的一天（相公说：“${say}”）！
-全员角色请安并送上【临江坊间最新风闻】：
-【正妻·婉儿】：“相公醒了？妾身已备好润喉明前茶与净面温水。”
-【跑堂伙计·阿吉】：“（快步跑进帘内，脆生生禀报）少掌柜早！小的方才在西市茶水摊打探了一圈，城里有新鲜风闻：${randomGossip}”
-【侧妾·芸娘】：“外头市井风声热闹，相公今日是先在茶坊料理买卖，还是出门会客走动走动？”
-主动递上江湖八卦与线索切口，留出相公决断与幽会剧情！）`;
+        contextHint = (() => {
+          const wM2 = loadState(this.dataDir);
+          const rumor = (wM2.rumors || []).slice(-1)[0];
+          const rumorText = rumor?.text ? String(rumor.text).slice(0, 40) : (wM2.rumors?.length ? '' : '');
+          return `（【现状】第${wM2.clock?.day}日 ${wM2.clock?.hour}时。${rumorText ? '城里在传：' + rumorText + '。' : ''}该起身了。）\n`;
+        })();
       } else if (/做完了|完事了|射了|搞完了|出来吧|收拾一下|结束了|歇息吧|好累|老虎打完了|下山了|下山|打完了|收兵|穿衣服|擦干净|好了/.test(say)) {
         delete history.inBedSession;
         contextHint = '（二人私密欢好已毕，你必须立刻正经归位，瞬间恢复名门正妻的端庄体贴，主动取温热香帕替相公仔细擦拭清理龙根与身子，端茶倒水温存服侍，严禁说任何身子还热呢等怪话，言语正经温存！）';
@@ -2573,24 +2575,6 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 换地方了：在回复末尾补一行"你到了"，带上此处有谁（引擎写事实，不写台词）
-    try {
-      const wEnd2 = loadState(this.dataDir);
-      const __meEnd = this._viewerActorId ? wEnd2.actors?.[this._viewerActorId] : wEnd2.actors?.husband;
-      const __locNow = __meEnd?.location || null;
-      if (__locAtStart && __locNow && __locNow !== __locAtStart) {
-        const __placeName = String(wEnd2.places?.[__locNow]?.name || __locNow);
-        const __here = Object.values(wEnd2.actors || {})
-          .filter((a) => a && !a.dead && a.name && a.location === __locNow && a.id !== (__meEnd?.id || 'husband'))
-          .slice(0, 5)
-          .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
-        const __line = `（你到了「${__placeName}」。${__here.length ? '此处：' + __here.join('，') + '。' : '此处无人。'}）`;
-        if (!String(reply || '').includes(__placeName)) reply = `${String(reply || '').trim()}\n${__line}`.trim();
-        else if (!String(reply || '').includes('此处')) reply = `${String(reply || '').trim()}\n${__line}`.trim();
-        console.log(`[Scene] 到了${__placeName}（此处 ${__here.length} 人）`);
-      }
-    } catch { /* 忽略 */ }
-
     this.saveHistory(profileKey, history);
 
     // 点了一个不在场的人 → 直接报他在哪，别让在场的人对着他说话
@@ -2608,8 +2592,12 @@ export class PetService {
       if (absent && !absentIsHousehold && !String(reply || '').includes(String(wAbs.places?.[absent.location]?.name || ''))) {
         const whereA = String(wAbs.places?.[absent.location]?.name || '别处');
         const hereA = String(wAbs.places?.[meA2?.location]?.name || '这里');
-        reply = `【${hereA}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
-        console.log(`[Scene] 点名不在场：${absent.name}@${whereA}`);
+        // 先只把事实塞进提示，让天道用自己的话说；只有它一个字没写时才兜底
+        contextHint += `（【事实】${absent.name}此刻在「${whereA}」，不在这儿。若对方问起，就照实说，别装作他/她在场。）\n`;
+        if (!String(reply || '').trim() || /^\.{2,}$/.test(String(reply || '').trim())) {
+          reply = `【${hereA}】：${absent.name}在「${whereA}」，眼下不在这儿。`;
+        }
+        console.log(`[Scene] 点名不在场：${absent.name}@${whereA}（交给天道措辞）`);
       }
     } catch { /* 忽略 */ }
 

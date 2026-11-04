@@ -496,11 +496,14 @@ const STARTED_AT = Date.now();
         };
         const res2 = applyAction({ dataDir: DATA_DIR, world, intent, verdict: { companionConsented: true } });
         const after = peek(DATA_DIR);
-        const me = after.actors?.husband;
-        return sendJson(res, 200, {
-          ok: true, applied: Boolean(res2.applied),
-          place: after.places?.[me?.location]?.name || me?.location || '',
-        });
+        const me2 = after.actors?.[actorId] || after.actors?.husband;
+        const placeName2 = after.places?.[me2?.location]?.name || me2?.location || '';
+        const hereList = Object.values(after.actors || {})
+          .filter((a) => a && !a.dead && a.name && a.location === me2?.location && a.id !== (me2?.id || 'husband'))
+          .slice(0, 5)
+          .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
+        const line = `（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
+        return sendJson(res, 200, { ok: true, applied: Boolean(res2.applied), place: placeName2, line });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

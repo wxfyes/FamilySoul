@@ -327,15 +327,18 @@ class SurfCoreApiClient {
     return null;
   }
 
-  /// 我去某处
-  Future<bool> goTo(String place) async {
+  /// 我去某处：成功返回"（你到了「X」。此处：…）"这句提示，失败返回 null
+  Future<String?> goTo(String place) async {
     try {
       final res = await _dio.post('${config.baseUrl}/api/world/go',
           queryParameters: {'token': config.token.trim()},
           data: {'place': place});
-      return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;
+      if (res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true) {
+        final line = res.data['line'];
+        return line is String && line.isNotEmpty ? line : '（你到了「${res.data['place'] ?? place}」。）';
+      }
     } catch (_) {}
-    return false;
+    return null;
   }
 
   /// 叫她过来
