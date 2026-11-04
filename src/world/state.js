@@ -1476,7 +1476,7 @@ function __loadStateInner(dataDir) {
     // 彻底清洗历史遗留的查账/暗账/高利贷污染线索、差事、约定与承诺
     const auditPollutionRe = /(账册|底账|暗账|税册|沈家账本|私改月息|查账|理账|脏账|高利贷|底档|旧卷房|对清账目|盘账|对好的账|铺账|对出账目|送对清|名讳一处|对清)/;
     if (Array.isArray(raw.clues)) {
-      raw.clues = raw.clues.filter((c) => !auditPollutionRe.test(c?.desc || ''));
+      raw.clues = raw.clues.filter((c) => !auditPollutionRe.test(c?.text || c?.desc || ''));
     }
     if (Array.isArray(raw.promises)) {
       raw.promises = raw.promises.filter((p) => !auditPollutionRe.test(p?.text || ''));

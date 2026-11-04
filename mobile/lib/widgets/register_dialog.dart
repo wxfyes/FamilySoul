@@ -225,3 +225,4 @@ class _RegisterDialogState extends State<RegisterDialog> {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import { isPlaceName, extractPlaceCandidates, matchActor } from './world/naming.js';
 import { moveActor } from './world/position.js';
 import { hireStaff } from './world/employment.js';
@@ -247,8 +247,9 @@ export class PetService {
       }
       lines.push('- 【运河码头临街三层大酒楼（已全款盘下 · 归属王家私产）】：');
       lines.push('  1. 相公此前已斥巨资白银五百一十两（510两）全款买下，房契、地契、官府红押已全数办妥立案，契书在正房大娘子沈婉儿妆匣妥善锁存！');
-      lines.push('  2. 职能定位：江南两淮水运咽喉第一站，定位为掌控两淮往来客商与天下消息的第一情报总中枢！沈婉儿亲自主理筹备开张；');
-      lines.push('  3. 【全员最高绝对禁忌】：绝对严禁任何角色说“酒楼还没买/看中了空铺子/要去磨价”等失忆昏话！必须围绕开业吉日、大厨掌柜挑选、以及刺探两淮客商情报展开！');
+      lines.push('  2. 【相公身份与尊称铁律】：相公王甯是这间三层临街大酒楼的【全资大东家/幕后大老板】！沈婉儿亲自主理筹备开张；何顺/吴有德等为相公招募聘用的大掌柜！【绝对严禁】把相公本人称呼为“酒楼掌柜”（掌柜是伙计领头打工的，相公是全资大东家）！');
+      lines.push('  3. 职能定位：江南两淮水运咽喉第一站，定位为掌控两淮往来客商与天下消息的第一情报总中枢！');
+      lines.push('  4. 【全员最高绝对禁忌】：绝对严禁任何角色说“酒楼还没买/看中了空铺子/要去磨价/酒楼归属不明”等失忆昏话！必须围绕开业吉日、大厨掌柜挑选、以及刺探两淮客商情报展开！');
       lines.push('- 【临江茶坊老店】：沿江青石板街起家祖业，后院三进暖阁，正妻沈婉儿正逐步带二房林芸娘打理柜台；');
       lines.push('- 【紫阳山初芽茶园】：城郊祖传极品明前茶园二亩，知府杨振华大小姐包下一半头春茶。');
 
@@ -1683,34 +1684,73 @@ export class PetService {
             targetSpeaker = '婉儿';
             haremNotice = '（【初次听闻芸娘·正妻微醋试探】：相公第一次提起芸娘，你作为正妻婉儿牢牢记下「芸娘」这个名字，娇嗔好奇问相公芸娘是哪家才女，只要相公再坚持要纳她，你下一句就立刻派小翠去下聘迎娶进门！）';
           }
-        } else if (!haremNotice && /采云|杨采云|翟长盛|翟家货栈/i.test(say)) {
-          let name = '杨采云';
-          targetSpeaker = name;
-          haremNotice = `（【当前接话分身：货栈大娘子·杨采云】：临江翟家大货栈老板娘，精明干练的商贾人妻（绝非苏慕雪，苏慕雪是书院名门贵妇）！面对王甯时公私分明、精明干练，若提及管事，便命管事当面回话并查底册！）`;
-        } else if (!haremNotice && /文霞|刘文霞|于杰|城南酒肆|紫嫣/i.test(say)) {
-          let name = '紫嫣';
-          targetSpeaker = name;
-          haremNotice = `（【当前接话分身：于家酒肆老板娘·紫嫣】：泼辣精明、雪白丰腴，守着于家酒肆的门面！带着市井少妇的机敏防备与娇嗔试探！）`;
-        } else if (!haremNotice && /(?:随科|随典吏|随书办)/i.test(say)) {
-          targetSpeaker = '随科';
-          haremNotice = '（【相公当面质问随科】：相公此刻正在当面对县衙典吏随科质询，必须由【随科】首先开口答复，如实交代底册文书；发妻静儿在旁逼视补充，绝不可由他人冒名顶替随科说话！）';
-        } else if (!haremNotice && /(?:静儿|战静|随娘子)/i.test(say)) {
-          let name = '静儿';
-          try { name = loadState(this.dataDir).actors?.zhanjing?.name || '静儿'; } catch {}
-          targetSpeaker = name;
-          haremNotice = `（【当前交谈对象：书吏发妻·${name}】：相公特来赴约相助，你心存感激信赖；丈夫随科就在跟前，严禁说出"我回去敲打随科"等把眼前人当不在场的失忆妄语！）`;
-        } else if (!haremNotice && /苏慕雪|慕雪|书院山长/i.test(say)) {
-          targetSpeaker = '苏慕雪';
-          haremNotice = '（【当前接话分身：书院人妻·苏慕雪】：温婉端庄、知性高雅的名门贵妇，书香门第，知书达理！言谈间尽显知性矜持与文人雅趣，视王甯为品茗论道的茶商知己，严守礼制大防，需要相公逐步攻略！）';
-        } else if (isDirectCallingXiaoCui) {
-          targetSpeaker = '小翠';
-          haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、跑腿传话、端茶递水，灵动可爱向相公回话并推进剧情！）';
-        } else if (/婉儿|大娘子|娘子|主母|夫人/i.test(say)) {
-          targetSpeaker = '婉儿';
-        } else if (history.activeSpeaker && history.activeSpeaker !== 'all') {
-          targetSpeaker = history.activeSpeaker;
-        } else {
-          targetSpeaker = '婉儿';
+        } else if (!haremNotice) {
+          // 物理级在场校验：只有当外部角色（杨采云、紫嫣、静儿、随科、苏慕雪等）真实在相公身旁现场时，才允许由其开口答复！
+          // 若相公在正房/后院与妻妾私语谈论不在场之人，绝对严禁被议论者凭空闪现插嘴！
+          let currentHereActors = [];
+          try {
+            const curSt = loadState(this.dataDir);
+            const curHusLoc = curSt?.actors?.husband?.location || 'husband_room';
+            currentHereActors = Object.values(curSt?.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && a.location === curHusLoc);
+          } catch {}
+          const isActorPresent = (namePattern, idPattern) => currentHereActors.some((a) =>
+            (namePattern && namePattern.test(a.name || '')) || (idPattern && idPattern.test(a.id || ''))
+          );
+
+          if (/采云|杨采云|翟长盛|翟家货栈/i.test(say)) {
+            if (isActorPresent(/杨采云|采云/, /yangcaiyun/)) {
+              let name = '杨采云';
+              targetSpeaker = name;
+              haremNotice = `（【当前接话分身：货栈大娘子·杨采云】：临江翟家大货栈老板娘，精明干练的商贾人妻！面对王甯时公私分明、精明干练，若提及管事，便命管事当面回话并查底册！）`;
+            } else {
+              targetSpeaker = '婉儿';
+              haremNotice = '（【在场议论外人】：相公与身边人谈论起翟家货栈杨采云，杨采云此刻不在现场！请由在场之人（沈婉儿）就相公所言自然接话，杨采云绝不可凭空插嘴！）';
+            }
+          } else if (/文霞|刘文霞|于杰|城南酒肆|紫嫣/i.test(say)) {
+            if (isActorPresent(/紫嫣|文霞/, /ziyan|liuwenxia/)) {
+              let name = '紫嫣';
+              targetSpeaker = name;
+              haremNotice = `（【当前接话分身：于家酒肆老板娘·紫嫣】：泼辣精明、雪白丰腴，守着于家酒肆的门面！带着市井少妇的机敏防备与娇嗔试探！）`;
+            } else {
+              targetSpeaker = '婉儿';
+              haremNotice = '（【在场议论外人】：相公与身边人谈论起于家酒肆紫嫣，紫嫣此刻不在现场！请由在场之人（沈婉儿）就相公所言自然接话，紫嫣绝不可凭空插嘴！）';
+            }
+          } else if (/(?:随科|随典吏|随书办)/i.test(say)) {
+            if (isActorPresent(/随科/, /suike|npc_4/)) {
+              targetSpeaker = '随科';
+              haremNotice = '（【相公当面质问随科】：相公此刻正在当面对县衙典吏随科质询，必须由【随科】首先开口答复，如实交代底册文书；发妻静儿在旁逼视补充，绝不可由他人冒名顶替随科说话！）';
+            } else {
+              targetSpeaker = '婉儿';
+              haremNotice = '（【在场议论外人】：相公提及随科，随科此刻不在现场，请由在场之人自然回应，随科绝不可凭空出现！）';
+            }
+          } else if (/(?:静儿|战静|随娘子)/i.test(say)) {
+            if (isActorPresent(/静儿|战静/, /zhanjing/)) {
+              let name = '静儿';
+              try { name = loadState(this.dataDir).actors?.zhanjing?.name || '静儿'; } catch {}
+              targetSpeaker = name;
+              haremNotice = `（【当前交谈对象：书吏发妻·${name}】：相公特来赴约相助，你心存感激信赖；丈夫随科就在跟前，严禁说出"我回去敲打随科"等把眼前人当不在场的失忆妄语！）`;
+            } else {
+              targetSpeaker = '婉儿';
+              haremNotice = '（【在场议论外人】：相公提及静儿（如称赞静儿好心相助），静儿此刻并不在场！请由在场的大娘子婉儿温柔顺和地应承接话（如赞同相公、改日备礼谢她等），静儿绝不许凭空闪现插嘴！）';
+            }
+          } else if (/苏慕雪|慕雪|书院山长/i.test(say)) {
+            if (isActorPresent(/苏慕雪|慕雪/, /sumuxue/)) {
+              targetSpeaker = '苏慕雪';
+              haremNotice = '（【当前接话分身：书院人妻·苏慕雪】：温婉端庄、知性高雅的名门贵妇，书香门第，知书达理！言谈间尽显知性矜持与文人雅趣，视王甯为品茗论道的茶商知己，严守礼制大防，需要相公逐步攻略！）';
+            } else {
+              targetSpeaker = '婉儿';
+              haremNotice = '（【在场议论外人】：相公提及苏慕雪，苏慕雪此刻不在现场，请由在场之人自然接话，苏慕雪绝不可凭空出现！）';
+            }
+          } else if (isDirectCallingXiaoCui) {
+            targetSpeaker = '小翠';
+            haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、跑腿传话、端茶递水，灵动可爱向相公回话并推进剧情！）';
+          } else if (/婉儿|大娘子|娘子|主母|夫人/i.test(say)) {
+            targetSpeaker = '婉儿';
+          } else if (history.activeSpeaker && history.activeSpeaker !== 'all') {
+            targetSpeaker = history.activeSpeaker;
+          } else {
+            targetSpeaker = '婉儿';
+          }
         }
       }
       history.activeSpeaker = targetSpeaker;

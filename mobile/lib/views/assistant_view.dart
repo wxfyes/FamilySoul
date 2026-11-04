@@ -322,3 +322,4 @@ class _AssistantViewState extends State<AssistantView> {
     );
   }
 }
+

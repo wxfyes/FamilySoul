@@ -399,7 +399,7 @@ class SurfCoreApiClient {
   Future<String?> askAssistant(String text, {bool newSession = false}) async {
     try {
       final res = await _dio.post(
-        '/api/assistant/chat',
+        '${config.baseUrl}/api/assistant/chat',
         queryParameters: {'token': config.token.trim()},
         data: {'text': text, 'newSession': newSession},
       );
@@ -416,7 +416,7 @@ class SurfCoreApiClient {
   Future<List<Map<String, dynamic>>> getAssistantHistory() async {
     try {
       final res = await _dio.get(
-        '/api/assistant/history',
+        '${config.baseUrl}/api/assistant/history',
         queryParameters: {'token': config.token.trim()},
       );
       if (res.statusCode == 200 && res.data is Map && res.data['history'] is List) {
@@ -430,7 +430,7 @@ class SurfCoreApiClient {
   Future<bool> clearAssistantHistory() async {
     try {
       final res = await _dio.post(
-        '/api/assistant/clear',
+        '${config.baseUrl}/api/assistant/clear',
         queryParameters: {'token': config.token.trim()},
       );
       return res.statusCode == 200;
@@ -448,7 +448,7 @@ class SurfCoreApiClient {
   }) async {
     try {
       final res = await _dio.post(
-        '/api/register',
+        '${config.baseUrl}/api/register',
         data: {
           'name': name,
           'gender': gender,

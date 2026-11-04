@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -400,7 +400,7 @@ const STARTED_AT = Date.now();
   }
 
   // 0. 公开自主建档入世接口 POST /api/register
-  if (req.method === 'POST' && pathname === '/api/register') {
+  if (req.method === 'POST' && (pathname === '/api/register' || pathname === '/dsh-surfcore/pet-api/api/register' || pathname === '/dsh-surfcore/pet-api/register')) {
     try {
       const body = await parseJsonBody(req, 16 * 1024);
       const resData = userRegistry.register(body);
@@ -415,7 +415,7 @@ const STARTED_AT = Date.now();
 
   // 0.1 AI 助手专属解耦接口（物理级隔离于虚拟世界之外，只做纯净知性问答）
   // POST /api/assistant/chat
-  if (req.method === 'POST' && pathname === '/api/assistant/chat') {
+  if (req.method === 'POST' && (pathname === '/api/assistant/chat' || pathname === '/dsh-surfcore/pet-api/api/assistant/chat' || pathname === '/dsh-surfcore/pet-api/assistant/chat')) {
     try {
       const member = resolveMember(req, url);
       const memberKey = member?.memberKey || 'husband';
@@ -428,7 +428,7 @@ const STARTED_AT = Date.now();
   }
 
   // GET /api/assistant/history
-  if (req.method === 'GET' && pathname === '/api/assistant/history') {
+  if (req.method === 'GET' && (pathname === '/api/assistant/history' || pathname === '/dsh-surfcore/pet-api/api/assistant/history' || pathname === '/dsh-surfcore/pet-api/assistant/history')) {
     try {
       const member = resolveMember(req, url);
       const memberKey = member?.memberKey || 'husband';
@@ -441,7 +441,7 @@ const STARTED_AT = Date.now();
   }
 
   // POST /api/assistant/clear
-  if (req.method === 'POST' && pathname === '/api/assistant/clear') {
+  if (req.method === 'POST' && (pathname === '/api/assistant/clear' || pathname === '/dsh-surfcore/pet-api/api/assistant/clear' || pathname === '/dsh-surfcore/pet-api/assistant/clear')) {
     try {
       const member = resolveMember(req, url);
       const memberKey = member?.memberKey || 'husband';

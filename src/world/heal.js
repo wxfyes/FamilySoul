@@ -197,19 +197,29 @@ export function healWorld(world) {
     }
   }
 
-  // ⑫ 清洗历史遗留查账/暗账污染线索与陈旧任务
+  // ⑫ 清洗历史遗留查账/暗账污染线索与陈旧任务（必须同时匹配 text 与 desc）
+  const auditPollutionRe = /(账册|底册|底账|暗账|税册|沈家账本|私改月息|查账|理账|脏账|高利贷|底档|旧卷房|流水誊抄|按手印|对清账目|盘账|对好的账|铺账|对出账目|送对清)/;
   if (Array.isArray(world.clues)) {
     const beforeClues = world.clues.length;
-    world.clues = world.clues.filter((c) => !/(账册|暗账|税册|沈家账本|私改月息|查账|高利贷)/.test(c?.desc || ''));
+    world.clues = world.clues.filter((c) => !auditPollutionRe.test(c?.text || c?.desc || ''));
     if (world.clues.length !== beforeClues) {
       fixes.push(`清洗 ${beforeClues - world.clues.length} 条陈旧查账污染线索`);
     }
   }
   if (Array.isArray(world.promises)) {
     const beforePromises = world.promises.length;
-    world.promises = world.promises.filter((p) => !/(翟家底账|县衙脏账|高利贷字据|对清账目)/.test(p?.text || ''));
+    world.promises = world.promises.filter((p) => !/(翟家底账|县衙脏账|高利贷字据|拾掇高利贷|随科画押|私改月息|对清账目|查账|送与相公)/.test(p?.text || ''));
     if (world.promises.length !== beforePromises) {
       fixes.push(`清洗 ${beforePromises - world.promises.length} 条陈旧查账差事`);
+    }
+  }
+
+  // ⑬ 确权王家名下所有产业（临江茶坊老店、运河码头三层大酒楼），100% 明确标记为相公王甯全资
+  if (Array.isArray(world.assets?.properties)) {
+    for (const p of world.assets.properties) {
+      if (!p.owner || p.owner === 'husband' || p.owner === 'wangjia') {
+        p.owner = 'husband';
+      }
     }
   }
 
