@@ -42,6 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
   int _worldHour = 0;
   Timer? _locTimer;
   List<String> _partyNames = const [];
+  List<String> _hereNames = const [];
 
   // 豆包风格语音按住说话状态
   bool _isVoiceMode = false; // 是否处于底部按住说话大按钮模式
@@ -572,12 +573,21 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       final day = (date['day'] ?? 0) is int ? date['day'] as int : int.tryParse('${date['day']}') ?? 0;
       final hour = (date['hour'] ?? 0) is int ? date['hour'] as int : int.tryParse('${date['hour']}') ?? 0;
-      if (place != _placeName || day != _worldDay || hour != _worldHour) {
+      // 此处有谁
+      List<String> here = const [];
+      if (d['here'] is List) {
+        here = (d['here'] as List)
+            .map((x) => (x is Map) ? (x['name'] ?? '').toString() : '')
+            .where((x) => x.isNotEmpty)
+            .toList();
+      }
+      if (place != _placeName || day != _worldDay || hour != _worldHour || here.join(',') != _hereNames.join(',')) {
         setState(() {
           _placeName = place;
           _worldDay = day;
           _worldHour = hour;
           _partyNames = names;
+          _hereNames = here;
         });
       }
     } catch (_) {}
@@ -918,7 +928,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     color: const Color(0xFF1B1E28),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
                       children: [
                         const Icon(Icons.place_rounded, size: 15, color: Color(0xFF8B5CF6)),
                         const SizedBox(width: 5),
@@ -947,6 +961,20 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         const SizedBox(width: 4),
                         const Icon(Icons.keyboard_arrow_right_rounded, size: 15, color: Colors.white24),
+                      ],
+                        ),
+                        // 此处有谁
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20, top: 2),
+                          child: Text(
+                            _hereNames.isEmpty
+                                ? '此处无人'
+                                : '此处：${_hereNames.length <= 4 ? _hereNames.join('、') : '${_hereNames.take(4).join('、')}等${_hereNames.length}人'}',
+                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                   ),

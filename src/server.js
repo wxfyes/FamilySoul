@@ -586,6 +586,11 @@ const STARTED_AT = Date.now();
       const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
       const isHusband = !actorId;
       const place = me?.location ? world.places?.[me.location] : null;
+      // 此处有谁：站在同一地点的人（不含自己）
+      const hereNames = Object.values(world.actors || {})
+        .filter((a) => a && !a.dead && a.name && a.location === me?.location && a.id !== (actorId || 'husband'))
+        .map((a) => ({ name: a.name, role: a.role || '', activity: a.activity?.text || '' }))
+        .slice(0, 8);
       const wd = worldDate(world);
       const todos = [];
       const myName = me?.name || "";
@@ -638,6 +643,7 @@ const STARTED_AT = Date.now();
           };
         })(),
         self: { name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband },
+        here: hereNames,
         date: { day: world.clock?.day, hour: world.clock?.hour, text: wd?.iso || '', lunar: wd?.lunar?.text || '' },
         assets: {
           silver: isHusband ? Number(world.assets?.silver) || 0 : Number(world.wallets?.[actorId]) || 0,
@@ -1564,6 +1570,17 @@ const STARTED_AT = Date.now();
         saveState(DATA_DIR, world);
         console.log(`[Rename] ${oldName} → ${newName}（成员 ${memberUpdated || '无'}）`);
         return sendJson(res, 200, { ok: true, id, from: oldName, to: newName, member: memberUpdated });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.30b 读取某个成员的聊天历史 GET /api/admin/history?member=xxx
+    if (req.method === 'GET' && pathname === '/api/admin/history') {
+      try {
+        const member = String(url.searchParams.get('member') || 'husband').trim();
+        const history = petService.readHistory(member);
+        return sendJson(res, 200, { ok: true, member, messages: history.messages || [] });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

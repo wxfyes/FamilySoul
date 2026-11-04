@@ -147,7 +147,7 @@ export class PetService {
 
     // 🌟 物理空间解耦判定
     let isHusbandOutAndWifeAbsent = false;
-    let primaryOutFemale = null;
+    let presentOutActors = [];
     let outPlaceName = '';
     try {
       const wSt = loadState(this.dataDir);
@@ -159,7 +159,7 @@ export class PetService {
         const wanerHere = hereActors.some((a) => a.id === 'waner');
         if (!isInnerHome && !wanerHere && hereActors.length > 0) {
           isHusbandOutAndWifeAbsent = true;
-          primaryOutFemale = hereActors.find((a) => a.gender === 'female') || hereActors[0];
+          presentOutActors = hereActors;
           persona = null;
         }
       }
@@ -247,8 +247,8 @@ export class PetService {
       lines.push('- 【紫阳山初芽茶园】：城郊祖传极品明前茶园二亩，知府杨振华大小姐包下一半头春茶。');
 
       lines.push('');
-      lines.push('【城中人物 · 人妻名媛与外室攻略铁律（战静、杨采云、苏慕雪、刘文霞等）】');
-      lines.push('- 典吏随科之发妻【战静】、翟家货栈老板娘【杨采云】、于家酒肆老板娘【刘文霞】、名门望族才女人妻【苏慕雪】等，皆各有原夫或名门名节！');
+      lines.push('【城中人物 · 人妻名媛与外室攻略铁律（静儿、杨采云、苏慕雪、紫嫣等）】');
+      lines.push('- 典吏随科之发妻【静儿】、翟家货栈老板娘【杨采云】、于家酒肆老板娘【紫嫣】、名门望族才女人妻【苏慕雪】等，皆各有原夫或名门名节！');
       lines.push('- 【绝对严禁开局白给，保留真实攻略乐趣】：她们并非一开始就是相公的情人！在外一律恪守妇德礼节，端庄清冷，视相公王甯为茶商外人；必须由相公通过实际接触、商业博弈、查明亏空、互助攻心逐步攻略！言谈举止严格取决于关系账本，绝不可未攻略就投怀送抱、自称妾身相公、娇媚痴缠！');
 
       lines.push('');
@@ -295,7 +295,7 @@ export class PetService {
     lines.push('- 林芸娘（二房如夫人）：自称「妾身/芸娘」，称相公「相公/夫君」，称婉儿「大娘子/姐姐」；【绝对严禁叫相公「姐夫」「大哥」「老爷」】——她是相公明媒迎进门的二房，不是谁的妹夫；');
     lines.push('- 小翠（丫鬟）：自称「奴婢」，称相公「掌柜的/相公」，称婉儿「大娘子」，称芸娘「二娘子」；');
     lines.push('- 阿吉（伙计）：自称「小的」，称相公「掌柜的/少掌柜」，称婉儿「大娘子」；');
-    lines.push('- 外人（杨采云、刘文霞、战静、杨振华等）按各自身份称呼，一律不得僭越。');
+    lines.push('- 外人（杨采云、紫嫣、静儿、杨振华等）按各自身份称呼，一律不得僭越。');
 
     lines.push('');
     lines.push('【天道回执（强制格式，相公看不到，系统自动摘除）】');
@@ -343,35 +343,40 @@ export class PetService {
       } else if (history?.inPrivateWorld === '柳儿') {
         lines.push('【现场调度·二人世界】');
         lines.push('此刻正妻婉儿已掩门退出，房内仅有你「侍妾·柳儿」与相公独处，撒娇温存！');
-      } else if (isHusbandOutAndWifeAbsent && primaryOutFemale) {
-        lines.push('【相公外出亲临 · 现场专属演译】');
-        lines.push(`相公王甯（你侍奉的天命夫君）此刻亲临「${outPlaceName}」！`);
+      } else if (isHusbandOutAndWifeAbsent && presentOutActors.length > 0) {
+        lines.push('【相公亲临现场 · 多人在场群戏演译铁律】');
+        lines.push(`相公王甯此刻亲临「${outPlaceName}」！`);
         lines.push('- 正妻沈婉儿留在茶坊后院打理中馈账本，【沈婉儿绝不在场，严禁开口插话】！');
-        lines.push(`- 此刻在相公面前的人是：【${primaryOutFemale.name}】（${primaryOutFemale.role || ''}）！`);
-        const rel = primaryOutFemale.relations?.husband || {};
-        const spouseId = primaryOutFemale.spouse;
-        const isMarriedToOther = spouseId && spouseId !== 'husband';
-        const hasHusbandBaby = primaryOutFemale.pregnancy && primaryOutFemale.pregnancy.father === 'husband';
-        const isConsummated = primaryOutFemale.intimacy?.consummated || hasHusbandBaby || (rel.trust >= 75 && rel.desire >= 55) || primaryOutFemale.intimacy?.level >= 3;
-
-        lines.push(`- 你的专属身份：【${primaryOutFemale.name}】（${primaryOutFemale.role || '当地女子'}）！性格特征：${primaryOutFemale.personality || '各具风华'}。`);
-        if (isMarriedToOther) {
-          if (hasHusbandBaby) {
-            lines.push('- 【身怀相公骨肉·深情款曲】：你虽有名义上的丈夫，但肚里已真真切切怀着王甯（相公）的亲生骨肉！私下独处时满心依恋柔情、极尽温存托付，称呼「王郎/相公」；但在外人或原夫面前深知世俗大防关乎身家性命，必须隐秘避嫌、维持体面。');
-          } else if (isConsummated) {
-            lines.push('- 【已破心防·私相爱慕】：历经推拉与相助，你芳心早已暗许王甯，私下相会满怀柔情动情；但在外人及原夫面前严守大防、避嫌周全。');
+        const namesDesc = presentOutActors.map((a) => `【${a.name}】（${a.role || ''}）`).join('、');
+        lines.push(`- 【现场在场所有人】：${namesDesc}。所有人就在同一现场跟前！`);
+        lines.push('- 【对话指向与第一应答者法则】：');
+        lines.push('  1. 【呼名必应，谁被问谁答】：相公若明确叫了某人（如叫随科、或向随科发问），被问者必须首先以自身独立身份正面开口回应！绝不可由其他人替其代言或冒名答非所问！');
+        lines.push('  2. 【同场鲜活群戏】：现场在场其他人就在身旁，可在主应答者说话后，根据各自立场、性格或恩怨自然插话、斥责、补充或表态；');
+        lines.push('  3. 每位开口的人物必须以「【姓名】：“台词”」严格标明分角，呈现真实生动的同场多人交涉！');
+        lines.push('  4. 【严禁空间失忆妄语】：在场之人就在眼前同一桌/同一屋，绝不许说"我去找他"、"我回去敲打他"等把眼前人当成不在场的失忆怪话！');
+        lines.push('- 【在场人物立场与身份特征】：');
+        for (const actor of presentOutActors) {
+          const rel = actor.relations?.husband || {};
+          const spouseId = actor.spouse;
+          const isMarriedToOther = spouseId && spouseId !== 'husband';
+          const hasHusbandBaby = actor.pregnancy && actor.pregnancy.father === 'husband';
+          const isConsummated = actor.intimacy?.consummated || hasHusbandBaby || (rel.trust >= 75 && rel.desire >= 55) || actor.intimacy?.level >= 3;
+          let actorNote = `  * 【${actor.name}】（${actor.role || '在场者'}，性格：${actor.personality || '鲜活真实'}）：`;
+          if (actor.id === 'suike' || actor.name.includes('随科')) {
+            actorNote += '县衙典吏/书吏，管底册文书，性格贪财、软弱、畏事、想推脱责任，但在相公和发妻当面质问逼视下不敢明着撒谎，只能交代实情。';
+          } else if (actor.id === 'zhanjing' || actor.name.includes('静儿')) {
+            actorNote += '随科发妻，端庄清冷，受尽丈夫牵连与委屈；相公特来为她撑腰讨回公道，她对相公心怀感激信赖，但碍于名节在丈夫面前保持克制，对丈夫随科的软弱推脱深恶痛绝。';
+          } else if (actor.id === 'yangcaiyun' || actor.name.includes('采云')) {
+            actorNote += '翟家大货栈老板娘，精明干练商贾人妻，手里攥着货栈暗账底价，掌管铺子管事与伙计。';
+          } else if (actor.name.includes('管事') || actor.role.includes('管事')) {
+            actorNote += '货栈管事/账房，经手文书账目，面对东家大娘子与外来掌柜对账。';
+          } else if (isMarriedToOther) {
+            actorNote += hasHusbandBaby ? '身怀相公骨肉的人妻，对相公暗含深情，但外人面前严守名节。' : isConsummated ? '芳心已许相公，私下温存，外人面前守礼。' : '名门人妻，恪守妇德礼法，客套周全。';
           } else {
-            lines.push('- 【名门名节·未破心防】：身为有夫之妇，世俗礼法与名节大过天！视王甯为登门来访的茶商外客，称呼「王掌柜」或「王少东」；举止端庄矜持、言谈客套生疏、谨守男女之防，绝不主动投怀送抱或自称妾身！');
+            actorNote += '按各自社会身份与处境正常交流应答。';
           }
-        } else {
-          if (isConsummated) {
-            lines.push('- 【情投意合】：与相公王甯情深意重，私下柔情相待，言语含情脉脉。');
-          } else {
-            lines.push('- 【初见以礼】：知书达礼，依身份正常相待，言语自持得体。');
-          }
+          lines.push(actorNote);
         }
-        lines.push(`- 你必须 100% 以【${primaryOutFemale.name}】的独立第一人称或分角直接与相公对话交互，展现其鲜活的性格！`);
-        lines.push('- 【绝对禁忌】：你绝不是沈婉儿！绝不要说"妾身这就差小翠去送拜帖"等荒谬出戏台词！你人就在相公面前！');
       } else if (persona) {
         lines.push('【内宅名门主母人格卡】');
         lines.push(persona);
@@ -1145,7 +1150,7 @@ export class PetService {
       }
 
       // 自动维护曾提及的女子记忆库
-      ['芸娘', '柳儿', '杨采云', '刘文霞', '战静'].forEach(girl => {
+      ['芸娘', '柳儿', '杨采云', '紫嫣', '静儿'].forEach(girl => {
         if (new RegExp(girl).test(fullMemoryText) && !history.mentionedGirls.includes(girl)) {
           history.mentionedGirls.push(girl);
         }
@@ -1254,19 +1259,20 @@ export class PetService {
           }
         } else if (!haremNotice && /采云|杨采云|翟长盛|翟家货栈/i.test(say)) {
           let name = '杨采云';
-          try { name = loadState(this.dataDir).actors?.yangcaiyun?.name || '杨采云'; } catch {}
           targetSpeaker = name;
-          haremNotice = `（【当前接话分身：货栈大娘子·${name}】：临江翟家大货栈老板娘，精明干练的商贾人妻！面对王甯时，按账本好感度回话：若好感未满，言谈公事公办、客套精明，不卑不亢谈茶货；若已被相公攻心动情，方显露深闺委屈与柔情！）`;
+          haremNotice = `（【当前接话分身：货栈大娘子·杨采云】：临江翟家大货栈老板娘，精明干练的商贾人妻（绝非苏慕雪，苏慕雪是书院名门贵妇）！面对王甯时公私分明、精明干练，若提及管事，便命管事当面回话并查底册！）`;
         } else if (!haremNotice && /文霞|刘文霞|于杰|城南酒肆|紫嫣/i.test(say)) {
           let name = '紫嫣';
-          try { name = loadState(this.dataDir).actors?.liuwenxia?.name || '紫嫣'; } catch {}
           targetSpeaker = name;
-          haremNotice = `（【当前接话分身：于家酒肆老板娘·${name}】：丈夫于杰在外做工，${name}泼辣精明又生得雪白丰腴，守着于家酒肆的门面！因借了王甯银两而多有交集，但名分上始终是于家妇，对王甯带着市井少妇的机敏防备与娇嗔试探，绝非开局投怀送抱！）`;
-        } else if (!haremNotice && /战静|随科|随典史|静儿/i.test(say)) {
+          haremNotice = `（【当前接话分身：于家酒肆老板娘·紫嫣】：泼辣精明、雪白丰腴，守着于家酒肆的门面！带着市井少妇的机敏防备与娇嗔试探！）`;
+        } else if (!haremNotice && /(?:随科|随典吏|随书办)/i.test(say)) {
+          targetSpeaker = '随科';
+          haremNotice = '（【相公当面质问随科】：相公此刻正在当面对县衙典吏随科质询，必须由【随科】首先开口答复，如实交代底册文书；发妻静儿在旁逼视补充，绝不可由他人冒名顶替随科说话！）';
+        } else if (!haremNotice && /(?:静儿|战静|随娘子)/i.test(say)) {
           let name = '静儿';
           try { name = loadState(this.dataDir).actors?.zhanjing?.name || '静儿'; } catch {}
           targetSpeaker = name;
-          haremNotice = `（【当前接话分身：县衙书吏发妻·${name}】：知书识礼、清冷端庄的官眷少妇！丈夫随科嗜酒混账，在县衙管案卷文书；${name}内心受尽冷落委屈，但极度在意外界名节妇德！昨夜与相公王甯约定在茶摊会面，今日相公特来赴约，你心存感激又带着男女之防，与相公商谈县衙脏账与自身安危，绝非翟家之人，更无翟家催账之说！）`;
+          haremNotice = `（【当前交谈对象：书吏发妻·${name}】：相公特来赴约相助，你心存感激信赖；丈夫随科就在跟前，严禁说出"我回去敲打随科"等把眼前人当不在场的失忆妄语！）`;
         } else if (!haremNotice && /苏慕雪|慕雪|书院山长/i.test(say)) {
           targetSpeaker = '苏慕雪';
           haremNotice = '（【当前接话分身：书院人妻·苏慕雪】：温婉端庄、知性高雅的名门贵妇，书香门第，知书达理！言谈间尽显知性矜持与文人雅趣，视王甯为品茗论道的茶商知己，严守礼制大防，需要相公逐步攻略！）';
@@ -1380,7 +1386,7 @@ export class PetService {
         const morningGossipPool = [
           '一是临江茶行的钱通海昨夜在聚贤楼请了漕帮几个把头吃酒，像在谋划紫阳山的事；二是城东翟家货栈的老板翟长盛昨夜又在花街喝得烂醉未归，大娘子杨采云一早红着眼眶在前街买线呢，看着好生让人心疼；',
           '一是城南酒肆于家那位好色的于杰于老板，昨夜宿在秦淮画舫又没归家，其妻刘文霞生得雪白熟美，托人来茶坊问今天可有新茶包能调茶酒；二是知府衙门的杨大小姐，听说午后要出府去城东玉石斋赏玉；',
-          '一是县衙典吏随科仗着油水昨夜在赌场和娼寮喝到天明，发妻战静性子刚烈受尽冷落，正打算去城东慈云庵进香散心；二是徽州客商正打听咱们紫阳山的二春茶价呢；'
+          '一是县衙典吏随科仗着油水昨夜在赌场和娼寮喝到天明，发妻静儿性子清冷刚正受尽委屈，正与相公商谈脏账文书；二是徽州客商正打听咱们紫阳山的二春茶价呢；'
         ];
         const randomGossip = morningGossipPool[Math.floor(Math.random() * morningGossipPool.length)];
         contextHint = `（【每日晨间江湖邸报与市井新气象】：
