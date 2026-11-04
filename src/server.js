@@ -477,18 +477,31 @@ const STARTED_AT = Date.now();
         const todos = [];
         for (const ap of (world.appointments || [])) {
           if (!ap) continue;
-          todos.push({ kind: '约定', id: ap.id || `${ap.day}-${ap.hour}-${ap.name}`, when: `第${ap.day}日${ap.hour}时`, who: ap.name || '', text: ap.text || '', day: ap.day, hour: ap.hour });
+          todos.push({
+            kind: '约定', id: ap.id || `${ap.day}-${ap.hour}-${ap.name}`,
+            when: `第${ap.day}日${ap.hour}时`, who: ap.name || '',
+            text: ap.text || '', day: ap.day, hour: ap.hour,
+            place: ap.place || '', placeName: ap.place ? (world.places?.[ap.place]?.name || '') : '',
+            overdue: Number(ap.day) * 24 + Number(ap.hour) < (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0),
+          });
         }
         for (const pr of (world.promises || [])) {
           if (!pr || pr.done) continue;
-          todos.push({ kind: '承诺', id: pr.id || String(pr.text || '').slice(0, 20), when: `第${pr.due}日`, who: '', text: String(pr.text || '').slice(0, 40), due: pr.due });
+          todos.push({
+            kind: '承诺', id: pr.id || String(pr.text || '').slice(0, 20),
+            when: `第${pr.due}日`, who: '', text: String(pr.text || '').slice(0, 40), due: pr.due,
+            place: '', placeName: '', overdue: Number(pr.due) < (Number(world.clock?.day) || 1),
+          });
         }
+        // 天道最近该知道的事（你的决定会记在这里）
+        const brief = (world.notes || []).slice(-8).map((n) => String(n.text || n).slice(0, 60));
 
         return sendJson(res, 200, {
           ok: true,
           where: { id: curId, name: curName },
           places, homes: props, people: peopleOut, todos,
           clock: { day: world.clock?.day, hour: world.clock?.hour },
+          brief,
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
@@ -634,48 +647,138 @@ const STARTED_AT = Date.now();
       }
     }
 
-    // POST /api/world/todo { id, action }  → drop / done / go
+    // POST /api/world/todo { id, action: do|drop|later } → 秘书式行程
     if (req.method === 'POST' && pathname === '/api/world/todo') {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
         const world = loadState(DATA_DIR);
+        const member = resolveMember(req, url);
+        const actorId = member?.actor || 'husband';
+        const me = world.actors?.[actorId] || world.actors?.husband;
         const id = String(body.id || '');
         const action = String(body.action || 'done');
-        let touched = false;
+        world.notes = Array.isArray(world.notes) ? world.notes : [];
+        const apt = (world.appointments || []).find((x) => x && (x.id === id || `${x.day}-${x.hour}-${x.name}` === id));
+        let line = '';
 
-        if (action === 'go') {
-          const ap = (world.appointments || []).find((x) => x && (x.id === id || `${x.day}-${x.hour}-${x.name}` === id));
-          if (ap) {
-            const where = String(ap.place || ap.text || '').match(/(?:城|府|县|街|巷|楼|馆|铺|阁|茶坊|茶摊|码头|庄子|别院)/) ? '' : '';
-            const targetName = where || 'street';
-            const intent = {
-              id: `ui_apt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-              actor: (resolveMember(req, url)?.actor || 'husband'), verb: 'MOVE', target: '青石板长街', companions: [], params: { byUi: true }, origin: 'ui',
-            };
-            applyAction({ dataDir: DATA_DIR, world, intent, verdict: { companionConsented: true } });
-            touched = true;
+        if (action === 'later') {
+          if (apt) { apt.day = Number(apt.day) + 1; line = `（改到第${apt.day}日，记下了。）`; }
+          else {
+            for (const pr of (world.promises || [])) {
+              const key = pr.id || String(pr.text || '').slice(0, 20);
+              if (key === id) { pr.due = Number(pr.due) + 1; line = `（改到第${pr.due}日，记下了。）`; }
+            }
           }
-        } else if (action === 'drop' || action === 'done') {
-          const beforeA = (world.appointments || []).length;
-          world.appointments = (world.appointments || []).filter(
-            (x) => x && x.id !== id && `${x.day}-${x.hour}-${x.name}` !== id,
-          );
-          const beforeP = (world.promises || []).length;
-          world.promises = (world.promises || []).map((x) => {
-            if (!x) return x;
-            const key = x.id || String(x.text || '').slice(0, 20);
-            if (key === id) { x.done = true; return x; }
-            return x;
-          });
-          saveState(DATA_DIR, world);
-          touched = (world.appointments || []).length !== beforeA || beforeP >= 0;
+          world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}把一件事改天了` });
+        } else if (action === 'do') {
+          if (apt) {
+            if (apt.place && world.places?.[apt.place]) {
+              me.location = apt.place;
+              line = `（你去了「${world.places[apt.place].name}」赴约。）`;
+            } else {
+              line = '（这桩约当初没记地点，先记在心上。）';
+            }
+            world.appointments = (world.appointments || []).filter((x) => x !== apt);
+            world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}去赴了${apt.name || '人'}的约` });
+          } else {
+            for (const pr of (world.promises || [])) {
+              const key = pr.id || String(pr.text || '').slice(0, 20);
+              if (key === id) { pr.done = true; line = '（这件事办了，记下了。）'; }
+            }
+          }
+        } else {
+          if (apt) {
+            world.appointments = (world.appointments || []).filter((x) => x !== apt);
+            line = '（推了这桩约。）';
+            world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${me?.name || '相公'}推掉了${apt.name || '人'}的约` });
+            const other = Object.values(world.actors || {}).find((a) => a?.name === apt.name);
+            if (other) {
+              other.relations = other.relations || {};
+              const rel = other.relations.husband || { trust: 30, desire: 20, grievance: 0 };
+              rel.grievance = Math.min(100, Number(rel.grievance || 0) + 6);
+              other.relations.husband = rel;
+            }
+          } else {
+            for (const pr of (world.promises || [])) {
+              const key = pr.id || String(pr.text || '').slice(0, 20);
+              if (key === id) { pr.done = true; pr.dropped = true; line = '（这桩诺言作罢了。）'; }
+            }
+          }
         }
-        return sendJson(res, 200, { ok: true, touched });
+
+        world.notes = world.notes.slice(-40);
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, line });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
     }
 
+
+    // 9.9b 大模型通道连通性与测速 (GET/POST /api/admin/llm/test 或 /api/llm/test，免token直测)
+    if ((pathname === '/api/admin/llm/test' || pathname === '/api/llm/test') && (req.method === 'GET' || req.method === 'POST')) {
+      try {
+        let testMode = url.searchParams.get('mode') || '';
+        let customDeepseek = null;
+        let customQwen = null;
+        let customMessages = null;
+        if (req.method === 'POST') {
+          try {
+            const body = await parseJsonBody(req, 16 * 1024);
+            if (body.mode) testMode = body.mode;
+            if (body.deepseek) customDeepseek = body.deepseek;
+            if (body.qwen) customQwen = body.qwen;
+            if (Array.isArray(body.messages)) customMessages = body.messages;
+          } catch (_) {}
+        }
+
+        const t0 = Date.now();
+        let clientToUse = petService.llmClient;
+        if (customDeepseek || customQwen || testMode) {
+          clientToUse = new LlmClient({
+            deepseek: customDeepseek || config.deepseek,
+            qwen: customQwen || config.qwen,
+            llmMode: testMode || config.llmMode || 'deepseek',
+            proxy: config.gemini?.proxy,
+            useProxy: config.gemini?.useProxy,
+          });
+        }
+
+        const llmResult = await clientToUse.complete({
+          messages: customMessages || [{ role: 'user', content: '相公下令，速速娇羞回答四个字！' }],
+          maxTokens: 30,
+        });
+
+        return sendJson(res, 200, {
+          ok: true,
+          channel: llmResult.channel,
+          model: llmResult.model,
+          llmMode: llmResult.llmMode,
+          elapsedMs: Date.now() - t0,
+          reply: llmResult.text,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.25 把成员绑定到世界人物 POST /api/admin/bind {member, actor}
+    if (req.method === 'POST' && pathname === '/api/admin/bind') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const member = String(body.member || '').trim();
+        const actor = String(body.actor || '').trim();
+        if (!config.family?.[member]) return sendJson(res, 404, { ok: false, error: '没有这个成员' });
+        if (actor && !peek(DATA_DIR).actors?.[actor]) return sendJson(res, 404, { ok: false, error: '世界没有这个人物' });
+        config.family[member].actor = actor;
+        if (actor) config.family[member].title = peek(DATA_DIR).actors[actor].name;
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+        console.log(`[Bind] ${member} → ${actor || '（解除）'}`);
+        return sendJson(res, 200, { ok: true, member, actor });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
   if (req.method === 'GET' && (pathname === '/api/me' || pathname === '/dsh-surfcore/pet-api/api/me' || pathname === '/dsh-surfcore/pet-api/me')) {
     try {
       const member = resolveMember(req, url);
