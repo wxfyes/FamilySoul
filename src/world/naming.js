@@ -29,6 +29,39 @@ export function isPlaceName(name) {
   return { ok: true, why: '', looksLikePlace: PLACE_SUFFIX.test(n) };
 }
 
+/** 规范古风地名映射表（彻底消灭英文幽灵地名） */
+export const EN_PLACE_MAP = {
+  clinic: '回春医馆',
+  workshop: '百工坊',
+  dock: '运河码头',
+  granary: '临江官仓',
+  school: '临江书院',
+  tea_house: '临江茶坊老店',
+  canal_restaurant: '运河码头三层大酒楼',
+  wine_shop: '于家酒肆',
+  husband_room: '后宅正房',
+  study_room: '东厢书房',
+  guest_room: '客房',
+  garden: '后院花园',
+  kitchen: '庖厨',
+  jail: '临江府大牢',
+};
+
+/**
+ * 统一获取地点对外展示的典雅古风中文名（拒绝任何裸露英文标识）
+ */
+export function getPlaceDisplayName(world, placeId) {
+  if (!placeId) return '别处';
+  const cleanId = String(placeId).trim().toLowerCase();
+  const p = world?.places?.[placeId] || world?.places?.[cleanId];
+  const name = String(p?.name || '').trim();
+  if (name && !/^[a-zA-Z0-9_ -]+$/.test(name)) {
+    return name;
+  }
+  if (EN_PLACE_MAP[cleanId]) return EN_PLACE_MAP[cleanId];
+  return '别处';
+}
+
 /** 从一句话里摘出"像是地名"的片段（给"原话认地点"用） */
 export function extractPlaceCandidates(text) {
   const t = String(text || '');

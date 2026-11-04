@@ -98,6 +98,7 @@ export function createInitialState(dataDir) {
           status: '筹备开张',
           incomePerDay: 0,
           costSilver: 510,
+          placeId: 'canal_restaurant',
         },
       ],
     },
@@ -127,7 +128,7 @@ export function createInitialState(dataDir) {
       goods_shop: { name: '翟家货栈', exits: ['street'], dynamic: false, owner: 'yangcaiyun' },
       street: { name: '青石板长街', exits: ['tea_house', 'yamen'], owner: 'public' },
       dock: { name: '运河码头', exits: ['street', 'canal_restaurant'], owner: 'public' },
-      canal_restaurant: { name: '运河码头大酒楼', exits: ['dock'], owner: 'husband' },
+      canal_restaurant: { name: '运河码头三层大酒楼', exits: ['dock'], owner: 'husband' },
       yang_mansion: { name: '杨府', exits: ['street'], owner: 'yangzhenhua' },
       yamen: { name: '临江县衙', exits: ['street'], owner: 'court' },
       suijia_house: { name: '临江府·随家小院', exits: ['street'], owner: 'zhanjing', city: '临江府' },
@@ -1404,6 +1405,13 @@ export function migrateOwnership(world) {
       if (restored) console.log(`[State] 补回动态地点 ${restored} 处`);
     }
   } catch { /* 忽略 */ }
+  // 不变量：已故者不留行踪（迁移里别处会把官员送回府衙，这里最后统一清）
+  try {
+    for (const a of Object.values(world.actors || {})) {
+      if (a && a.dead && a.location) delete a.location;
+    }
+  } catch { /* 忽略 */ }
+
   return world;
 }
 
@@ -1662,4 +1670,61 @@ export function nextEvent(world, { actor = 'system', action, place = null, paylo
     targets,
     public: isPublic,
   };
+}
+
+/**
+ * 全局统一地点产业事实（唯一事实源）
+ * 输入：world 数据快照，placeId 地点标识
+ * 输出：客观事实文本（若无产业则返回空串或归属说明）
+ */
+export function placeFacts(world, placeId) {
+  if (!world || !placeId) return '';
+  // 1. 健壮解析地点：支持 key、中文名、或 places 遍历
+  let place = world.places?.[placeId];
+  let actualPlaceId = placeId;
+  if (!place) {
+    const entry = Object.entries(world.places || {}).find(
+      ([k, v]) => k === placeId || v?.name === placeId
+    );
+    if (entry) {
+      actualPlaceId = entry[0];
+      place = entry[1];
+    }
+  }
+
+  const placeName = place?.name || placeId;
+
+  // 2. 匹配产业：支持 placeId、actualPlaceId、prop.id、或中文名称匹配
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+  const prop = props.find(
+    (p) => p && (p.placeId === placeId || p.placeId === actualPlaceId || p.id === placeId || p.id === actualPlaceId || p.name === placeName)
+  );
+
+  if (!prop) {
+    if (place && place.owner && place.owner !== 'public') {
+      const ownerName = world.actors?.[place.owner]?.name || (place.owner === 'husband' ? (world.actors?.husband?.name || '王甯') : place.owner);
+      return `【此处归属】「${placeName}」，归【${ownerName}】所有。`;
+    }
+    return '';
+  }
+
+  let ownerName = '官府公产';
+  const ownerId = prop.owner || place?.owner;
+  if (ownerId === 'husband') {
+    ownerName = world.actors?.husband?.name ? `${world.actors.husband.name}（相公）` : '王甯（相公）';
+  } else if (ownerId) {
+    ownerName = world.actors?.[ownerId]?.name || ownerId;
+  }
+
+  const onDuty = Object.values(world.actors || {}).filter((a) => {
+    if (!a || a.dead) return false;
+    const isAt = a.location === placeId || a.location === actualPlaceId || a.location === placeName || world.places?.[a.location]?.name === placeName;
+    if (!isAt) return false;
+    return a.id === prop.keeper || a.role?.includes('掌柜') || a.role?.includes('伙计') || a.role?.includes('跑堂') || a.role?.includes('厨');
+  }).map((a) => `${a.name}（${a.role || '在岗'}）`);
+
+  const staffText = onDuty.length > 0 ? `当前在岗打理：${onDuty.join('、')}。` : (prop.staff ? `在册雇工 ${prop.staff} 人。` : '');
+  const statusText = prop.status ? `营生状态：${prop.status}。` : '';
+
+  return `【此处产业事实】铺名：「${prop.name}」，东家：【${ownerName}】。${statusText}${staffText}`;
 }

@@ -45,13 +45,23 @@ export function normalizeMemberReply(reply, ctx) {
     if (!body || body === '……' || body === '...') continue;
 
     if (!seg.speaker) {
-      // 无标签：当旁白，但去掉"她自己"的痕迹
-      const defaultSpeaker = ctx?.husbandPresent ? "王甯" : placeLabel;
-      kept.push({ speaker: defaultSpeaker, text: body });
+      // 无标签段落：若相公在场且口吻像相公，由相公言说；其余一律作为场景环境旁白，绝不可把地名当作说话人！
+      if (ctx?.husbandPresent && /(娘子|紫嫣|夫人|为夫|等我|去寻你|看着店)/.test(body)) {
+        kept.push({ speaker: '王甯', text: body });
+      } else {
+        kept.push({ speaker: null, text: body });
+      }
       continue;
     }
 
     let sp = seg.speaker;
+    // 地名/店铺绝对不是说话人，若是地名标签直接转为场景旁白
+    if (sp === placeLabel || sp.includes('铺') || sp.includes('店') || sp.includes('楼') || sp.includes('坊') || sp.includes('码头')) {
+      if (!present.has(sp)) {
+        kept.push({ speaker: null, text: body });
+        continue;
+      }
+    }
     // 若模型把相公对她的叮嘱误标成了她自己的名字（例如把相公说的"紫嫣你在酒肆看着店，我去寻你"标成【紫嫣】）
     const isSelfSpeaker = [...selfAliases].some((n) => n && (sp === n || sp.endsWith(n) || n.endsWith(sp)));
     if (isSelfSpeaker) {
@@ -83,5 +93,5 @@ export function normalizeMemberReply(reply, ctx) {
     return `（四下清静，一时无人接话。）`;
   }
 
-  return kept.map((s) => `【${s.speaker}】：${s.text}`).join('\n');
+  return kept.map((s) => (s.speaker ? `【${s.speaker}】：${s.text}` : `（${s.text.replace(/^[（(]|[)）]$/g, '')}）`)).join('\n');
 }

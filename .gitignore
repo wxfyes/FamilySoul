@@ -51,3 +51,5 @@ mobile/assets/asr/*.onnx
 
 # 备份产物不进仓库
 backups/
+
+scratch/

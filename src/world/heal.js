@@ -214,14 +214,5 @@ export function healWorld(world) {
     }
   }
 
-  // ⑬ 确权王家名下所有产业（临江茶坊老店、运河码头三层大酒楼），100% 明确标记为相公王甯全资
-  if (Array.isArray(world.assets?.properties)) {
-    for (const p of world.assets.properties) {
-      if (!p.owner || p.owner === 'husband' || p.owner === 'wangjia') {
-        p.owner = 'husband';
-      }
-    }
-  }
-
   return fixes;
 }

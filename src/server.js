@@ -378,6 +378,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
   const pathname = url.pathname;
 
+  function matchRoute(route) {
+    if (pathname === route) return true;
+    if (pathname === `/api${route}`) return true;
+    if (pathname === `/dsh-surfcore/pet-api${route}`) return true;
+    if (pathname === `/dsh-surfcore/pet-api/api${route}`) return true;
+    return false;
+  }
+
   // 0. Web 控制台主页托管
   const WEB_INDEX_FILE = path.join(ROOT_DIR, 'web', 'index.html');
 const WEB_DASH_FILE = path.join(ROOT_DIR, 'web', 'dashboard.html');
@@ -400,7 +408,7 @@ const STARTED_AT = Date.now();
   }
 
   // 0. 公开自主建档入世接口 POST /api/register
-  if (req.method === 'POST' && (pathname === '/api/register' || pathname === '/dsh-surfcore/pet-api/api/register' || pathname === '/dsh-surfcore/pet-api/register')) {
+  if (req.method === 'POST' && matchRoute('/register')) {
     try {
       const body = await parseJsonBody(req, 16 * 1024);
       const resData = userRegistry.register(body);
@@ -415,7 +423,7 @@ const STARTED_AT = Date.now();
 
   // 0.1 AI 助手专属解耦接口（物理级隔离于虚拟世界之外，只做纯净知性问答）
   // POST /api/assistant/chat
-  if (req.method === 'POST' && (pathname === '/api/assistant/chat' || pathname === '/dsh-surfcore/pet-api/api/assistant/chat' || pathname === '/dsh-surfcore/pet-api/assistant/chat')) {
+  if (req.method === 'POST' && matchRoute('/assistant/chat')) {
     try {
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
@@ -429,7 +437,7 @@ const STARTED_AT = Date.now();
   }
 
   // GET /api/assistant/history
-  if (req.method === 'GET' && (pathname === '/api/assistant/history' || pathname === '/dsh-surfcore/pet-api/api/assistant/history' || pathname === '/dsh-surfcore/pet-api/assistant/history')) {
+  if (req.method === 'GET' && matchRoute('/assistant/history')) {
     try {
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
@@ -443,7 +451,7 @@ const STARTED_AT = Date.now();
   }
 
   // POST /api/assistant/clear
-  if (req.method === 'POST' && (pathname === '/api/assistant/clear' || pathname === '/dsh-surfcore/pet-api/api/assistant/clear' || pathname === '/dsh-surfcore/pet-api/assistant/clear')) {
+  if (req.method === 'POST' && matchRoute('/assistant/clear')) {
     try {
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
@@ -580,7 +588,7 @@ const STARTED_AT = Date.now();
     // ═══ 交互层：去哪 / 找人 / 约定（只读 + 走同一条管道） ═══
 
     // GET /api/world/menu  → 一次取回：我在哪、可去的地方、可找的人、待办
-    if (req.method === 'GET' && pathname === '/api/world/menu') {
+    if (req.method === 'GET' && matchRoute('/world/menu')) {
       try {
         const world = peek(DATA_DIR);
         // 谁在请求，就以谁的身份看世界（她的号看她的位置）
@@ -732,7 +740,7 @@ const STARTED_AT = Date.now();
     }
 
     // POST /api/world/go { place }  → 我去某处（走 applyAction，单一写者）
-    if (req.method === 'POST' && pathname === '/api/world/go') {
+    if (req.method === 'POST' && matchRoute('/world/go')) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
         const target = String(body.place || '').trim();
@@ -762,7 +770,7 @@ const STARTED_AT = Date.now();
 
     // POST /api/world/confirm { actionId, option } → 确认一笔待付款
     // 开房、买东西、打点、赏钱、聘礼……凡是花银子的，都走这里
-    if (req.method === 'POST' && (pathname === '/api/world/confirm' || pathname === '/api/world/pay')) {
+    if (req.method === 'POST' && (matchRoute('/world/confirm') || matchRoute('/world/pay'))) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
         const world = loadState(DATA_DIR);
@@ -864,7 +872,7 @@ const STARTED_AT = Date.now();
     }
 
     // POST /api/world/summon { id }  → 叫她过来（她走到我这）
-    if (req.method === 'POST' && pathname === '/api/world/summon') {
+    if (req.method === 'POST' && matchRoute('/world/summon')) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
         const id = String(body.id || '');
@@ -892,7 +900,7 @@ const STARTED_AT = Date.now();
     }
 
     // POST /api/world/todo { id, action: do|drop|later } → 秘书式行程
-    if (req.method === 'POST' && pathname === '/api/world/todo') {
+    if (req.method === 'POST' && matchRoute('/world/todo')) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
         const world = loadState(DATA_DIR);

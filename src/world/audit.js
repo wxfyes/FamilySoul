@@ -8,6 +8,8 @@
  *
  * 铁律：只报告，不擅自改世界。要改必须人来点头。
  */
+import { moveActor } from './position.js';
+
 
 function walkNumbers(obj, pathStr, out, depth = 0) {
   if (depth > 8 || obj === null || obj === undefined) return;

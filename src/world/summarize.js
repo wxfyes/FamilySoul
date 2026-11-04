@@ -2,7 +2,7 @@
  * 状态摘要 —— 把世界状态压成一段给叙述层看的「天机」文字
  * 纯规则生成，不调用大模型；目标 ≤ 800 token。
  */
-import { loadState, worldDate, readRecentEvents, seasonCN, shichenOf, round2, ensureCities, standingOf, forceOf } from './state.js';
+import { loadState, worldDate, placeFacts, readRecentEvents, seasonCN, shichenOf, round2, ensureCities, standingOf, forceOf } from './state.js';
 import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
@@ -190,16 +190,8 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         const myLoc = world.actors?.[viewer]?.location;
         const locName = String(world.places?.[myLoc]?.name || '');
         if (locName) {
-          const prop = (world.assets?.properties || []).find((p) => {
-            const pn = String(p?.name || '');
-            if (!pn) return false;
-            return locName.includes(pn) || pn.includes(locName) || locName.includes(pn.slice(-3));
-          });
-          if (prop) {
-            const ownerName = prop.owner === 'husband' ? '王甯（相公）' : (world.actors?.[prop.owner]?.name || null);
-            const keeper = prop.keeper ? world.actors?.[prop.keeper]?.name : null;
-            lines.push(`【这间铺子】${prop.name}，东家是${ownerName || '未明写'}${keeper ? '，掌柜是' + keeper : ''}`);
-          }
+          const pf = placeFacts(world, myLoc);
+          if (pf) lines.push(pf);
         }
       } catch {
         /* 忽略 */
