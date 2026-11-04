@@ -10,6 +10,7 @@ import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { startWorldClock, peek, buildMorningReport } from './world/clock.js';
+import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
@@ -1854,6 +1855,30 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 人间自愈：手动让天道安顿一次（诊断/验收用）
+    if (req.method === 'POST' && pathname === '/api/admin/world/heal') {
+      try {
+        const world = loadState(DATA_DIR);
+        const drift = detectDrift(world) || collectDrifters(world);
+        if (!drift) return sendJson(res, 200, { ok: true, healed: false, reason: '没有该安顿的人' });
+        if (!llmClient.isReady()) return sendJson(res, 200, { ok: false, reason: 'LLM 未就绪' });
+        const { system, user } = buildDriftPrompt(world, drift);
+        const out = await llmClient.complete({ system, messages: [{ role: 'user', content: user }], temperature: 0.4, maxTokens: 1500 });
+        const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || JSON.stringify(out || {}));
+        const r = applyPlacements(world, text);
+        world.flags = world.flags || {};
+        world.flags.lastSelfHealDayHour = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, {
+          ok: true, healed: true, changed: r.changed,
+          notes: (r.notes || []).slice(0, 20), error: r.error || null,
+          raw: String(text || '').slice(0, 400),
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.31b 改世界人物属性 POST /api/admin/actor/set {id, age, gender, role, money, name}
     if (req.method === 'POST' && pathname === '/api/admin/actor/set') {
       try {
@@ -3411,6 +3436,33 @@ server.listen(PORT, '0.0.0.0', () => {
   globalThis.__stepWorld = stepWorld;
   globalThis.__worldGenerators = { generateCase, judgeCases, resolveMemorials, generateDecree, generateCityShops, generateNpcArcs };
 
+  // 人间自愈：人挤在一处、铺子空着时，请天道重新安顿一次（它决定，引擎只落账）
+  const selfHealWorld = async () => {
+    try {
+      const world = loadState(DATA_DIR);
+      const drift = detectDrift(world) || collectDrifters(world);
+      if (!drift) return;
+      if (!shouldHeal(world, false)) return;
+      if (!llmClient.isReady()) return;
+      const { system, user } = buildDriftPrompt(world, drift);
+      const out = await llmClient.complete({
+        system,
+        messages: [{ role: 'user', content: user }],
+        temperature: 0.4,
+        maxTokens: 1500,
+      });
+      const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || JSON.stringify(out || {}));
+      const r = applyPlacements(world, text);
+      world.flags = world.flags || {};
+      world.flags.lastSelfHealDayHour = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
+      saveState(DATA_DIR, world);
+      console.log(`[Society] 天道安顿人间：动 ${r.changed} 人 ${r.error ? '（' + r.error + '）' : ''}`);
+    } catch (err) {
+      console.warn('[Society] 自愈失败：', err.message);
+    }
+  };
+  globalThis.__selfHealWorld = selfHealWorld;
+
   // 世界引擎：启动天道时钟（离线补算 + 定时心跳）
   try {
     startWorldClock(DATA_DIR, {
@@ -3418,6 +3470,7 @@ server.listen(PORT, '0.0.0.0', () => {
       intervalMs: Number(config.world?.tickIntervalMs) || 2 * 60 * 1000,
       msPerWorldHour: Number(config.world?.msPerWorldHour) || 60 * 60 * 1000,
       onAfterTick: async () => {
+        await selfHealWorld();
         await fillProactiveTexts();
         await generateNpcArcs();
         await generateDecree();
