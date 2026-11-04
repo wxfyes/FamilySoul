@@ -34,6 +34,11 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
     return { ok: false, error: '真人角色不接受世界移动' };
   }
 
+  // 在押犯人：服刑期间严禁常规走动与作息闲逛，只能在狱中或提审
+  if (a.jailed && !/(jail|牢|大牢)/.test(placeId) && note !== '刑满释放' && reason !== 'admin') {
+    return { ok: false, error: '在押犯人不可自由移出监牢' };
+  }
+
   const from = a.location || null;
   a.location = placeId;
   a.lastMove = { from, to: placeId, by: reason, note: String(note || '').slice(0, 30), day: world.clock?.day || 1, hour: world.clock?.hour || 0 };

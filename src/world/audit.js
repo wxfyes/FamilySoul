@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 世界账本体检 —— 纯代码，零 LLM 调用，零 token
  *
  * 三道自检：
@@ -305,6 +305,17 @@ export function inspectStructure(world) {
     if (!ex.length && id !== 'street') issues.push({ kind: 'place', id, detail: `「${pl.name}」没有出处` });
   }
 
+  // 产业有没有人在岗：开张却空无一人的，报给天道
+  for (const prop of world.assets?.properties || []) {
+    if (!prop || !prop.placeId) continue;
+    const onDuty = Object.values(actors).filter((a) => a && !a.dead && a.location === prop.placeId && a.id !== 'husband');
+    if (!onDuty.length) {
+      issues.push({ kind: 'staff', who: prop.name, detail: `「${prop.name}」开着却没有一个人在岗` });
+    } else if (Array.isArray(prop.staffIds)) {
+      prop.staff = onDuty.length;
+    }
+  }
+
   for (const ap of world.appointments || []) {
     if (ap && ap.place && !places[ap.place]) {
       issues.push({ kind: 'apt', detail: `约定指向不存在的地点(${ap.place})` });
@@ -321,6 +332,7 @@ export function buildRepairPrompt(world, issues) {
     '只输出 JSON：',
     '{"fixes":[{"kind":"pos","who":"人名","place":"送到哪个现成地点名（可空）","note":"一句话交代"}]}',
     '规矩：能用现成地点就用现成的；人必须有个落脚处；钱不许是负的；死人不许再走动。',
+    '若某个产业开着却没人在岗，就在 fixes 里给一条 {"kind":"staff","who":"产业名","name":"人名","role":"身份"}，起个像样的名字。',
     '拿不准的可以跳过，宁缺毋滥。',
   ].join('\n');
   const user = [
@@ -365,6 +377,29 @@ export function applyRepairs(world, text) {
       }
       continue;
     }
+    if (f?.kind === 'staff') {
+      const propName = String(f?.who || '');
+      const prop = (world.assets?.properties || []).find((x) => x && String(x.name).includes(propName));
+      const newName = String(f?.name || '').trim();
+      if (prop && prop.placeId && world.places?.[prop.placeId] && newName.length >= 2) {
+        let a = Object.values(world.actors || {}).find((x) => x && x.name === newName);
+        if (!a) {
+          const id = `npc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          a = { id, name: newName, role: String(f?.role || '伙计').slice(0, 8), gender: 'unknown',
+            home: prop.placeId, work: prop.placeId, location: prop.placeId,
+            money: 0, relations: {}, schedule: [], origin: 'dm_hired', createdDay: world.clock?.day || 1 };
+          world.actors[id] = a;
+        } else {
+          a.location = prop.placeId;
+        }
+        prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
+        if (!prop.staffIds.includes(a.id)) prop.staffIds.push(a.id);
+        prop.staff = prop.staffIds.length;
+        fixed += 1;
+      }
+      continue;
+    }
+
     if (f?.kind === 'place') {
       const pid = world.places?.[who] ? who : nameToPlace.get(who);
       if (pid && world.places[pid]) {

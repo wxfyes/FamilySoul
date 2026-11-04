@@ -1,5 +1,6 @@
 import fs from 'node:fs';
-import { isPlaceName, extractPlaceCandidates } from './world/naming.js';
+import { isPlaceName, extractPlaceCandidates, matchActor } from './world/naming.js';
+import { moveActor } from './world/position.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -579,6 +580,297 @@ export class PetService {
       .trim();
   }
 
+  processNarrativeTags(replyText, sayText = '') {
+    let reply = String(replyText || '');
+    const dataDir = this.dataDir;
+
+    // 1. 习性变动：[[trait:谁|哪一样|+-数]] ➔ 落账并转为优雅古风中文展示
+    try {
+      const traitMatches = [...reply.matchAll(/\[\[trait:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*\|\s*([+-]?\d+)\s*\]\]/g)];
+      if (traitMatches.length > 0) {
+        const wTr = loadState(dataDir);
+        for (const m of traitMatches) {
+          const rawTag = m[0];
+          const whoName = String(m[1]).trim();
+          const key = String(m[2]).trim().slice(0, 30);
+          const delta = Math.max(-20, Math.min(20, Number(m[3]) || 0));
+          const who = matchActor(wTr.actors, whoName);
+          if (who && delta) {
+            who.traits = who.traits || {};
+            who.traits[key] = Math.max(0, Math.min(100, Number(who.traits[key] || 50) + delta));
+            wTr.notes = Array.isArray(wTr.notes) ? wTr.notes : [];
+            const sign = delta > 0 ? `+${delta}` : `${delta}`;
+            wTr.notes.push({ day: wTr.clock?.day, hour: wTr.clock?.hour, text: `${who.name}习性变化：${key} (${sign})` });
+            console.log(`[Trait] ${who.name} ${key} ${sign} → ${who.traits[key]}`);
+          }
+          const sign = delta > 0 ? `+${delta}` : `${delta}`;
+          const targetName = whoName || who?.name;
+          const cnTag = `\n（【心性长进 · ${targetName}】${key} ${sign}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        wTr.notes = (wTr.notes || []).slice(-40);
+        saveState(dataDir, wTr);
+      }
+    } catch (err) {
+      console.warn('[Trait] 处理失败：', err.message);
+    }
+
+    // 2. 差事记账：[[task:谁|办什么|几天]] ➔ 落账并转为中文
+    try {
+      const taskMatches = [...reply.matchAll(/\[\[task:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)(?:\s*\|\s*([^\]]+?))?\s*\]\]/g)];
+      if (taskMatches.length > 0) {
+        const wT = loadState(dataDir);
+        wT.tasks = Array.isArray(wT.tasks) ? wT.tasks : [];
+        for (const m of taskMatches) {
+          const rawTag = m[0];
+          const whoName = String(m[1] || '').trim();
+          const what = String(m[2] || '').trim().slice(0, 60);
+          const days = Number(m[3]) || 3;
+          const who = matchActor(wT.actors, whoName);
+          if (who && what) {
+            wT.tasks.push({
+              id: `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+              actorId: who.id,
+              name: who.name,
+              what,
+              status: 'doing',
+              startDay: wT.clock?.day || 1,
+              dueDay: (wT.clock?.day || 1) + days,
+              log: [],
+            });
+            console.log(`[Task] ${who.name} 领受差事：${what}`);
+          }
+          const targetName = who?.name || whoName;
+          const cnTag = `\n（【领受差事 · ${targetName}】${what} · 限${days}日）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        saveState(dataDir, wT);
+      }
+    } catch (err) {
+      console.warn('[Task] 处理失败：', err.message);
+    }
+
+    // 3. 差事进展：[[tasklog:片段|进展一句话]]
+    try {
+      const logMatches = [...reply.matchAll(/\[\[tasklog:\s*(.+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+      if (logMatches.length > 0) {
+        const wL = loadState(dataDir);
+        for (const m of logMatches) {
+          const rawTag = m[0];
+          const frag = String(m[1]).trim();
+          const note = String(m[2]).trim().slice(0, 60);
+          const t = (wL.tasks || []).find((x) => x && x.status === 'doing' && (String(x.what).includes(frag) || String(x.name) === frag));
+          if (t) {
+            t.log = Array.isArray(t.log) ? t.log : [];
+            t.log.push({ day: wL.clock?.day || 1, hour: wL.clock?.hour || 0, text: note });
+            wL.notes = Array.isArray(wL.notes) ? wL.notes : [];
+            wL.notes.push({ day: wL.clock?.day, hour: wL.clock?.hour, text: `${t.name}办差：${note}` });
+          }
+          const cnTag = `\n（【差事进展】${note}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        wL.notes = (wL.notes || []).slice(-40);
+        saveState(dataDir, wL);
+      }
+    } catch (err) {
+      console.warn('[TaskLog] 处理失败：', err.message);
+    }
+
+    // 4. 差事办完：[[taskdone:片段|结果]]
+    try {
+      const doneMatches = [...reply.matchAll(/\[\[taskdone:\s*(.+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+      if (doneMatches.length > 0) {
+        const wD = loadState(dataDir);
+        for (const m of doneMatches) {
+          const rawTag = m[0];
+          const frag = String(m[1]).trim();
+          const result = String(m[2]).trim().slice(0, 60);
+          const t = (wD.tasks || []).find((x) => x && x.status === 'doing' && (String(x.what).includes(frag) || String(x.name) === frag));
+          if (t) {
+            t.status = 'done';
+            t.result = result;
+            t.doneDay = wD.clock?.day || 1;
+            wD.notes = Array.isArray(wD.notes) ? wD.notes : [];
+            wD.notes.push({ day: wD.clock?.day, hour: wD.clock?.hour, text: `${t.name}办完了：${result}` });
+          }
+          const cnTag = `\n（【差事了结】${result}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        wD.notes = (wD.notes || []).slice(-40);
+        saveState(dataDir, wD);
+      }
+    } catch (err) {
+      console.warn('[TaskDone] 处理失败：', err.message);
+    }
+
+    // 5. 约定/承诺了结：[[deal:片段|成|不成]]
+    try {
+      const dealMatches = [...reply.matchAll(/\[\[deal:\s*(.+?)\s*\|\s*(成|不成)\s*\]\]/g)];
+      if (dealMatches.length > 0) {
+        const wDeal = loadState(dataDir);
+        wDeal.notes = Array.isArray(wDeal.notes) ? wDeal.notes : [];
+        for (const m of dealMatches) {
+          const rawTag = m[0];
+          const frag = String(m[1]).trim();
+          const ok = m[2] === '成';
+          const apIdx = (wDeal.appointments || []).findIndex((x) => x && (String(x.text || '').includes(frag) || String(x.name || '') === frag));
+          if (apIdx >= 0) {
+            const ap = wDeal.appointments[apIdx];
+            wDeal.appointments.splice(apIdx, 1);
+            wDeal.notes.push({ day: wDeal.clock?.day, hour: wDeal.clock?.hour, text: `与${ap.name || '人'}的约${ok ? '已了' : '没成'}` });
+          }
+          for (const pr of (wDeal.promises || [])) {
+            if (!pr || pr.done) continue;
+            if (!String(pr.text || '').includes(frag)) continue;
+            if (ok) { pr.done = true; pr.settledBy = 'dm'; }
+            else { pr.settled = 'failed'; pr.settledBy = 'dm'; }
+            wDeal.notes.push({ day: wDeal.clock?.day, hour: wDeal.clock?.hour, text: `旧诺「${String(pr.text || '').slice(0, 14)}」${ok ? '办成了' : '没办成'}` });
+            break;
+          }
+          const cnTag = `\n（【因果了结】${frag} · ${ok ? '办成' : '未成'}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        wDeal.notes = wDeal.notes.slice(-40);
+        saveState(dataDir, wDeal);
+      }
+    } catch (err) {
+      console.warn('[Deal] 处理失败：', err.message);
+    }
+
+    // 6. 新辟地名：[[build:地名|父地点]]
+    try {
+      const buildMatches = [...reply.matchAll(/\[\[build:\s*(.+?)(?:\s*\|\s*([^\]]+?))?\s*\]\]/g)];
+      if (buildMatches.length > 0) {
+        const wB = loadState(dataDir);
+        const meB = this._viewerActorId ? wB.actors?.[this._viewerActorId] : wB.actors?.husband;
+        const builtToday = Number(wB.flags?.buildDay || 0);
+        let builtCount = builtToday === (wB.clock?.day || 1) ? (Number(wB.flags?.buildCount) || 0) : 0;
+        for (const m of buildMatches) {
+          const rawTag = m[0];
+          const rawName = String(m[1] || '').replace(/\s/g, '');
+          const parentName = String(m[2] || '').trim();
+          if (builtCount >= 5) {
+            reply = reply.replace(rawTag, '');
+            continue;
+          }
+          const verdict = isPlaceName(rawName);
+          if (!verdict.ok) {
+            reply = reply.replace(rawTag, '');
+            continue;
+          }
+          if (Object.values(wB.places || {}).some((pl) => pl && pl.name === rawName)) {
+            reply = reply.replace(rawTag, '');
+            continue;
+          }
+          let parentId = null;
+          if (parentName) {
+            const hit = Object.entries(wB.places || {}).find(([, pl]) => pl && pl.name === parentName);
+            parentId = hit ? hit[0] : (meB?.location || 'street');
+          } else {
+            parentId = meB?.location || 'street';
+          }
+          wB.flags = wB.flags || {};
+          wB.flags.placeSeq = (Number(wB.flags.placeSeq) || 0) + 1;
+          const id = `place_${wB.flags.placeSeq}`;
+          const pl = {
+            id, name: rawName, exits: [parentId], dynamic: true,
+            builtBy: 'dm', createdDay: wB.clock?.day || 1,
+            desc: `天道在世设的一处：${rawName}`,
+          };
+          wB.places[id] = pl;
+          wB.dynamicPlaces = wB.dynamicPlaces || {};
+          wB.dynamicPlaces[id] = pl;
+          wB.notes = Array.isArray(wB.notes) ? wB.notes : [];
+          wB.notes.push({ day: wB.clock?.day, hour: wB.clock?.hour, text: `世上新添一处「${rawName}」` });
+          builtCount += 1;
+          wB.flags.buildDay = wB.clock?.day || 1;
+          wB.flags.buildCount = builtCount;
+          console.log(`[Build] 天道立了新地方：${rawName}`);
+          const cnTag = `\n（【新辟舆图】${rawName}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        wB.notes = (wB.notes || []).slice(-40);
+        saveState(dataDir, wB);
+      }
+    } catch (err) {
+      console.warn('[Build] 处理失败：', err.message);
+    }
+
+    // 7. 约定指派地点：[[place:约定片段|地点名]]
+    try {
+      const placeMatches = [...reply.matchAll(/\[\[place:\s*(.+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+      if (placeMatches.length > 0) {
+        const wPlace = loadState(dataDir);
+        for (const m of placeMatches) {
+          const rawTag = m[0];
+          const frag = String(m[1]).trim();
+          const placeName = String(m[2]).trim();
+          const hit = Object.entries(wPlace.places || {}).find(([, pl]) => pl && String(pl.name) === placeName);
+          if (hit) {
+            const apt = (wPlace.appointments || []).find((x) => x && (String(x.text || '').includes(frag) || String(x.name || '') === frag));
+            if (apt) {
+              apt.place = hit[0];
+              wPlace.notes = Array.isArray(wPlace.notes) ? wPlace.notes : [];
+              wPlace.notes.push({ day: wPlace.clock?.day, hour: wPlace.clock?.hour, text: `与${apt.name || '人'}的约定在「${placeName}」` });
+            }
+          }
+          const cnTag = `\n（【约定地点】${placeName}）`;
+          reply = reply.replace(rawTag, cnTag);
+        }
+        wPlace.notes = (wPlace.notes || []).slice(-40);
+        saveState(dataDir, wPlace);
+      }
+    } catch (err) {
+      console.warn('[Place] 处理失败：', err.message);
+    }
+
+    // 8. 待付款声明：[[pay:标题|选项=价|选项=价]] 挂待付款，正文剥离
+    try {
+      const payTag = reply.match(/\[\[pay:([^\]]+)\]\]/);
+      if (payTag) {
+        const body2 = payTag[1];
+        const [title2, ...optParts] = body2.split('|');
+        const opts2 = optParts
+          .map((x) => {
+            const m2 = /^(.+?)=([\d.]+)$/.exec(String(x).trim());
+            return m2 ? { key: m2[1], label: m2[1], price: Number(m2[2]) || 0 } : null;
+          })
+          .filter(Boolean);
+        if (opts2.length > 0) {
+          const wPay = loadState(dataDir);
+          const mePay = this._viewerActorId ? wPay.actors?.[this._viewerActorId] : wPay.actors?.husband;
+          wPay.pendingAction = {
+            kind: 'lodging',
+            id: `pend_${Date.now()}`,
+            title: String(title2 || '花银子').slice(0, 12),
+            inn: 'inn',
+            options: opts2,
+            by: mePay?.id || 'husband',
+            askedDay: wPay.clock?.day || 1,
+            askedHour: wPay.clock?.hour || 0,
+          };
+          saveState(dataDir, wPay);
+          console.log(`[Pay] 天道声明待付款：${title2}，共 ${opts2.length} 项选项`);
+        }
+        reply = reply.replace(/\[\[pay:[^\]]+\]\]/g, '').trim();
+      }
+    } catch (err) {
+      console.warn('[Pay] 处理失败：', err.message);
+    }
+
+    // 9. 最终兜底：剔除任何未识别的英文系统标签，绝不向客户端吐裸露英文 [[...]]
+    reply = reply.replace(/\[\[[a-zA-Z0-9_]+:[^\]]*\]\]/g, '').replace(/\[\[[^\]]*\]\]/g, '');
+
+    // 10. NPC 告辞离场：识别离场并走单一移动入口规范挪回自家或长街
+    try {
+      applyNpcDeparture(dataDir, reply, sayText);
+    } catch (err) {
+      console.warn('[Departure] 离场处理失败：', err.message);
+    }
+
+    return reply.trim();
+  }
+
   async chat({ text = '', modality = 'text', profileKey = 'husband', roleName = null, isVideoCall = false, actorId = null } = {}) {
     const say = String(text || '').trim();
     if (!say) return { ok: false, error: '输入内容为空' };
@@ -622,274 +914,14 @@ export class PetService {
 
     // 交互系统已在客户端完全接管（转场/找人/付钱等），聊天中绝不偷听正则乱挂待付款打断剧情
 
-    // 习性：相处久了性情会变，变了要记住（[[trait:谁|哪一样|+-数]]）
+    // 告诉天道：习性、差事、造物、了结与收钱规范（文末申报回执标签，引擎在生成后自动入账并转为优雅古风中文呈现）
     try {
-      const traitTags = String(reply || '').match(/\[\[trait:([^\]]+)\]\]/g);
-      if (traitTags && traitTags.length) {
-        const wTr = loadState(this.dataDir);
-        for (const tag of traitTags) {
-          const m = /\[\[trait:(.+?)\|([^|]+)\|([+-]?\d+)\]\]/.exec(tag);
-          if (!m) continue;
-          const whoName = String(m[1]).trim();
-          const key = String(m[2]).trim().slice(0, 8);
-          const delta = Math.max(-20, Math.min(20, Number(m[3]) || 0));
-          const who = Object.values(wTr.actors || {}).find((a) => a && a.name === whoName);
-          if (!who || !delta) continue;
-          who.traits = who.traits || {};
-          who.traits[key] = Math.max(0, Math.min(100, Number(who.traits[key] || 50) + delta));
-          wTr.notes = Array.isArray(wTr.notes) ? wTr.notes : [];
-          wTr.notes.push({ day: wTr.clock?.day, hour: wTr.clock?.hour, text: `${who.name}的${key}${delta > 0 ? '增' : '减'}了` });
-          console.log(`[Trait] ${who.name} ${key} ${delta > 0 ? '+' : ''}${delta} → ${who.traits[key]}`);
-        }
-        wTr.notes = (wTr.notes || []).slice(-40);
-        saveState(this.dataDir, wTr);
-        reply = String(reply || '').replace(/\[\[trait:[^\]]+\]\]/g, '').trim();
-      }
-    } catch { /* 忽略 */ }
-
-    // 差事：天道把"谁去办什么"记成差事，后面办到哪一步都能追
-    try {
-      const taskTags = String(reply || '').match(/\[\[task:([^\]]+)\]\]/g);
-      if (taskTags && taskTags.length) {
-        const wT = loadState(this.dataDir);
-        wT.tasks = Array.isArray(wT.tasks) ? wT.tasks : [];
-        for (const tag of taskTags) {
-          const parts = /\[\[task:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]\]/.exec(tag);
-          if (!parts) continue;
-          const whoName = String(parts[1] || '').trim();
-          const what = String(parts[2] || '').trim().slice(0, 60);
-          const days = Number(parts[3]) || 3;
-          const who = Object.values(wT.actors || {}).find((a) => a && a.name === whoName);
-          if (!who || !what) continue;
-          wT.tasks.push({
-            id: `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-            actorId: who.id,
-            name: who.name,
-            what,
-            status: 'doing',
-            startDay: wT.clock?.day || 1,
-            dueDay: (wT.clock?.day || 1) + days,
-            log: [],
-          });
-          console.log(`[Task] ${who.name} 领了差事：${what}`);
-        }
-        saveState(this.dataDir, wT);
-        reply = String(reply || '').replace(/\[\[task:[^\]]+\]\]/g, '').trim();
-      }
-
-      // 差事有进展：[[tasklog:片段|进展一句话]]
-      const logTags = String(reply || '').match(/\[\[tasklog:([^\]]+)\]\]/g);
-      if (logTags && logTags.length) {
-        const wL = loadState(this.dataDir);
-        for (const tag of logTags) {
-          const m = /\[\[tasklog:(.+?)\|([^\]]+)\]\]/.exec(tag);
-          if (!m) continue;
-          const frag = String(m[1]).trim();
-          const note = String(m[2]).trim().slice(0, 60);
-          const t = (wL.tasks || []).find((x) => x && x.status === 'doing' && (String(x.what).includes(frag) || String(x.name) === frag));
-          if (t) {
-            t.log = Array.isArray(t.log) ? t.log : [];
-            t.log.push({ day: wL.clock?.day || 1, hour: wL.clock?.hour || 0, text: note });
-            wL.notes = Array.isArray(wL.notes) ? wL.notes : [];
-            wL.notes.push({ day: wL.clock?.day, hour: wL.clock?.hour, text: `${t.name}办差：${note}` });
-          }
-        }
-        wL.notes = (wL.notes || []).slice(-40);
-        saveState(this.dataDir, wL);
-        reply = String(reply || '').replace(/\[\[tasklog:[^\]]+\]\]/g, '').trim();
-      }
-
-      // 差事办完：[[taskdone:片段|结果]]
-      const doneTags = String(reply || '').match(/\[\[taskdone:([^\]]+)\]\]/g);
-      if (doneTags && doneTags.length) {
-        const wD = loadState(this.dataDir);
-        for (const tag of doneTags) {
-          const m = /\[\[taskdone:(.+?)\|([^\]]+)\]\]/.exec(tag);
-          if (!m) continue;
-          const frag = String(m[1]).trim();
-          const result = String(m[2]).trim().slice(0, 60);
-          const t = (wD.tasks || []).find((x) => x && x.status === 'doing' && (String(x.what).includes(frag) || String(x.name) === frag));
-          if (t) {
-            t.status = 'done';
-            t.result = result;
-            t.doneDay = wD.clock?.day || 1;
-            wD.notes = Array.isArray(wD.notes) ? wD.notes : [];
-            wD.notes.push({ day: wD.clock?.day, hour: wD.clock?.hour, text: `${t.name}办完了：${result}` });
-          }
-        }
-        wD.notes = (wD.notes || []).slice(-40);
-        saveState(this.dataDir, wD);
-        reply = String(reply || '').replace(/\[\[taskdone:[^\]]+\]\]/g, '').trim();
-      }
-    } catch { /* 忽略 */ }
-
-    // 天道要造物：[[build:地名|父地点名]]（父地点可省，默认他现在所在）
-    try {
-      const buildTags = String(reply || '').match(/\[\[build:([^\]]+)\]\]/g);
-      if (buildTags && buildTags.length) {
-        const wB = loadState(this.dataDir);
-        const meB = this._viewerActorId ? wB.actors?.[this._viewerActorId] : wB.actors?.husband;
-        const builtToday = Number(wB.flags?.buildDay || 0);
-        let builtCount = builtToday === (wB.clock?.day || 1) ? (Number(wB.flags?.buildCount) || 0) : 0;
-        for (const tag of buildTags) {
-          if (builtCount >= 5) { console.log('[Build] 今日造物已达上限，驳回'); continue; }
-          const m = /\[\[build:(.+?)(?:\|([^\]]+))?\]\]/.exec(tag);
-          if (!m) continue;
-          const rawName = String(m[1] || '').replace(/\s/g, '');
-          const parentName = String(m[2] || '').trim();
-          // 验名：2~6 个汉字，不许疑问/指示/动词
-          const verdict = isPlaceName(rawName);
-          if (!verdict.ok) { console.log(`[Build] 名字「${rawName}」不像地名（${verdict.why}），驳回`); continue; }
-          if (Object.values(wB.places || {}).some((pl) => pl && pl.name === rawName)) {
-            console.log(`[Build] 「${rawName}」已经有了`);
-            continue;
-          }
-          // 验出处：父地点必须存在；没给就挂在他此刻所在
-          let parentId = null;
-          if (parentName) {
-            const hit = Object.entries(wB.places || {}).find(([, pl]) => pl && pl.name === parentName);
-            if (!hit) { console.log(`[Build] 出处「${parentName}」不存在，驳回`); continue; }
-            parentId = hit[0];
-          } else {
-            parentId = meB?.location || 'street';
-          }
-          wB.flags = wB.flags || {};
-          wB.flags.placeSeq = (Number(wB.flags.placeSeq) || 0) + 1;
-          const id = `place_${wB.flags.placeSeq}`;
-          const pl = {
-            id, name: rawName, exits: [parentId], dynamic: true,
-            builtBy: 'dm', createdDay: wB.clock?.day || 1,
-            desc: `天道在世设的一处：${rawName}`,
-          };
-          wB.places[id] = pl;
-          wB.dynamicPlaces = wB.dynamicPlaces || {};
-          wB.dynamicPlaces[id] = pl;
-          wB.notes = Array.isArray(wB.notes) ? wB.notes : [];
-          wB.notes.push({ day: wB.clock?.day, hour: wB.clock?.hour, text: `世上新添一处「${rawName}」` });
-          builtCount += 1;
-          wB.flags.buildDay = wB.clock?.day || 1;
-          wB.flags.buildCount = builtCount;
-          console.log(`[Build] 天道立了新地方：${rawName}（挂在${wB.places[parentId]?.name || parentId}）`);
-        }
-        wB.notes = (wB.notes || []).slice(-40);
-        saveState(this.dataDir, wB);
-        reply = String(reply || '').replace(/\[\[build:[^\]]+\]\]/g, '').trim();
-      }
-    } catch { /* 忽略 */ }
-
-    // 没地点的约定：让天道从"世上现有的地方"里指派一个，不许乱起名
-    try {
-      const wPlace = loadState(this.dataDir);
-      const noPlace = (wPlace.appointments || []).filter((a) => a && !a.place);
-      if (noPlace.length) {
-        const names = Object.entries(wPlace.places || {})
-          .filter(([, pl]) => pl && pl.name && !pl.private)
-          .slice(0, 60)
-          .map(([, pl]) => pl.name)
-          .join('、');
-        contextHintEarly += `（【约在哪】有约还没定地方。请从这些现成地点里挑一个最合场景的，附 [[place:约定片段|地点名]]：${names}。不许自己新起地名。）\n`;
-        const tags = String(reply || '').match(/\[\[place:([^\]]+)\]\]/g);
-        if (tags && tags.length) {
-          for (const tag of tags) {
-            const m = /\[\[place:(.+?)\|([^\]]+)\]\]/.exec(tag);
-            if (!m) continue;
-            const frag = String(m[1]).trim();
-            const placeName = String(m[2]).trim();
-            const hit = Object.entries(wPlace.places || {}).find(([, pl]) => pl && String(pl.name) === placeName);
-            if (!hit) {
-              console.log(`[Place] 天道想指派的「${placeName}」世上没有，不认`);
-              continue;
-            }
-            const apt = (wPlace.appointments || []).find((x) => x && (String(x.text || '').includes(frag) || String(x.name || '') === frag));
-            if (!apt) continue;
-            apt.place = hit[0];
-            wPlace.notes = Array.isArray(wPlace.notes) ? wPlace.notes : [];
-            wPlace.notes.push({ day: wPlace.clock?.day, hour: wPlace.clock?.hour, text: `与${apt.name || '人'}的约定在「${placeName}」` });
-            console.log(`[Place] 约定落在「${placeName}」`);
-          }
-          wPlace.notes = (wPlace.notes || []).slice(-40);
-          saveState(this.dataDir, wPlace);
-          reply = String(reply || '').replace(/\[\[place:[^\]]+\]\]/g, '').trim();
-        }
-      }
-    } catch { /* 忽略 */ }
-
-    // 事情办完没有，由天道说了算：[[deal:片段|成]] 或 [[deal:片段|不成]]
-    try {
-      const dealTags = String(reply || '').match(/\[\[deal:([^\]]+)\]\]/g);
-      if (dealTags && dealTags.length) {
-        const wDeal = loadState(this.dataDir);
-        wDeal.notes = Array.isArray(wDeal.notes) ? wDeal.notes : [];
-        for (const tag of dealTags) {
-          const m = /\[\[deal:(.+?)\|(成|不成)\]\]/.exec(tag);
-          if (!m) continue;
-          const frag = String(m[1]).trim();
-          const ok = m[2] === '成';
-          // 约定
-          const apIdx = (wDeal.appointments || []).findIndex((x) => x && (String(x.text || '').includes(frag) || String(x.name || '') === frag));
-          if (apIdx >= 0) {
-            const ap = wDeal.appointments[apIdx];
-            wDeal.appointments.splice(apIdx, 1);
-            wDeal.notes.push({ day: wDeal.clock?.day, hour: wDeal.clock?.hour, text: `与${ap.name || '人'}的约${ok ? '已了' : '没成'}` });
-            continue;
-          }
-          // 承诺
-          for (const pr of (wDeal.promises || [])) {
-            if (!pr || pr.done) continue;
-            if (!String(pr.text || '').includes(frag)) continue;
-            if (ok) { pr.done = true; pr.settledBy = 'dm'; }
-            else { pr.settled = 'failed'; pr.settledBy = 'dm'; }
-            wDeal.notes.push({ day: wDeal.clock?.day, hour: wDeal.clock?.hour, text: `旧诺「${String(pr.text || '').slice(0, 14)}」${ok ? '办成了' : '没办成'}` });
-            break;
-          }
-        }
-        wDeal.notes = wDeal.notes.slice(-40);
-        saveState(this.dataDir, wDeal);
-        reply = String(reply || '').replace(/\[\[deal:[^\]]+\]\]/g, '').trim();
-        console.log(`[Deal] 天道了结 ${dealTags.length} 桩事`);
-      }
-    } catch { /* 忽略 */ }
-
-    // 告诉天道：要收钱就这么声明（由相公自己点确认）
-    try {
+      contextHintEarly += '（【用人规矩】要开张、要添人手时，你替产业点人：[[staff:产业名|人名|身份]]，例如 [[staff:运河码头三层大酒楼|周有福|掌柜]]。没有这个人就现起一个名字，世上就真有这个人了。）\n';
       contextHintEarly += '（【习性规矩】长期相处真的改了某个人的性子（更顺从、更敢顶嘴、开始怕你…），你可以在回复末尾附 [[trait:谁|哪一样|+5]]，一次最多动 5~10，别乱给。这东西会跟着她一辈子。）\n';
       contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
-    } catch { /* 忽略 */ }
-
-    // 天道自己声明"要收钱/要付钱"：解析它输出里的 [[pay:标题|选项=价|选项=价]]
-    // 这不是偷听玩家说的话，是听天道的裁定；玩家点确认后才真扣钱
-    try {
-      const payTag = String(reply || '').match(/\[\[pay:([^\]]+)\]\]/);
-      if (payTag) {
-        const body2 = payTag[1];
-        const [title2, ...optParts] = body2.split('|');
-        const opts2 = optParts
-          .map((x) => {
-            const m2 = /^(.+?)=([\d.]+)$/.exec(String(x).trim());
-            return m2 ? { key: m2[1], label: m2[1], price: Number(m2[2]) || 0 } : null;
-          })
-          .filter(Boolean);
-        if (opts2.length > 0) {
-          const wPay = loadState(this.dataDir);
-          const mePay = this._viewerActorId ? wPay.actors?.[this._viewerActorId] : wPay.actors?.husband;
-          wPay.pendingAction = {
-            kind: 'lodging',
-            id: `pend_${Date.now()}`,
-            title: String(title2 || '花银子').slice(0, 12),
-            inn: 'inn',
-            options: opts2,
-            by: mePay?.id || 'husband',
-            askedDay: wPay.clock?.day || 1,
-            askedHour: wPay.clock?.hour || 0,
-          };
-          saveState(this.dataDir, wPay);
-          reply = String(reply || '').replace(payTag[0], '').trim();
-          console.log(`[Pay] 天道声明付费：${title2} ${opts2.map((o) => o.label + o.price).join('/')}`);
-        }
-      }
     } catch { /* 忽略 */ }
 
     // 在场者的习性：同一句话，不同性子的人反应不一样
@@ -2637,6 +2669,9 @@ export class PetService {
       reply = enforceRitualAnswer(reply, ritualCtx);
     }
 
+    // 天道回执落账、优雅古风中文标签转换、NPC 告辞离场判定
+    reply = this.processNarrativeTags(reply, say);
+
     const now = Date.now();
     let audioKey = null;
 
@@ -2891,7 +2926,8 @@ export class PetService {
 
     // 最后兜底：若只剩场景旁白，而在场有人 → 让他开口说一句
     try {
-      const isNarration = /^(【[^】]+】：)?\s*[^【]*(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
+      const replyTrimmed = String(reply || '').trim();
+      const isNarration = !replyTrimmed || /^[…\s.]{1,12}$/.test(replyTrimmed) || /^(【[^】]+】：)?\s*[^【]*(就站在|四下冷清|你到了|没人接话|没人应声)/.test(replyTrimmed);
       if (isNarration) {
         const wL = loadState(this.dataDir);
         const meL = this._viewerActorId ? wL.actors?.[this._viewerActorId] : wL.actors?.husband;

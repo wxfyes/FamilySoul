@@ -41,3 +41,22 @@ export function extractPlaceCandidates(text) {
   }
   return out;
 }
+
+/**
+ * 人物匹配规则：按名字、昵称、去词缀根字统一匹配世界人物
+ * 遵循规则以「类别」表达：
+ * 自动识别常见古风称呼前缀（小/老/大/二/三/四/五）与后缀（儿/娘/姐/妹/哥/爷/婆）
+ */
+export function matchActor(actors, searchName) {
+  if (!searchName) return null;
+  const s = String(searchName).trim();
+  const root = s.replace(/^[小老大二三四五]|(?:儿|娘|姐|妹|哥|爷|婆)$/g, '');
+  return Object.values(actors || {}).find((a) => {
+    if (!a || !a.name || a.id === 'husband') return false;
+    if (a.name === s || a.id === s) return true;
+    if (s === '紫嫣' && (a.id === 'liuwenxia' || a.name === '刘文霞')) return true;
+    if (a.name.includes(s) || s.includes(a.name)) return true;
+    if (root && root.length >= 1 && a.name.includes(root)) return true;
+    return false;
+  });
+}

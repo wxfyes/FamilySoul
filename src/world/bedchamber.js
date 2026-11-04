@@ -105,6 +105,23 @@ export function buildBedChamberPrompt({ initiator, partner, inBed, shouldEnd, is
   const partnerRole = partner?.role || '';
   const isInitiatorFemale = initiator?.gender === 'female';
 
+  // ──【心防门禁 · 拒绝白给与男女大防判定】──
+  const rel = partner?.relations?.husband || partner?.relations?.[initiator?.id] || {};
+  const trust = Number(rel.trust || 0);
+  const desire = Number(rel.desire || 0);
+  const isWife = Boolean(partner?.household || initiator?.spouse === partner?.id || partner?.spouse === initiator?.id);
+  const isConsummated = Boolean(partner?.intimacy?.consummated);
+  const isReady = isWife || isConsummated || (trust >= 75 && desire >= 60);
+
+  if (!isReady && !isCode) {
+    // 心防未破：恪守礼法与男女大防，严厉拒绝或惊羞退后！
+    return [
+      `（【心防坚固 · 严词拒绝求欢】：${partnerName}与你并非合法夫妻，亦未曾私定终身（好感信任未满）！`,
+      '1. 【严禁白给迎合】：面对突如其来的动手动脚或轻浮言语，她惊怒交加、立刻后退拉开距离，整理衣裙严肃斥责或冷声制止；',
+      '2. 【恪守名节】：她有自身名节与戒备，直言“请自重，男女授受不亲，莫要辱了彼此名声”；绝不宽衣、绝不上榻！）',
+    ].join('\n');
+  }
+
   // ═══════════════ 女方各具特色承欢风格 ═══════════════
   const femaleStyles = {
     // 1. 沈婉儿：名门正妻，端庄破防，极度娇媚

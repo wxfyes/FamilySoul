@@ -7,6 +7,8 @@ import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPa
  */
 import { loadState, saveState } from './state.js';
 import { isValidPlaceName } from './intent.js';
+import { moveActor } from './position.js';
+import { matchActor } from './naming.js';
 
 const SUMMON_VERBS = /(叫|请|唤|传|让|召|叫来|喊)/;
 const COME_WORDS = /(过来|来一趟|来一下|来我这儿|来这里|来这儿|过来一趟|过来一趟|来见|来一趟|来|到这)/;
@@ -663,30 +665,45 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
 }
 
 /**
- * NPC 自己说要走：从回复里识别「下楼/告辞/先回/走了」，真的把她挪回自家。
+ * NPC 自己说要走或相公吩咐回去：从台词中识别「这就走/告辞/先回/走了」，通过统一移动入口规范挪回自家/长街。
  * 只认「说话那个人」的分角段落，避免把别人要走也算到头上。
  * @returns {string[]} 真的走了的人
  */
-export function applyNpcDeparture(dataDir, replyText) {
+export function applyNpcDeparture(dataDir, replyText, sayText = '') {
   const text = String(replyText || '');
   if (!text) return [];
   const world = loadState(dataDir);
   const left = [];
   const segs = text.split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+
+  const husbandDismiss = /(你(先|且)?(回|走)吧|回去吧|回吧|退下吧|你退下|回去歇着|你且回去|你先走)/.test(String(sayText || ''));
+
   for (const seg of segs) {
     const m = seg.match(/^【([^】\n]{1,12})】/);
     if (!m) continue;
     const name = m[1].trim();
     const bodyOnly = seg.replace(/^【[^】\n]{1,12}】[:：]?/, '');
-    if (!/(下楼|告辞|先回|回去|回铺子|回家|走了|且回去|先走了|退下)/.test(bodyOnly)) continue;
-    const actor = Object.values(world.actors || {}).find(
-      (a) => a && a.name && a.id !== 'husband' && (a.name === name || name.includes(a.name.slice(-2))),
-    );
+
+    const npcSaysLeave = /(下楼|告辞|先回|回去|回铺子|回家|走了|且回去|先走了|退下|这就走|先走一步|这就回去|这就告辞|先行一步|妾身先退|小人先退|保重)/.test(bodyOnly);
+    const dismissedAndAgreed = husbandDismiss && /(诶|好|这就|妾身|小人|明白|遵命|省得|行|保重)/.test(bodyOnly);
+
+    if (!npcSaysLeave && !dismissedAndAgreed) continue;
+
+    const actor = matchActor(world.actors, name);
     if (!actor) continue;
-    const home = actor.home && world.places?.[actor.home] ? actor.home : null;
+
+    // 家人（婉儿、芸娘、小翠）如果在自己家宅（正房/内院/茶坊），则不往外挪
+    const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
+    if (actor.household && HOME_MANSION.includes(actor.location)) {
+      continue;
+    }
+
+    const home = (actor.home && world.places?.[actor.home]) ? actor.home : 'street';
     if (!home || actor.location === home) continue;
-    actor.location = home;
+
+    moveActor(world, actor.id, home, 'world', '告辞归位');
     left.push(actor.name);
+    console.log(`[Departure] NPC ${actor.name}(${actor.id}) 告辞离场，归位至 ${world.places?.[home]?.name || home}`);
   }
   if (left.length > 0) saveState(dataDir, world);
   return left;

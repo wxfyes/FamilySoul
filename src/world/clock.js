@@ -1379,7 +1379,8 @@ function runSchedules(world) {
       if (slot.at === world.clock.hour && slot.place) {
         actor.activity = { text: String(slot.do || ''), at: world.clock.hour, day: world.clock.day };
         if (actor.location === slot.place) continue;
-        // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来
+        // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来；在押服刑者严禁外出走动作息
+        if (actor.jailed) continue;
         if (actor.intimacy?.ritual === 'unlocked') continue;
         if (actor.away && Number(actor.away.untilDay) >= Number(world.clock.day)) continue;
         moveActor(world, actor.id, slot.place, 'world', String(slot.do || ''));

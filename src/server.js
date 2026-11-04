@@ -2098,6 +2098,10 @@ const STARTED_AT = Date.now();
           let pid = world.places?.[locStr] ? locStr : Object.keys(world.places || {}).find(k => world.places[k]?.name === locStr || k === locStr);
           if (pid && world.places?.[pid]) { moveActor(world, a.id, pid, 'ui', '管理改位'); changed.location = world.places[pid].name; }
         }
+        if (body.jailed !== undefined) {
+          if (body.jailed === null || body.jailed === false) { delete a.jailed; changed.jailed = null; }
+          else if (typeof body.jailed === 'object') { a.jailed = body.jailed; changed.jailed = a.jailed; }
+        }
         if (body.trust != null || body.desire != null || body.grievance != null) {
           if (!a.relations) a.relations = {};
           if (!a.relations.husband) a.relations.husband = { trust: 50, desire: 0, grievance: 0 };
