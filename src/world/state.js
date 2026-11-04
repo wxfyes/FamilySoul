@@ -291,7 +291,7 @@ export function createInitialState(dataDir) {
       },
       zhanjing: {
         id: 'zhanjing', gender: 'female', home: 'yamen',
-        name: '战静',
+        name: '静儿',
         role: '县衙书吏发妻',
         location: 'street',
         goals: ['守住自己的体面', '替娘家争一口气'],

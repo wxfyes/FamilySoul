@@ -1601,6 +1601,13 @@ const STARTED_AT = Date.now();
           const pid = String(body.location);
           if (world.places?.[pid]) { a.location = pid; changed.location = world.places[pid].name; }
         }
+        if (body.trust != null || body.desire != null || body.grievance != null) {
+          if (!a.relations) a.relations = {};
+          if (!a.relations.husband) a.relations.husband = { trust: 50, desire: 0, grievance: 0 };
+          if (body.trust != null) { a.relations.husband.trust = Math.max(0, Math.min(100, Math.round(Number(body.trust)) || 0)); changed.trust = a.relations.husband.trust; }
+          if (body.desire != null) { a.relations.husband.desire = Math.max(0, Math.min(100, Math.round(Number(body.desire)) || 0)); changed.desire = a.relations.husband.desire; }
+          if (body.grievance != null) { a.relations.husband.grievance = Math.max(0, Math.min(100, Math.round(Number(body.grievance)) || 0)); changed.grievance = a.relations.husband.grievance; }
+        }
         saveState(DATA_DIR, world);
         console.log(`[Admin] 改人物：${a.name} ${JSON.stringify(changed)}`);
         return sendJson(res, 200, { ok: true, actor: { id: a.id, name: a.name, age: a.age, gender: a.gender, role: a.role, money: a.money } });

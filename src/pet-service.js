@@ -3245,6 +3245,7 @@ export class PetService {
         '  [[world:spawn name="柳三娘" role="挑担卖花的" place="street"]]',
         '  role 从他做的事推断，place 用对话里说的地点（street/tea_house/dock/wine_shop 等）。不输出就等于这个人不存在。',
         '**相公赔罪、哄人、说软话，且对方语气缓和** → 必须记 [[world:relation who=她的id field=grievance delta=-6]]；若对方反而更硬，就记 delta=+3。',
+        '**女子得相公撑腰、维护出头、体贴关怀、承诺相助** → 信任与心动欲望并进：记 [[world:relation who=她的id field=trust delta=+3]] [[world:relation who=她的id field=desire delta=+2]]（情意笃深，心有所属）；绝不可只涨信任不涨欲望！',
         '**动情/暧昧/答应私会/被撩到心软** → 必须记 [[world:relation who=她的id field=desire delta=+4]]（明显亲密可 +8）；被冷落或受惊则记 delta=-3。',
       ].join('\n');
 
