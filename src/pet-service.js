@@ -1,4 +1,5 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
+import { personFacts } from './world/person-facts.js';
 import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } from './world/naming.js';
 import { moveActor } from './world/position.js';
 import { hireStaff } from './world/employment.js';
@@ -2407,6 +2408,7 @@ export class PetService {
               memories: npcMem,
               facts: npcFacts.concat([
                 herePlaceFact,
+                personFacts(wPost, npc.id),
                 (wPost.npcArcs || {})[npc.id]?.lastStep
                   ? `你眼下自己碰上的事：${wPost.npcArcs[npc.id].lastStep}（仅在对方问起外头事宜时提及，私房相处绝不主动提公事）`
                   : '',

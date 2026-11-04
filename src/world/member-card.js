@@ -6,6 +6,7 @@
  */
 import { loadState, worldDate, placeFacts } from './state.js';
 import { arcStepText } from './arcs.js';
+import { personFacts } from './person-facts.js';
 import { getPlaceDisplayName } from './naming.js';
 
 function selfLine(world, actorId, me) {
@@ -64,6 +65,8 @@ export function buildMemberCard(dataDir, actorId) {
   const placeFact = placeFacts(world, me.location);
   if (placeFact) lines.push(placeFact);
   lines.push(moneyLine(world, actorId));
+  const mine = personFacts(world, actorId);
+  if (mine) lines.push(mine);
   const arc = arcLine(world, actorId);
   if (arc) lines.push(arc);
   const hus = husbandLine(world, actorId);
