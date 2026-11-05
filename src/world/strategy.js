@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 天下推演：势力在没有真人指挥时，也会自己动。
  *
  * 两种驱动并存：
@@ -10,7 +10,8 @@
  */
 
 import { factionOf, factionSilver, factionStrength } from './factions.js';
-import { recruit, besiege, bribeCity, buyGrain } from './warfare.js';
+import { recruit, besiege, bribeCity, buyGrain, march, troopsAt, totalTroops } from './warfare.js';
+import { canReach } from './geography.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -39,15 +40,32 @@ export function npcStrategyTurn(world, events, sink) {
     const ambition = num(f.ambition) || 30;
     if (Math.random() * 100 > ambition) continue;
 
+    const allyOk = (ownerId) => {
+      if (!ownerId || ownerId === f.id) return false;
+      const rel = num(f.relations?.[ownerId]);
+      return rel >= 40;          // 盟友不打
+    };
     const targets = Object.entries(world.cities || {})
-      .filter(([, ct]) => ct && String(ct.owner || 'court') !== f.id)
+      .filter(([, ct]) => ct && String(ct.owner || 'court') !== f.id && !allyOk(String(ct.owner || 'court')))
       .sort((a, b) => num(a[1].defense) - num(b[1].defense));
     const target = targets[0];
     if (!target) continue;
 
     const [cityName] = target;
-    // 只派一半兵出去，留一半守家
-    const send = Math.max(1, Math.round(num(f.troops) * 0.5));
+    // 兵必须先在目标城：不在就派兵过去（按路走，几天到）
+    const have = troopsAt(world, f, cityName);
+    if (have < 1) {
+      const from = Object.keys(f.stationed || {})[0];
+      if (!from) continue;
+      const send = Math.max(1, Math.round(troopsAt(world, f, from) * 0.6));
+      const road = canReach(world, from, cityName, f.id);
+      if (!road.ok) { results.push(`${f.name}欲取${cityName}，但${road.reason}`); continue; }
+      const mv = march(world, f.id, from, cityName, send);
+      if (mv.ok) results.push(`${f.name}自${from}发兵 ${mv.troops}，${mv.days}日可至${cityName}`);
+      continue;
+    }
+
+    const send = Math.max(1, Math.round(have * 0.8));
     if (factionStrength(world, f) < num(target[1].defense) * 0.8) continue;
 
     const r = besiege(world, { attacker: f.id, cityName, troops: send });
@@ -135,4 +153,40 @@ export function applyStrategyDecisions(world, decisions, sink) {
     }
   }
   return applied;
+}
+
+/** 枭雄自生：无人煽动，也会有人趁乱竖旗（规则，不写剧本） */
+export function maybeSpawnWarlord(world, sink) {
+  const day = num(world.clock?.day);
+  if (day % 30 !== 0) return null;
+  const candidates = Object.entries(world.cities || {})
+    .filter(([, ct]) => ct && String(ct.owner || 'court') === 'court' && num(ct.unrest) >= 55)
+    .sort((a, b) => num(b[1].unrest) - num(a[1].unrest));
+  if (!candidates.length) return null;
+  if (Math.random() > 0.5) return null;
+
+  const [cityName, ct] = candidates[0];
+  const fid = `warlord_${cityName}_${day}`;
+  if (world.factions[fid]) return null;
+  const troops = Math.max(20, Math.round(num(ct.defense) * 3));
+  world.factions[fid] = {
+    id: fid,
+    name: `${cityName}义军`,
+    kind: 'warlord',
+    leader: null,
+    cities: [cityName],
+    troops,
+    stationed: { [cityName]: troops },
+    grain: Math.round(troops * 2),
+    morale: 55,
+    ambition: 85,
+    stance: 'expand',
+    relations: { court: -60 },
+    createdDay: day,
+  };
+  ct.owner = fid;
+  ct.unrest = Math.max(0, num(ct.unrest) - 10);
+  const text = `${cityName}民怨沸腾，有人竖旗自立，号「${cityName}义军」`;
+  if (sink) sink(world, { action: 'warlord_spawn', actor: null, place: cityName, payload: { text } });
+  return text;
 }

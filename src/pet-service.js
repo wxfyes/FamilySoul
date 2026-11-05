@@ -8,7 +8,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 import { buildStateSummary } from './world/summarize.js';
-import { loadState, saveState } from './world/state.js';
+import { loadState, saveState , readRecentEvents } from './world/state.js';
 import { parseWorldTags, applyWorldTags, recordReceipt, markReceiptHit } from './world/dispatch.js';
 import { prepareRitual, enforceRitualAnswer } from './world/ritual.js';
 import { evaluateBedIntent, resolveBedPartner, buildBedChamberPrompt } from './world/bedchamber.js';
@@ -1005,6 +1005,23 @@ export class PetService {
       if (Number(wC.flags?.courtPressure)) bits.push(`朝廷压力 ${Number(wC.flags.courtPressure)}`);
       if (Number(wC.flags?.courtBankrupt)) bits.push(`国库告罄 ${Number(wC.flags.courtBankrupt)} 次`);
       contextHintEarly += `（【朝廷近况】${bits.join('；')}。这是账上真数，朝堂戏只能照这个演，不许自己编富庶或盛世。）\n`;
+    } catch { /* 忽略 */ }
+
+    // 近来大事：世界在自己走，相公得知道外头发生了什么（不弹窗，靠人嘴说）
+    try {
+      const recent = readRecentEvents(this.dataDir, 6) || [];
+      const lines = recent
+        .map((e) => {
+          const t = e?.payload?.text || e?.text || '';
+          if (!t) return '';
+          const day = e?.day != null ? `第${e.day}日` : '';
+          return `${day}${t}`;
+        })
+        .filter(Boolean)
+        .slice(-4);
+      if (lines.length) {
+        contextHintEarly += `（【近来天下大事】${lines.join('；')}。这些事已经发生，相公或身边人可能听说；若有人问起，照此说，不许另编更离奇的。）\n`;
+      }
     } catch { /* 忽略 */ }
 
     // 在场者的底细：他有没有成婚、住哪、在哪当差——谁问都得对得上

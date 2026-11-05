@@ -18,10 +18,10 @@ import { runNPCInitiatives } from './actors.js';
 import { healWorld } from './heal.js';
 import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
-import { spreadRumors } from './rumors.js';
+import { spreadRumors, addRumor } from './rumors.js';
 import { moveActor } from './position.js';
 import { runMilitaryDay, setWarEventSink } from './warfare.js';
-import { npcStrategyTurn } from './strategy.js';
+import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -1389,6 +1389,35 @@ function onNewDay(world, events) {
   } catch (err) {
     console.warn('[Army] 军需结算失败：', err.message);
   }
+
+  // 大事化成市井风闻：打仗、破城、灾荒、民变，都会被人传
+  try {
+    for (const ev of (events || [])) {
+      const act = String(ev?.action || '');
+      if (!['city_taken', 'siege_failed', 'warlord_spawn', 'revolt', 'disaster', 'treasury_empty', 'relief_short'].includes(act)) continue;
+      const text = String(ev?.payload?.text || '').slice(0, 40);
+      if (text) addRumor(world, { text, about: [], tone: act === 'city_taken' ? -1 : 0, weight: 4 });
+    }
+  } catch { /* 忽略 */ }
+
+  // 枭雄自生：民怨高的城会有人竖旗（规则触发，不写剧本）
+  try {
+    const wl = maybeSpawnWarlord(world, (w, ev) => {
+      try { events.push(nextEvent(w, ev)); } catch { /* 忽略 */ }
+    });
+    if (wl) console.log('[Warlord]', wl);
+  } catch (err) {
+    console.warn('[Warlord] 枭雄自生失败：', err.message);
+  }
+
+  // 产业产粮：米粮/粮栈类产业每天攒粮，可调去军仓
+  try {
+    for (const p of (world.assets?.properties || [])) {
+      if (!p || !/粮|米|栈/.test(String(p.name || ''))) continue;
+      if (!/正常营业|已开张/.test(String(p.status || ''))) continue;
+      p.grainStock = Math.round((Number(p.grainStock) || 0) + (Number(p.incomePerDay) || 0) * 2 * 10) / 10;
+    }
+  } catch { /* 忽略 */ }
 
   // 每 7 日：无人指挥的势力自己动（有 LLM 时由 server 侧接管，这里兜底）
   try {

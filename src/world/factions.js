@@ -68,6 +68,15 @@ export function ensureFactions(world) {
     if (f.morale === undefined) f.morale = Math.max(20, Math.min(80, Number(f.power) || 50));
     if (f.ambition === undefined) f.ambition = fid === 'court' ? 40 : fid === 'wangjia' ? 35 : 30;
     if (!f.stance) f.stance = fid === 'wangjia' ? 'defend' : 'status_quo';
+    // 外交关系：谁跟谁亲（-100 死敌 ~ 100 盟友），默认 0
+    f.relations = f.relations && typeof f.relations === 'object' ? f.relations : {};
+    // 驻地表：兵必须站在某座城里（f.stationed = { 城名: 兵数 }）
+    if (!f.stationed || typeof f.stationed !== 'object') {
+      f.stationed = {};
+      const own = Array.isArray(f.cities) && f.cities.length ? f.cities[0] : (fid === 'wangjia' ? '临江府' : null);
+      const n = Number(f.troops) || 0;
+      if (own && n > 0) f.stationed[own] = n;
+    }
   }
 
   // 城的归属同步到势力：owner 是势力 id 就记在它名下

@@ -1,127 +1,213 @@
 /**
- * 兵权与夺城：募兵、军饷、粮道、围城、城破易主。
+ * 兵权与夺城（v2）：兵有驻地，粮有仓，路要通，仗要打几天。
  *
- * 全部是"条件与代价"，不写结果：
- *   · 募兵要钱要粮，兵多了每天吃粮发饷
- *   · 欠饷会掉士气，士气崩了会逃兵
- *   · 围城看双方战力与城防，谁赢由数字与运气定
- *
- * 唯一写入口：城的归属只在这里改（besiege），别处不许动 ct.owner。
+ * 规则：
+ *   · 兵只能驻在城里（f.stationed = { 城名: 兵数 }）
+ *   · 募兵落在自己第一座城（没有城就落在临江府）
+ *   · 出兵要先驻好兵，再行军，到了才围城
+ *   · 军粮先吃所在城的仓，仓空了吃随军粮（f.grain）
+ *   · 城的归属只在这里改
  */
 
 import { factionOf, factionSilver, spendFactionSilver, factionStrength, syncWangjiaToMilitary } from './factions.js';
+import { canReach } from './geography.js';
 
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
-
 const round2 = (v) => Math.round(num(v) * 100) / 100;
 
-/** 一名兵的募兵银与自带粮（石） */
 export const RECRUIT_COST = 12;
 export const RECRUIT_GRAIN = 0.5;
-
-/** 每兵每日：军饷（两）与口粮（石） */
 export const PAY_PER_DAY = 0.05;
 export const GRAIN_PER_DAY = 0.02;
+export const GRAIN_PRICE = 0.6;
 
-/**
- * 募兵
- * @returns {{ok:boolean, error?:string, troops?:number}}
- */
-export function recruit(world, fid, count) {
-  const f = factionOf(world, fid);
-  if (!f) return { ok: false, error: '没有这个势力' };
-  const n = Math.max(1, Math.min(500, Math.round(num(count))));
-  const cost = round2(n * RECRUIT_COST);
-  const needGrain = round2(n * RECRUIT_GRAIN);
-
-  if (num(f.grain) < needGrain) return { ok: false, error: `粮不够：要 ${needGrain} 石，手头 ${round2(f.grain)} 石` };
-  if (!spendFactionSilver(world, f, cost)) {
-    return { ok: false, error: `银不够：募 ${n} 兵要 ${cost} 两，手头 ${round2(factionSilver(world, f))} 两` };
-  }
-
-  f.troops = Math.round(num(f.troops) + n);
-  f.grain = round2(num(f.grain) - needGrain);
-  f.morale = Math.min(100, Math.round(num(f.morale) + 1));
-  if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-  return { ok: true, troops: f.troops, cost };
-}
-
-/** 征粮：拿银子换粮（市价随城价浮动） */
-export function buyGrain(world, fid, shi) {
-  const f = factionOf(world, fid);
-  if (!f) return { ok: false, error: '没有这个势力' };
-  const amount = Math.max(1, Math.min(2000, Math.round(num(shi))));
-  const price = 0.6; // 每石作价 0.6 两（地方粮价高时贵，这里取常价）
-  const cost = round2(amount * price);
-  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：买 ${amount} 石要 ${cost} 两` };
-  f.grain = round2(num(f.grain) + amount);
-  if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-  return { ok: true, grain: f.grain, cost };
-}
-
-/**
- * 每日军需：发饷、吃粮、欠饷逃兵
- * 由时钟每日调用一次，返回事件列表（供 world 时间线显示）
- */
-export function runMilitaryDay(world, events) {
-  const out = [];
-  for (const f of Object.values(world.factions || {})) {
-    if (!f || num(f.troops) <= 0) continue;
-    const troops = Math.round(num(f.troops));
-    const pay = round2(troops * PAY_PER_DAY);
-    const grainNeed = round2(troops * GRAIN_PER_DAY);
-
-    let paid = false;
-    let fed = false;
-    if (num(f.grain) >= grainNeed) {
-      f.grain = round2(num(f.grain) - grainNeed);
-      fed = true;
-    }
-    if (spendFactionSilver(world, f, pay)) paid = true;
-
-    if (paid && fed) {
-      f.morale = Math.min(100, Math.round(num(f.morale) + 1));
-    } else {
-      f.morale = Math.max(0, Math.round(num(f.morale) - (paid ? 3 : 6)));
-      if (!fed) {
-        allEvent(out, world, { action: 'army_hungry', actor: f.leader, place: null, payload: { text: `${f.name}军中缺粮，士气跌落` } });
-      }
-      if (!paid) {
-        allEvent(out, world, { action: 'army_unpaid', actor: f.leader, place: null, payload: { text: `${f.name}欠饷，营中怨声四起` } });
-      }
-    }
-
-    // 士气崩 → 逃兵
-    if (num(f.morale) < 25 && Math.random() < 0.5) {
-      const flee = Math.max(1, Math.round(troops * 0.1));
-      f.troops = Math.max(0, troops - flee);
-      f.morale = 30;
-      allEvent(out, world, { action: 'desert', actor: f.leader, place: null, payload: { text: `${f.name}营中逃兵 ${flee} 人` } });
-    }
-
-    if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-  }
-  return out;
-}
-
-function allEvent(out, world, ev) {
-  out.push(ev);
-  eventSink?.(world, ev);
-}
-
-// 由 clock 注册：把战斗/军需事件写进世界事件流
 let eventSink = null;
 export function setWarEventSink(fn) {
   eventSink = fn;
 }
+function fire(world, ev) {
+  try { eventSink?.(world, ev); } catch { /* 忽略 */ }
+}
 
-/**
- * 围城：攻方带兵若干，打一座城。
- * 城防 = 城的 defense + 守军（owner 所属势力的兵按城均摊）
- */
+export function factionCapital(world, f) {
+  if (!f) return '临江府';
+  const own = Array.isArray(f.cities) ? f.cities.filter((c) => world.cities?.[c]) : [];
+  if (own.length) return own[0];
+  return '临江府';
+}
+
+/** 某城的驻军 */
+export function troopsAt(world, f, city) {
+  if (!f) return 0;
+  return Math.round(num(f.stationed?.[city]));
+}
+
+/** 改驻军（唯一入口） */
+function setStationed(world, f, city, value) {
+  f.stationed = f.stationed && typeof f.stationed === 'object' ? f.stationed : {};
+  const next = Math.max(0, Math.round(num(value)));
+  if (next > 0) f.stationed[city] = next;
+  else delete f.stationed[city];
+  f.troops = Object.values(f.stationed).reduce((s, x) => s + num(x), 0);
+  if (f.id === 'wangjia') syncWangjiaToMilitary(world);
+}
+
+/** 合计兵力 */
+export function totalTroops(world, f) {
+  if (!f) return 0;
+  if (f.stationed && typeof f.stationed === 'object') {
+    return Object.values(f.stationed).reduce((s, x) => s + num(x), 0);
+  }
+  return Math.round(num(f.troops));
+}
+
+/** 募兵：落在自己的城（默认首城） */
+export function recruit(world, fid, count, city) {
+  const f = factionOf(world, fid);
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const n = Math.max(1, Math.min(500, Math.round(num(count))));
+  const town = city && world.cities?.[city] ? city : factionCapital(world, f);
+  if (!world.cities?.[town]) return { ok: false, error: '落脚城不存在' };
+
+  const cost = round2(n * RECRUIT_COST);
+  const needGrain = round2(n * RECRUIT_GRAIN);
+  if (num(f.grain) < needGrain) return { ok: false, error: `粮不够：募 ${n} 兵要 ${needGrain} 石，手头 ${round2(f.grain)} 石` };
+  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：募 ${n} 兵要 ${cost} 两，手头 ${round2(factionSilver(world, f))} 两` };
+
+  f.grain = round2(num(f.grain) - needGrain);
+  setStationed(world, f, town, troopsAt(world, f, town) + n);
+  f.morale = Math.min(100, Math.round(num(f.morale) + 1));
+  fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}募兵 ${n} 人` } });
+  return { ok: true, troops: totalTroops(world, f), stationed: troopsAt(world, f, town), city: town, cost };
+}
+
+/** 买粮：存进指定城的仓（没有城就存随军） */
+export function buyGrain(world, fid, shi, city) {
+  const f = factionOf(world, fid);
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const amount = Math.max(1, Math.min(2000, Math.round(num(shi))));
+  const cost = round2(amount * GRAIN_PRICE);
+  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：买 ${amount} 石要 ${cost} 两` };
+
+  const town = city && world.cities?.[city] ? city : (Array.isArray(f.cities) && f.cities[0]) || '';
+  if (town && world.cities?.[town]) {
+    world.cities[town].grain = round2(num(world.cities[town].grain) + amount);
+    if (f.id === 'wangjia') syncWangjiaToMilitary(world);
+    return { ok: true, grain: world.cities[town].grain, city: town, cost };
+  }
+  f.grain = round2(num(f.grain) + amount);
+  if (f.id === 'wangjia') syncWangjiaToMilitary(world);
+  return { ok: true, grain: f.grain, city: '', cost };
+}
+
+/** 产业粮转军粮：把自家粮栈产出的粮调进某城仓 */
+export function transferPropertyGrain(world, fid, propId, city, shi) {
+  const f = factionOf(world, fid);
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+  const p = props.find((x) => x && String(x.id) === String(propId));
+  if (!p) return { ok: false, error: '没有这处产业' };
+  if (String(p.owner || '') !== fid && fid !== 'wangjia') return { ok: false, error: '不是你的产业' };
+  const stock = num(p.grainStock);
+  const take = Math.min(stock, Math.max(1, Math.round(num(shi))));
+  if (take <= 0) return { ok: false, error: '这处产业暂无可调之粮' };
+  const town = city && world.cities?.[city] ? city : ((Array.isArray(f.cities) && f.cities[0]) || '');
+  if (!town || !world.cities?.[town]) return { ok: false, error: '要调往哪座城？你还没有城' };
+  p.grainStock = round2(stock - take);
+  world.cities[town].grain = round2(num(world.cities[town].grain) + take);
+  return { ok: true, grain: world.cities[town].grain, city: town, moved: take };
+}
+
+/** 每日：军饷、吃粮（先吃城仓，再吃随军粮）、逃兵、行军抵达 */
+export function runMilitaryDay(world, events) {
+  for (const f of Object.values(world.factions || {})) {
+    if (!f) continue;
+    const total = totalTroops(world, f);
+    if (total <= 0) continue;
+
+    const pay = round2(total * PAY_PER_DAY);
+    const grainNeed = round2(total * GRAIN_PER_DAY);
+
+    // 吃粮：先吃驻地的仓
+    let fedQty = 0;
+    for (const [town, n] of Object.entries(f.stationed || {})) {
+      const want = round2(num(n) * GRAIN_PER_DAY);
+      const inCity = num(world.cities?.[town]?.grain);
+      const take = Math.min(want, inCity);
+      if (take > 0) {
+        world.cities[town].grain = round2(inCity - take);
+        fedQty = round2(fedQty + take);
+      }
+    }
+    const rest = round2(grainNeed - fedQty);
+    let fed = rest <= 0.001;
+    if (!fed && num(f.grain) >= rest) {
+      f.grain = round2(num(f.grain) - rest);
+      fed = true;
+    }
+
+    let paid = spendFactionSilver(world, f, pay);
+
+    if (paid && fed) f.morale = Math.min(100, Math.round(num(f.morale) + 1));
+    else {
+      f.morale = Math.max(0, Math.round(num(f.morale) - (paid ? 3 : 6)));
+      if (!fed) fire(world, { action: 'army_hungry', actor: f.leader, place: null, payload: { text: `${f.name}军中缺粮，士气跌落` } });
+      if (!paid) fire(world, { action: 'army_unpaid', actor: f.leader, place: null, payload: { text: `${f.name}欠饷，营中怨声四起` } });
+    }
+
+    if (num(f.morale) < 25 && Math.random() < 0.5) {
+      const town = Object.keys(f.stationed || {})[0];
+      if (town) {
+        const flee = Math.max(1, Math.round(num(f.stationed[town]) * 0.1));
+        setStationed(world, f, town, Math.max(0, troopsAt(world, f, town) - flee));
+        f.morale = 30;
+        fire(world, { action: 'desert', actor: f.leader, place: town, payload: { text: `${f.name}逃兵 ${flee} 人` } });
+      }
+    }
+  }
+
+  // 行军抵达
+  for (const f of Object.values(world.factions || {})) {
+    if (!f || !Array.isArray(f.marches)) continue;
+    const remain = [];
+    for (const m of f.marches) {
+      if ((Number(world.clock?.day) || 1) < num(m.arriveDay)) { remain.push(m); continue; }
+      if (!world.cities?.[m.to]) continue;
+      setStationed(world, f, m.to, troopsAt(world, f, m.to) + num(m.troops));
+      fire(world, { action: 'march_arrive', actor: f.leader, place: m.to, payload: { text: `${f.name}兵抵${m.to}` } });
+    }
+    f.marches = remain;
+  }
+}
+
+/** 行军：从驻地出发，路上要走几天 */
+export function march(world, fid, fromCity, toCity, troops) {
+  const f = factionOf(world, fid);
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const have = troopsAt(world, f, fromCity);
+  const send = Math.min(Math.round(num(troops)), have);
+  if (send < 1) return { ok: false, error: `「${fromCity}」没有你的兵` };
+
+  const road = canReach(world, fromCity, toCity, fid);
+  if (!road.ok) return { ok: false, error: road.reason || '路不通' };
+
+  // 军粮随行：按天数带足
+  const needGrain = round2(send * GRAIN_PER_DAY * (road.days + 2));
+  if (num(f.grain) < needGrain) return { ok: false, error: `随军粮不够：要走 ${road.days} 天，需 ${needGrain} 石` };
+
+  f.grain = round2(num(f.grain) - needGrain);
+  setStationed(world, f, fromCity, have - send);
+  f.marches = Array.isArray(f.marches) ? f.marches : [];
+  const arriveDay = (Number(world.clock?.day) || 1) + road.days;
+  f.marches.push({ from: fromCity, to: toCity, troops: send, arriveDay, viaGate: road.viaGate || null });
+  fire(world, { action: 'march_start', actor: f.leader, place: fromCity, payload: { text: `${f.name}${send}兵自${fromCity}开拔，${road.days}日可至${toCity}` } });
+  return { ok: true, days: road.days, arriveDay, troops: send };
+}
+
+/** 围城：必须在该城有驻军（行军到了才算） */
 export function besiege(world, { attacker, cityName, troops }) {
   const f = factionOf(world, attacker);
   if (!f) return { ok: false, error: '没有这个势力' };
@@ -129,19 +215,17 @@ export function besiege(world, { attacker, cityName, troops }) {
   if (!ct) return { ok: false, error: '没有这座城' };
   if (String(ct.owner || 'court') === attacker) return { ok: false, error: '这是你自己的城' };
 
-  const send = Math.max(1, Math.min(Math.round(num(troops)), Math.round(num(f.troops))));
-  if (send < 1) return { ok: false, error: '你没有兵' };
+  const here = troopsAt(world, f, cityName);
+  if (here < 1) return { ok: false, error: `${cityName}没有你的兵，先派人过去` };
+  const send = Math.min(Math.round(num(troops)), here);
+  if (send < 1) return { ok: false, error: '兵力不足' };
 
-  const defenderId = String(ct.owner || 'court');
-  const defender = factionOf(world, defenderId);
   const defense = Math.round((num(ct.defense) || 10) + (num(ct.garrison) || 0) * 1.2);
-  const attackPower = Math.round(factionStrength(world, f) * (send / Math.max(1, num(f.troops))));
-  const roll = 0.8 + Math.random() * 0.5;          // 战场运气
+  const attackPower = Math.round(factionStrength(world, f) * (send / Math.max(1, totalTroops(world, f))));
+  const roll = 0.8 + Math.random() * 0.5;
   const win = attackPower * roll > defense;
 
-  f.troops = Math.max(0, round2(num(f.troops) - send));
-  // 兵死了就死了，不论胜负
-  f.troops = Math.max(0, Math.round(num(f.troops) + (win ? Math.round(send * 0.75) : 0)));
+  setStationed(world, f, cityName, here - send + (win ? Math.round(send * 0.75) : 0));
 
   if (win) {
     ct.owner = attacker;
@@ -150,24 +234,36 @@ export function besiege(world, { attacker, cityName, troops }) {
     f.morale = Math.min(100, Math.round(num(f.morale) + 5));
     f.cities = Array.isArray(f.cities) ? f.cities : [];
     if (!f.cities.includes(cityName)) f.cities.push(cityName);
-    if (defender) defender.cities = (defender.cities || []).filter((c) => c !== cityName);
-    if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-    return {
-      ok: true, win: true, attackPower, defense,
-      text: `${f.name}破${cityName}，城易主`,
-    };
+    fire(world, { action: 'city_taken', actor: f.leader, place: cityName, payload: { text: `${f.name}破${cityName}，城易主` } });
+    return { ok: true, win: true, attackPower, defense, text: `${f.name}破${cityName}，城易主` };
   }
 
   ct.defense = Math.min(80, Math.round(defense * 0.85));
   f.morale = Math.max(0, Math.round(num(f.morale) - 8));
-  if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-  return {
-    ok: true, win: false, attackPower, defense,
-    text: `${f.name}攻${cityName}不下，折兵而退`,
-  };
+  fire(world, { action: 'siege_failed', actor: f.leader, place: cityName, payload: { text: `${f.name}攻${cityName}不下，折兵而退` } });
+  return { ok: true, win: false, attackPower, defense, text: `${f.name}攻${cityName}不下，折兵而退` };
 }
 
-/** 守城：给自己名下的城建防（花银子） */
+/** 招降 / 修城 */
+export function bribeCity(world, fid, cityName, amount = 300) {
+  const f = factionOf(world, fid);
+  const ct = world.cities?.[cityName];
+  if (!f || !ct) return { ok: false, error: '没有这个势力或这座城' };
+  if (String(ct.owner || 'court') === fid) return { ok: false, error: '这是你自己的城' };
+  const cost = Math.round(num(amount));
+  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：疏通要 ${cost} 两` };
+  if (Math.random() < 0.45) {
+    ct.owner = fid;
+    ct.unrest = Math.min(100, (num(ct.unrest) || 0) + 4);
+    f.cities = Array.isArray(f.cities) ? f.cities : [];
+    if (!f.cities.includes(cityName)) f.cities.push(cityName);
+    fire(world, { action: 'city_taken', actor: f.leader, place: cityName, payload: { text: `${cityName}守将纳款开城，归${f.name}` } });
+    return { ok: true, win: true, text: `${cityName}守将纳款开城，归${f.name}` };
+  }
+  ct.defense = Math.min(90, Math.round((num(ct.defense) || 10) + 3));
+  return { ok: true, win: false, text: `${cityName}守将收了银子却不认账，城防更严` };
+}
+
 export function fortify(world, fid, cityName, amount = 200) {
   const f = factionOf(world, fid);
   const ct = world.cities?.[cityName];
@@ -179,22 +275,15 @@ export function fortify(world, fid, cityName, amount = 200) {
   return { ok: true, defense: ct.defense, cost };
 }
 
-/** 招降：城里有守军时，花钱买通守将（失败则守军更警觉） */
-export function bribeCity(world, fid, cityName, amount = 300) {
+/** 驻防：把兵从一个城调到另一个自己控制的城（同道即日到） */
+export function stationTroops(world, fid, fromCity, toCity, troops) {
   const f = factionOf(world, fid);
-  const ct = world.cities?.[cityName];
-  if (!f || !ct) return { ok: false, error: '没有这个势力或这座城' };
-  if (String(ct.owner || 'court') === fid) return { ok: false, error: '这是你自己的城' };
-  const cost = Math.round(num(amount));
-  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：疏通要 ${cost} 两` };
-  const success = Math.random() < 0.45;
-  if (success) {
-    ct.owner = fid;
-    ct.unrest = Math.min(100, (num(ct.unrest) || 0) + 4);
-    f.cities = Array.isArray(f.cities) ? f.cities : [];
-    if (!f.cities.includes(cityName)) f.cities.push(cityName);
-    return { ok: true, win: true, text: `${cityName}守将纳款开城，归${f.name}` };
-  }
-  ct.defense = Math.min(90, Math.round((num(ct.defense) || 10) + 3));
-  return { ok: true, win: false, text: `${cityName}守将收了银子却不认账，城防更严` };
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const have = troopsAt(world, f, fromCity);
+  const send = Math.min(Math.round(num(troops)), have);
+  if (send < 1) return { ok: false, error: `${fromCity}没有兵` };
+  if (String(world.cities?.[toCity]?.owner || 'court') !== fid) return { ok: false, error: `${toCity}不是你的城` };
+  setStationed(world, f, fromCity, have - send);
+  setStationed(world, f, toCity, troopsAt(world, f, toCity) + send);
+  return { ok: true, from: fromCity, to: toCity, troops: send };
 }

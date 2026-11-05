@@ -31,8 +31,8 @@ import { isPlaceName } from './world/naming.js';
 import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
 import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
-import { ensureFactions, factionOf, factionSilver, factionStrength } from './world/factions.js';
-import { recruit, buyGrain, besiege, bribeCity, fortify } from './world/warfare.js';
+import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
+import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
 import { AssistantService } from './assistant-service.js';
 import { UserRegistry } from './user-registry.js';
@@ -429,6 +429,63 @@ const STARTED_AT = Date.now();
     }
   }
 
+    // 0.045 外交与自立：结盟 / 断交 / 赠礼 / 称制
+    if (req.method === 'POST' && pathname === '/api/world/diplomacy') {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = loadState(DATA_DIR);
+        ensureFactions(world);
+        const me = factionOf(world, 'wangjia');
+        const other = factionOf(world, String(body.faction || ''));
+        if (!me) return sendJson(res, 404, { ok: false, error: '没有这个势力' });
+        if (!other && String(body.action || '') !== 'proclaim') {
+          return sendJson(res, 404, { ok: false, error: '没有这个势力' });
+        }
+
+        const act = String(body.action || '');
+        me.relations = me.relations || {};
+        let text = '';
+        if (act === 'ally') {
+          other.relations = other.relations || {};
+          me.relations[other.id] = 60;
+          other.relations[me.id] = Math.max(50, Number(other.relations[me.id]) || 0);
+          text = `${me.name}与${other.name}结为盟好`;
+        } else if (act === 'break') {
+          other.relations = other.relations || {};
+          me.relations[other.id] = -30;
+          other.relations[me.id] = -30;
+          text = `${me.name}与${other.name}断交`;
+        } else if (act === 'gift') {
+          const amount = Math.max(1, Number(body.amount) || 0);
+          if (!spendFactionSilver(world, me, amount)) return sendJson(res, 200, { ok: false, error: '银不够' });
+          other.relations = other.relations || {};
+          other.relations[me.id] = Math.min(100, (Number(other.relations[me.id]) || 0) + Math.round(amount / 10));
+          text = `${me.name}赠${other.name}${amount}两`;
+        } else if (act === 'proclaim') {
+          const cities = (me.cities || []).length;
+          if (cities < 3) return sendJson(res, 200, { ok: false, error: `至少要据三城才能称制（现有 ${cities} 城）` });
+          me.kind = 'warlord';
+          me.stance = 'expand';
+          me.stateName = String(body.name || '临江').slice(0, 6);
+          me.relations.court = -60;
+          if (world.factions.court) {
+            world.factions.court.relations = world.factions.court.relations || {};
+            world.factions.court.relations.wangjia = -60;
+          }
+          text = `${me.name}据${cities}城，称制建国，号「${me.stateName}」`;
+        } else {
+          return sendJson(res, 200, { ok: false, error: '未知动作' });
+        }
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, text });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+
     // 0.04 兵权：募兵 / 买粮 / 围城 / 招降 / 修城（玩家侧）
     if (req.method === 'POST' && pathname.startsWith('/api/world/military')) {
       try {
@@ -443,11 +500,15 @@ const STARTED_AT = Date.now();
 
         const act = String(body.action || '');
         let result = { ok: false, error: '未知动作' };
-        if (act === 'recruit') result = recruit(world, fid, Number(body.count) || 0);
-        else if (act === 'grain') result = buyGrain(world, fid, Number(body.shi) || 0);
+        if (act === 'recruit') result = recruit(world, fid, Number(body.count) || 0, String(body.city || ''));
+        else if (act === 'grain') result = buyGrain(world, fid, Number(body.shi) || 0, String(body.city || ''));
         else if (act === 'siege') result = besiege(world, { attacker: fid, cityName: String(body.city || ''), troops: Number(body.troops) || 0 });
         else if (act === 'bribe') result = bribeCity(world, fid, String(body.city || ''), Number(body.amount) || 0);
         else if (act === 'fortify') result = fortify(world, fid, String(body.city || ''), Number(body.amount) || 200);
+        else if (act === 'march') result = march(world, fid, String(body.from || ''), String(body.city || ''), Number(body.troops) || 0);
+        else if (act === 'station') result = stationTroops(world, fid, String(body.from || ''), String(body.city || ''), Number(body.troops) || 0);
+        else if (act === 'transfer') result = transferPropertyGrain(world, fid, String(body.prop || ''), String(body.city || ''), Number(body.shi) || 0);
+        else if (act === 'army') result = { ok: true, troops: totalTroops(world, factionOf(world, fid)), stationed: factionOf(world, fid)?.stationed || {} };
 
         if (result.ok) saveState(DATA_DIR, world);
         return sendJson(res, 200, result);
@@ -2935,6 +2996,7 @@ const STARTED_AT = Date.now();
           silver: Math.round(factionSilver(world, f) * 100) / 100,
           morale: Number(f.morale) || 0, ambition: Number(f.ambition) || 0,
           strength: factionStrength(world, f), cities: (f.cities || []).slice(0, 12),
+          stationed: f.stationed || {}, marches: (f.marches || []).map((m) => ({ to: m.to, troops: m.troops, arriveDay: m.arriveDay })),
         })),
           appointments: (world.appointments || [])
             .filter((a) => a && Number(a.day) > 0)
