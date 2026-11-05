@@ -8,7 +8,6 @@ import { ensureBonds } from './bonds.js';
 import { ensureFactions } from './factions.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { ensureClans } from './clans.js';
-import { seedUnmarriedPool } from './demography.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -965,26 +964,6 @@ export function migrateOwnership(world) {
       if (!a.gender || a.gender === 'unknown') {
         a.gender = inferGenderFromIdentity(a.name, a.role, 'male');
       }
-    }
-  } catch { /* 忽略 */ }
-
-  // 一次性：开局市井要有可遇见的未婚女子（之后由每月补人维持）
-  try {
-    world.flags = world.flags || {};
-    if (!world.flags.unmarriedSeeded) {
-      const added = seedUnmarriedPool(world, 12);
-      world.flags.unmarriedSeeded = { day: world.clock?.day || 1, added: added.length };
-      if (added.length) console.log(`[Demo] 开局补入未婚女子 ${added.length} 人：${added.join('、')}`);
-    }
-  } catch { /* 忽略 */ }
-
-  // 一次性补足：上次只播到 12，这次补到 14
-  try {
-    world.flags = world.flags || {};
-    if (!world.flags.unmarriedTopUpV2) {
-      const added = seedUnmarriedPool(world, 14);
-      world.flags.unmarriedTopUpV2 = { day: world.clock?.day || 1, added: added.length };
-      if (added.length) console.log(`[Demo] 补足未婚女子 ${added.length} 人`);
     }
   } catch { /* 忽略 */ }
 

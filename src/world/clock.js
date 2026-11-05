@@ -24,7 +24,7 @@ import { runMilitaryDay, setWarEventSink, runPayday } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
-import { runDemography } from './demography.js';
+import { runMigration } from './migration.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
@@ -1474,11 +1474,11 @@ function onNewDay(world, events) {
     }
   } catch { /* 忽略 */ }
 
-  // 每月：人口补充（年轻未婚的人太少，市井自然补进几个）
+  // 每月：人口流动（灾荒逃难、招工投奔、商旅往来、投亲嫁娶——由事出人，不按配额）
   try {
-    runDemography(world, nextEvent, events);
+    runMigration(world, nextEvent, events);
   } catch (err) {
-    console.warn('[Demo] 人口补充失败：', err.message);
+    console.warn('[Migrate] 人口流动失败：', err.message);
   }
 
   // 每月初一：中馈月例（公中拨银给主母操持内宅）
