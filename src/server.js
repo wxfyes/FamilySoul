@@ -1443,6 +1443,7 @@ const STARTED_AT = Date.now();
           monthlyPay: Math.round((Number(f.troops) || 0) * 1.0 * 100) / 100,
           monthlyGrain: Math.round((Number(f.troops) || 0) * 0.02 * 30 * 100) / 100,
           arrears: f.arrears || { months: 0, owed: 0 },
+          arrears: f.arrears || { months: 0, owed: 0 },
           fresh: Number(f.fresh) || 0,
           freshUntilDay: Number(f.freshUntilDay) || 0,
           stationed: f.stationed || {},

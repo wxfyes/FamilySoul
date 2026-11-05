@@ -708,13 +708,14 @@ function runAllowances(world, events) {
   if (day % 30 !== 0) return;
 
   // 名分 → 月例
+  // 月例按明制家用：长工一年 3~5 两，内眷月钱略高（1 两 ≈ 1.7 石米）
   const ALLOWANCE = [
-    { re: /正妻|大娘子/, amount: 5.0 },
-    { re: /如夫人|二房|侧室|妾/, amount: 3.0 },
-    { re: /通房|贴身丫鬟|丫鬟|丫头/, amount: 0.8 },
+    { re: /正妻|大娘子/, amount: 1.5 },
+    { re: /如夫人|二房|侧室|妾/, amount: 1.0 },
+    { re: /通房|贴身丫鬟|丫鬟|丫头/, amount: 0.3 },
   ];
-  const OUTSIDER = 2.0;   // 外室（不入府，暗中给）
-  const CHILD = 0.3;      // 每个孩子
+  const OUTSIDER = 0.5;   // 外室（不入府，暗中给）
+  const CHILD = 0.1;      // 每个孩子
 
   let total = 0;
   const lines = [];
@@ -1592,7 +1593,7 @@ function dailyIncomeOf(world, prop) {
     // 工钱：每人每日 0.12 两，从掌柜/东家账上扣；扣不出就有人辞工
     const staff = Number(p.staff) || 0;
     if (staff > 0) {
-      const wage = Math.round(staff * 0.12 * 100) / 100;
+      const wage = Math.round(staff * 0.015 * 100) / 100;  // 长工日钱：月钱约 0.45 两
       const payer = (p.keeper && p.keeper !== 'husband' && world.actors?.[p.keeper]) ? p.keeper : 'husband';
       const purse = payer === 'husband' ? (Number(world.assets.silver) || 0) : (Number(world.wallets?.[payer]) || 0);
       if (purse >= wage) {

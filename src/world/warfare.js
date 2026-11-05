@@ -13,6 +13,7 @@ import { factionOf, factionSilver, spendFactionSilver, factionStrength, syncWang
 import { canReach } from './geography.js';
 import { marchSpeedFactor, gearCostFactor } from './season.js';
 import { grainPrice } from './prices.js';
+import { priceOf } from './pricing.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -28,7 +29,7 @@ export const GRAIN_PER_DAY = 0.03;   // 月粮约一石
 export const GRAIN_PRICE = 0.6;
 
 /** 军械作价（两） */
-export const GEAR_PRICES = { weapon: 0.6, armor: 1.8, horse: 9, siege: 40 };
+export const GEAR_PRICES = { weapon: priceOf('weapon'), armor: priceOf('armor'), horse: priceOf('horse'), siege: priceOf('siege') };
 export const GEAR_NAMES = { weapon: '兵器', armor: '铠甲', horse: '战马', siege: '攻城器械' };
 /** 新兵成军天数 */
 export const TRAIN_DAYS = 7;

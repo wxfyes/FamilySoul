@@ -1,6 +1,7 @@
 ﻿import { resolveVoiceCasting } from './world/voice-casting.js';
 import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
+import { sanePrice, priceHint } from './world/pricing.js';
 import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } from './world/naming.js';
 import { moveActor } from './world/position.js';
 import { hireStaff } from './world/employment.js';
@@ -947,6 +948,23 @@ export class PetService {
           })
           .filter(Boolean);
         if (opts2.length > 0) {
+          // 报价夹回人间：房钱、饭钱这类，天道随口报多大都要收回来
+          const clampKey = (label) => {
+            const s2 = String(label || '');
+            if (/房|宿|住/.test(s2)) return 'inn_room';
+            if (/饭|菜|食/.test(s2)) return 'meal';
+            if (/酒/.test(s2)) return 'wine';
+            if (/马/.test(s2)) return 'horse';
+            if (/刀|箭|兵器/.test(s2)) return 'weapon';
+            if (/甲/.test(s2)) return 'armor';
+            if (/宅|院/.test(s2)) return 'mansion';
+            if (/铺|店|楼/.test(s2)) return 'shop';
+            return null;
+          };
+          for (const o of opts2) {
+            const k = clampKey(`${o.label} ${title2}`);
+            if (k) o.price = sanePrice(k, o.price);
+          }
           const wPay = loadState(dataDir);
           const mePay = this._viewerActorId ? wPay.actors?.[this._viewerActorId] : wPay.actors?.husband;
           wPay.pendingAction = {
@@ -1045,6 +1063,7 @@ export class PetService {
     try {
       contextHintEarly += '（【用人规矩】要开张、要添人手时，你替产业点人：[[staff:产业名|人名|身份]]，例如 [[staff:运河码头三层大酒楼|周有福|掌柜]]。没有这个人就现起一个名字，世上就真有这个人了。）\n';
       contextHintEarly += '（【习性规矩】长期相处真的改了某个人的性子（更顺从、更敢顶嘴、开始怕你…），你可以在回复末尾附 [[trait:谁|哪一样|+5]]，一次最多动 5~10，别乱给。这东西会跟着她一辈子。）\n';
+      contextHintEarly += `（【物价参考】${priceHint()}。报钱一律照这个来，不许编出"一晚房钱三两"这种价。）\n`;
       contextHintEarly += '（【兵事规矩】相公若要募兵、买军械，你不要自己报数，只写 [[recruit:人数]] 或 [[gear:兵器|数量]]（兵器/铠甲/战马/攻城器械）；引擎会算钱粮并让他在界面上确认，确认后才真的成军。）\n';
       contextHintEarly += '（【打探规矩】相公若差人去打听一个人的底细，或某处生意的实情，你把这桩事记成差事；等有了结果，用 [[clue:一句话底细|谁打探的]] 落进世界。打探可能只得到传言、也可能打草惊蛇，别一次给全。）\n';
       contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
