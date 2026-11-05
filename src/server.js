@@ -3956,7 +3956,13 @@ const STARTED_AT = Date.now();
           const wK = loadState(DATA_DIR);
           const meK = wK.actors?.[String(currentMember.actor || 'husband')] || wK.actors?.husband;
           const hereK = wK.places?.[meK?.location];
-          const atGate = /大门|门房|门厅|仪门|轿厅/.test(String(hereK?.name || '')) || hereK?.use === 'gate';
+          // 是不是站在大门：看结构（门房那一间 / 外院层级），不靠名字里有没有"大门"两个字
+          const parentK = hereK?.parent ? wK.places?.[hereK.parent] : null;
+          const atGate = Boolean(hereK) && (
+            hereK.use === 'gate'
+            || parentK?.rooms?.gate?.id === hereK.id
+            || hereK.access === 'public_outer'
+          );
           if (atGate) {
             const homeK = residenceOf(wK, hereK.id) || wK.places?.[hereK.parent];
             if (homeK?.residence && String(homeK.owner || '') !== String(meK?.id || '')) {

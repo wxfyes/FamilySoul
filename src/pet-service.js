@@ -3373,7 +3373,12 @@ export class PetService {
         const wV = loadState(this.dataDir);
         const meV = wV.actors?.[selfId] || (this._viewerActorId ? wV.actors?.[this._viewerActorId] : wV.actors?.husband);
         const hereV = wV.places?.[meV?.location];
-        const isGate = /大门|门房|门厅|仪门|轿厅/.test(String(hereV?.name || '')) || hereV?.use === 'gate';
+        const parentV = hereV?.parent ? wV.places?.[hereV.parent] : null;
+        const isGate = Boolean(hereV) && (
+          hereV.use === 'gate'
+          || parentV?.rooms?.gate?.id === hereV.id
+          || hereV.access === 'public_outer'
+        );
         if (isGate && hereV?.parent) {
           const home = residenceOf(wV, hereV.id) || wV.places?.[hereV.parent];
           if (home && String(home.owner || '') !== String(meV?.id || '')) {
