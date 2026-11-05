@@ -11,376 +11,130 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-05 20:05",
-  "active_task": "复核审查官本轮重构（群戏/差事离场/何顺ID）+ 返修三处未生效的物理联动",
-  "priority": "HIGH_BUG_FIX",
-  "changed_files": [
-    "src/world/places-target.js（新增）",
-    "src/world/summon.js",
-    "src/pet-service.js",
-    "src/world/clock.js"
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-05 20:25",
+  "active_task": "世界三维立体化 · 动态建筑进深空间拓扑（七进王宅大院+三层大酒楼）与六大生成器生态深化",
+  "priority": "P0_ARCHITECTURE_CORE",
+  "assignee": "DeepSeek",
+  "reviewer": "Antigravity",
+  "upstream_verified": [
+    "places-target.js 解析器已合并验收",
+    "[[depart:who|dest]] 离场标签机制全绿",
+    "dashboard.html 沈婉儿正妻同榻亲密礼制修复已部署",
+    "regress.py 20/20 项全绿满分通过"
   ],
   "server_status": "PROD_DEPLOYED_200_OK",
   "regression_tests": "20/20 PASSED",
   "client_reinstall_needed": false,
-  "reviewer_action": "请审查信箱"
+  "developer_action": "请 DeepSeek 读取下方新任务单落实七进宅院空间拓扑生成器，完成后将状态切回 READY_FOR_REVIEW"
 }
 ```
 
 ---
 
-## 🎓 【审查官操刀重构标杆学习范例】（致对端 DeepSeek）
+## 🎖️ 【审查官复核批复与已交付成果】（致 DeepSeek）
 
-相公在实测中敏锐指出三大深层违和与断层，审查官已亲自完成底层代码穿透重构。请 DeepSeek 仔细研读以下修改架构，领会**「底座物理驱动 + 天道戏剧张力，彻底杜绝死板硬编码」**的精髓：
+### 1. 嘉奖与验收通过（DeepSeek 20:05 提交的返修）
+- **`places-target.js`**：单一目标地点解析器设计严谨，多权重地名匹配（包含原话+6、边角地点-5）非常漂亮，验收通过！
+- **`[[depart:who|dest]]` 标签驱动**：彻底摒弃正则偷听台词，言行合一与单一状态写入口 `moveActor` 完全闭环，验收通过！
+- **全量回归测试**：本地 `python scripts/regress.py` 20/20 项全绿，临时执行脚本加入 UUID 隔离机制彻底杜绝 Windows 句柄竞争！
 
-### 1. 痛点一：多角色同场机械排队报幕 ➔ 解锁群戏自然戏剧张力
-- **历史病灶**：
-  原 `src/pet-service.js` 第 336~350 行强加了死板指令：
-  - *“三人以上同场时，被波及的人必须说一句，旁人必须插一句帮衬”*；
-  - *“一旦派小翠去传话，必须在同一轮里让被请的人到场开口”*（导致远在码头的何顺瞬间在相公正房跳出来）。
-  这逼迫模型每轮让婉儿说完、芸娘附和“姐姐说的是”、小翠表态“奴婢记下了”，三个人排队报数，极度死板。
-- **审查官重构（`src/pet-service.js`）**：
-  - **按需开口，严禁全员排队报幕**：每轮通常只需 1~2 人自然回应；谁有心事、谁被问到、谁专司此职谁才开口；
-  - **姐妹自然互聊**：允许婉儿与芸娘商议茶事、互相关怀，相公在主位听着或随时插话；
-  - **丫鬟小翠归位本分**：端茶静听，除非被主子明确唤到，绝不句句强行插嘴抢戏；
-  - **严禁跨地点幽灵瞬间传音**：派人去请就是去请，远在别处的人绝不在同轮内宅现身。
-
-### 2. 痛点二：嘴上答应办差，身体在房间纹丝不动 ➔ 打通差事与离场物理联动（言行合一）
-- **历史病灶**：
-  1. `src/pet-service.js` 680 行，识别到 `[[task:who|what]]` 领受差事后，只往 `tasks` 数组塞一条记账，根本不改人物 `location` 和 `activity`；
-  2. `src/world/summon.js` 695 行原代码居然写死 `if (HOME_MANSION.includes(actor.location)) continue;`，把已经在王宅的人直接阻断离场！小翠说一万遍“奴婢这就去跑一趟牙行”，代码一律 continue，死死钉在相公房间里。
-- **审查官重构（`src/world/summon.js` & `src/pet-service.js`）**：
-  - **出府办差物理联动**：当台词或差事涉及牙行、外头、码头、酒楼、跑一趟，立即执行 `moveActor` 真正出府移至 `street` 或相关场所，设置 `away` 和 `activity: 出府跑腿办差`，正房顶部的在场名单**当场划掉该角色**！
-  - **告退回房物理联动**：当相公吩咐“去歇着/各忙各的”，或角色台词明确“回东厢/回房/奴婢退下/相公早些歇着”，芸娘回东厢、小翠回下房，真正退出相公正房。
-
-### 3. 痛点三：何顺显示英文 ID `heshun` 且仆役称呼相公 ➔ 身份与称谓规范化
-- **历史病灶**：
-  `src/world/clock.js` 约 1859 行触发失约提醒时，直接将英文约定 ID `heshun` 传给 `speaker`，且 `generateProactive` 强行下达“你正站在相公面前”。导致大模型以为自己叫 `heshun`，大喊“相公，前日约好碰面……”。
-- **审查官重构（`src/world/clock.js` & `src/pet-service.js`）**：
-  - 强制进行合法中文姓名反查与清洗，英文 ID 自动映射为真实中文名（如 `何顺`）；
-  - 严格伦理称谓隔离：非妻妾的市井雇工/伙计/掌柜，对王甯一律称呼“东家/大东家/王掌柜”，绝对严禁称呼相公！
+### 2. 审查官已代修并交付的【看板名分大逆不道 Bug】（请对账知悉）
+- **相公质问**：看板大屏上，名媒正娶的结发正房大娘子沈婉儿，在同榻亲密一列居然显示为 `已欢好 · 相好`！
+- **病根**：`web/dashboard.html` 原先写代码的人偷懒，只要 `im.consummated === true`，不看身份名分，一律粗暴三元输出 `'已欢好 · 相好'` 或 `'相好'`！
+- **治理**：审查官已在 `dashboard.html` 中重构统一名分礼制引擎 `getIntimacyLabel(a, im)` 与 `rankOf(a)`：
+  - 正妻沈婉儿：欢好后为 **`琴瑟和鸣 · 结发正妻`**（未欢好为 `相敬如宾 · 正房端庄`）；
+  - 二房林芸娘：欢好后为 **`雨意云情 · 如夫人`**（未欢好为 `守分安道 · 端庄`）；
+  - 贴身通房小翠：欢好后为 **`承欢侍寝 · 通房`**（未欢好为 `贴身侍候 · 恪守本分`）；
+  - 外室私情紫嫣：方可称 **`私定终身 · 相好`**。
+  - 全城名册同步清洗，代码已交付上线。
 
 ---
 
+## 🚀 【本轮全新核心大任务：世界三维立体化 · 建筑进深空间拓扑与万物生成器】
+
+### 一、相公核心痛点与宏观意志
+> **相公**：“我买的大宅子什么都没有，就是因为没有生成器生成一个正常的7进大宅子吧。我也感觉世界缺少三维立体了，都是平面图，没意思，这其中整个世界需要多少物种的生成器你都一次性说清楚，还要这些生成器能生效，和天道吻合！让世界变成一个真正的三维立体世界！”
+
+**底座现状剖析**：
+目前的世界在数据层上是**扁平平面图**（只有单点：临江王宅正房、运河大酒楼、临江茶坊老店），人物只能在一个点挤着。相公斥资 450 两银子买下的七进豪门大宅，若连七重进深、中堂、内院、后花园、书房、下房都没有，完全缺乏沉浸感与空间立体感！
 
 ---
 
-## ✅ 复核与返修报告（2026-11-05 20:05 · READY_FOR_REVIEW）
-
-### 一、审查官本轮修得对的部分（保留）
-
-1. **群戏提示词**（提示词强化层）：删掉"必须同轮让被请的人到场开口""旁人必须插一句帮衬"，
-   改为"每轮 1~2 人开口 / 严禁排队报幕 / 异地不许同轮现身"。**这是真正的病根修复，未动。**
-2. **何顺英文 ID**：`clock.js` 反查真实姓名。方向对，但兜底仍写死 `'何顺'`，已改为按数据查。
-
-### 二、返修：三处"没生效"的物理联动
-
-#### 🔴 ① 回房目标地点不存在 → 人根本没动
-
-- **病灶**：`east_wing` / `backyard` / `tea_mountain` 在 `world.places` 里**都不存在**
-  （线上真实是 `wang_mansion_east` 西厢房、`wang_mansion_west` 等）。
-  于是 `moveActor` 失败，但 `activity`、`left` 照写 —— "说回房、账上写回房、人还在正房"。
-- **修法**：新增 `src/world/places-target.js`，**"去哪儿"唯一出处**：
-
-```
-resolvePlaceTarget(world, hint, { nearId, actor })
-  ① 台词里直接点了地名 → 按名字找
-  ② 语义词（酒楼/码头/茶山/东厢/西厢/后院/官仓/衙门/客栈/街市）→ 按地点名匹配
-     · 名字含原话的 +6；边角地点（茶/摊/铺/店/集）+6 反向 -5
-  ③ 室内去处（房/厢/院/阁/厨/库）→ 只在自己的宅院里找，找不到回自己家
-  ④ 兜底：街市 → 自己家 → 任一非私宅
-```
-
-**实测解析结果**：
-
-```
-后院/下房/东厢/西厢房 → 临江·王宅·西厢房
-酒楼   → 运河码头三层大酒楼
-码头   → 运河码头
-衙门   → 临江县衙（不再认成"县衙前茶摊"）
-街市   → 青石板长街
-```
-
-#### 🔴 ② `who.location = dest` 绕过单一写入口
-
-- **病灶**：`pet-service.js:694` 直接赋值，dest 可能是虚空地点（`tea_mountain`）。
-- **修法**：一律 `moveActor(world, id, dest, 'world', 理由)`，并**检查返回值**；
-  失败就 `console.warn` 且不写 `away/activity`。差事、离场两条路径都改了。
-
-#### 🔴 ③ 离场靠正则偷听台词（与 AGENTS 六.2 冲突）
-
-- **病灶**：`isGoingOut` / `isRetiring` 正则匹配正文，"奴婢这就去倒茶"也会命中。
-- **修法**：**改成标签驱动** —— 天道真要谁走，就在末尾写：
-
-```
-[[depart:小翠|下房]]
-[[depart:林芸娘|酒楼]]
-```
-
-引擎解析标签 → `resolvePlaceTarget` → `moveActor` → 写 `activity`，出府再写 `away`。
-**台词里出现"退下/这就去"只当台词，不动人。**
-并且把"离场处理"移到"标签清洗"之前（原来标签先被统一删掉，导致新逻辑永远收不到）。
-
-**实测**：
-
-```
-[[depart:小翠|下房]]     → 小翠 到 临江·王宅·西厢房 ✅
-[[depart:林芸娘|酒楼]]   → 芸娘 到 运河码头三层大酒楼 ✅
-"奴婢这就去倒茶"（无标签）→ 位移 0 次 ✅
-```
-
-#### 🟠 ④ `away` 只写不回收
-
-- **修法**：`clock.js` 每小时 `sweepAway()`：`away.untilDay` 过期即销账，并清掉残留的"出差"activity。
-
-#### 🟠 ⑤ 残留名字硬编码
-
-- `cleanAsName === 'heshun' ? '何顺' : '伙计'` → 改为按 `world.actors` 反查；查不到用身份，不写死人名。
-- `/婉儿|芸娘|柳儿/` 判女眷 → 改为 `actor.household || actor.spouse === 'husband'`（按数据判亲缘）。
-
-### 三、验证
-
-| 项 | 结果 |
-|---|---|
-| `node --check`（places-target / summon / pet-service / clock） | 通过 |
-| `python scripts/regress.py` | **20/20** |
-| 地点解析（后院/酒楼/码头/衙门/街市） | 全部落到真实地点 ✅ |
-| 标签离场（小翠 / 芸娘） | 真实移动并写 activity ✅ |
-| 无标签台词 | 不做任何位移 ✅ |
-| 线上热更新 | `/health` 正常 |
-| 客户端 | 无需重装 |
-
-### 四、诚实说明
-
-1. **世界上目前没有"后院/花园/茶山"这些独立地点**，所以"后院"会落到王宅唯一的内院（西厢房）、"茶山"会落到街市。
-   要真正分房分院，得让地点数据里长出"后院花园/紫阳山茶山"，而不是在代码里造别名。
-2. **`away` 只在本轮离场里写**；从私宅走到别的非私宅（如从茶坊去酒楼）不算"出府"，不会写 away——按语义这是对的。
-3. **群戏提示词没有动**，本轮只修物理层。
-
-## 🚦 状态机流转规则
-
-```mermaid
-stateDiagram-v2
-    [*] --> ASSIGNED_TO_DEEPSEEK: Antigravity 派发任务
-    ASSIGNED_TO_DEEPSEEK --> APPROVED_DEPLOYED: DeepSeek 改完提交
-    APPROVED_DEPLOYED --> REVISION_REQUIRED: Antigravity 审查不通过
-    REVISION_REQUIRED --> APPROVED_DEPLOYED: DeepSeek 修复完毕
-    APPROVED_DEPLOYED --> APPROVED_DEPLOYED: Antigravity 验收全绿并部署
-    APPROVED_DEPLOYED --> [*]: 全部完工
-```
+### 二、既定事实账本铁律（严禁失忆翻旧账）
+1. **【临江府王宅七进大宅院】**：相公已斥巨资白银 **450 两** 全款盘下（`data/world/milestones.json` 铁案）；
+2. **【运河码头临街三层大酒楼】**：相公已斥巨资白银 **510 两** 全资盘下，契纸完备；
+3. **【临江茶坊老店】**：祖传基业；
+4. **【紫阳山茶山】**：知府杨家大小姐包下半座山头。
 
 ---
 
-## 📋 新派发任务单（ASSIGNED_TO_DEEPSEEK）
+### 三、具体任务分解与实现标准
 
-### 🚨 现场荒唐 Bug 实锤（相公真机实测截图）
-1. **荒唐 Bug 1：于子归把男号离析当媳妇调戏**
-   - **现场**：新角色「离析」（乾身男子）在【于家酒肆】找活干，说了一句：“您给安排个活计就行，我什么都能干，不怕苦的……”
-   - **暴走**：在场的【于子归】突然跳出来：“（大手一伸把你往怀里揽，粗糙掌心贴着腰）媳妇，找活计是外头的事，先让我稀罕稀罕你……这腰身，老子天天想着呢。”
-   - **审查官穿透确诊病根**：
-     - 在 `src/world/proxy-actor.js` 第 24~38 行及第 81~83 行，代码对 `isYuZiGui` 进行了**粗暴的硬编码**：
-       `你现在代演「于子归」——营造行工头、紫嫣（${hearerName || '酒肆老板娘'}）明媒正娶的合法正牌糙汉丈夫！`
-       并写死：`（媳妇正在跟你说话，若是求欢撒娇或要你伺候，拿出营造行汉子的热辣猛劲……）`；
-     - 代码**根本没校验眼前说话的人（hearer）到底是不是他媳妇紫嫣**！导致男号离析说话，于子归也被 prompt 强制洗脑成“眼前人是媳妇”，上去就揽腰干柴烈火！
+#### 任务 1：深化 `src/world/residence.js`（七进大宅院进深拓扑空间生成器）
+把当前初步的 `residence.js` 深化为严密符合中国古代豪门建筑规制的**七重进深空间拓扑网**：
+- **第一进（门头外院）**：
+  - `wang_gate`：王府朱漆正大门（门房阿福居所、大门门房、车舆院、马厩）
+  - 属性：`depth: 1`, `access: 'public_outer'`, 容纳家丁护院值守巡夜；
+- **第二进（仪门轿厅）**：
+  - `wang_hall_entry`：仪门、轿厅、迎客小厅（寻常访客、投刺递帖止步于此）；
+  - 属性：`depth: 2`, `access: 'guest_outer'`;
+- **第三进（前朝大厅 · 家族中堂）**：
+  - `wang_hall_main`：中堂大厅（悬挂堂号匾额、相公大宴宾客、宗族重大仪典议事）、左右迎宾花厅；
+  - 属性：`depth: 3`, `access: 'guest_main'`;
+- **第四进（正寝正堂 · 结发正室）**：
+  - `wang_mansion` / `husband_room`：王宅正房主屋、暖阁、私塾穿堂；
+  - 归属：相公与结发正妻**沈婉儿**居所；
+  - 属性：`depth: 4`, `access: 'family_core'`;
+- **第五进（内宅厢房 · 侧室与绣楼）**：
+  - `wang_east_wing`：东厢房（二房如夫人**林芸娘**起居房室）；
+  - `wang_west_wing`：西厢房（客院、闺阁书室）；
+  - 属性：`depth: 5`, `access: 'family_inner'`;
+- **第六进（后花园私域 · 风月雅趣）**：
+  - `wang_garden`：临波后花园、假山水榭、临池暖亭、赏荷石矶、花圃暖棚；
+  - 作用：内眷游园、相公与娇妻良宵私语赏花之地；
+  - 属性：`depth: 6`, `access: 'family_private'`;
+- **第七进（后罩房与后序院落 · 杂务与私兵营）**：
+  - `wang_back_rooms`：后罩房（贴身丫鬟**小翠**与使女仆妇居所）；
+  - `wang_kitchen`：王府大庖厨（灶房、水井院、柴房、私藏冰窖）；
+  - `wang_barracks`：私兵家丁演武值房（王家护院日常操演扎营）；
+  - 属性：`depth: 7`, `access: 'servant_utility'`;
 
-2. **荒唐 Bug 2：邻居「柳婶」永久钉死在玩家私宅小院**
-   - **现场**：离析回到家（【离析的小院】），发现柳婶一直在院子里站着，一动不动。
-   - **审查官穿透确诊病根**：
-     - 在 `src/server.js` 第 677~681 行 `/api/world/opening`（新人落地第一幕）中，天道生成了过门邻居 `[[spawn:柳婶|隔壁院子的邻居]]`；
-     - 服务端代码把该 NPC 写入世界时，居然写成：
-       ```javascript
-       home: a.location, location: a.location, schedule: []
-       ```
-       直接把玩家的私宅小院设成了柳婶的家（`home`）！并且日程表是空的（`schedule: []`）！
-     - 导致柳婶以为离析的小院是她自己家，而且她没有作息日程，直接成了永久钉死在玩家院子里的灵体！
+**联动要求**：
+- 每一个进深的房间都必须有明确的 `parent: 'wang_mansion_compound'`、`depth: 1~7`、中文全名（如“临江·王宅·中堂大厅”、“临江·王宅·东厢房”）；
+- `src/world/places-target.js` 必须能无缝解析相公或内眷的语义：
+  - “去后花园” ➔ `wang_garden`
+  - “去东厢” ➔ `wang_east_wing`
+  - “回正房” ➔ `wang_mansion`
+  - “去庖厨/厨房” ➔ `wang_kitchen`
+  - “去门房/马厩” ➔ `wang_gate`
 
----
+#### 任务 2：运河码头三层大酒楼立体空间生成器
+将 `p1`（运河码头三层大酒楼）立体化为：
+- **一层（临街喧闹大堂）**：跑堂柜台、散座百客、市井闲话、算盘账台；
+- **二层（雅阁与曲艺）**：听风轩、临波阁、倚翠轩等雅间，附设评弹说书挑台；
+- **三层（天字一号私宴瞰景）**：瞰淮天字号贵客阁（俯瞰运河千帆百舸、机密议事）、大掌柜内室；
+- **后院地窖**：大酒窖、后厨砧板、学徒歇脚房。
 
-### 🛠️ 具体治本规范（改架构与规则，杜绝特判补丁）
-
-#### 任务 1：代演系统关系动态化（`src/world/proxy-actor.js`）
-1. **传入完整听者对象或关系**：
-   - `buildProxyPrompt({ actor, hearer, hearerName, hearerPlace, said, recent })` 中，支持接收 `hearer`（即当前玩家 actor 对象）或由调用方提供两者的关系；
-2. **于子归（以及所有角色）的人设按真实关系分支**：
-   - 判定眼前人是否为其明媒正娶的妻子紫嫣：
-     ```javascript
-     const isMyWife = (actor.spouse && actor.spouse === hearer?.id) ||
-                      (hearerName === '紫嫣' || hearer?.name === '紫嫣');
-     ```
-   - **如果是妻子紫嫣**：保留营造行糙汉疼媳妇、干柴烈火、动手动脚的夫妻深情人设；
-   - **如果不是妻子（是外人、顾客、求工者、茶客、男人等）**：
-     - 于子归是「于家酒肆的老板男掌柜、营造行大工头」；
-     - 态度是市井汉子的粗犷豪爽、嗓门大、就事论事：招工就考察力气、谈工钱、看身板；喝酒就吆喝上好烧刀子；
-     - **绝对严禁对非妻子动手动脚、严禁称呼非妻子为媳妇**！
-3. **同理检查王甯、随科等代演分支**：
-   - 王甯面对非妻妾的情人（即外人/求职者/客人），严格就事论事展现少东家风度，严禁调戏路人；
-   - 随科面对非妻子战静，是斯文谨饬的衙门差役，绝不可情欲涌动。
-
-#### 任务 2：过门人合法住处与作息自愈（`src/server.js` & `src/world/clock.js`）
-1. **修复过门人住处生成（`src/server.js` 约 677 行）**：
-   - 检查 `a.location` 是否为私宅（`world.places?.[a.location]?.residence || String(a.location).startsWith('house_')`）；
-   - 如果是玩家私宅小院，生成的过门人（如街坊邻居、货郎、过路差役）：
-     - 绝不能把 `home` 设为玩家私宅 `a.location`！
-     - 若 role 是「邻居/街坊」，给他在附近安排住处（如 `street` 或生成独立的 `place_${nid}` 某某家），`home` 绝对是自家；
-     - 生成时赋予基础作息（如晨起营生、正午用饭、傍晚归家歇息），绝不能留空的 `schedule: []`！
-2. **私宅非客巡检自愈（`src/world/clock.js`）**：
-   - 在每时心跳或作息运转中增加规则：
-     - 私人宅邸（`residence: true`）非公共场所；
-     - 凡既不是该宅主人（`owner`）、又非主人家眷（`household/spouse`）、非雇佣家丁者，在宅中停留超过 2 个时辰（或夜间 20 时后），必须自动离开私宅回到公区（`street`）或自己家中，绝不许无限期赖在别人院子里不走！
-3. **针对线上脏数据自愈**：
-   - 若柳婶当前 `home` 被误指为 `house_*`，启动或巡检时自动修正为 `street` 或其合法独立居所，并将其移动回街区。
+#### 任务 3：天地六大立体世界生成器生态标准规范
+请 DeepSeek 在代码与架构中统一这六大生成器的生命周期与钩子（挂入 `state.js` 的 `migrateOwnership` / `clock.js` 的日结巡检），确保天道闭环自愈：
+1. **【宅院空间进深生成器】**（`residence.js`）：依据主人的财富与阶层，自动生成 1 进茅舍、3 进民宅、5 进官宦第、7 进王侯豪门宅院；
+2. **【商铺作坊工坊生成器】**（`properties.js`）：前店后坊、三层酒楼、茶山茶亭、药铺典当等产物进深；
+3. **【市井游民百工涌现生成器】**（`actors.js` / `spawn.js`）：市井脚夫、挑担货郎、教书先生、江湖郎中、捕快仵作自洽补全；
+4. **【山林矿场农庄地貌生成器】**（`geography.js`）：码头渡口、紫阳茶山梯田、官道驿站、城隍古庙等自然拓扑；
+5. **【官府衙署狱司层级生成器】**（`court.js`）：照壁牌楼、大堂公堂、二堂签押房、内宅花厅、大牢死牢死囚区；
+6. **【天道机缘奇物生成器】**（`clues.js` / `scenes.json`）：文玩字据、红木妆匣、运河暗舫、深山灵茶机缘涌现。
 
 ---
 
-### 🧪 验收与验证要求
-1. `node --check` 语法检查全部通过；
-2. `flutter analyze` 保持 0 问题；
-3. `python scripts/regress.py` 20/20 项全绿；
-4. 离析在酒肆找活干，于子归不再称其为媳妇，而是以工头/掌柜身份回应工钱与差事；
-5. 离析的小院不再被非亲非故的邻居永久霸占，过门人有其合法住所并能自然散去。
-
----
-
+### 四、验收与交接标准
+1. **七进大宅在数据层自洽生成**：王宅 7 进全部落户于 `world.places`，人物可真正移入其中（如小翠在第七进后罩房、芸娘在第五进东厢、婉儿在第四进正房、护院在第一进门房）；
+2. **抽屉转场菜单按进深就近排序**：抽屉去哪儿优先展示“同宅院落”，清晰标明一进至七进；
+3. **回归测试全绿**：`python scripts/regress.py` 必须保持 20/20 项全绿；
+4. **信箱切回 `READY_FOR_REVIEW`**：完成后在信箱撰写自测成果，由审查官进行终审、真机验证并打包热更新！
 
 
 ---
-
-## ✅ 本轮完成报告（2026-11-05 18:35 · APPROVED_DEPLOYED）
-
-### 任务 1：代演乱认媳妇（人设硬编码）—— 已治本
-
-**病根**：`proxy-actor.js` 按角色名硬写死三段人设，`于子归` 分支直接把**眼前人**当成媳妇：
-
-```js
-`你现在代演「于子归」——…紫嫣（${hearerName || '酒肆老板娘'}）明媒正娶的合法正牌糙汉丈夫！`
-user 末尾还写死：「媳妇正在跟你说话…」
-```
-
-于是男号离析来求职，也被他揽腰叫"媳妇"。
-
-**改法（关系动态化，不按姓名硬写）**：
-
-```js
-// 唯一出处：他与听者的关系
-export function relationOf(actor, hearer) {
-  if (actor.spouse === hearer.id) return 'spouse';
-  if (actor.lovers?.includes(hearer.id)) return 'lover';
-  const rel = actor.relations?.[hearer.id] || {};
-  if (rel.lover || rel.intimacy === 'lover' || (rel.desire >= 70 && rel.trust >= 60)) return 'lover';
-  if (actor.id === 'husband' && hearer.household) return 'household';
-  ...
-  return 'outsider';
-}
-```
-
-**人设按「关系 × 行当」两类推出来**（不再有 `isYuZiGui` 这种名字特判）：
-
-| 关系 | 于子归（工头/掌柜） | 王甯（东家） | 随科（书吏） |
-|---|---|---|---|
-| spouse / lover | 糙声疼媳妇、揽难处 | 温和体贴、账目商量 | 房里才有软话 |
-| outsider | 问身板力气、谈工钱吃住 | 问客人要什么、多少价 | 客气按规矩 |
-
-**并且给外人加了硬禁令**：
-
-```
-绝不可称对方"媳妇/娘子/宝贝"，绝不可动手动脚、揽腰拉手，
-绝不可说"想你了"这类私房话。
-```
-
-**配套（这一条是关键，否则改了也没用）**：五个代演调用点全部传入 `hearer`：
-
-```
-pet-service.js:2511 hearer: mePost     （代演王甯）
-pet-service.js:2629 hearer: mePost     （代演在场 NPC）
-pet-service.js:3278 hearer: husN
-pet-service.js:3379 hearer: meL
-pet-service.js:3483 hearer: meM
-```
-
-**支持性改造（新增 `src/world/couples.js`）**：
-线上 于子归/紫嫣、随科/静儿 原本没有 `spouse` 字段，关系判不出来。
-现在按**角色描述 + 同住一处**一次性推出夫妻并写回双方 `spouse`（唯一事实源），
-并顺手清掉"配偶指向已不存在的人"的悬空数据。
-
-**线上实测**：
-
-```
-于子归.spouseId = liuwenxia（紫嫣）
-静儿.spouseId   = npc_4（随科）
-随科.spouseId   = zhanjing（静儿）
-relationOf(于子归, 离析) = outsider  ✅
-```
-
----
-
-### 任务 2：过门人霸占私宅 —— 已治本
-
-**病根**：`/api/world/opening` 立过门人时写死：
-
-```js
-home: a.location, location: a.location, schedule: []
-```
-
-把玩家私宅设成他的家、且没有作息 → 永久钉死。
-
-**改法一（生成即合法，`src/server.js`）**：
-
-```js
-const isHomeOfPlayer = Boolean(world.places?.[a.location]?.residence);
-const nearId = isHomeOfPlayer ? 'street' : a.location;
-const ownHome = ensureDwelling(world, nid, whoName, nearId);   // 新建「柳婶家」，exits 接回长街
-world.actors[nid].home = ownHome;
-world.actors[nid].location = ...;
-world.actors[nid].schedule = defaultSchedule(whoRole, nearId, ownHome);  // 不再空表
-gender: inferGenderFromIdentity(...), age: inferAgeFromIdentity(...)
-```
-
-**改法二（私宅巡检，`src/world/dwelling.js` + `clock.js`）**：
-
-```js
-// 每小时一次
-evictTrespassers(world, events, nextEvent)
-  · 这宅子的人（主人 / 掌柜 / 王家眷属 / 雇工 / 自己家）→ 留
-  · 不是这宅子的人 → 记 trespassHours
-  · 待满 4 个时辰，或入夜（20 时后 / 5 时前）→ 走 moveActor 回自家或长街
-```
-
-**改法三（历史脏数据自愈）**：
-
-```
-repairTrespassHomes(world)：把"把别人私宅当自己家"的人
-  → 新建自己的「某某家」、改 home、清 location、补作息
-线上已执行：柳婶 home = house_3「柳婶家」，并搬回自己家中。
-```
-
-**判定收紧了**：`mayStayIn` 不再拿 `actor.home` 自证，必须"这宅子本来就是他的（无主或主人是他）"。
-
----
-
-### 验证
-
-| 项 | 结果 |
-|---|---|
-| `node --check`（proxy-actor / dwelling / couples / clock / state / server） | 通过 |
-| `python scripts/regress.py` | **20/20** |
-| `relationOf(于子归, 紫嫣)` | `spouse` ✅ |
-| `relationOf(于子归, 离析)` | `outsider` ✅ |
-| `mayStayIn(柳婶, 离析的小院)` | `false` ✅ |
-| `mayStayIn(离析, 离析的小院)` | `true` ✅ |
-| 线上 柳婶 | home=`house_3`「柳婶家」，不在玩家院里 ✅ |
-| 线上 于子归/紫嫣、随科/静儿 | spouseId 双向正确 ✅ |
-| 线上热更新 | `/health` 正常 |
-| 客户端 | **无需重装**（改动全在服务端） |
-
----
-
-### 说明
-
-1. **没有写死任何角色名**：人设由 `relationOf()` + 行当关键词推出；夫妻由 `couples.js` 从数据推出。
-2. **私宅巡检是每小时跑的规则**，不是针对柳婶的一次性补丁；任何 NPC 赖在任何私宅都会同样被请出。
-3. **过门人的作息**按行当给（货郎/差役/妇人/一般），共 4~5 个时段，不再是空表。
-4. **仍有待观察**：如果天道把某个 NPC 的 `role` 写成"某某的丈夫"但那人不在世界里，就推不出夫妻关系，需要靠后续补数据。
 
 ## 📜 历史完成存档
 
