@@ -134,7 +134,8 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     final mil = (d['military'] as Map?)?.cast<String, dynamic>();
     final standing = (d['standing'] as Map?)?.cast<String, dynamic>() ?? {};
     final props = (assets['properties'] as List?) ?? const [];
-    final household = (d['household'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final householdMap = (d['household'] as Map?)?.cast<String, dynamic>();
+    final household = householdMap ?? const <String, dynamic>{};
     final hhAllowance = (household['allowance'] as num?)?.toDouble() ?? 4.0;
     final hhArrears = (household['arrears'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
     final hhMonths = (hhArrears['months'] as num?)?.toInt() ?? 0;
@@ -253,7 +254,8 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
           children: [
             _kv('现银', '${_num(assets['silver'], digits: 2)} 两'),
             _kv('日入', '${_num(assets['daily'], digits: 2)} 两/日'),
-            _kv('中馈月例', '${hhAllowance.toStringAsFixed(1)} 两/月'),
+            if (householdMap != null && hhAllowance > 0)
+              _kv('中馈月例', '${hhAllowance.toStringAsFixed(1)} 两/月'),
             if (hhMonths > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 8),

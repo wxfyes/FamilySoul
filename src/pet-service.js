@@ -2582,21 +2582,7 @@ export class PetService {
           const partnerHere = partnerActor && !partnerActor.dead && partnerActor.location === locPost && partnerActor.name && !String(say || '').includes(partnerActor.name)
             ? [partnerActor]
             : [];
-          // 隔着地方喊相公：他不能瞬移，但可以应一声（他是真人，由天道代他开口）
-          const husActor = wPost.actors?.husband;
-          const meIsKin = Boolean(mePost?.household || mePost?.spouse === 'husband' || (Array.isArray(mePost?.parents) && mePost.parents.includes('husband')));
-          const calledHusband = meIsKin && /(王甯|王掌柜|少掌柜|当家的|相公)/.test(String(say || ''));
-          if (husActor && !husActor.dead && calledHusband && husActor.location !== locPost) {
-            try {
-              const hisLine = await this._proxyHusbandRemote({ world: wPost, say, viewerId: this._viewerActorId, profileKey });
-              if (hisLine && !String(reply || '').includes('王甯')) {
-                global.__husbandRemoteAnswered = true;
-                reply = `${String(reply || '').trim()}\n【王甯】：${String(hisLine).replace(/^【[^】]+】：/, '').trim()}`.trim();
-                console.log('[Proxy] 隔空应声：王甯');
-              }
-            } catch { /* 忽略 */ }
-          }
-
+          // 物理在场铁律：不在同一地点的人，绝不隔空搭话（此前的远程应声已移除）
           const namedPresent = Object.values(wPost.actors || {}).filter(
             (a) => a && !a.dead && a.id !== this._viewerActorId && a.id !== 'husband'
               && a.location === locPost && a.name && (String(say || '').includes(a.name) || (namedSpouse && (a.id === mePost?.spouse || a.spouse === this._viewerActorId || /于子归|于杰/.test(a.name)))),
