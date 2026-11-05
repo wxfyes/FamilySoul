@@ -22,6 +22,11 @@ import { spreadRumors, addRumor } from './rumors.js';
 import { moveActor } from './position.js';
 import { runMilitaryDay, setWarEventSink } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
+import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
+import { runAging } from './aging.js';
+import { runGentlemenTalk } from './reputation.js';
+import { runClanVisits } from './clans.js';
+import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
 
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -1400,6 +1405,40 @@ function onNewDay(world, events) {
     }
   } catch { /* 忽略 */ }
 
+  // 每月：士林清议、宗族走动（都只说事实，不写台词）
+  try {
+    runGentlemenTalk(world, events, nextEvent);
+    runClanVisits(world, events, nextEvent);
+  } catch (err) {
+    console.warn('[Society] 清议/宗族结算失败：', err.message);
+  }
+
+  // 岁时：长岁、及冠、衰朽（每 30 日一次）
+  try {
+    runAging(world, events, nextEvent);
+  } catch (err) {
+    console.warn('[Aging] 岁月结算失败：', err.message);
+  }
+
+  // 物价：指数每日回归，再被灾荒、战事、丰收冲击
+  try {
+    ensureMarket(world);
+    driftMarket(world);
+    const shocks = {};
+    const todayEvents = events || [];
+    const disasters = todayEvents.filter((e) => e && e.action === 'disaster').length;
+    const wars = todayEvents.filter((e) => e && ['city_taken', 'siege_failed', 'warlord_spawn'].includes(e.action)).length;
+    const harvest = todayEvents.filter((e) => e && e.action === 'harvest').length;
+    if (disasters) { shocks.grain = 1 + 0.25 * disasters; shocks.herb = 1 + 0.15 * disasters; }
+    if (wars) { shocks.grain = (shocks.grain || 1) * (1 + 0.1 * wars); shocks.iron = 1 + 0.15 * wars; }
+    if (harvest) { shocks.grain = 0.85; }
+    if (Object.keys(shocks).length) bumpMarket(world, shocks);
+    // 灾后疫病
+    maybeOutbreak(world, todayEvents, nextEvent);
+  } catch (err) {
+    console.warn('[Market] 物价结算失败：', err.message);
+  }
+
   // 枭雄自生：民怨高的城会有人竖旗（规则触发，不写剧本）
   try {
     const wl = maybeSpawnWarlord(world, (w, ev) => {
@@ -1510,6 +1549,9 @@ function dailyIncomeOf(world, prop) {
   }
   rate *= luckyBonus;
   rate *= 0.94 + Math.random() * 0.12;                     // 每日市井自然起伏
+
+  // 物候：冬天封河，水路生意腰斩；春茶秋茶各有贵贱
+  rate *= propertySeasonFactor(world, prop);
 
   // 收益率封顶：单日不超过本金 12%，不出现离谱通胀
   rate = Math.max(0.01, Math.min(0.12, rate));

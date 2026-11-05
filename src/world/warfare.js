@@ -11,6 +11,8 @@
 
 import { factionOf, factionSilver, spendFactionSilver, factionStrength, syncWangjiaToMilitary } from './factions.js';
 import { canReach } from './geography.js';
+import { marchSpeedFactor, gearCostFactor } from './season.js';
+import { grainPrice } from './prices.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -50,7 +52,8 @@ export function buyGear(world, fid, kind, qty) {
   const price = GEAR_PRICES[k];
   if (!price) return { ok: false, error: '没有这种军械' };
   const n = Math.max(1, Math.min(500, Math.round(num(qty))));
-  const cost = round2(n * price);
+  const ironFactor = ['weapon', 'armor', 'siege'].includes(k) ? gearCostFactor(world) : 1;
+  const cost = round2(n * price * ironFactor);
   if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：${n} 件${GEAR_NAMES[k]}要 ${cost} 两` };
   f.gear = f.gear && typeof f.gear === 'object' ? f.gear : {};
   f.gear[k] = Math.round((Number(f.gear[k]) || 0) + n);
@@ -156,7 +159,8 @@ export function buyGrain(world, fid, shi, city) {
   const f = factionOf(world, fid);
   if (!f) return { ok: false, error: '没有这个势力' };
   const amount = Math.max(1, Math.min(2000, Math.round(num(shi))));
-  const cost = round2(amount * GRAIN_PRICE);
+  const unitPrice = grainPrice(world, city || factionCapital(world, f));
+  const cost = round2(amount * unitPrice);
   if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：买 ${amount} 石要 ${cost} 两` };
 
   const town = city && world.cities?.[city] ? city : (Array.isArray(f.cities) && f.cities[0]) || '';
@@ -278,10 +282,11 @@ export function march(world, fid, fromCity, toCity, troops) {
   f.grain = round2(num(f.grain) - needGrain);
   setStationed(world, f, fromCity, have - send);
   f.marches = Array.isArray(f.marches) ? f.marches : [];
-  const arriveDay = (Number(world.clock?.day) || 1) + road.days;
+  const daysReal = Math.max(1, Math.ceil(road.days * marchSpeedFactor(world)));
+  const arriveDay = (Number(world.clock?.day) || 1) + daysReal;
   f.marches.push({ from: fromCity, to: toCity, troops: send, arriveDay, viaGate: road.viaGate || null });
-  fire(world, { action: 'march_start', actor: f.leader, place: fromCity, payload: { text: `${f.name}${send}兵自${fromCity}开拔，${road.days}日可至${toCity}` } });
-  return { ok: true, days: road.days, arriveDay, troops: send };
+  fire(world, { action: 'march_start', actor: f.leader, place: fromCity, payload: { text: `${f.name}${send}兵自${fromCity}开拔，${daysReal}日可至${toCity}` } });
+  return { ok: true, days: daysReal, arriveDay, troops: send };
 }
 
 /** 围城：必须在该城有驻军（行军到了才算） */

@@ -649,6 +649,121 @@
 .clue-row{align-items:flex-start}
 .clue-text{flex:1;min-width:0;line-height:1.5}
 .clue-meta{white-space:nowrap;flex:none;margin-left:12px;font-size:12px}
+
+  /* 🌟 今日天道焦点动态大 Banner */
+  .today-focus-banner {
+    background: linear-gradient(135deg, rgba(23, 27, 36, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-left: 4px solid var(--accent-gold);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+  }
+  .focus-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+    padding-bottom: 6px;
+  }
+  .focus-title-main {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #fef08a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .focus-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .focus-item {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .focus-item:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .focus-lbl {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .focus-val {
+    color: var(--text-main);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  /* 👥 城市药丸快速切换条 */
+  .city-pills-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .city-pill {
+    padding: 3px 11px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    background: var(--bg-card-sub);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .city-pill:hover {
+    color: var(--text-main);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  .city-pill.active {
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.5);
+    font-weight: 600;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+  }
+  .city-select {
+    background: var(--bg-card-sub);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .city-select:focus {
+    border-color: var(--accent-blue);
+  }
+
+  /* 势力标签徽章 */
+  .tag-faction-court { border-color: rgba(248, 113, 113, 0.4); color: #f87171; background: rgba(248, 113, 113, 0.08); }
+  .tag-faction-wangjia { border-color: rgba(251, 191, 36, 0.4); color: #fbbf24; background: rgba(251, 191, 36, 0.08); }
+  .tag-faction-canal { border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; background: rgba(56, 189, 248, 0.08); }
+  .tag-faction-warlord { border-color: rgba(192, 132, 252, 0.4); color: #c084fc; background: rgba(192, 132, 252, 0.08); }
+
 </style>
 </head>
 <body>

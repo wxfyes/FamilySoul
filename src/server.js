@@ -34,6 +34,10 @@ import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
 import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
+import { marketSnapshot } from './world/prices.js';
+import { addFame, fameOf, legitimacy } from './world/reputation.js';
+import { ensureClans, clanBacking } from './world/clans.js';
+import { canalFrozen } from './world/season.js';
 import { AssistantService } from './assistant-service.js';
 import { UserRegistry } from './user-registry.js';
 
@@ -429,6 +433,29 @@ const STARTED_AT = Date.now();
     }
   }
 
+    // 0.044 善举：施粥 / 平价粜米（花钱买名声，压民怨）
+    if (req.method === 'POST' && pathname === '/api/world/charity') {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = loadState(DATA_DIR);
+        const me = world.actors?.[member.actor || 'husband'];
+        const amount = Math.max(1, Math.round(Number(body.amount) || 0));
+        const city = String(body.city || '临江府');
+        if (!world.cities?.[city]) return sendJson(res, 200, { ok: false, error: '没有这座城' });
+        if (!spendSilver(world, amount, `施粥·${city}`, member.actor || 'husband').ok) {
+          return sendJson(res, 200, { ok: false, error: '银不够' });
+        }
+        world.cities[city].unrest = Math.max(0, Number(world.cities[city].unrest) - Math.round(amount / 20));
+        addFame(world, member.actor || 'husband', Math.min(12, Math.round(amount / 10)), '仁商');
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, text: `在${city}施粥${amount}两，民怨稍平，名声渐起` });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 0.045 外交与自立：结盟 / 断交 / 赠礼 / 称制
     if (req.method === 'POST' && pathname === '/api/world/diplomacy') {
       try {
@@ -456,6 +483,7 @@ const STARTED_AT = Date.now();
           other.relations = other.relations || {};
           me.relations[other.id] = -30;
           other.relations[me.id] = -30;
+          addFame(world, 'husband', -6, '乱贼');
           text = `${me.name}与${other.name}断交`;
         } else if (act === 'gift') {
           const amount = Math.max(1, Number(body.amount) || 0);
@@ -466,6 +494,17 @@ const STARTED_AT = Date.now();
         } else if (act === 'proclaim') {
           const cities = (me.cities || []).length;
           if (cities < 3) return sendJson(res, 200, { ok: false, error: `至少要据三城才能称制（现有 ${cities} 城）` });
+          const legit = legitimacy(world, 'husband');
+          if (legit < 40) {
+            addFame(world, 'husband', -10, '乱贼');
+            me.relations.court = -80;
+            if (world.factions.court) {
+              world.factions.court.relations = world.factions.court.relations || {};
+              world.factions.court.relations.wangjia = -80;
+            }
+            saveState(DATA_DIR, world);
+            return sendJson(res, 200, { ok: false, error: `名分不足（${legit}/40），僭号必引天下共讨` });
+          }
           me.kind = 'warlord';
           me.stance = 'expand';
           me.stateName = String(body.name || '临江').slice(0, 6);
@@ -1368,6 +1407,10 @@ const STARTED_AT = Date.now();
           .slice(-8)
           .map((c) => ({ text: c.text, day: c.day })),
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
+        market: marketSnapshot(world),
+        fame: { value: fameOf(world, me?.id || 'husband'), tags: (world.actors?.[me?.id || 'husband']?.fame?.tags || []) },
+        clans: Object.values(world.clans || {}).map((c) => ({ id: c.id, name: c.name, relation: c.relation, influence: c.influence })),
+        season: { season: world.clock?.season || '', weather: world.clock?.weather || '', canalFrozen: canalFrozen(world) },
         factions: Object.values(world.factions || {}).map((f) => ({
           id: f.id, name: f.name, kind: f.kind, leader: f.leader,
           troops: Number(f.troops) || 0,

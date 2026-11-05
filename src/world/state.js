@@ -6,6 +6,9 @@
  */
 import { ensureBonds } from './bonds.js';
 import { ensureFactions } from './factions.js';
+import { ensureClans } from './clans.js';
+import { ensureFame } from './reputation.js';
+import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
 import { syncMoney } from './money.js';
 import { syncNames } from './identity.js';
@@ -955,6 +958,9 @@ export function forceOf(world, who = 'husband') {
 export function migrateOwnership(world) {
   // 势力：朝廷、王家，以及将来天道推演出来的枭雄
   try { ensureFactions(world); } catch (e) { console.warn('[Faction] 势力初始化失败：', e.message); }
+  try { ensureMarket(world); } catch { /* 忽略 */ }
+  try { ensureFame(world); } catch { /* 忽略 */ }
+  try { ensureClans(world); } catch { /* 忽略 */ }
   // 待办归属：老数据没写 owner 的，一律算相公的（那是当时唯一的主角）
   try {
     for (const pr of world.promises || []) {
