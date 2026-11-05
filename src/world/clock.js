@@ -1280,7 +1280,9 @@ function onNewDay(world, events) {
   }
 
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜本事（有涨有落，不写死）*/
+/** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜信任 × 开张天数声誉积累 × 人手规模经济 × 随机大单机缘（有倍增、有跌宕、拟真古代商业）*/
 function dailyIncomeOf(world, prop) {
+  if (prop.status === '筹备中' || prop.status === '歇业') return 0;
   const base = Number(prop.baseIncome ?? prop.incomePerDay) || 0;
   if (!(base > 0)) return 0;
   if (prop.baseIncome == null) prop.baseIncome = base;
@@ -1291,13 +1293,41 @@ function dailyIncomeOf(world, prop) {
   const keeper = world.actors?.[prop.keeper];
   const trust = Number(keeper?.relations?.husband?.trust ?? 30);
   let m = 1;
-  m *= 0.6 + Math.min(2.2, price / 100) * 0.4;        // 物价高，生意跟着好
-  m *= 1 - Math.min(0.6, unrest / 160);                // 民心乱，客少
-  if (/茶/.test(String(prop.name || '')) ) m *= season === 'spring' ? 1.12 : season === 'winter' ? 0.92 : 1;
-  if (/酒/.test(String(prop.name || '')) ) m *= season === 'winter' ? 1.15 : 1;
-  m *= 0.9 + Math.min(0.35, trust / 300);              // 掌柜得力
-  if (Number(prop.staff) > 0) m *= 1 + Math.min(0.25, Number(prop.staff) * 0.03);
-  m *= 0.92 + Math.random() * 0.16;                    // 每日小波动
+  m *= 0.6 + Math.min(2.2, price / 100) * 0.4;        // 物价与市面景气
+  m *= 1 - Math.min(0.6, unrest / 160);                // 民心安稳度
+  if (/茶/.test(String(prop.name || ''))) m *= season === 'spring' ? 1.25 : season === 'winter' ? 0.9 : 1.05;
+  if (/酒/.test(String(prop.name || ''))) m *= season === 'winter' ? 1.3 : 1.08;
+  m *= 0.9 + Math.min(0.4, trust / 250);               // 掌柜得力忠诚
+
+  // ① 人手规模经济（伙计、大厨、跑堂真实协同产能：每人提供 +25% 接客翻台能力，最多 4.0x）
+  const staffCount = Number(prop.staff) || 0;
+  if (staffCount > 0) {
+    m *= 1 + Math.min(3.0, staffCount * 0.25);
+  }
+
+  // ② 开张天数与商誉累积（知名度与老客滚雪球：随经营天数成倍递增）
+  const curDay = Number(world.clock?.day) || 1;
+  let daysOpen = 1;
+  if (prop.openedDay != null) {
+    daysOpen = Math.max(1, curDay - Number(prop.openedDay) + 1);
+  } else if (prop.status === '正常营业' || prop.status === '已开张') {
+    daysOpen = Math.max(3, curDay);
+  }
+  if (daysOpen >= 15) m *= 2.2 + Math.min(1.0, (daysOpen - 15) * 0.05); // 老字号金字招牌，可达 2.2x~3.2x
+  else if (daysOpen >= 8) m *= 1.6 + (daysOpen - 8) * 0.08;            // 门庭若市，1.6x~2.1x
+  else if (daysOpen >= 4) m *= 1.2 + (daysOpen - 4) * 0.1;             // 口碑鹊起，1.2x~1.5x
+
+  // ③ 随机突发商帮大席 / 豪客包席机缘（12% 概率流水翻倍暴击）
+  let luckyBonus = 1;
+  if (Math.random() < 0.12 && staffCount >= 2) {
+    luckyBonus = 2.0 + Math.random() * 1.5; // 2.0x ~ 3.5x 暴击
+    prop.specialNotice = '两淮盐商连包三日水席/豪客订商茶，进项暴增！';
+  } else {
+    delete prop.specialNotice;
+  }
+  m *= luckyBonus;
+
+  m *= 0.92 + Math.random() * 0.16;                    // 每日市井微小浮动
   const gain = Math.round(base * m * 100) / 100;
   prop.incomePerDay = gain;                            // 显示的就是今日进项
   return gain;

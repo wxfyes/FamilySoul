@@ -304,8 +304,11 @@ async function fillProactiveTexts(world) {
       });
       item.text = String(text || item.fallback || '').slice(0, 300);
 
-      // 统一花名：推送也要显示「正妻·婉儿」，不能一会温柔小娘子一会婉儿
-      if (!item.speaker) {
+      // 统一花名：优先从正文提取真实的【说话人】（如【柳婶】、【沈婉儿】），杜绝外层身份污染覆盖
+      const spkMatch = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
+      if (spkMatch) {
+        item.speaker = spkMatch[1].trim();
+      } else if (!item.speaker) {
         try {
           const latest = peek(DATA_DIR);
           const main =
@@ -3245,13 +3248,16 @@ const STARTED_AT = Date.now();
             ok: true,
             lastSeq: now,
             cursor: now,
-            events: due.map((item, i) => ({
-              type: item.type || 'proactive',
-              text: item.text,
-              speaker: item.speaker || null,
-              messageId: `push_${now}_${i}`,
-              modality: 'text',
-            })),
+            events: due.map((item, i) => {
+              const textSpk = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
+              return {
+                type: item.type || 'proactive',
+                text: item.text,
+                speaker: (textSpk ? textSpk[1].trim() : item.speaker) || null,
+                messageId: `push_${now}_${i}`,
+                modality: 'text',
+              };
+            }),
           });
         }
         if (now >= deadline || res.destroyed) {

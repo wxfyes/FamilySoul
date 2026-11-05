@@ -27,14 +27,19 @@ class ChatMessage {
     this.speaker,
   });
 
-  /// 智能推导说话人：优先显式 speaker；若无则从文本前缀【xxx】自动提取（自愈历史旧消息）
+  /// 智能推导说话人：正文显式前缀【xxx】拥有最高真相权重（彻底防止外部默认账号名污染覆盖剧本真实角色）；
+  /// 若无正文前缀则回退至显式 speaker 字段；若皆无则返回 null 交由主角色兜底
   String? get effectiveSpeaker {
+    final m = RegExp(r'^\s*(?:\*\*)?[【\[]\s*([^】\]\n]{1,16}?)\s*[】\]]\s*[*]{0,2}\s*[:：]?').firstMatch(text.trim());
+    if (m != null) {
+      final name = m.group(1)!.trim();
+      // 排除环境与旁白类通用标记，真正的人名直接作为说话人
+      if (name.isNotEmpty && !{'天道', '系统', '环境', '旁白'}.contains(name)) {
+        return name;
+      }
+    }
     if (speaker != null && speaker!.trim().isNotEmpty) {
       return speaker!.trim();
-    }
-    final m = RegExp(r'^\s*【\s*([^】\n]{1,16}?)\s*】').firstMatch(text.trim());
-    if (m != null) {
-      return m.group(1)!.trim();
     }
     return null;
   }

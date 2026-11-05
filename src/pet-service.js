@@ -1984,10 +1984,25 @@ export class PetService {
         const tActor = turnTarget.actor;
         const tName = tActor.name;
         const tLabel = tActor.label || tName;
-        turnDirective = `\n（【现场发言权调度铁律 · 严禁旁人抢话打岔】：\n` +
-          `1. 当前相公对话的目标正主唯一确定为【${tName}】！\n` +
-          `2. 本轮回复首个开口发言者【必须且只能是 ${tName}】（以【${tLabel}】开头接话）！\n` +
-          `3. 现场其他在场者绝不许抢白抢答、不得代替 ${tName} 表态立据；已离场者绝不可再次出声！）`;
+        if (turnTarget.named) {
+          turnDirective = `\n（【现场发言权调度 · 指名正主接话】：\n` +
+            `1. 相公此刻明确在跟【${tName}】说话！\n` +
+            `2. 本轮必须由【${tName}】（以【${tLabel}】开头）独立回答；其他在场者垂手聆听，绝不抢白代替表态！）`;
+        } else {
+          const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
+          const wifeCompanions = companions.filter((a) => a.household || ['waner', 'yunnia'].includes(a.id));
+          const companionNames = wifeCompanions.map((a) => a.label || a.name).join('、');
+          if (companionNames) {
+            turnDirective = `\n（【现场多人在场发言调度 · 妻妾同堂】：\n` +
+              `1. 本轮首位开口者必须是掌事正主【${tName}】（以【${tLabel}】开头），主持表态；\n` +
+              `2. 同在现场的家眷【${companionNames}】随后温婉附和、行礼接话或递茶侍候，营造自然和睦的家室氛围；\n` +
+              `3. 丫鬟小翠听差不抢主子话头；不在场的人绝不许出声！）`;
+          } else {
+            turnDirective = `\n（【现场发言权调度】：\n` +
+              `1. 本轮首位开口发言者由场景正主【${tName}】（以【${tLabel}】开头）接话；\n` +
+              `2. 现场其他在场者不得代替 ${tName} 表态立据；不在场者绝不出声！）`;
+          }
+        }
         console.log(`[TurnTarget] 发言权锁定: ${tName}(${tActor.id}) reason=${turnTarget.named ? '指名道姓' : (turnTarget.solePresent ? '唯一在场' : '场景正主')}`);
       }
     } catch (err) {

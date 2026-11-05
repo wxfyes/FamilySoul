@@ -1355,22 +1355,101 @@ export function migrateOwnership(world) {
   try {
     ensureBonds(world);
   } catch { /* 关系网失败不影响读档 */ }
-  // 相公的房间归一：别让账本里出现 "husband_room" 这种地名
+  // 【临江·王宅（七进大宅）自住府邸架构与相公家眷乔迁自愈】
   world.places = world.places || {};
+  // 1. 府邸主正房（相公与正妻大娘子沈婉儿主起居之中枢）
   if (!world.places.husband_room) {
-    world.places.husband_room = { name: '正房', exits: ['tea_house', 'backyard'], owner: 'husband' };
+    world.places.husband_room = { name: '临江·王宅·正房', exits: ['tea_house', 'wang_mansion_east', 'wang_mansion_west', 'street'], owner: 'husband' };
   } else {
     const hr = world.places.husband_room;
-    if (!hr.name || /husband_room|我房间|我的房间/.test(String(hr.name))) hr.name = '正房';
-    hr.owner = hr.owner || 'husband';
-    hr.exits = Array.isArray(hr.exits) && hr.exits.length ? hr.exits : ['tea_house', 'backyard'];
+    hr.name = '临江·王宅·正房';
+    hr.owner = 'husband';
+    hr.exits = ['tea_house', 'wang_mansion_east', 'wang_mansion_west', 'street'];
   }
+  // 2. 府邸东跨院（二房如夫人林芸娘雅居院落）
+  if (!world.places.wang_mansion_east) {
+    world.places.wang_mansion_east = { name: '临江·王宅·东跨院', exits: ['husband_room'], owner: 'husband' };
+  } else {
+    world.places.wang_mansion_east.name = '临江·王宅·东跨院';
+    world.places.wang_mansion_east.owner = 'husband';
+  }
+  // 3. 府邸西厢房（贴身丫鬟小翠及随侍值宿）
+  if (!world.places.wang_mansion_west) {
+    world.places.wang_mansion_west = { name: '临江·王宅·西厢房', exits: ['husband_room'], owner: 'husband' };
+  } else {
+    world.places.wang_mansion_west.name = '临江·王宅·西厢房';
+    world.places.wang_mansion_west.owner = 'husband';
+  }
+
+  // 4. 清除把客栈混淆成大宅的误建地名，恢复客栈上房
   for (const [pid, pl] of Object.entries(world.places)) {
+    if (pid !== 'husband_room' && pl && /(临江客栈·七进大宅|七进大宅|客栈.*大宅)/.test(String(pl.name || ''))) {
+      pl.name = '临江客栈·天字上房';
+    }
     if (pid !== 'husband_room' && pl && /^(我房间|我的房间)$/.test(String(pl.name || ''))) {
       delete world.places[pid];
       for (const a of Object.values(world.actors || {})) {
         if (a && a.location === pid) a.location = 'husband_room';
       }
+    }
+  }
+
+  // 5. 资产账本登记：相公斥资450两全款购置的七进大宅（王宅）
+  world.assets = world.assets || { silver: 0, copper: 0, properties: [] };
+  world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
+  let mansionProp = world.assets.properties.find((p) => p && (p.id === 'wang_mansion' || /七进大宅|王宅/.test(String(p.name || ''))));
+  if (!mansionProp) {
+    world.assets.properties.unshift({
+      id: 'wang_mansion',
+      name: '临江·王宅（七进大宅）',
+      status: '自住府邸',
+      owner: 'husband',
+      keeper: 'husband',
+      costSilver: 450,
+      placeId: 'husband_room',
+      desc: '临江城中七进三进三出深宅大院，飞檐斗拱、气势恢宏，后宅正房、东跨院、西厢房一应俱全，乃王家基业府邸。'
+    });
+  } else {
+    mansionProp.id = 'wang_mansion';
+    mansionProp.name = '临江·王宅（七进大宅）';
+    mansionProp.status = '自住府邸';
+    mansionProp.owner = 'husband';
+    mansionProp.keeper = 'husband';
+    mansionProp.costSilver = 450;
+    mansionProp.placeId = 'husband_room';
+  }
+
+  // 6. 全家举家乔迁王宅自住府邸（相公与家眷 home 归于王宅；仅当身处幽灵客栈大宅或非法地点时自愈归位）
+  const hus = world.actors?.husband;
+  if (hus) {
+    if (!hus.home || hus.home === 'tea_house') hus.home = 'husband_room';
+    const curPName = String(world.places?.[hus.location]?.name || '');
+    if (!hus.location || !world.places[hus.location] || /(客栈.*大宅|七进大宅)/.test(curPName)) {
+      hus.location = 'husband_room';
+    }
+  }
+  const wan = world.actors?.waner;
+  if (wan) {
+    if (!wan.home || wan.home === 'tea_house' || wan.home === 'yamen') wan.home = 'husband_room';
+    const wanPName = String(world.places?.[wan.location]?.name || '');
+    if (!wan.location || !world.places[wan.location] || /(客栈.*大宅|七进大宅)/.test(wanPName)) {
+      wan.location = hus?.location === 'husband_room' ? 'husband_room' : 'husband_room';
+    }
+  }
+  const yun = world.actors?.yunnia;
+  if (yun) {
+    if (!yun.home || yun.home === 'tea_house' || yun.home === 'yamen') yun.home = 'wang_mansion_east';
+    const yunPName = String(world.places?.[yun.location]?.name || '');
+    if (!yun.location || !world.places[yun.location] || /(客栈.*大宅|七进大宅)/.test(yunPName)) {
+      yun.location = hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_east';
+    }
+  }
+  const cui = world.actors?.xiaocui;
+  if (cui) {
+    if (!cui.home || cui.home === 'tea_house' || cui.home === 'yamen') cui.home = 'wang_mansion_west';
+    const cuiPName = String(world.places?.[cui.location]?.name || '');
+    if (!cui.location || !world.places[cui.location] || /(客栈.*大宅|七进大宅)/.test(cuiPName)) {
+      cui.location = hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_west';
     }
   }
 
