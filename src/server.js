@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -299,46 +299,70 @@ const assistantService = new AssistantService({ dataDir: DATA_DIR, llmClient });
  * 引擎只排队「该她说话了」这个事实，台词由天道（大模型）现写；
  * 只有大模型不可用时才退回兜底文案。
  */
-async function fillProactiveTexts(world) {
+async function fillProactiveTexts() {
   try {
-    const queue = Array.isArray(world?.proactive) ? world.proactive : [];
-    const pending = queue.filter((p) => !p.text);
-    if (pending.length === 0) return;
+    // 第一段：只读。抄出待填的那几条（只带 id 与所需事实），此后不再碰 snap
+    const snap = peek(DATA_DIR);
+    const pending = (Array.isArray(snap.proactive) ? snap.proactive : [])
+      .filter((p) => p && !p.text)
+      .slice(0, 2)
+      .map((p) => ({
+        id: p.id,
+        to: p.to || 'husband',
+        speaker: p.speaker || null,
+        reason: p.reason || 'proactive',
+        facts: p.facts || {},
+        fallback: p.fallback || '',
+      }));
+    if (!pending.length) return;
 
-    let filled = 0;
-    for (const item of pending.slice(0, 2)) {
-      const text = await petService.generateProactive({
-        memberKey: item.to || 'husband',
-        roleName: config.activeRole,
-        asName: item.speaker || null,
-        reason: item.reason || 'proactive',
-        facts: item.facts || {},
-      });
-      item.text = String(text || item.fallback || '').slice(0, 300);
-
-      // 统一花名：优先从正文提取真实的【说话人】（如【柳婶】、【沈婉儿】），杜绝外层身份污染覆盖
-      const spkMatch = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
-      if (spkMatch) {
-        item.speaker = spkMatch[1].trim();
-      } else if (!item.speaker) {
-        try {
-          const latest = peek(DATA_DIR);
-          const main =
-            Object.values(latest.actors || {}).find((a) => a && a.role === config.activeRole) ||
-            latest.actors?.waner;
-          if (main) {
-            const short = main.name && main.name.length > 2 ? main.name.slice(-2) : main.name;
-            item.speaker = `${main.role}·${short}`;
-          }
-        } catch {
-          /* 拿不到就保持原样 */
-        }
+    // 第二段：逐条等天道现写（耗时阶段，不持有可写世界）
+    const results = [];
+    for (const item of pending) {
+      let text = '';
+      try {
+        text = await petService.generateProactive({
+          memberKey: item.to,
+          roleName: config.activeRole,
+          asName: item.speaker,
+          reason: item.reason,
+          facts: item.facts,
+        });
+      } catch (e) {
+        console.warn('[Push] 生成失败：', e.message);
       }
+      const finalText = String(text || item.fallback || '').slice(0, 300);
+      if (!finalText) continue;
+      const spkMatch = finalText.match(/^\s*【([^】\n]{1,16})】/);
+      results.push({
+        id: item.id,
+        text: finalText,
+        speaker: spkMatch ? spkMatch[1].trim() : item.speaker,
+      });
+    }
+    if (!results.length) return;
 
-      if (item.text) filled += 1;
+    // 第三段：重新读盘（含这几秒内相公的一切操作），按 id 精准写回
+    const fresh = loadState(DATA_DIR);
+    const list = Array.isArray(fresh.proactive) ? fresh.proactive : [];
+    const main =
+      Object.values(fresh.actors || {}).find((a) => a && a.role === config.activeRole) ||
+      fresh.actors?.waner;
+    let filled = 0;
+    for (const r of results) {
+      const target = list.find((p) => p && p.id === r.id);
+      if (!target || target.text) continue;
+      target.text = r.text;
+      if (r.speaker) {
+        target.speaker = r.speaker;
+      } else if (!target.speaker && main) {
+        const short = main.name && main.name.length > 2 ? main.name.slice(-2) : main.name;
+        target.speaker = `${main.role}·${short}`;
+      }
+      filled += 1;
     }
     if (filled > 0) {
-      saveState(DATA_DIR, world);
+      saveState(DATA_DIR, fresh);
       console.log(`[Push] 天道已现写 ${filled} 条主动消息`);
     }
   } catch (err) {
