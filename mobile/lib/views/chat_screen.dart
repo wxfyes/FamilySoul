@@ -1376,153 +1376,345 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// 豆包同款底部：上方横向快捷胶囊栏 + 下方一体化大圆角胶囊输入框
   Widget _buildInputArea(ChatProvider provider) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(top: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
-      ),
-      child: Row(
-        children: [
-          // 左侧：切换“按住说话”模式与“打字”模式
-          IconButton(
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              setState(() {
-                _isVoiceMode = !_isVoiceMode;
-              });
-            },
-            icon: Icon(
-              _isVoiceMode ? Icons.keyboard_alt_outlined : Icons.mic_none_rounded,
-              color: const Color(0xFF8B5CF6),
-              size: 26,
-            ),
-            tooltip: _isVoiceMode ? '切换打字' : '切换按住说话',
-          ),
-          // 上传照片看脸 / 肤质 / 穿搭
-          IconButton(
-            onPressed: _showPhotoSourceSheet,
-            icon: const Icon(
-              Icons.camera_alt_outlined,
-              color: Color(0xFF8B5CF6),
-              size: 25,
-            ),
-            tooltip: '拍照看脸 / 肤质端详',
-          ),
-          const SizedBox(width: 4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pillBg = isDark ? const Color(0xFF1C202B) : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.10)
+        : Colors.black.withValues(alpha: 0.08);
+    final iconColor = isDark ? Colors.white70 : const Color(0xFF1E293B);
 
-          // 中间区域：按住说话大按钮 OR 文本输入框
-          Expanded(
-            child: _isVoiceMode
-                ? Listener(
-                    onPointerDown: (_) => _onVoiceStart(),
-                    onPointerMove: (e) => _onVoiceMove(e.localPosition),
-                    onPointerUp: (_) => _onVoiceEnd(),
-                    onPointerCancel: (_) => _onVoiceCancel(),
-                    behavior: HitTestBehavior.opaque,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        gradient: _isHoldingRecord
-                            ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFA855F7)])
-                            : null,
-                        color: _isHoldingRecord ? null : Theme.of(context).scaffoldBackgroundColor,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: _isHoldingRecord
-                              ? const Color(0xFF8B5CF6)
-                              : Colors.grey.withValues(alpha: 0.25),
-                          width: 1.2,
-                        ),
-                        boxShadow: _isHoldingRecord
-                            ? [
-                                BoxShadow(
-                                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ]
-                            : null,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 10.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. 豆包同款上方轻量快捷胶囊条（横向滑动，一触即达）
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(bottom: 8.0, left: 2.0, right: 2.0),
+            child: Row(
+              children: [
+                _buildTopQuickChip(
+                  icon: Icons.explore_outlined,
+                  label: '出门转场',
+                  hasArrow: true,
+                  isDark: isDark,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
+                    ).then((_) => _refreshPlace());
+                  },
+                ),
+                const SizedBox(width: 8),
+                _buildTopQuickChip(
+                  icon: Icons.payments_outlined,
+                  label: '记一笔账',
+                  isDark: isDark,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    _showPayDialog(context, provider);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _buildTopQuickChip(
+                  icon: Icons.shield_outlined,
+                  label: '随身家兵',
+                  isDark: isDark,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => ArmySheet(
+                        api: provider.api,
+                        onChanged: () => setState(() {}),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _isHoldingRecord ? Icons.mic : Icons.mic_rounded,
-                            size: 20,
-                            color: _isHoldingRecord ? Colors.white : const Color(0xFF8B5CF6),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _isHoldingRecord ? '松开 发送' : '按住 说话',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: _isHoldingRecord ? Colors.white : Colors.grey.shade800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: TextField(
-                      controller: _textController,
-                      focusNode: _inputFocus,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _handleSend(),
-                      decoration: const InputDecoration(
-                        hintText: '发消息，或点左侧切换按住说话...',
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 10),
-                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                _buildTopQuickChip(
+                  icon: Icons.public_rounded,
+                  label: '我的世界',
+                  isDark: isDark,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // 2. 豆包同款一体化大圆角胶囊输入框（左相机 · 中输入/按住说话 · 右声波与加号/发送）
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            constraints: const BoxConstraints(minHeight: 50),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            decoration: BoxDecoration(
+              gradient: (_isVoiceMode && _isHoldingRecord)
+                  ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFA855F7)])
+                  : null,
+              color: (_isVoiceMode && _isHoldingRecord) ? null : pillBg,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: (_isVoiceMode && _isHoldingRecord)
+                    ? const Color(0xFF8B5CF6)
+                    : borderColor,
+                width: 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // 胶囊最左侧：相机图标
+                InkWell(
+                  onTap: _showPhotoSourceSheet,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Icon(
+                      Icons.camera_alt_outlined,
+                      color: (_isVoiceMode && _isHoldingRecord) ? Colors.white : iconColor,
+                      size: 23,
                     ),
                   ),
-          ),
-          const SizedBox(width: 4),
+                ),
+                const SizedBox(width: 4),
 
-          // 右侧：+ 号常用功能底板（转场出门/记账/家兵/世界/拍照）
-          IconButton(
-            onPressed: () => _showQuickActionSheet(context, provider),
-            icon: const Icon(
-              Icons.add_circle_outline_rounded,
-              color: Color(0xFF8B5CF6),
-              size: 27,
-            ),
-            tooltip: '便捷功能',
-          ),
-          const SizedBox(width: 4),
+                // 胶囊正中间：按住说话 OR 无边框输入框
+                Expanded(
+                  child: _isVoiceMode
+                      ? Listener(
+                          onPointerDown: (_) => _onVoiceStart(),
+                          onPointerMove: (e) => _onVoiceMove(e.localPosition),
+                          onPointerUp: (_) => _onVoiceEnd(),
+                          onPointerCancel: (_) => _onVoiceCancel(),
+                          behavior: HitTestBehavior.opaque,
+                          child: Container(
+                            height: 40,
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isHoldingRecord ? Icons.mic : Icons.mic_none_rounded,
+                                  size: 19,
+                                  color: _isHoldingRecord
+                                      ? Colors.white
+                                      : const Color(0xFF8B5CF6),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _isHoldingRecord ? '松开 发送' : '按住 说话',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isHoldingRecord
+                                        ? Colors.white
+                                        : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : TextField(
+                          controller: _textController,
+                          focusNode: _inputFocus,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _handleSend(),
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '发消息或按住说话...',
+                            hintStyle: TextStyle(
+                              fontSize: 15,
+                              color: isDark ? Colors.white38 : Colors.grey.shade400,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 4),
 
-          // 右侧：打字发送按钮
-          IconButton.filled(
-            onPressed: provider.isSending ? null : _handleSend,
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF8B5CF6),
-              shape: const CircleBorder(),
+                // 胶囊最右侧：根据是否有输入文字智能切换（无文字显示 [声波] + [⊕]，有文字显示 [↑ 发送]）
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _textController,
+                  builder: (context, value, _) {
+                    final hasText = value.text.trim().isNotEmpty && !_isVoiceMode;
+                    if (hasText || provider.isSending) {
+                      return GestureDetector(
+                        onTap: provider.isSending ? null : _handleSend,
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          margin: const EdgeInsets.only(right: 2),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2563EB),
+                            shape: BoxShape.circle,
+                          ),
+                          child: provider.isSending
+                              ? const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.arrow_upward_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                        ),
+                      );
+                    }
+
+                    // 空输入状态：完全复刻豆包右侧的 [声波圆钮] + [加号圆钮]
+                    final btnFg = (_isVoiceMode && _isHoldingRecord) ? Colors.white : iconColor;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 切换语音 / 键盘圆圈按钮
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _isVoiceMode = !_isVoiceMode;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(6.0),
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: btnFg.withValues(alpha: 0.75), width: 1.5),
+                              ),
+                              child: Icon(
+                                _isVoiceMode ? Icons.keyboard_alt_outlined : Icons.graphic_eq_rounded,
+                                color: btnFg,
+                                size: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // 豆包同款 + 号圆圈按钮
+                        InkWell(
+                          onTap: () => _showQuickActionSheet(context, provider),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(4.0, 6.0, 6.0, 6.0),
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: btnFg.withValues(alpha: 0.75), width: 1.5),
+                              ),
+                              child: Icon(
+                                Icons.add_rounded,
+                                color: btnFg,
+                                size: 17,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
-            icon: provider.isSending
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
-                    ),
-                  )
-                : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 豆包同款上方轻量快捷胶囊按钮
+  Widget _buildTopQuickChip({
+    required IconData icon,
+    required String label,
+    required bool isDark,
+    required VoidCallback onTap,
+    bool hasArrow = false,
+  }) {
+    return Material(
+      color: isDark ? const Color(0xFF1C202B) : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : Colors.black.withValues(alpha: 0.08),
+              width: 0.9,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isDark ? Colors.white70 : const Color(0xFF1E293B),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF1E293B),
+                ),
+              ),
+              if (hasArrow) ...[
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 15,
+                  color: isDark ? Colors.white38 : Colors.grey.shade400,
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
