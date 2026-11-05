@@ -1,4 +1,4 @@
-import { resolveVoiceCasting } from './world/voice-casting.js';
+﻿import { resolveVoiceCasting } from './world/voice-casting.js';
 import { quellBandits } from './world/bandits.js';
 import { resolvePlaceTarget } from './world/places-target.js';
 import fs from 'node:fs';
@@ -3143,6 +3143,51 @@ export class PetService {
     }
 
     // 天道回执落账、优雅古风中文标签转换、NPC 告辞离场判定
+    // 【在场铁律】不在场的人不许开口：把 【某某】 段落里"此刻不在同一地点"的人整段剔掉
+    try {
+      const wPres = loadState(this.dataDir);
+      const mePres = this._viewerActorId ? wPres.actors?.[this._viewerActorId] : wPres.actors?.husband;
+      const hereLoc = mePres?.location;
+      const segs = String(reply || '').split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+      const kept = [];
+      for (const seg of segs) {
+        const m = seg.match(/^【([^】\n]{1,12})】/);
+        if (!m) { kept.push(seg); continue; }
+        const spk = m[1].trim();
+        if (/天道|旁白|众人/.test(spk) || spk === (mePres?.name || '')) { kept.push(seg); continue; }
+        const who = Object.values(wPres.actors || {}).find((a) => a && !a.dead && a.name && (a.name === spk || spk.includes(a.name) || a.name.includes(spk)));
+        if (who && who.location !== hereLoc) {
+          // 例外：王甯是真人常客，他的相好/妻妾喊他，他隔着地方应一句是合理的；
+          // 生客（如离析）喊他，就绝不许他"人在万花楼"开口。
+          const rel = mePres?.relations?.[who.id] || who.relations?.[mePres?.id] || {};
+          const closeToHim = Boolean(
+            mePres?.spouse === 'husband' || mePres?.household
+            || rel.lover || Number(rel.desire) >= 40 || Number(rel.trust) >= 55,
+          );
+          if (who.id === 'husband' && closeToHim) {
+            kept.push(seg);
+            continue;
+          }
+          console.log(`[Presence] 剔除非在场发言：${spk}（此刻在${wPres.places?.[who.location]?.name || '别处'}）`);
+          continue;
+        }
+        kept.push(seg);
+      }
+      const merged = kept.join('').trim();
+      if (merged) {
+        reply = merged;
+      } else {
+        // 全被剔掉（他这句里只有一个不在场的人）：改成在场者的旁观叙述，绝不让人隔空开腔
+        const presentOne = Object.values(wPres.actors || {}).find(
+          (a) => a && !a.dead && a.id !== mePres?.id && a.location === hereLoc && a.name,
+        );
+        reply = presentOne
+          ? `【${presentOne.name}】：（${presentOne.name}听你提起这个名字，顿了顿）他此刻人不在跟前。`
+          : '（你问的人此刻不在跟前，四下无人接话。）';
+        console.log('[Presence] 该句只剩不在场者，已改为在场叙述');
+      }
+    } catch { /* 忽略 */ }
+
     const __t1 = Date.now();
     reply = this.processNarrativeTags(reply, say);
     console.log(`[stage] 叙事标签处理 ${Date.now() - __t1}ms`);
@@ -3367,7 +3412,8 @@ export class PetService {
         if (!String(reply || '').trim() || /^\.{2,}$/.test(String(reply || '').trim())) {
           reply = `（${absent.name}此刻人在「${whereA}」，眼下并不在跟前。）`;
         }
-        console.log(`[Scene] 点名不在场：${absent.name}@${whereA}（交给天道措辞）`);
+        contextHint += `（【铁律】${absent.name}此刻在「${whereA}」，**绝不可写【${absent.name}】的台词**；只能由在场的人回答，或写成旁白。）\n`;
+        console.log(`[Scene] 点名不在场：${absent.name}@${whereA}（已禁止替他开口）`);
       }
     } catch { /* 忽略 */ }
 
