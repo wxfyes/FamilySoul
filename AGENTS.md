@@ -109,3 +109,18 @@
      - `【最新】FamilySoul_安卓.apk`
      - `【最新】FamilySoul_iOS.ipa`
    - 清理其余无用的临时安装包。
+
+---
+
+## 八、双 AI 协同作业信箱规范（COLLAB_BUS 铁律）
+
+为解放用户（相公）免于两端人工搬砖传话，本项目确立「Antigravity 审查官」与「DeepSeek 开发者」双 AI 异步协同机制：
+1. **信箱唯一文件**：`docs/COLLAB_BUS.md`；
+2. **职责边界**：
+   - **Antigravity**：负责整体系统架构设计、出具任务单、代码穿透复审、全量回归验证与生产部署把关；
+   - **DeepSeek**：负责依据任务单落实代码编写、重构与基础语法自测；
+3. **状态流转约定**：
+   - 状态为 `ASSIGNED_TO_DEEPSEEK` 时：DeepSeek 读取信箱执行改动，完成后将状态改为 `READY_FOR_REVIEW`；
+   - 状态为 `REVISION_REQUIRED` 时：DeepSeek 依据信箱中的修改意见进行整改，改完再次切回 `READY_FOR_REVIEW`；
+   - 状态为 `APPROVED_DEPLOYED` 时：代表审查官验收通过并完成上线，全部完工。
+
