@@ -20,6 +20,8 @@ import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
 import { spreadRumors } from './rumors.js';
 import { moveActor } from './position.js';
+import { runMilitaryDay, setWarEventSink } from './warfare.js';
+import { npcStrategyTurn } from './strategy.js';
 
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -1376,6 +1378,28 @@ function onNewDay(world, events) {
     runTreasury(world, events);
   } catch (err) {
     console.warn('[Treasury] 国库结算失败：', err.message);
+  }
+
+  // 军需：发饷、吃粮、欠饷逃兵（势力表里的兵）
+  try {
+    setWarEventSink((w, ev) => {
+      try { events.push(nextEvent(w, ev)); } catch { /* 忽略 */ }
+    });
+    runMilitaryDay(world, events);
+  } catch (err) {
+    console.warn('[Army] 军需结算失败：', err.message);
+  }
+
+  // 每 7 日：无人指挥的势力自己动（有 LLM 时由 server 侧接管，这里兜底）
+  try {
+    const day = Number(world.clock?.day) || 1;
+    if (day % 7 === 0) {
+      npcStrategyTurn(world, events, (w, ev) => {
+        try { events.push(nextEvent(w, ev)); } catch { /* 忽略 */ }
+      });
+    }
+  } catch (err) {
+    console.warn('[Strategy] 天下推演失败：', err.message);
   }
   try {
     runMenses(world);

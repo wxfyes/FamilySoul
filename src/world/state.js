@@ -5,6 +5,7 @@
  * 所有数据结构见 docs/world-engine.md 第 3、4 节。
  */
 import { ensureBonds } from './bonds.js';
+import { ensureFactions } from './factions.js';
 import { moveActor } from './position.js';
 import { syncMoney } from './money.js';
 import { syncNames } from './identity.js';
@@ -952,6 +953,8 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 势力：朝廷、王家，以及将来天道推演出来的枭雄
+  try { ensureFactions(world); } catch (e) { console.warn('[Faction] 势力初始化失败：', e.message); }
   // 待办归属：老数据没写 owner 的，一律算相公的（那是当时唯一的主角）
   try {
     for (const pr of world.promises || []) {
