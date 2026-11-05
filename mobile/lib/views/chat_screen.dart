@@ -13,6 +13,7 @@ import '../widgets/message_bubble.dart';
 import 'settings_screen.dart';
 import 'my_world_screen.dart';
 import 'out_and_about_sheet.dart';
+import 'army_sheet.dart';
 import 'video_call_screen.dart';
 import 'assistant_view.dart';
 import '../widgets/register_dialog.dart';
@@ -785,6 +786,23 @@ class _ChatScreenState extends State<ChatScreen> {
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
                   builder: (_) => OutAndAboutSheet(api: provider.api),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.groups_rounded, color: Color(0xFF8B5CF6)),
+              title: const Text('家兵', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('募兵 · 购粮 · 军械 · 驻军', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
+              onTap: () {
+                Navigator.pop(context);
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => ArmySheet(
+                    api: provider.api,
+                    onChanged: () => setState(() {}),
+                  ),
                 );
               },
             ),

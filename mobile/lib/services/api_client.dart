@@ -489,4 +489,16 @@ class SurfCoreApiClient {
     } catch (_) {}
     return null;
   }
+
+  /// 兵事：募兵 / 买粮 / 买军械 / 出征 / 调防
+  Future<Map<String, dynamic>?> militaryAction(Map<String, dynamic> body) async {
+    try {
+      final res = await _dio.post('${config.baseUrl}/api/world/military',
+          queryParameters: {'token': config.token.trim()}, data: body);
+      if (res.statusCode == 200 && res.data is Map) {
+        return Map<String, dynamic>.from(res.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
 }

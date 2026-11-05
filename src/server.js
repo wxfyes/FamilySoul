@@ -1368,6 +1368,19 @@ const STARTED_AT = Date.now();
           .slice(-8)
           .map((c) => ({ text: c.text, day: c.day })),
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
+        factions: Object.values(world.factions || {}).map((f) => ({
+          id: f.id, name: f.name, kind: f.kind, leader: f.leader,
+          troops: Number(f.troops) || 0,
+          grain: Math.round((Number(f.grain) || 0) * 10) / 10,
+          silver: Math.round(factionSilver(world, f) * 100) / 100,
+          morale: Number(f.morale) || 0, ambition: Number(f.ambition) || 0,
+          strength: factionStrength(world, f),
+          cities: (f.cities || []).slice(0, 12),
+          gear: f.gear || {},
+          fresh: Number(f.fresh) || 0,
+          freshUntilDay: Number(f.freshUntilDay) || 0,
+          stationed: f.stationed || {},
+        })),
         life: (() => {
           const meL = actorId ? world.actors?.[actorId] : world.actors?.husband;
           const house = Object.values(world.actors || {}).filter(
