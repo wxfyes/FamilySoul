@@ -10,7 +10,7 @@
  */
 
 import { factionOf, factionSilver, factionStrength } from './factions.js';
-import { recruit, besiege, bribeCity, buyGrain, march, troopsAt, totalTroops } from './warfare.js';
+import { recruit, besiege, bribeCity, buyGrain, march, troopsAt, totalTroops, fortify } from './warfare.js';
 import { canReach } from './geography.js';
 
 const num = (v) => {
@@ -143,7 +143,7 @@ export function applyStrategyDecisions(world, decisions, sink) {
     else if (action === 'buy_grain') r = buyGrain(world, fid, Math.max(10, amount));
     else if (action === 'besiege') r = besiege(world, { attacker: fid, cityName: target, troops: amount });
     else if (action === 'bribe') r = bribeCity(world, fid, target, amount);
-    else if (action === 'fortify') r = { ok: false, error: '暂未开放' };
+    else if (action === 'fortify') r = fortify(world, fid, target, amount);
     else continue;
 
     if (r && r.ok) {
