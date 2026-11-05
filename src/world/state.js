@@ -6,6 +6,7 @@
  */
 import { ensureBonds } from './bonds.js';
 import { ensureFactions } from './factions.js';
+import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
 import { ensureClans } from './clans.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
@@ -956,6 +957,34 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 婚配：成年而缺字段的人，按世情补上（61 岁浆洗婆子不该是"待字闺中"）
+  try {
+    let fixed = 0;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead || a.id === 'husband') continue;
+      // 通房/侍妾/姨娘：名分以身份为准，哪怕先前被误写成 single/married
+      if (/通房|侍妾|小妾|姨娘/.test(String(a.role || ''))) {
+        if (a.marital !== 'concubine') { a.marital = 'concubine'; fixed += 1; }
+        continue;
+      }
+      // 有孕在身，就不可能是"待字闺中"
+      if (a.pregnancy && !a.pregnancy.born && (!a.marital || a.marital === 'single')) {
+        a.marital = /丫鬟|通房|侍妾|妾/.test(String(a.role || '')) ? 'concubine' : 'married';
+        fixed += 1;
+        continue;
+      }
+      if (a.marital) continue;
+      if (!(Number(a.age) >= 18)) continue;
+      const isKin = a.household || a.spouse === 'husband';
+      const isConcubine = /通房|侍妾|妾|姨娘/.test(String(a.role || ''));
+      if (isConcubine) { a.marital = 'concubine'; fixed += 1; continue; }
+      if (isKin) { a.marital = 'married'; fixed += 1; continue; }
+      a.marital = inferMaritalStatus(a.name, a.role, a.age, a.gender);
+      fixed += 1;
+    }
+    if (fixed) console.log(`[Persona] 补全 ${fixed} 人的婚配状态`);
+  } catch { /* 忽略 */ }
+
   // 势力：朝廷、王家，以及将来天道推演出来的枭雄
   try { ensureFactions(world); } catch (e) { console.warn('[Faction] 势力初始化失败：', e.message); }
   try { ensureMarket(world); } catch { /* 忽略 */ }
@@ -1348,12 +1377,10 @@ export function migrateOwnership(world) {
       if (/天子/.test(role)) a.age = 42;
       else if (/宰相|尚书|巡抚/.test(role)) a.age = 52 + (id.length % 6);
       else if (/知府|知县/.test(role)) a.age = 44 + (id.length % 8);
+      // 年龄：姓名 + 身份一起看（王婆的 role 是"面摊"，只看 role 会把她判成少女）
       else if (/老鸨|鸨母/.test(role)) a.age = 38 + (id.length % 8);
       else if (/先生|老夫子|夫子/.test(role)) a.age = 58 + (id.length % 8);
-      else if (/婆/.test(role)) a.age = 48 + (id.length % 10);
-      else if (/寡妇|妇人/.test(role)) a.age = 28 + (id.length % 8);
-      else if (/丫鬟|小厮|伙计/.test(role)) a.age = 16 + (id.length % 6);
-      else a.age = 20 + (id.length % 25);
+      else a.age = inferAgeFromIdentity(a.name, role, a.gender, id);
     }
   } catch { /* 忽略 */ }
   // 清掉误建的重复茶坊（teahouse_shop），把人挪回 tea_house

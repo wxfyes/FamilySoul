@@ -1,3 +1,4 @@
+﻿import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -213,6 +214,34 @@ export function healWorld(world) {
       fixes.push(`清洗 ${beforePromises - world.promises.length} 条陈旧查账差事`);
     }
   }
+
+  // ⑭ 世情自愈：姓名带"婆/嬷/老/翁"却是少年岁数的，按称谓改正；绝经者清月事
+  try {
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead) continue;
+      const text = `${a.name || ''} ${a.role || ''}`;
+      const looksOld = /婆|嬷嬷|老太|妪|翁|老汉|老者/.test(text);
+      if (looksOld && Number(a.age) < 45) {
+        const before = Number(a.age) || 0;
+        a.age = inferAgeFromIdentity(a.name, a.role, a.gender, a.id);
+        fixes.push(`${a.name}（原${before}岁）校正为${a.age}岁`);
+        if (a.age >= 50) { delete a.menses; a.onPeriod = false; }
+      }
+      // 名分纠正：通房/侍妾/姨娘一律是妾室，不能被当成"已婚"或"待字闺中"
+      if (/通房|侍妾|小妾|姨娘/.test(String(a.role || '')) && a.marital !== 'concubine') {
+        a.marital = 'concubine';
+        fixes.push(`${a.name}名分校正为妾室`);
+      }
+      if (!a.marital && Number(a.age) >= 18 && a.id !== 'husband') {
+        a.marital = a.household ? 'married' : inferMaritalStatus(a.name, a.role, a.age, a.gender);
+      }
+      if (Number(a.age) >= 50 && a.menses) {
+        delete a.menses;
+        a.onPeriod = false;
+        fixes.push(`${a.name}绝经，清掉月事`);
+      }
+    }
+  } catch { /* 忽略 */ }
 
   return fixes;
 }

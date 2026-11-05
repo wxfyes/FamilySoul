@@ -796,6 +796,13 @@ function runAllowances(world, events) {
 function runMenses(world) {
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead || a.gender !== 'female' || !a.menses) continue;
+    const age = Number(a.age) || 0;
+    // 绝经与幼女不参与月事；残留数据一并清掉
+    if (age >= 50 || (age > 0 && age < 14)) {
+      delete a.menses;
+      a.onPeriod = false;
+      continue;
+    }
     const m = a.menses;
     m.cycleDay = ((Number(m.cycleDay) || 0) + 1) % (Number(m.cycle) || 28);
     const on = m.cycleDay < (Number(m.periodLen) || 5);

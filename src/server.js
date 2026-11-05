@@ -35,6 +35,7 @@ import { ensureFactions, factionOf, factionSilver, factionStrength, spendFaction
 import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
 import { marketSnapshot } from './world/prices.js';
+import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
 import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
 import { canalFrozen } from './world/season.js';
@@ -2871,6 +2872,8 @@ const STARTED_AT = Date.now();
             home: a.home || null,
             homeName: a.home ? (world.places?.[a.home]?.name || '') : '',
             marital: a.marital || null,
+            maritalText: maritalTextOf(a, a.spouse ? (world.actors?.[a.spouse]?.name || '') : ''),
+            bodyText: mensesStatusText(a),
             spouseId: a.spouse || null,
             spouseName: a.spouse ? (world.actors?.[a.spouse]?.name || '') : '',
             residence: a.residence ? { type: a.residence.type, placeId: a.residence.placeId, placeName: world.places?.[a.residence.placeId]?.name || '' } : null,

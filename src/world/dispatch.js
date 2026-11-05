@@ -15,6 +15,7 @@ import { loadState, saveState, appendEvents, nextEvent, round2, forceOf } from '
 import { queueProactive } from './clock.js';
 import { propagateMood, easeBonds } from './bonds.js';
 import { moveActor } from './position.js';
+import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
 
 
 function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
@@ -865,7 +866,9 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
             household: false,
             home: 'yamen',
             location: 'yamen',
-            relations: { husband: { trust: 40, desire: 0, fear: 0, grievance: 0 } },
+            age: inferAgeFromIdentity(name, role, gender, name),
+      marital: inferMaritalStatus(name, role, inferAgeFromIdentity(name, role, gender, name), gender),
+      relations: { husband: { trust: 40, desire: 0, fear: 0, grievance: 0 } },
             goals: ['坐稳这位子', '报答提拔之恩'],
             secret: '原是相公门下的人',
             schedule: [],

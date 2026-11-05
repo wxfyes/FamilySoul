@@ -1533,7 +1533,7 @@ function render(w){
         const rankTag = isOut ? '<span class="tag warn">外室 · 相好</span>' : `<span class="tag good">${rankOf(a)}</span>`;
         const pregDays = Number(a.pregnancy?.days) || 0;
         const pregMonth = Math.floor(pregDays / 30);
-        let pregHtml = '<span class="muted">未孕</span>';
+        let pregHtml = `<span class="muted">${a.bodyText || '未孕'}</span>`;
         if (isPreg(a)) {
           pregHtml = `<span class="tag good" style="font-weight:600">🤱 有喜 ${pregDays} 天 (${pregMonth}个月)</span>`;
         } else if (a.onPeriod) {
@@ -2395,15 +2395,11 @@ function renderLedger(w) {
 // 婚配：优先看结构化字段，其次按"有无配偶/是否府内"推，绝不猜
 function maritalText(a) {
   if (!a) return '—';
+  if (a.maritalText) return a.maritalText;      // 后端按世情算好的中文
   if (a.id === 'husband') return '已婚 · 妻妾在侧';
   if (a.spouseName) return `已婚 · ${a.spouseName}`;
-  const m = a.marital;
-  if (m === 'married') return '已婚';
-  if (m === 'widowed') return '寡居';
-  if (m === 'concubine') return '侧室';
-  if (m === 'single') return '未婚';
   if (a.household) return '已婚 · 王府内眷';
-  return '未婚';
+  return a.marital === 'single' ? '未婚 · 待字闺中' : '—';
 }
 
 function renderTreasury(court) {
