@@ -1395,6 +1395,22 @@ export function migrateOwnership(world) {
     }
   }
 
+  // 税率落成数据：没写过的补 10%；历史上被 `|| 10` 暗中按 10% 收税的城，一次性明确为 10%
+  // （只做一次，之后 0 就是真的免税，不再回填）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.taxBackfillDone) {
+      let filled = 0;
+      for (const ct of Object.values(world.cities || {})) {
+        if (!ct) continue;
+        const t = Number(ct.tax);
+        if (!Number.isFinite(t) || t === 0) { ct.tax = 10; filled += 1; }
+      }
+      world.flags.taxBackfillDone = { day: world.clock?.day || 1, filled };
+      if (filled) console.log(`[Tax] 一次性矫正 ${filled} 座城的税率 → 10%（此前被 || 10 暗中征收）`);
+    }
+  } catch { /* 忽略 */ }
+
   // 产业本金：买价优先；祖传/老产业按日入估个底（收入模型按本金×收益率算）
   try {
     for (const pr of (world.assets?.properties || [])) {

@@ -526,9 +526,9 @@ export function applyDecree(world, events, d) {
   const cities = Object.values(world.cities || {}).filter(Boolean);
   const eff = (fn) => cities.forEach(fn);
   if (kind === 'raise_tax') {
-    eff((c) => { c.tax = Math.min(50, (Number(c.tax) || 10) + Math.round(amount / 2)); c.unrest = Math.min(100, (Number(c.unrest) || 0) + 4); });
+    eff((c) => { c.tax = Math.min(50, (Number.isFinite(Number(c.tax)) ? Number(c.tax) : 10) + Math.round(amount / 2)); c.unrest = Math.min(100, (Number(c.unrest) || 0) + 4); });
   } else if (kind === 'lower_tax') {
-    eff((c) => { c.tax = Math.max(0, (Number(c.tax) || 10) - Math.round(amount / 2)); c.unrest = Math.max(0, (Number(c.unrest) || 0) - 3); });
+    eff((c) => { c.tax = Math.max(0, (Number.isFinite(Number(c.tax)) ? Number(c.tax) : 10) - Math.round(amount / 2)); c.unrest = Math.max(0, (Number(c.unrest) || 0) - 3); });
   } else if (kind === 'corvee') {
     eff((c) => { c.unrest = Math.min(100, (Number(c.unrest) || 0) + 7); c.price = Math.min(300, Math.round((Number(c.price) || 100) * 1.05)); });
   } else if (kind === 'relief') {
@@ -872,7 +872,8 @@ function runTreasury(world, events) {
     if (!ct) continue;
     const courtOwned = !ct.owner || ct.owner === 'court';
     if (!courtOwned) continue;
-    const tax = Math.max(0, Math.min(50, Number(ct.tax) || 10));
+    const rawTax = Number(ct.tax);
+    const tax = Math.max(0, Math.min(50, Number.isFinite(rawTax) ? rawTax : 10));
     income += Math.round(((Number(ct.wealth) || 30) * tax) / 100 / 3 * 100) / 100;
   }
   // 支：官俸 + 军饷
@@ -893,7 +894,7 @@ function runTreasury(world, events) {
     world.flags.courtBankrupt = (Number(world.flags.courtBankrupt) || 0) + 1;
     for (const ct of Object.values(world.cities || {})) {
       if (!ct) continue;
-      ct.tax = Math.min(50, (Number(ct.tax) || 10) + 2);
+      ct.tax = Math.min(50, (Number.isFinite(Number(ct.tax)) ? Number(ct.tax) : 10) + 2);
       ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 2);
     }
     events.push(nextEvent(world, { action: 'treasury_empty', actor: 'court', place: null, payload: { text: '国库告罄，朝廷加征' }, isPublic: true }));
