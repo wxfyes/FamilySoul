@@ -20,17 +20,24 @@ const num = (v) => {
 };
 const round2 = (v) => Math.round(num(v) * 100) / 100;
 
-export const RECRUIT_COST = 12;
-export const RECRUIT_GRAIN = 0.5;
+export const RECRUIT_COST = 1.2;   // 家丁安家银（古代募兵约一两上下）
+export const RECRUIT_GRAIN = 0.2;   // 随身粮
 export const PAY_PER_DAY = 0.05;
 export const GRAIN_PER_DAY = 0.02;
 export const GRAIN_PRICE = 0.6;
 
 /** 军械作价（两） */
-export const GEAR_PRICES = { weapon: 3, armor: 5, horse: 20, siege: 300 };
+export const GEAR_PRICES = { weapon: 0.6, armor: 1.8, horse: 9, siege: 40 };
 export const GEAR_NAMES = { weapon: '兵器', armor: '铠甲', horse: '战马', siege: '攻城器械' };
 /** 新兵成军天数 */
 export const TRAIN_DAYS = 7;
+
+// 三种人：家丁（看家最便宜）、护院（精壮）、营兵（要地盘）
+export const RECRUIT_KINDS = {
+  guard: { name: '家丁', cost: 1.2, grain: 0.2, morale: 0, note: '看家护院' },
+  retainer: { name: '护院', cost: 3.0, grain: 0.3, morale: 1, note: '精壮护院' },
+  army: { name: '营兵', cost: 4.0, grain: 0.4, morale: 2, note: '能出征的营兵' },
+};
 
 let eventSink = null;
 
@@ -132,15 +139,16 @@ export function totalTroops(world, f) {
 }
 
 /** 募兵：落在自己的城（默认首城） */
-export function recruit(world, fid, count, city) {
+export function recruit(world, fid, count, city, kind = 'guard') {
   const f = factionOf(world, fid);
   if (!f) return { ok: false, error: '没有这个势力' };
   const n = Math.max(1, Math.min(500, Math.round(num(count))));
   const town = city && world.cities?.[city] ? city : factionCapital(world, f);
   if (!world.cities?.[town]) return { ok: false, error: '落脚城不存在' };
 
-  const cost = round2(n * RECRUIT_COST);
-  const needGrain = round2(n * RECRUIT_GRAIN);
+  const k = RECRUIT_KINDS[kind] || RECRUIT_KINDS.guard;
+  const cost = round2(n * k.cost);
+  const needGrain = round2(n * k.grain);
   if (num(f.grain) < needGrain) return { ok: false, error: `粮不够：募 ${n} 兵要 ${needGrain} 石，手头 ${round2(f.grain)} 石` };
   if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：募 ${n} 兵要 ${cost} 两，手头 ${round2(factionSilver(world, f))} 两` };
 
@@ -149,8 +157,8 @@ export function recruit(world, fid, count, city) {
   // 新募之兵要练：七天之内战力只有四成
   f.fresh = Math.round(num(f.fresh) + n);
   f.freshUntilDay = (Number(world.clock?.day) || 1) + TRAIN_DAYS;
-  f.morale = Math.min(100, Math.round(num(f.morale) + 1));
-  fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}募兵 ${n} 人` } });
+  f.morale = Math.min(100, Math.round(num(f.morale) + 1 + k.morale));
+  fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}募${k.name} ${n} 人` } });
   return { ok: true, troops: totalTroops(world, f), stationed: troopsAt(world, f, town), city: town, cost };
 }
 

@@ -257,17 +257,32 @@ class _ArmySheetState extends State<ArmySheet> {
               Wrap(spacing: 10, runSpacing: 10, children: [
                 _pill(
                   icon: Icons.groups_rounded,
-                  label: '募兵',
+                  label: '募家丁 ·1.2两',
                   color: _accent,
                   onTap: () => _pickCount(
-                    title: '募兵',
+                    title: '募家丁',
                     unit: '人',
-                    unitPrice: 12,
+                    unitPrice: 1,
                     min: 1,
                     max: 500,
-                    presets: const [10, 30, 50, 100],
+                    presets: const [5, 10, 20, 50],
                     action: 'recruit',
-                    extra: {'city': cities.isNotEmpty ? cities.first.key : ''},
+                    extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'guard'},
+                  ),
+                ),
+                _pill(
+                  icon: Icons.shield_moon_rounded,
+                  label: '募护院 ·3两',
+                  color: Colors.purpleAccent,
+                  onTap: () => _pickCount(
+                    title: '募护院',
+                    unit: '人',
+                    unitPrice: 3,
+                    min: 1,
+                    max: 200,
+                    presets: const [2, 5, 10, 20],
+                    action: 'recruit',
+                    extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'retainer'},
                   ),
                 ),
                 _pill(
@@ -292,7 +307,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买兵器',
                     unit: '件',
-                    unitPrice: 3,
+                    unitPrice: 1,
                     min: 1,
                     max: 500,
                     presets: const [20, 50, 100],
@@ -307,7 +322,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买铠甲',
                     unit: '件',
-                    unitPrice: 5,
+                    unitPrice: 2,
                     min: 1,
                     max: 500,
                     presets: const [20, 50, 100],
@@ -322,7 +337,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买战马',
                     unit: '匹',
-                    unitPrice: 20,
+                    unitPrice: 9,
                     min: 1,
                     max: 200,
                     presets: const [5, 10, 20],
@@ -337,7 +352,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买攻城器械',
                     unit: '架',
-                    unitPrice: 300,
+                    unitPrice: 40,
                     min: 1,
                     max: 10,
                     presets: const [1, 2, 3],

@@ -874,7 +874,11 @@ export class PetService {
       const milTag = reply.match(/\[\[(?:recruit|military):([^\]]+)\]\]/);
       if (milTag) {
         const body3 = String(milTag[1] || '').split('|').map((x) => x.trim());
-        const count = Math.max(1, Math.min(500, Math.round(Number(body3[0]) || 0) || 10));
+        const kindMap = { 家丁: 'guard', 护院: 'retainer', 营兵: 'army', 兵: 'guard' };
+        let recruitKind = 'guard';
+        let countRaw = body3[0];
+        if (kindMap[body3[0]]) { recruitKind = kindMap[body3[0]]; countRaw = body3[1]; }
+        const count = Math.max(1, Math.min(500, Math.round(Number(countRaw) || 0) || 10));
         const wMil = loadState(dataDir);
         const meMil = this._viewerActorId ? wMil.actors?.[this._viewerActorId] : wMil.actors?.husband;
         const fMil = wMil.factions?.wangjia;
@@ -886,6 +890,7 @@ export class PetService {
           id: `pend_mil_${Date.now()}`,
           title: '募兵',
           action: 'recruit',
+          recruitKind,
           qty: count,
           city: town,
           options: [{ key: `募兵${count}`, label: `募兵 ${count} 人（耗粮 ${grainRecruit} 石）`, price: costRecruit }],

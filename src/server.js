@@ -540,7 +540,7 @@ const STARTED_AT = Date.now();
 
         const act = String(body.action || '');
         let result = { ok: false, error: '未知动作' };
-        if (act === 'recruit') result = recruit(world, fid, Number(body.count) || 0, String(body.city || ''));
+        if (act === 'recruit') result = recruit(world, fid, Number(body.count) || 0, String(body.city || ''), String(body.kind || 'guard'));
         else if (act === 'grain') result = buyGrain(world, fid, Number(body.shi) || 0, String(body.city || ''));
         else if (act === 'siege') result = besiege(world, { attacker: fid, cityName: String(body.city || ''), troops: Number(body.troops) || 0 });
         else if (act === 'bribe') result = bribeCity(world, fid, String(body.city || ''), Number(body.amount) || 0);
@@ -810,7 +810,14 @@ const STARTED_AT = Date.now();
 
         // 可去的地方：当前出口 + 自有产业 + 有人的地方
         const exits = (world.places?.[curId]?.exits || []).map((id) => ({ id, name: placeName(id) }));
-        const props = (world.assets?.properties || []).map((x) => ({ name: x.name, income: x.incomePerDay || 0 }));
+        // 产业只给"自己的"：相公看相公的，其他人只看自己名下或自己管的
+        const props = (world.assets?.properties || [])
+          .filter((x) => {
+            if (!x) return false;
+            if (actorId === 'husband') return x.owner === 'husband' || x.keeper === 'husband' || (!x.owner && !x.keeper);
+            return x.owner === actorId || x.keeper === actorId;
+          })
+          .map((x) => ({ name: x.name, income: x.incomePerDay || 0 }));
         const occupied = {};
         for (const a of people) {
           if (!a.location || !a.name) continue;
@@ -1026,7 +1033,7 @@ const STARTED_AT = Date.now();
           ensureFactions(world);
           const rMil = pend.action === 'gear'
             ? buyGear(world, 'wangjia', String(pend.gearKind || 'weapon'), Number(pend.qty) || 0)
-            : recruit(world, 'wangjia', Number(pend.qty) || 0, String(pend.city || ''));
+            : recruit(world, 'wangjia', Number(pend.qty) || 0, String(pend.city || ''), String(pend.recruitKind || 'guard'));
           if (!rMil.ok) return sendJson(res, 200, { ok: false, error: rMil.error });
           delete world.pendingAction;
           saveState(DATA_DIR, world);
