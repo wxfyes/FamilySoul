@@ -875,6 +875,22 @@ export function ensureTerrain(world) {
 
 export function ensureCities(world) {
   world.cities = world.cities && typeof world.cities === 'object' ? world.cities : {};
+  // 水运枢纽：一次性打上 port 标记（此后只认字段，不再靠名字猜）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.portBackfillDone) {
+      let marked = 0;
+      for (const [cityName, ct] of Object.entries(world.cities || {})) {
+        if (!ct) continue;
+        if (ct.port === undefined) {
+          ct.port = /(运河|码头|水运|江南|淮|漕|临江)/.test(`${cityName} ${ct.region || ''}`);
+          if (ct.port) marked += 1;
+        }
+      }
+      world.flags.portBackfillDone = { day: world.clock?.day || 1, marked };
+      if (marked) console.log(`[City] 标记 ${marked} 座水运枢纽城（port=true）`);
+    }
+  } catch { /* 忽略 */ }
   const regions = world.geo?.regions || [];
   for (const r of regions) {
     for (const name of r.cities || []) {

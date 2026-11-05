@@ -883,8 +883,7 @@ function runTreasury(world, events) {
     tradeTax += wealth * 0.02;
 
     // 关税：靠水有码头的城，才有过税可抽
-    const region = String(ct.region || '');
-    if (/运河|码头|江南|淮|漕/.test(region + String(ct.name || ''))) tariffCities += 1;
+    if (ct.port === true) tariffCities += 1;
   }
   tradeTax = Math.round(tradeTax * 100) / 100;
   const tariff = Math.round(tariffCities * 3 * 100) / 100;
@@ -901,19 +900,26 @@ function runTreasury(world, events) {
   const grossIncome = Math.round(income * K * 100) / 100;
   const salaryPay = Math.round(expense * K * 100) / 100;
 
+  // 刚性支出（国库两）：防务营兵水师、运河河工与驿传岁修
+  const defenseBase = 5500;
+  const riverMaintenance = 2800;
+  const routineExpense = Math.round((salaryPay + defenseBase + riverMaintenance) * 100) / 100;
+
   // 制度性损耗：火耗、漂没、截留、层层盘剥（国库越大、衙门越松，漏得越多）
   const courtPressure = Number(world.flags?.courtPressure) || 0;
   const skimRate = Math.min(0.35, 0.06 + courtPressure / 400 + (Number(world.flags?.courtBankrupt) ? 0.05 : 0));
   const skim = Math.round(grossIncome * skimRate * 100) / 100;
 
-  tr.silver = Math.round(((Number(tr.silver) || 0) + grossIncome - skim - salaryPay) * 100) / 100;
+  tr.silver = Math.round(((Number(tr.silver) || 0) + grossIncome - skim - routineExpense) * 100) / 100;
   tr.lastIncome = grossIncome;
-  tr.lastExpense = Math.round((salaryPay + skim) * 100) / 100;
+  tr.lastExpense = Math.round((routineExpense + skim) * 100) / 100;
   tr.detail = {
     cityTax: Math.round((income - tradeTax - tariff) * K * 100) / 100,
     tradeTax: Math.round(tradeTax * K * 100) / 100,
     tariff: Math.round(tariff * K * 100) / 100,
     salary: salaryPay,
+    defense: defenseBase,
+    river: riverMaintenance,
     skim,
     skimRate: Math.round(skimRate * 1000) / 1000,
   };
@@ -925,40 +931,68 @@ function runTreasury(world, events) {
       .map((o) => world.actors?.[o.holder])
       .filter((a) => a && !a.dead);
     if (skim > 0 && holders.length) {
-      const each = Math.round((skim * 0.3 / holders.length) * 100) / 100;
+      // 国库两 → 民间两要除以 K，否则九品小官比开酒楼的相公还富
+      const each = Math.round(((skim * 0.3 / K) / holders.length) * 100) / 100;
       for (const a of holders) a.money = Math.round(((Number(a.money) || 0) + each) * 100) / 100;
-      tr.detail.skimToOfficials = Math.round(each * holders.length * 100) / 100;
+      tr.detail.skimToOfficials = Math.round(skim * 0.3 * 100) / 100;
+      tr.detail.skimToOfficialsCivil = Math.round(each * holders.length * 100) / 100;
     }
   } catch { /* 忽略 */ }
 
-  // 赈灾：国库出钱；出不起，灾民就自己想办法
+  // 赈灾：地方与户部报灾索款 15 万两起，层层漂没七成半，实发不足三成
   try {
     const disasters = (events || []).filter((e) => e && e.action === 'disaster').length;
     if (disasters > 0) {
-      const relief = disasters * 5000;
-      if (Number(tr.silver) >= relief) {
-        tr.silver = Math.round((Number(tr.silver) - relief) * 100) / 100;
-        tr.lastExpense = Math.round((Number(tr.lastExpense) + relief) * 100) / 100;
-        tr.detail.relief = relief;
-        for (const ct of Object.values(world.cities || {})) {
-          if (ct) ct.unrest = Math.max(0, (Number(ct.unrest) || 0) - 2);
+      const reliefDemand = disasters * 150000;
+
+      if (Number(tr.silver) >= reliefDemand) {
+        tr.silver = Math.round((Number(tr.silver) - reliefDemand) * 100) / 100;
+        tr.lastExpense = Math.round((Number(tr.lastExpense) + reliefDemand) * 100) / 100;
+        tr.detail.relief = reliefDemand;
+
+        // 巨款层层漂没：七成半进了官员私囊（按官数分润，换算回民间两）
+        const skimmedRelief = reliefDemand * 0.75;
+        const holders = Object.values(world.court?.offices || {})
+          .filter((o) => o && o.holder && !o.vacant)
+          .map((o) => world.actors?.[o.holder])
+          .filter((a) => a && !a.dead);
+        if (holders.length) {
+          const eachGraft = Math.round(((skimmedRelief / K) / holders.length) * 100) / 100;
+          for (const a of holders) a.money = Math.round(((Number(a.money) || 0) + eachGraft) * 100) / 100;
+          tr.detail.disasterGraftToOfficials = Math.round(skimmedRelief * 100) / 100;
+          tr.detail.disasterGraftCivil = Math.round(eachGraft * holders.length * 100) / 100;
         }
+
+        // 拨了巨款，可实发不足三成：灾民仍不稳
+        for (const ct of Object.values(world.cities || {})) {
+          if (ct) ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 1);
+        }
+        events.push(nextEvent(world, {
+          action: 'relief_corrupt', actor: 'court', place: null,
+          payload: { text: `朝廷拨下 ${reliefDemand} 两赈灾银，巨款层层漂没入私囊，实发不足三成` },
+          isPublic: true,
+        }));
       } else {
+        // 国库拨不出：归零、暴烈加派、民变四起
         tr.silver = 0;
         tr.detail.relief = 0;
         world.flags = world.flags || {};
-        world.flags.courtPressure = Math.min(100, (Number(world.flags.courtPressure) || 0) + 5);
+        world.flags.courtPressure = Math.min(100, (Number(world.flags.courtPressure) || 0) + 15);
         for (const ct of Object.values(world.cities || {})) {
-          if (ct) ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 4);
+          if (!ct) continue;
+          ct.tax = Math.min(50, (Number.isFinite(Number(ct.tax)) ? Number(ct.tax) : 10) + 3);
+          ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 8);
         }
         events.push(nextEvent(world, {
           action: 'relief_short', actor: 'court', place: null,
-          payload: { text: '国库拨不出赈灾粮款，灾民聚于城外' }, isPublic: true,
+          payload: { text: '国库告罄无法拨出赈款，流民啸聚冲击官府，朝廷下旨强征加派' },
+          isPublic: true,
         }));
       }
     }
-  } catch { /* 忽略 */ }
-
+  } catch (err) {
+    console.warn('[Treasury] 赈灾结算异常:', err.message);
+  }
 
   // 国库见底：加税或欠俸
   if (tr.silver < 0) {
