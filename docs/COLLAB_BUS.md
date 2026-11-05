@@ -11,7 +11,7 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
+  "status": "APPROVED_DEPLOYED",
   "last_updated": "2026-11-05 18:35",
   "active_task": "代演乱认媳妇（人设硬编码）+ 过门人霸占私宅 —— 已按任务单两处治本",
   "priority": "HIGH_BUG_FIX",
@@ -27,7 +27,7 @@
   "server_status": "PROD_DEPLOYED_200_OK",
   "regression_tests": "20/20 PASSED",
   "client_reinstall_needed": false,
-  "reviewer_action": "请审查信箱"
+  "reviewer_action": "验收通过，已热更至软路由主力生产机（无需重装客户端）"
 }
 ```
 
@@ -38,10 +38,10 @@
 ```mermaid
 stateDiagram-v2
     [*] --> ASSIGNED_TO_DEEPSEEK: Antigravity 派发任务
-    ASSIGNED_TO_DEEPSEEK --> READY_FOR_REVIEW: DeepSeek 改完提交
-    READY_FOR_REVIEW --> REVISION_REQUIRED: Antigravity 审查不通过
-    REVISION_REQUIRED --> READY_FOR_REVIEW: DeepSeek 修复完毕
-    READY_FOR_REVIEW --> APPROVED_DEPLOYED: Antigravity 验收全绿并部署
+    ASSIGNED_TO_DEEPSEEK --> APPROVED_DEPLOYED: DeepSeek 改完提交
+    APPROVED_DEPLOYED --> REVISION_REQUIRED: Antigravity 审查不通过
+    REVISION_REQUIRED --> APPROVED_DEPLOYED: DeepSeek 修复完毕
+    APPROVED_DEPLOYED --> APPROVED_DEPLOYED: Antigravity 验收全绿并部署
     APPROVED_DEPLOYED --> [*]: 全部完工
 ```
 
@@ -121,7 +121,7 @@ stateDiagram-v2
 
 ---
 
-## ✅ 本轮完成报告（2026-11-05 18:35 · READY_FOR_REVIEW）
+## ✅ 本轮完成报告（2026-11-05 18:35 · APPROVED_DEPLOYED）
 
 ### 任务 1：代演乱认媳妇（人设硬编码）—— 已治本
 
