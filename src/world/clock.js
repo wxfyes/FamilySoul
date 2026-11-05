@@ -1853,10 +1853,11 @@ function fireAppointments(world, events) {
           isPublic: true,
         }),
       );
+      const safeSpeaker = actor ? actor.name : (world.actors?.[ap.name]?.name || (ap.name === 'heshun' ? '何顺' : String(ap.name || '')));
       queueProactive(world, {
         reason: 'appointment_missed',
-        facts: { who: ap.name, text: ap.text, place: world.places?.[meetPlace]?.name || '' },
-        speaker: actor ? actor.name : ap.name,
+        facts: { who: safeSpeaker, text: ap.text, place: world.places?.[meetPlace]?.name || '' },
+        speaker: safeSpeaker,
         force: true,
       });
     }

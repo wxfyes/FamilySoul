@@ -692,18 +692,35 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
     const actor = matchActor(world.actors, name);
     if (!actor) continue;
 
-    // 家人（婉儿、芸娘、小翠）：若已在家宅（正房/内院/茶坊）则不往外挪；若在外头（公堂/市井）且辞别回府，则归位回后院
-    const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
-    if (actor.household || ['waner', 'yunnia', 'xiaocui'].includes(actor.id)) {
-      if (HOME_MANSION.includes(actor.location)) {
-        continue;
-      }
-      moveActor(world, actor.id, 'backyard', 'world', '随相公回府');
+    // 1. 出府办差意图（去牙行、跑一趟、去码头、去酒楼等）：真正出府！
+    const isGoingOut = /(牙行|跑一趟|去铺子|去酒楼|去码头|去街上|去请|去买|出门|动身|这就去|这就跑)/.test(bodyOnly);
+    if (isGoingOut) {
+      const dest = /酒楼/.test(bodyOnly) ? 'canal_restaurant'
+        : /码头/.test(bodyOnly) ? 'dock'
+        : 'street';
+      moveActor(world, actor.id, dest, 'world', '出府办差');
+      actor.away = { place: dest, untilDay: (Number(world.clock?.day) || 1) + 1 };
+      actor.activity = { text: '出府跑腿办差', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
       left.push(actor.name);
-      console.log(`[Departure] 内眷 ${actor.name}(${actor.id}) 随相公回府，归位至 后院暖阁`);
+      console.log(`[Departure] ${actor.name}(${actor.id}) 领命出府办差 → ${dest}`);
       continue;
     }
 
+    // 2. 退下回房歇息意图（退下、歇息、回东厢、回房、相公早些歇着等）：离开相公正房
+    const isRetiring = /(歇下|歇息|回房|回东厢|回西厢|回屋|退下|先行退下|不打扰相公|相公早些歇着|各忙各的)/.test(bodyOnly) || dismissedAndAgreed;
+    if (isRetiring) {
+      const targetPlace = actor.id === 'yunnia' ? 'east_wing' : (actor.id === 'xiaocui' ? 'backyard' : (actor.home && actor.home !== 'husband_room' ? actor.home : 'backyard'));
+      const realTarget = world.places?.[targetPlace] ? targetPlace : 'backyard';
+      if (actor.location !== realTarget) {
+        moveActor(world, actor.id, realTarget, 'world', '回房歇息');
+        actor.activity = { text: '回房歇息', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+        left.push(actor.name);
+        console.log(`[Departure] ${actor.name}(${actor.id}) 告退回房歇息 → ${realTarget}`);
+        continue;
+      }
+    }
+
+    // 3. 外部 NPC 告辞离场回自家
     const home = (actor.home && world.places?.[actor.home]) ? actor.home : 'street';
     if (!home || actor.location === home) continue;
 

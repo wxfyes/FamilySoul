@@ -332,22 +332,12 @@ export class PetService {
     lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
 
     lines.push('');
-    lines.push('【多角色同场铁律（严禁吊着不收尾）】');
-    lines.push('- 一旦你派了小翠、阿吉去请人或传话，【必须在同一轮里让被请的人到场开口】，写出她自己的台词；绝对不许出现"去了就没下文"这种断在半空的情形。');
-    lines.push('- 无人可请、或对方不在城里，就立刻交代原因（如"芸娘今日回茶园看父亲去了"），不许留白。');
-
-    lines.push('');
-    lines.push('【答话次序铁律（严禁抢话）】');
-    lines.push('- 相公若是**正对着某一个人**说话（比如问她"你不记得了吗""你说呢""你怎么看"），必须由**被问的那一位先开口回答**，其他人不得抢先。');
-    lines.push('- 旁人（芸娘、小翠、阿吉等）只有在三种情况下才开口：① 相公点名她；② 相公明确转向她或问众人；③ 被问的人回答完之后，她有必要插一句帮衬。');
-    lines.push('- 【绝对严禁】第三者在场的旁人**抢先自报家门、抢着解释自己是谁**；相公问别人关于她的事，她只能等被问到、或被那位介绍到，才接话。');
-
-    lines.push('');
-    lines.push('【收尾铁律（绝对不许冷场）】');
-    lines.push('- 每一轮回复的最后，场面必须是"接住的"，不能停在一个等着回应的悬空处。');
-    lines.push('- 本轮凡出现**赠礼、敬酒、问话、邀请、吩咐、递东西**，被波及的那一方【必须在同一轮里给出反应】（道谢、推辞、应承、反问都行）。');
-    lines.push('- 三人以上同场时，本轮至少要让"刚被波及的那个人"说上一句，绝不许最后一个动作无人接。');
-    lines.push('- 若确实要收在这一拍，也必须由某个人用一句自然的话把气氛兜住（如"那妾身先去张罗，相公慢用"），不许留白。');
+    lines.push('【多角色同场与群戏自然演译法则（彻底拒绝机械排队报数）】');
+    lines.push('- 【按需开口，严禁全员排队报幕】：同场有多人在时，每轮通常只需 1~2 人自然开口回应即可！谁有心事、谁被相公问到、谁专司此职，谁才说话；绝不许三个人像合唱团一样一人一句轮流排队发言！');
+    lines.push('- 【姐妹自然互聊，相公从旁品赏】：在场妻妾不仅能直接对相公说，更可以彼此温存商议（如大娘子婉儿问芸娘柜台茶事、芸娘细声向姐姐回禀、两人互相谦让分忧），呈现真实江南大户人家的生动烟火气；');
+    lines.push('- 【丫鬟侍女恪守规矩，绝不抢戏】：小翠专司端茶倒水、添炭掌灯，在旁垂手静听伺候；除非相公或大娘子明确向她吩咐差事（如“小翠去沏茶”），小翠绝不可在主子正经商议时句句强行插嘴表态！');
+    lines.push('- 【物理派人传话真实法则】：若派了小翠、阿吉出门去传话或办差，下人领命行礼退下即可；【绝对严禁】让远在别处的人（如酒楼掌柜、外头伙计）在同一轮里瞬间在内宅现身开口！必须等真正到场或小厮通报后才可登场。');
+    lines.push('- 【呼名必应与主次分明】：相公明确问谁，谁首位作答；未被问及的在场眷属，若无重要补充，不必勉强凑话，在旁温茶静听即可。');
 
     // ════════════════════════════════════════════════════════════════
     // 🌟 动态末尾区（Dynamic Tail Zone）—— 每轮变化的现场与天机置于最末尾
@@ -687,6 +677,28 @@ export class PetService {
               log: [],
             });
             console.log(`[Task] ${who.name} 领受差事：${what}`);
+
+            // 物理身体联动：言行合一，领了差事肉身即离场办差，绝不滞留原地
+            who.activity = {
+              text: `办差：${what.slice(0, 24)}`,
+              at: wT.clock?.hour || 0,
+              day: wT.clock?.day || 1,
+            };
+            const isOutTask = /(牙行|外头|跑一趟|码头|酒楼|茶山|市井|请|买|采|查|送|街)/.test(what);
+            const isYardTask = /(倒座房|后院|东厢|西厢|厨房|灶房|库房|账册|名册|收拾)/.test(what);
+            if (isOutTask) {
+              const dest = /酒楼/.test(what) ? 'canal_restaurant'
+                : /码头/.test(what) ? 'dock'
+                : /茶山/.test(what) ? 'tea_mountain'
+                : 'street';
+              who.location = dest;
+              who.away = { place: dest, untilDay: (Number(wT.clock?.day) || 1) + Math.min(days, 2) };
+              console.log(`[Task] ${who.name} 领命出府办差 → ${dest}`);
+            } else if (isYardTask) {
+              const dest = /东厢/.test(what) ? 'east_wing' : 'backyard';
+              who.location = dest;
+              console.log(`[Task] ${who.name} 领命去后院/厢房忙内务 → ${dest}`);
+            }
           }
           const targetName = who?.name || whoName;
           const cnTag = `\n（【领受差事 · ${targetName}】${what} · 限${days}日）`;
@@ -3563,8 +3575,18 @@ export class PetService {
         reason === 'hook'
           ? '这一条是【钩子】：必须抛出一件**需要相公当场决断**的事——有人在等他回话、有买卖要拍板、有人找上门、账上出了岔子。要具体到人、地、事，别只说"要不要去看看"。'
           : '';
-      const identity = asName
-        ? `你现在是「${asName}」本人，正站在相公面前。没有人跟你说话，是你主动开口。用「${asName}」自己的身份与口吻说话，不要用正妻的口吻。`
+      let cleanAsName = asName ? String(asName).trim() : null;
+      if (cleanAsName && /^[a-zA-Z_0-9]+$/.test(cleanAsName)) {
+        const wSnap = peek(this.dataDir);
+        const aObj = wSnap.actors?.[cleanAsName] || (typeof matchActor === 'function' ? matchActor(wSnap.actors, cleanAsName) : null);
+        cleanAsName = aObj?.name || (cleanAsName === 'heshun' ? '何顺' : '伙计');
+      }
+
+      const isHouseholdWife = /婉儿|芸娘|柳儿/.test(cleanAsName || '');
+      const identity = cleanAsName
+        ? (isHouseholdWife
+            ? `你现在是「${cleanAsName}」本人，正在房中。没有人跟你说话，是你主动开口找相公。用「${cleanAsName}」温婉亲近的口吻说话。`
+            : `你现在是「${cleanAsName}」，市井营生人/雇工。你称呼王甯为「东家」或「王掌柜」，【绝对严禁称呼相公】！你不在内宅私房，是差人送口信或在外头当差回话，就事论事禀报，绝无儿女私情！`)
         : `你现在是「${activeRole}」这个角色本人，正在家中。没有人跟你说话，是你主动开口找相公。`;
       const system = [
         identity,
