@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Apply 唯一结算层 —— 七层管道的第五层
  * 
  * 职责：
@@ -14,6 +14,7 @@ import { saveState } from './state.js';
 import { VERBS } from './intent.js';
 import { getPlaceDisplayName } from './gate.js';
 import { addToParty, removeFromParty, onMemberSelfAction } from './party.js';
+import { materializeRoom } from './residence.js';
 
 const MAX_APPLIED_CACHE = 300;
 
@@ -89,6 +90,30 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
       // 解析真实的 location ID（若世界已有此地则取其 ID，若无则动态辟建入册）
       if (!world.places) world.places = {};
       let finalTargetId = gate?.context?.targetPlaceId || null;
+
+      if (!finalTargetId) {
+        // 目标是账上的院子（如 "husband_room__garden" 或 "王宅·后花园"）→ 先展开成地点
+        try {
+          const raw = String(targetPlaceName);
+          if (raw.includes('__')) {
+            const [parentId, key] = raw.split('__');
+            const made = materializeRoom(world, parentId, key);
+            if (made) finalTargetId = made;
+          } else {
+            for (const [pid, pl] of Object.entries(world.places)) {
+              if (!pl || !pl.rooms) continue;
+              for (const [k, rec] of Object.entries(pl.rooms)) {
+                if (!rec || !rec.name) continue;
+                if (rec.name !== raw && `${String(pl.name || '').split('·').pop()}·${rec.name}` !== raw) continue;
+                const made = materializeRoom(world, pid, k);
+                if (made) finalTargetId = made;
+                break;
+              }
+              if (finalTargetId) break;
+            }
+          }
+        } catch { /* 忽略 */ }
+      }
 
       if (!finalTargetId) {
         // 精确名 → 以该名结尾（如"临江·王宅·正房" ← "正房"）→ 才轮到包含；

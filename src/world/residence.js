@@ -185,29 +185,18 @@ export function ensureResidence(world, rootId, { scale = 0, ownerId = null } = {
   if (grade >= 3) { root.depth = 4; root.access = 'family_core'; }
   if (ownerId && !root.owner) root.owner = ownerId;
 
+  // 只写"账"（这宅子有几间什么院），不写"地点"——地点等人真走进去时再展开
   let built = 0;
   for (const room of spec) {
     const pid = `${rootId}__${room.key}`;
-    if (root.rooms[room.key] && world.places[root.rooms[room.key].id]) continue;
-    if (world.places[pid]) { root.rooms[room.key] = { id: pid, name: room.name, use: room.use }; continue; }
-    world.places[pid] = {
-      id: pid,
-      name: `${baseName}·${room.name}`,
-      residence: true,
-      use: room.use,
-      parent: rootId,
-      owner: root.owner || ownerId || null,
-      exits: [rootId],
-      depth: room.depth || null,
-      access: room.access || null,
-      floor: room.floor || null,
-      dynamic: true,
+    if (!root.rooms[room.key]) built += 1;
+    root.rooms[room.key] = {
+      id: pid, name: room.name, use: room.use,
+      depth: room.depth || null, access: room.access || null, floor: room.floor || null,
     };
-    root.rooms[room.key] = { id: pid, name: room.name, use: room.use, depth: room.depth || null, access: room.access || null };
-    built += 1;
   }
 
-  // 宅门通街，街也通宅门
+  // 宅门通街，街也通宅门（只连宅门，不连房间）
   const street = world.places.street;
   root.exits = Array.isArray(root.exits) ? root.exits : [];
   if (street) {
@@ -215,7 +204,6 @@ export function ensureResidence(world, rootId, { scale = 0, ownerId = null } = {
     street.exits = Array.isArray(street.exits) ? street.exits : [];
     if (!street.exits.includes(rootId)) street.exits.push(rootId);
   }
-  relink();
 
   return { built: built > 0, rooms: Object.keys(root.rooms).length, grade };
 }
@@ -314,20 +302,17 @@ export function upgradeResidence(world, rootId) {
   for (const room of spec) {
     const existing = root.rooms[room.key];
     const pid = existing?.id || `${rootId}__${room.key}`;
-    let rp = world.places?.[pid];
-    if (!rp) {
-      rp = {
-        id: pid, name: `${houseName}·${room.name}`, residence: true, use: room.use,
-        parent: rootId, owner: root.owner || null, exits: [rootId], dynamic: true,
-      };
-      world.places[pid] = rp;
-      changed += 1;
+    // 只改账；已经展开的地点顺手把名字与进深对齐
+    const rp = world.places?.[pid];
+    if (rp) {
+      const want = `${houseName}·${room.name}`;
+      if (rp.name !== want) { rp.name = want; changed += 1; }
+      if (room.depth && rp.depth !== room.depth) { rp.depth = room.depth; changed += 1; }
+      if (room.access && rp.access !== room.access) { rp.access = room.access; changed += 1; }
     }
-    if (room.depth && rp.depth !== room.depth) { rp.depth = room.depth; changed += 1; }
-    if (room.access && rp.access !== room.access) { rp.access = room.access; changed += 1; }
-    const want = `${houseName}·${room.name}`;
-    if (rp.name !== want) { rp.name = want; changed += 1; }
-    root.rooms[room.key] = { id: pid, name: room.name, use: room.use, depth: room.depth || null, access: room.access || null };
+    const wantRec = { id: pid, name: room.name, use: room.use, depth: room.depth || null, access: room.access || null };
+    if (!existing || existing.name !== wantRec.name || existing.depth !== wantRec.depth) changed += 1;
+    root.rooms[room.key] = wantRec;
   }
   if (grade >= 3 && (root.depth !== 4 || root.access !== 'family_core')) {
     root.depth = 4; root.access = 'family_core'; changed += 1;
@@ -390,6 +375,63 @@ export function pruneRunawayRooms(world) {
     for (const [k, r] of Object.entries(p.rooms)) {
       if (!r || !r.id || !world.places[r.id]) { delete p.rooms[k]; removed += 1; }
     }
+  }
+  return removed;
+}
+
+/**
+ * 按需把一间院子展开成真实地点（只在这里创建 place）
+ * @returns {string|null} 房间的 placeId
+ */
+export function materializeRoom(world, parentId, key) {
+  const root = world?.places?.[parentId];
+  const rec = root?.rooms?.[key];
+  if (!root || !rec) return null;
+  const id = rec.id || `${parentId}__${key}`;
+  let p = world.places[id];
+  if (!p) {
+    const segs = String(root.name || '宅').split('·').map((x) => x.trim()).filter(Boolean);
+    const houseName = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '宅');
+    world.places[id] = {
+      id,
+      name: `${houseName}·${rec.name}`,
+      residence: true,
+      use: rec.use || null,
+      parent: parentId,
+      owner: root.owner || null,
+      exits: [parentId],
+      depth: rec.depth || null,
+      access: rec.access || null,
+      floor: rec.floor || null,
+      dynamic: true,
+    };
+    p = world.places[id];
+  }
+  // 双向门路
+  root.exits = Array.isArray(root.exits) ? root.exits : [];
+  if (!root.exits.includes(id)) root.exits.push(id);
+  if (!p.exits || !p.exits.includes(parentId)) p.exits = [parentId];
+  return id;
+}
+
+/** 老存档：把已经建成"独立地点"的房间收回到父地点的账里（只留人待着的那几间） */
+export function collapseRoomPlaces(world) {
+  let removed = 0;
+  const occupied = new Set(Object.values(world.actors || {}).map((a) => a && a.location).filter(Boolean));
+  for (const [pid, p] of Object.entries(world?.places || {})) {
+    if (!p || !p.parent) continue;
+    const parent = world.places[p.parent];
+    if (!parent) { delete world.places[pid]; removed += 1; continue; }
+    parent.rooms = parent.rooms || {};
+    const key = String(pid).split('__').pop();
+    if (!parent.rooms[key]) {
+      parent.rooms[key] = { id: pid, name: String(p.name || '').split('·').pop(), use: p.use || null, depth: p.depth || null, access: p.access || null, floor: p.floor || null };
+    }
+    // 有人待着的房间先留着，等他自己走开再收
+    if (occupied.has(pid)) continue;
+    parent.exits = (parent.exits || []).filter((x) => x !== pid);
+    delete world.places[pid];
+    removed += 1;
   }
   return removed;
 }
@@ -486,22 +528,8 @@ export function buildPremises(world) {
     const base = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '铺');
     for (const room of spec) {
       const rid = `${pid}__${room.key}`;
-      if (!places[rid]) {
-        places[rid] = {
-          id: rid, name: `${base}·${room.name}`, parent: pid,
-          floor: room.floor, use: room.use, exits: [pid], dynamic: true, owner: p.owner || null,
-        };
-        built += 1;
-      }
-      const rp = places[rid];
-      if (rp) {
-        const want = `${base}·${room.name}`;
-        if (rp.name !== want) rp.name = want;
-        rp.use = room.use;
-        rp.floor = room.floor;
-      }
-      p.rooms[room.key] = { id: rid, name: room.name, use: room.use, floor: room.floor };
-      if (!p.exits.includes(rid)) p.exits.push(rid);
+      if (!p.rooms[room.key]) built += 1;
+      p.rooms[room.key] = { id: rid, name: room.name, use: room.use, floor: room.floor, access: 'shop_floor' };
     }
     // 收尾：按模板把名字与楼层纠正（老存档里可能叫"灶房""院门"）
     for (const room of spec) {
@@ -537,21 +565,8 @@ export function buildCourts(world) {
     const base = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '衙');
     for (const room of COURT) {
       const rid = `${pid}__${room.key}`;
-      if (!places[rid]) {
-        places[rid] = {
-          id: rid, name: `${base}·${room.name}`, parent: pid, use: room.use,
-          depth: room.depth, access: room.access, exits: [pid], dynamic: true, owner: p.owner || null,
-        };
-        built += 1;
-      }
-      const rp = places[rid];
-      if (rp) {
-        const want = `${base}·${room.name}`;
-        if (rp.name !== want) rp.name = want;
-        rp.use = room.use; rp.depth = room.depth; rp.access = room.access;
-      }
+      if (!p.rooms[room.key]) built += 1;
       p.rooms[room.key] = { id: rid, name: room.name, use: room.use, depth: room.depth, access: room.access };
-      if (!p.exits.includes(rid)) p.exits.push(rid);
     }
     for (const room of COURT) {
       const rec = p.rooms[room.key];

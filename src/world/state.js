@@ -10,7 +10,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
-import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts } from './residence.js';
+import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces } from './residence.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -984,6 +984,7 @@ export function migrateOwnership(world) {
     const now = Date.now();
     if (now - (globalThis.__spaceSweptAt || 0) > 60000) {
       globalThis.__spaceSweptAt = now;
+      const collapsed = collapseRoomPlaces(world);   // 房间收回账上，不再各占一个地点
       const a0 = pruneRemoteCourts(world);
       const a = pruneForeignRooms(world) + a0;
       const b = settleItinerants(world);
@@ -1437,6 +1438,7 @@ export function migrateOwnership(world) {
       return true;
     });
   } catch { /* 忽略 */ }
+  let fixedGhosts = 0;
   // 强力清除所有 clinic / workshop 等英文幽灵地名，全员位置自愈归位（60 秒一次，别每读档都刷）
   try {
     if (Date.now() - (globalThis.__ghostHealedAt || 0) > 60000) {
@@ -1457,11 +1459,12 @@ export function migrateOwnership(world) {
           console.log(`[State] 相公位置自愈归位 → ${a.location}`);
         } else {
           a.location = a.home && world.places?.[a.home] ? a.home : 'street';
-          console.log(`[State] ${a.name} 位置自愈归位 → ${a.location}`);
+          fixedGhosts += 1;
         }
       }
     }
     }
+    if (fixedGhosts) console.log(`[State] 位置自愈：${fixedGhosts} 人归位`);
   } catch (e) { console.warn('[State] 幽灵地点清理异常:', e.message); }
 
   // 确保相公的家宅永久锁定在临江茶坊，绝不随任何移动被篡改

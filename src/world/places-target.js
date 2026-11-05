@@ -11,6 +11,8 @@
  * 绝不写死任何 place id。
  */
 
+import { materializeRoom } from './residence.js';
+
 const SEMANTICS = [
   { key: '地窖', test: /酒窖|地窖|窖/ },
   { key: '天字阁', test: /天字|三楼|三层|雅阁/ },
@@ -93,6 +95,19 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
     }
     if (actor?.home && world.places?.[actor.home]) return actor.home;
   }
+
+  // ②.7 房间在"账"上还没展开：按名字找到就展开
+  try {
+    for (const [pid, pl] of Object.entries(world?.places || {})) {
+      if (!pl || !pl.rooms) continue;
+      for (const [key, rec] of Object.entries(pl.rooms)) {
+        if (!rec || !rec.name) continue;
+        if (!text.includes(rec.name) && !text.includes(String(rec.name).slice(0, 2))) continue;
+        const made = materializeRoom(world, pid, key);
+        if (made) { console.log(`[Room] 展开 ${pl.name}·${rec.name}`); return made; }
+      }
+    }
+  } catch { /* 忽略 */ }
 
   // ③ 兜底：街市 → 他自己家 → 任何非私宅
   const street = places.find((p) => p.id === 'street') || places.find((p) => /街/.test(String(p.name)));
