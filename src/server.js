@@ -1,6 +1,7 @@
 ﻿import http from 'node:http';
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from './world/residence.js';
 import { describeRoom, roomForHour } from './world/room-life.js';
+import { knock, grantPass, residenceOf } from './world/visit.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -1143,6 +1144,33 @@ const STARTED_AT = Date.now();
           );
           if (person && world.places?.[person.location]) target = person.location;
         }
+        // 叫门：要去的是别人的内院，先在门口递帖，允了才进
+        let knockLine = '';
+        {
+          const dest = world.places?.[target];
+          const home = dest ? residenceOf(world, dest.id) : null;
+          const gateId0 = home?.rooms?.gate?.id || null;
+          if (home && String(home.owner || '') !== actorId && target !== gateId0) {
+            const verdict = knock(world, actorId, home.id);
+            if (!verdict.allowed) {
+              // 门房拦住：直接落在大门，把门房的话原样回给相公
+              const gateId = world.places?.[home.id]?.rooms?.gate?.id || home.id;
+              try { moveActor(world, actorId, gateId, 'world', '叩门被拦'); saveState(DATA_DIR, world); } catch { /* 忽略 */ }
+              const gateName = world.places?.[gateId]?.name || '';
+              return sendJson(res, 200, {
+                ok: true,
+                applied: false,
+                denied: true,
+                place: gateName,
+                line: `（${verdict.reason}）你到了「${gateName}」，门房没让进。`,
+              });
+            } else {
+              grantPass(world, actorId, home.id, world.clock?.day);
+              if (verdict.place) target = verdict.place;
+              knockLine = `（${verdict.reason}）`;
+            }
+          }
+        }
         const intent = {
           id: `ui_go_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           actor: actorId, verb: 'MOVE', target, companions: [],
@@ -1156,7 +1184,7 @@ const STARTED_AT = Date.now();
           .filter((a) => a && !a.dead && a.name && a.location === me2?.location && a.id !== (me2?.id || 'husband'))
           .slice(0, 5)
           .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
-        const line = `（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
+        const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
         return sendJson(res, 200, { ok: true, applied: Boolean(res2.applied), place: placeName2, line });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });

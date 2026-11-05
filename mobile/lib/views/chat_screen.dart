@@ -884,6 +884,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final provider = context.watch<ChatProvider>();
     final isOnline = provider.isConnected;
     final characterName = provider.petStatus.characterName;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final locSub = isDark ? Colors.white38 : const Color(0xFF64748B);
 
 
     // 冷启动未设置 token 时自动弹出立牒入世名册
@@ -1093,10 +1095,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         if (_worldDay > 0)
                           Text(
                             '第$_worldDay日 $_worldHour时',
-                            style: const TextStyle(color: Colors.white30, fontSize: 11.5),
+                            style: TextStyle(color: isDark ? Colors.white30 : const Color(0xFF475569), fontSize: 11.5),
                           ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.keyboard_arrow_right_rounded, size: 15, color: Colors.white24),
+                        Icon(Icons.keyboard_arrow_right_rounded, size: 15, color: isDark ? Colors.white : const Color(0xFF94A3B8)),
                       ],
                         ),
                         // 此处有谁
@@ -1106,7 +1108,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             _hereNames.isEmpty
                                 ? '此处无人'
                                 : '此处：${_hereNames.length <= 4 ? _hereNames.join('、') : '${_hereNames.take(4).join('、')}等${_hereNames.length}人'}',
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            style: TextStyle(color: locSub, fontSize: 11),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

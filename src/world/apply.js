@@ -15,6 +15,7 @@ import { VERBS } from './intent.js';
 import { getPlaceDisplayName } from './gate.js';
 import { addToParty, removeFromParty, onMemberSelfAction } from './party.js';
 import { materializeRoom } from './residence.js';
+import { hasPass } from './visit.js';
 
 const MAX_APPLIED_CACHE = 300;
 
@@ -164,12 +165,13 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
       // 门禁：别人的私宅，外人不许直接进正房内院——先到大门/门房
       try {
         const dest = world.places?.[finalTargetId];
+        const parentId2 = dest?.parent || (dest?.residence ? dest.id : '');
         if (dest && dest.residence) {
           const owner = String(dest.owner || '');
           const meId = String(actor.id || '');
           const isFamily = actor.household || actor.spouse === 'husband' || meId === owner
             || (owner && world.actors?.[owner]?.household && actor.household);
-          const invited = Boolean(actor.invitedBy && actor.invitedBy === owner);
+          const invited = Boolean(actor.invitedBy && actor.invitedBy === owner) || hasPass(world, meId, parentId2);
           if (owner && owner !== meId && !isFamily && !invited) {
             const parentId = dest.parent || (owner === 'husband' ? 'husband_room' : '');
             const gateKey = 'gate';
