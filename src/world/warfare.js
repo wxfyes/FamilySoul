@@ -24,7 +24,7 @@ export const MONTHLY_PAY = 1.0;    // 每兵每月饷银（一两/月）
 export const RECRUIT_COST = 0.2;   // 安家银（意思一下，真正的担子是月饷）
 export const RECRUIT_GRAIN = 0.2;   // 随身粮
 export const PAY_PER_DAY = 0;   // 已废：饷按月放，不走每日结算
-export const GRAIN_PER_DAY = 0.02;
+export const GRAIN_PER_DAY = 0.03;   // 月粮约一石
 export const GRAIN_PRICE = 0.6;
 
 /** 军械作价（两） */
@@ -35,9 +35,10 @@ export const TRAIN_DAYS = 7;
 
 // 三种人：家丁（看家最便宜）、护院（精壮）、营兵（要地盘）
 export const RECRUIT_KINDS = {
-  guard: { name: '家丁', cost: 0.2, grain: 0.2, morale: 0, note: '看家护院' },
-  retainer: { name: '护院', cost: 0.5, grain: 0.3, morale: 1, note: '精壮护院' },
-  army: { name: '营兵', cost: 0.8, grain: 0.4, morale: 2, note: '能出征的营兵' },
+  // 月饷参考：明万历山东土兵 0.9 两、南兵 1.5 两；清绿营守兵 1 两、步兵 1.5 两
+  guard: { name: '家丁', cost: 0.2, grain: 0.2, morale: 0, pay: 0.6, note: '看家护院' },
+  retainer: { name: '护院', cost: 0.5, grain: 0.3, morale: 1, pay: 0.9, note: '精壮护院' },
+  army: { name: '营兵', cost: 0.8, grain: 0.4, morale: 2, pay: 1.5, note: '能出征的营兵' },
 };
 
 /**
@@ -67,10 +68,30 @@ export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) 
 
   f.grain = round2(num(f.grain) - grain);
   setStationed(world, f, town, troopsAt(world, f, town) + come);
+  f.kinds = f.kinds && typeof f.kinds === 'object' ? f.kinds : {};
+  f.kinds[kind] = Math.round(num(f.kinds[kind]) + come);
   f.fresh = Math.round(num(f.fresh) + come);
   f.freshUntilDay = (Number(world.clock?.day) || 1) + TRAIN_DAYS;
   fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}一呼百应，来投 ${come} 人` } });
   return { ok: true, came: come, asked: max, troops: totalTroops(world, f), city: town, cost, monthlyPay: round2(totalTroops(world, f) * MONTHLY_PAY) };
+}
+
+/** 这个势力每月该发多少饷（按兵种构成算） */
+export function monthlyPayOf(f) {
+  if (!f) return 0;
+  const kinds = f.kinds && typeof f.kinds === 'object' ? f.kinds : null;
+  const total = Object.values(f.stationed || {}).reduce((x, y) => x + (Number(y) || 0), 0) || Number(f.troops) || 0;
+  if (!kinds) return Math.round(total * MONTHLY_PAY * 100) / 100;
+  let sum = 0;
+  let counted = 0;
+  for (const [k, n] of Object.entries(kinds)) {
+    const rate = (RECRUIT_KINDS[k]?.pay) ?? MONTHLY_PAY;
+    sum += (Number(n) || 0) * rate;
+    counted += Number(n) || 0;
+  }
+  // 兵种账与实际兵力对不上时，多出来的按 1 两补
+  if (total > counted) sum += (total - counted) * MONTHLY_PAY;
+  return Math.round(sum * 100) / 100;
 }
 
 /**
@@ -90,7 +111,7 @@ export function runPayday(world, events) {
     const troops = totalTroops(world, f);
     if (troops <= 0) continue;
 
-    const due = round2(troops * MONTHLY_PAY);
+    const due = round2(monthlyPayOf(f));
     f.arrears = f.arrears && typeof f.arrears === 'object' ? f.arrears : { months: 0, owed: 0 };
 
     if (spendFactionSilver(world, f, due)) {
@@ -153,7 +174,7 @@ export function payArrears(world, fid) {
 /** 每月饷银与口粮（给面板显示） */
 export function upkeepOf(world, f) {
   const troops = totalTroops(world, f);
-  return { troops, monthlyPay: round2(troops * MONTHLY_PAY), monthlyGrain: round2(troops * GRAIN_PER_DAY * 30) };
+  return { troops, monthlyPay: monthlyPayOf(f), monthlyGrain: round2(troops * GRAIN_PER_DAY * 30) };
 }
 
 let eventSink = null;
@@ -272,6 +293,8 @@ export function recruit(world, fid, count, city, kind = 'guard') {
   f.grain = round2(num(f.grain) - needGrain);
   setStationed(world, f, town, troopsAt(world, f, town) + n);
   // 新募之兵要练：七天之内战力只有四成
+  f.kinds = f.kinds && typeof f.kinds === 'object' ? f.kinds : {};
+  f.kinds[kind] = Math.round(num(f.kinds[kind]) + n);
   f.fresh = Math.round(num(f.fresh) + n);
   f.freshUntilDay = (Number(world.clock?.day) || 1) + TRAIN_DAYS;
   f.morale = Math.min(100, Math.round(num(f.morale) + 1 + k.morale));
