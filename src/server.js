@@ -3281,6 +3281,7 @@ const STARTED_AT = Date.now();
             age: Number(a.age) || null,
             home: a.home || null,
             homeName: a.home ? (world.places?.[a.home]?.name || '') : '',
+            duty: a.duty || null,
             marital: a.marital || null,
             maritalText: maritalTextOf(a, a.spouse ? (world.actors?.[a.spouse]?.name || '') : ''),
             bodyText: mensesStatusText(a),
