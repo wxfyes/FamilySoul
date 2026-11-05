@@ -249,7 +249,7 @@ function runLocalEconomy(world, events) {
     if (gp !== 1) ct.price = Math.max(50, Math.min(300, Math.round(ct.price * gp)));
 
     // 天灾：小概率
-    if (Math.random() < 0.04) {
+    if (Math.random() < 0.00015) {   // 每城每天 0.015%：全国约 120 天一场大灾
       const kind = ['旱', '涝', '蝗', '雪灾'][Math.floor(Math.random() * 4)];
       ct.price = Math.min(300, Math.round((Number(ct.price) || 100) * 1.25));
       ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 6);
@@ -274,7 +274,8 @@ function runLocalEconomy(world, events) {
       // 税越高，民心越散
       ct.unrest = Math.max(0, Math.min(100, (Number(ct.unrest) || 0) + Math.round(tax / 8)));
     } else {
-      ct.unrest = Math.max(0, Math.min(100, (Number(ct.unrest) || 0) + (tax >= 20 ? 1 : -1)));
+      const unrestDelta = tax >= 30 ? 3 : tax >= 20 ? 2 : tax >= 15 ? 1 : -1;
+      ct.unrest = Math.max(0, Math.min(100, (Number(ct.unrest) || 0) + unrestDelta));
     }
 
     // 民心涣散到极点 → 民变
@@ -1020,7 +1021,7 @@ function runTreasury(world, events) {
   if (day % 30 === 0) {
     // 秋粮折银：陈粮卖一部分换现银（丰年多、荒年少）
     const grainNow = Number(tr.grain) || 0;
-    const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 1.2 * K * 100) / 100;
+    const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 0.3 * K * 100) / 100;
     if (grainToSilver > 0) {
       tr.silver = Math.round(((Number(tr.silver) || 0) + grainToSilver) * 100) / 100;
       tr.grain = Math.max(0, grainNow - Math.round(grainNow * 0.1));
@@ -1363,13 +1364,25 @@ function onNewDay(world, events) {
     console.warn('[Life] 生老病死失败：', err.message);
   }
   consumeSupplies(world);
+
+  // 地方经济先跑：灾荒、税赋、民心都在这里生成，国库必须看得到当天的灾
+  try {
+    runLocalEconomy(world, events);
+  } catch (err) {
+    console.warn('[Econ] 地方经济结算失败：', err.message);
+  }
+
   try {
     runTreasury(world, events);
-  runMenses(world);
-  runPersonalEconomy(world, events);
-  runAllowances(world, events);
   } catch (err) {
     console.warn('[Treasury] 国库结算失败：', err.message);
+  }
+  try {
+    runMenses(world);
+    runPersonalEconomy(world, events);
+    runAllowances(world, events);
+  } catch (err) {
+    console.warn('[Treasury] 人口与月例结算失败：', err.message);
   }
   try {
     runLoanDues(world, events, (o) => queueProactive(world, { type: 'loan', ...o }));
@@ -1377,15 +1390,14 @@ function onNewDay(world, events) {
     console.warn('[Loan] 借还款结算失败：', err.message);
   }
   try {
-    runLocalEconomy(world, events);
     runCourtReaction(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
+  } catch (err) {
+    console.warn('[Court] 朝堂反应失败：', err.message);
+  }
   try {
     markCourtDecree(world);
   } catch (err) {
     console.warn('[Court] 朝议标记失败：', err.message);
-  }
-  } catch (err) {
-    console.warn('[Econ] 地方经济结算失败：', err.message);
   }
   // 气是会消的：每天自动消退 1 点（被人一再冷落才会积住）
   for (const a of Object.values(world.actors || {})) {
