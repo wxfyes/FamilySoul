@@ -34,7 +34,8 @@ class ChatMessage {
     if (m != null) {
       final name = m.group(1)!.trim();
       // 排除环境与旁白类通用标记，真正的人名直接作为说话人
-      if (name.isNotEmpty && !{'天道', '系统', '环境', '旁白'}.contains(name)) {
+      const generics = ['天道', '系统', '环境', '旁白', '场景', '提示'];
+      if (name.isNotEmpty && !generics.any((g) => name.startsWith(g))) {
         return name;
       }
     }

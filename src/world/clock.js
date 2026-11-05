@@ -1282,54 +1282,64 @@ function onNewDay(world, events) {
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜本事（有涨有落，不写死）*/
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜信任 × 开张天数声誉积累 × 人手规模经济 × 随机大单机缘（有倍增、有跌宕、拟真古代商业）*/
 function dailyIncomeOf(world, prop) {
-  if (prop.status === '筹备中' || prop.status === '歇业') return 0;
-  const base = Number(prop.baseIncome ?? prop.incomePerDay) || 0;
-  if (!(base > 0)) return 0;
-  if (prop.baseIncome == null) prop.baseIncome = base;
+  // 只有真正开门做生意的才进账：自住府邸、筹建中、歇业一律不进项
+  const EARNING_STATUS = ['正常营业', '已开张'];
+  if (!EARNING_STATUS.includes(String(prop.status || ''))) {
+    prop.incomePerDay = 0;   // 不开门就没有进项，别留着昨天那个数
+    return 0;
+  }
+
+  // ── 本金：产业值多少钱（买价优先；老产业按日入估个底）──
+  let capital = Number(prop.capital);
+  if (!(capital > 0)) {
+    const buy = Number(prop.costSilver);
+    const est = Number(prop.baseIncome ?? prop.incomePerDay) || 0;
+    capital = buy > 0 ? buy : Math.max(100, est * 80);
+    prop.capital = Math.round(capital * 100) / 100;
+  }
+
   const city = world.cities?.[prop.city] || Object.values(world.cities || {}).find((c) => c && c.name === prop.city);
   const price = Number(city?.price) || 100;
   const unrest = Number(city?.unrest) || 0;
   const season = String(world.clock?.season || 'spring');
   const keeper = world.actors?.[prop.keeper];
   const trust = Number(keeper?.relations?.husband?.trust ?? 30);
-  let m = 1;
-  m *= 0.6 + Math.min(2.2, price / 100) * 0.4;        // 物价与市面景气
-  m *= 1 - Math.min(0.6, unrest / 160);                // 民心安稳度
-  if (/茶/.test(String(prop.name || ''))) m *= season === 'spring' ? 1.25 : season === 'winter' ? 0.9 : 1.05;
-  if (/酒/.test(String(prop.name || ''))) m *= season === 'winter' ? 1.3 : 1.08;
-  m *= 0.9 + Math.min(0.4, trust / 250);               // 掌柜得力忠诚
-
-  // ① 人手规模经济（伙计、大厨、跑堂真实协同产能：每人提供 +25% 接客翻台能力，最多 4.0x）
   const staffCount = Number(prop.staff) || 0;
-  if (staffCount > 0) {
-    m *= 1 + Math.min(3.0, staffCount * 0.25);
-  }
-
-  // ② 开张天数与商誉累积（知名度与老客滚雪球：随经营天数成倍递增）
   const curDay = Number(world.clock?.day) || 1;
-  let daysOpen = 1;
-  if (prop.openedDay != null) {
-    daysOpen = Math.max(1, curDay - Number(prop.openedDay) + 1);
-  } else if (prop.status === '正常营业' || prop.status === '已开张') {
-    daysOpen = Math.max(3, curDay);
-  }
-  if (daysOpen >= 15) m *= 2.2 + Math.min(1.0, (daysOpen - 15) * 0.05); // 老字号金字招牌，可达 2.2x~3.2x
-  else if (daysOpen >= 8) m *= 1.6 + (daysOpen - 8) * 0.08;            // 门庭若市，1.6x~2.1x
-  else if (daysOpen >= 4) m *= 1.2 + (daysOpen - 4) * 0.1;             // 口碑鹊起，1.2x~1.5x
+  const daysOpen = prop.openedDay != null ? Math.max(1, curDay - Number(prop.openedDay) + 1) : 1;
 
-  // ③ 随机突发商帮大席 / 豪客包席机缘（12% 概率流水翻倍暴击）
+  // ── 日收益率：本金的百分之几（行情基准 2.5%，按各因素上下浮）──
+  let rate = 0.025;
+  rate *= 0.7 + Math.min(2.0, price / 100) * 0.3;          // 物价与市面景气
+  rate *= 1 - Math.min(0.5, unrest / 200);                 // 民心
+  if (/茶/.test(String(prop.name || ''))) rate *= season === 'spring' ? 1.3 : season === 'winter' ? 0.85 : 1.05;
+  if (/酒/.test(String(prop.name || ''))) rate *= season === 'winter' ? 1.35 : 1.1;
+  rate *= 0.85 + Math.min(0.5, trust / 200);               // 掌柜得力（信任 100 → 1.35x）
+  if (staffCount > 0) rate *= 1 + Math.min(1.5, staffCount * 0.3); // 人手：每人 +30%，封顶 2.5x
+  rate *= 1 + Math.min(0.6, (daysOpen - 1) * 0.02);        // 商誉：老店常客多（封顶 1.6x）
+
+  // 突发商帮大席：流水翻倍暴击（有伙计才接得住）
   let luckyBonus = 1;
   if (Math.random() < 0.12 && staffCount >= 2) {
-    luckyBonus = 2.0 + Math.random() * 1.5; // 2.0x ~ 3.5x 暴击
+    luckyBonus = 1.6 + Math.random() * 1.4;
     prop.specialNotice = '两淮盐商连包三日水席/豪客订商茶，进项暴增！';
   } else {
     delete prop.specialNotice;
   }
-  m *= luckyBonus;
+  rate *= luckyBonus;
+  rate *= 0.94 + Math.random() * 0.12;                     // 每日市井自然起伏
 
-  m *= 0.92 + Math.random() * 0.16;                    // 每日市井微小浮动
-  const gain = Math.round(base * m * 100) / 100;
-  prop.incomePerDay = gain;                            // 显示的就是今日进项
+  // 收益率封顶：单日不超过本金 12%，不出现离谱通胀
+  rate = Math.max(0.01, Math.min(0.12, rate));
+
+  const gain = Math.round(capital * rate * 100) / 100;
+
+  // ── 利润再投资：赚的钱有一部分滚回本金，生意越长越大 ──
+  const reinvest = prop.status === '已开张' || prop.status === '正常营业' ? 0.25 : 0;
+  if (reinvest > 0) prop.capital = Math.round((capital + gain * reinvest) * 100) / 100;
+
+  prop.incomePerDay = gain;                                 // 显示的就是今日进项
+  prop.baseIncome = Number(prop.baseIncome) || gain;        // 仅作历史参考，不再参与计算
   return gain;
 }
 

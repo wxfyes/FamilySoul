@@ -5,6 +5,7 @@
  * 所有数据结构见 docs/world-engine.md 第 3、4 节。
  */
 import { ensureBonds } from './bonds.js';
+import { moveActor } from './position.js';
 import { syncMoney } from './money.js';
 import { syncNames } from './identity.js';
 import fs from 'node:fs';
@@ -1394,6 +1395,30 @@ export function migrateOwnership(world) {
     }
   }
 
+  // 产业本金：买价优先；祖传/老产业按日入估个底（收入模型按本金×收益率算）
+  try {
+    for (const pr of (world.assets?.properties || [])) {
+      if (!pr) continue;
+      if (!(Number(pr.capital) > 0)) {
+        const buy = Number(pr.costSilver);
+        const est = Number(pr.incomePerDay) || 0;
+        pr.capital = Math.round((buy > 0 ? buy : Math.max(100, est * 80)) * 100) / 100;
+        console.log(`[Prop] ${pr.name} 本金记为 ${pr.capital} 两`);
+      }
+    }
+  } catch { /* 忽略 */ }
+
+  // 补偿：测试期之前就开着的产业，一律视同第 1 日开张（写成数据，不靠公式兜底）
+  try {
+    for (const pr of (world.assets?.properties || [])) {
+      if (!pr) continue;
+      if (pr.openedDay == null && /正常营业|已开张/.test(String(pr.status || ''))) {
+        pr.openedDay = 1;
+        console.log(`[Prop] ${pr.name} 视同第 1 日开张（补偿）`);
+      }
+    }
+  } catch { /* 忽略 */ }
+
   // 5. 资产账本登记：相公斥资450两全款购置的七进大宅（王宅）
   world.assets = world.assets || { silver: 0, copper: 0, properties: [] };
   world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
@@ -1425,7 +1450,7 @@ export function migrateOwnership(world) {
     if (!hus.home || hus.home === 'tea_house') hus.home = 'husband_room';
     const curPName = String(world.places?.[hus.location]?.name || '');
     if (!hus.location || !world.places[hus.location] || /(客栈.*大宅|七进大宅)/.test(curPName)) {
-      hus.location = 'husband_room';
+      try { moveActor(world, 'husband', 'husband_room', 'world', '乔迁'); } catch { /* 忽略 */ }
     }
   }
   const wan = world.actors?.waner;
@@ -1433,7 +1458,7 @@ export function migrateOwnership(world) {
     if (!wan.home || wan.home === 'tea_house' || wan.home === 'yamen') wan.home = 'husband_room';
     const wanPName = String(world.places?.[wan.location]?.name || '');
     if (!wan.location || !world.places[wan.location] || /(客栈.*大宅|七进大宅)/.test(wanPName)) {
-      wan.location = hus?.location === 'husband_room' ? 'husband_room' : 'husband_room';
+      try { moveActor(world, 'waner', 'husband_room', 'world', '乔迁'); } catch { /* 忽略 */ }
     }
   }
   const yun = world.actors?.yunnia;
@@ -1441,7 +1466,7 @@ export function migrateOwnership(world) {
     if (!yun.home || yun.home === 'tea_house' || yun.home === 'yamen') yun.home = 'wang_mansion_east';
     const yunPName = String(world.places?.[yun.location]?.name || '');
     if (!yun.location || !world.places[yun.location] || /(客栈.*大宅|七进大宅)/.test(yunPName)) {
-      yun.location = hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_east';
+      try { moveActor(world, 'yunnia', hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_east', 'world', '乔迁'); } catch { /* 忽略 */ }
     }
   }
   const cui = world.actors?.xiaocui;
@@ -1449,7 +1474,7 @@ export function migrateOwnership(world) {
     if (!cui.home || cui.home === 'tea_house' || cui.home === 'yamen') cui.home = 'wang_mansion_west';
     const cuiPName = String(world.places?.[cui.location]?.name || '');
     if (!cui.location || !world.places[cui.location] || /(客栈.*大宅|七进大宅)/.test(cuiPName)) {
-      cui.location = hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_west';
+      try { moveActor(world, 'xiaocui', hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_west', 'world', '乔迁'); } catch { /* 忽略 */ }
     }
   }
 
