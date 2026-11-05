@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -918,11 +918,26 @@ const STARTED_AT = Date.now();
           if (occupied[a.location].length < 3) occupied[a.location].push(a.name);
         }
         // 全城名册都算可去：有人的排前面，其次按名字排；私密房间（客栈房）不进公共列表
+        // 先给"眼前这片"排前面：同宅的院子 → 同城 → 有人的 → 其它
+        const curPlace = world.places?.[curId] || {};
+        const myHome = world.actors?.[actorId]?.home || '';
+        const nearScore = ([id, pl]) => {
+          if (id === myHome) return 0;
+          if (pl.parent && (pl.parent === curId || pl.parent === myHome)) return 1;
+          if (pl.parent) return 2;
+          if (curPlace.city && pl.city && pl.city === curPlace.city) return 3;
+          return 4;
+        };
+        // 私宅里的院子只列"自己这座宅子"的；公共地点全列
         const places = Object.entries(world.places || {})
-          .filter(([id, pl]) => id !== curId && pl && pl.name && !pl.private)
-          .map(([id, pl]) => ({ id, name: pl.name, names: occupied[id] || [], count: (occupied[id] || []).length }))
-          .sort((x, y) => (y.count - x.count) || x.name.localeCompare(y.name, 'zh'))
-          .slice(0, 300);
+          .filter(([id, pl]) => {
+            if (id === curId || !pl || !pl.name || pl.private) return false;
+            if (pl.parent) return pl.parent === myHome || pl.parent === curId;
+            return true;
+          })
+          .map(([id, pl]) => ({ id, name: pl.name, names: occupied[id] || [], count: (occupied[id] || []).length, near: nearScore([id, pl]) }))
+          .sort((x, y) => (x.near - y.near) || (y.count - x.count) || x.name.localeCompare(y.name, 'zh'))
+          .slice(0, 400);
 
         // 常来往：关系网里处得来的人（不是仇家），加进"找人"的第一组
         const friendIds = new Set();
@@ -1825,6 +1840,31 @@ const STARTED_AT = Date.now();
           console.log('[Admin] 家庭成员配置已在线更新并持久化到 config.json');
         }
         return sendJson(res, 200, { ok: true });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 诊断：宅院状态（临时）
+    if (req.method === 'GET' && pathname === '/api/admin/places-debug') {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '令牌无效' });
+        const world = loadState(DATA_DIR);
+        const root = world.places?.husband_room || {};
+        return sendJson(res, 200, {
+          ok: true,
+          places: Object.keys(world.places || {}).length,
+          husName: root.name || null,
+          residence: Boolean(root.residence),
+          grade: root.grade || null,
+          rooms: Object.keys(root.rooms || {}).length,
+          roomKeys: Object.keys(root.rooms || {}).slice(0, 10),
+          roomPlaces: Object.values(root.rooms || {}).map((r) => ({ id: r.id, exists: Boolean(world.places?.[r.id]), name: world.places?.[r.id]?.name })),
+          exits: (root.exits || []).slice(0, 12),
+          sweepDay: world.flags?.residenceSweptDay || null,
+          sweepVer: world.flags?.residenceBuildVersion || null,
+        });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

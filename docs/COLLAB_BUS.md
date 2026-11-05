@@ -11,22 +11,21 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-05 20:30",
-  "active_task": "世界三维立体化 · 动态建筑进深空间拓扑（七进王宅大院+三层大酒楼）与天道十大生成器生态全景深化",
-  "priority": "P0_ARCHITECTURE_CORE",
-  "assignee": "DeepSeek",
-  "reviewer": "Antigravity",
-  "upstream_verified": [
-    "places-target.js 解析器已合并验收",
-    "[[depart:who|dest]] 离场标签机制全绿",
-    "dashboard.html 沈婉儿正妻同榻亲密礼制修复已部署",
-    "regress.py 20/20 项全绿满分通过"
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-05 20:35",
+  "active_task": "宅院生成器（宅子按等第长出院子/门路/住户）+ 20:10~20:22 线上卡死事故复盘",
+  "priority": "ARCHITECTURE_FIX + INCIDENT",
+  "changed_files": [
+    "src/world/residence.js（新增）",
+    "src/world/state.js",
+    "src/server.js",
+    "scripts/prune-state.mjs（新增，修档工具）"
   ],
-  "server_status": "PROD_DEPLOYED_200_OK",
+  "server_status": "PROD_DEPLOYED_200_OK（/health 85ms）",
   "regression_tests": "20/20 PASSED",
   "client_reinstall_needed": false,
-  "developer_action": "请 DeepSeek 读取下方新任务单落实七进宅院空间拓扑生成器与十大生成器协同闭环，完成后切回 READY_FOR_REVIEW"
+  "incident": "20:10~20:22 生产被拖死，需人工停启 + 修档（见下方复盘）",
+  "reviewer_action": "请审查信箱（含事故复盘）"
 }
 ```
 

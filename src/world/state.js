@@ -10,6 +10,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
+import { buildAllResidences, relinkResidence } from './residence.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -959,6 +960,29 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 每次读档：把已有宅子的门路与房名理顺（不建东西，很便宜）
+  try {
+    for (const pid of Object.keys(world.places || {})) {
+      const p = world.places[pid];
+      if (p && p.rooms) relinkResidence(world, pid);
+    }
+  } catch { /* 忽略 */ }
+
+  // 宅院巡检：同一个世界日只跑一次（不然每次读档都扫一千多个地点，接口会被拖死）
+  try {
+    world.flags = world.flags || {};
+    const today = String(world.clock?.day || 1);
+    const buildVer = String(world.flags.residenceBuildVersion || '');
+    if (String(world.flags.residenceSweptDay || '') !== today || buildVer !== 'v3') {
+      const r = buildAllResidences(world);
+      world.flags.residenceSweptDay = today;
+      world.flags.residenceBuildVersion = 'v3';
+      if (r.homes || r.rooms) console.log(`[Residence] 建/补 ${r.homes} 座宅院，共 ${r.rooms} 间院子`);
+    }
+  } catch (e) {
+    console.warn('[Residence] 宅院巡检失败：', e.message);
+  }
+
   // 性别：天道衍生的人可能是 unknown，一律按名字与身份补
   try {
     for (const a of Object.values(world.actors || {})) {
@@ -1133,6 +1157,7 @@ export function migrateOwnership(world) {
             dynamic: true,
             createdDay: world.clock?.day || 1,
           };
+    try { buildAllResidences(world); } catch { /* 忽略 */ }
           world.dynamicPlaces = world.dynamicPlaces || {};
           world.dynamicPlaces[houseId] = world.places[houseId];
         }

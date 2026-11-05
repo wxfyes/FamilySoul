@@ -18,7 +18,9 @@ const SEMANTICS = [
   { key: '东厢', test: /东厢|东院|书房/ },
   { key: '西厢', test: /西厢|西院/ },
   { key: '后院', test: /后院|花园|庖厨|灶房|下房|暖阁/ },
-  { key: '官仓', test: /官仓|仓|库房/ },
+  { key: '祠堂', test: /祠堂|家庙/ },
+  { key: '马厩', test: /马厩|马房|车马/ },
+  { key: '库房', test: /库房|柴房|官仓|仓/ },
   { key: '衙门', test: /衙门|县衙|府衙|公堂/ },
   { key: '客栈', test: /客栈|旅店|驿/ },
   { key: '街市', test: /街|市|坊|集/ },
@@ -68,7 +70,7 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
   }
 
   // ②.5 室内去处：在自己的宅院里找（厢房/下房/花园/庖厨），找不到就回自己家
-  if (/房|厢|院|阁|厨|库|屋/.test(text)) {
+  if (/房|厢|院|阁|厨|库|屋|祠|厩/.test(text)) {
     const homePlace = actor?.home ? world.places?.[actor.home] : null;
     const mansionKey = homePlace?.name ? String(homePlace.name).split('·').find((x) => /宅|府|院/.test(x)) || '' : '';
     const inside = places.filter((p) => p.name && /房|厢|院|阁|厨|库|屋/.test(String(p.name))
