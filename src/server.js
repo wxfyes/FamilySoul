@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from './world/residence.js';
 import { describeRoom, roomForHour } from './world/room-life.js';
 import fs from 'node:fs';
@@ -628,6 +628,15 @@ const STARTED_AT = Date.now();
         if (!f) return sendJson(res, 404, { ok: false, error: '没有这个势力' });
 
         const act = String(body.action || '');
+        // 家主鉴权：王家私兵只能由家主（王甯或该势力首领）调动；读状态不受限
+        {
+          const leader = String(f.leader || 'husband');
+          const who = String(member.actor || 'husband');
+          const readOnly = act === '' || act === 'status' || act === 'info';
+          if (!readOnly && who !== leader && who !== 'husband') {
+            return sendJson(res, 403, { ok: false, error: '王家私兵由家主掌管，你无权调动。' });
+          }
+        }
         let result = { ok: false, error: '未知动作' };
         if (act === 'recruit') result = recruit(world, fid, Number(body.count) || 0, String(body.city || ''), String(body.kind || 'guard'));
         else if (act === 'grain') result = buyGrain(world, fid, Number(body.shi) || 0, String(body.city || ''));
@@ -1673,24 +1682,32 @@ const STARTED_AT = Date.now();
             .map((c) => ({ id: c.id, name: c.name, relation: c.relation, influence: c.influence }));
         })(),
         season: { season: world.clock?.season || '', weather: world.clock?.weather || '', canalFrozen: canalFrozen(world) },
-        factions: Object.values(world.factions || {}).map((f) => ({
-          id: f.id, name: f.name, kind: f.kind, leader: f.leader,
-          troops: Number(f.troops) || 0,
-          grain: Math.round((Number(f.grain) || 0) * 10) / 10,
-          silver: Math.round(factionSilver(world, f) * 100) / 100,
-          morale: Number(f.morale) || 0, ambition: Number(f.ambition) || 0,
-          strength: factionStrength(world, f),
-          cities: (f.cities || []).slice(0, 12),
-          gear: f.gear || {},
-          kinds: f.kinds || {},
-          monthlyPay: Math.round((Number(f.troops) || 0) * 1.0 * 100) / 100,
-          monthlyGrain: Math.round((Number(f.troops) || 0) * 0.02 * 30 * 100) / 100,
-          arrears: f.arrears || { months: 0, owed: 0 },
-          arrears: f.arrears || { months: 0, owed: 0 },
-          fresh: Number(f.fresh) || 0,
-          freshUntilDay: Number(f.freshUntilDay) || 0,
-          stationed: f.stationed || {},
-        })),
+        factions: (() => {
+          const meId = actorId || 'husband';
+          const isBoss = meId === 'husband' || world.factions?.wangjia?.leader === meId;
+          return Object.values(world.factions || {}).map((f) => {
+            const visible = Boolean(f) && (f.id !== 'wangjia' || isBoss);
+            return {
+              id: f.id, name: f.name, kind: f.kind, leader: f.leader,
+              troops: visible ? (Number(f.troops) || 0) : null,
+              grain: visible ? Math.round((Number(f.grain) || 0) * 10) / 10 : null,
+              silver: visible ? Math.round(factionSilver(world, f) * 100) / 100 : null,
+              morale: Number(f.morale) || 0,
+              ambition: Number(f.ambition) || 0,
+              strength: visible ? factionStrength(world, f) : null,
+              cities: (f.cities || []).slice(0, 12),
+              gear: visible ? (f.gear || {}) : {},
+              kinds: visible ? (f.kinds || {}) : {},
+              monthlyPay: visible ? Math.round((Number(f.troops) || 0) * 1.0 * 100) / 100 : null,
+              monthlyGrain: visible ? Math.round((Number(f.troops) || 0) * 0.02 * 30 * 100) / 100 : null,
+              arrears: visible ? (f.arrears || { months: 0, owed: 0 }) : null,
+              fresh: Number(f.fresh) || 0,
+              freshUntilDay: Number(f.freshUntilDay) || 0,
+              stationed: visible ? (f.stationed || {}) : {},
+              hidden: !visible,
+            };
+          });
+        })(),
         life: (() => {
           const meL = actorId ? world.actors?.[actorId] : world.actors?.husband;
           const house = Object.values(world.actors || {}).filter(

@@ -954,6 +954,24 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         actions: [
+          // 外观：点一下切换 日间/夜间/跟随系统，长按打开三选一
+          Builder(builder: (ctx) {
+            final theme = ctx.watch<ThemeController>();
+            final icon = theme.mode == ThemeMode.light
+                ? Icons.light_mode_rounded
+                : (theme.mode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.brightness_auto_rounded);
+            return IconButton(
+              icon: Icon(icon, color: const Color(0xFFA78BFA)),
+              tooltip: '外观：${theme.label}',
+              onPressed: () {
+                final next = theme.mode == ThemeMode.system
+                    ? ThemeMode.light
+                    : (theme.mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.system);
+                theme.setMode(next);
+              },
+              onLongPress: () => _showThemeSheet(context),
+            );
+          }),
           // 豆包同款语音播报开关（开启才请求火山TTS，关闭省额度）
           IconButton(
             icon: Icon(
@@ -1726,150 +1744,149 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final bg = isDark ? const Color(0xFF14161E) : Colors.white;
+        final fg = isDark ? Colors.white : const Color(0xFF0F172A);
+        final sub = isDark ? Colors.white38 : Colors.black45;
+        final itemW = (MediaQuery.of(ctx).size.width - 40 - 36) / 4;
+
+        Widget tile({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+          return SizedBox(
+            width: itemW,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: isDark ? 0.16 : 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: color.withValues(alpha: 0.35)),
+                    ),
+                    child: Icon(icon, color: color, size: 24),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: fg, fontSize: 11.5),
+                  ),
+                ]),
+              ),
+            ),
+          );
+        }
+
+        Widget groupTitle(String t) => Padding(
+              padding: const EdgeInsets.only(left: 4, top: 4, bottom: 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(t, style: TextStyle(color: sub, fontSize: 11.5)),
+              ),
+            );
+
         return Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF181C26) : Colors.white,
+            color: bg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, -4))],
           ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
           child: SafeArea(
             top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 18),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(
+                child: Container(
+                  width: 36, height: 4, margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(color: isDark ? Colors.white24 : Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildQuickActionItem(
-                      icon: Icons.explore_rounded,
-                      label: '转场出门',
-                      color: const Color(0xFF8B5CF6),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
-                        ).then((_) => _refreshPlace());
-                      },
-                    ),
-                    _buildQuickActionItem(
-                      icon: Icons.payments_rounded,
-                      label: '记一笔账',
-                      color: const Color(0xFFE0B252),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _showPayDialog(context, provider);
-                      },
-                    ),
-                    _buildQuickActionItem(
-                      icon: Icons.shield_rounded,
-                      label: '随身家兵',
-                      color: const Color(0xFF10B981),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => ArmySheet(
-                            api: provider.api,
-                            onChanged: () => setState(() {}),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildQuickActionItem(
-                      icon: Icons.today_rounded,
-                      label: '今日看板',
-                      color: const Color(0xFFE0B252),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => DigestSheet(api: provider.api),
-                        );
-                      },
-                    ),
-                    _buildQuickActionItem(
-                      icon: Icons.contrast_rounded,
-                      label: '外观',
-                      color: const Color(0xFF94A3B8),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _showThemeSheet(context);
-                      },
-                    ),
-                    _buildQuickActionItem(
-                      icon: Icons.public_rounded,
-                      label: '我的世界',
-                      color: const Color(0xFF38BDF8),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
-                        );
-                      },
-                    ),
-                  ],
+              ),
+              groupTitle('常用'),
+              Wrap(spacing: 12, runSpacing: 10, children: [
+                tile(
+                  icon: Icons.explore_rounded, label: '转场出门', color: const Color(0xFF8B5CF6),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showModalBottomSheet(
+                      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+                      builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
+                    ).then((_) => _refreshPlace());
+                  },
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildQuickActionItem(
-                      icon: Icons.camera_alt_rounded,
-                      label: '拍照端详',
-                      color: const Color(0xFFEC4899),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _showPhotoSourceSheet();
-                      },
-                    ),
-                    _buildQuickActionItem(
-                      icon: Icons.videocam_rounded,
-                      label: provider.isHusband ? '闺房视讯' : '面对面对聊',
-                      color: const Color(0xFFF59E0B),
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const VideoCallScreen()),
-                        );
-                        if (mounted) _jumpToBottom();
-                      },
-                    ),
-                    const SizedBox(width: 58),
-                    const SizedBox(width: 58),
-                  ],
+                tile(
+                  icon: Icons.today_rounded, label: '今日看板', color: const Color(0xFFE0B252),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showModalBottomSheet(
+                      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+                      builder: (_) => DigestSheet(api: provider.api),
+                    );
+                  },
                 ),
-              ],
-            ),
+                tile(
+                  icon: Icons.shield_rounded, label: '随身家兵', color: const Color(0xFF10B981),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showModalBottomSheet(
+                      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+                      builder: (_) => ArmySheet(api: provider.api, onChanged: () => setState(() {})),
+                    );
+                  },
+                ),
+                tile(
+                  icon: Icons.public_rounded, label: '我的世界', color: const Color(0xFF38BDF8),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
+                    );
+                  },
+                ),
+              ]),
+              groupTitle('其它'),
+              Wrap(spacing: 12, runSpacing: 10, children: [
+                tile(
+                  icon: Icons.payments_rounded, label: '记一笔账', color: const Color(0xFF94A3B8),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showPayDialog(context, provider);
+                  },
+                ),
+                tile(
+                  icon: Icons.camera_alt_rounded, label: '拍照端详', color: const Color(0xFFEC4899),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickAndSendImage(ImageSource.camera);
+                  },
+                ),
+                tile(
+                  icon: Icons.videocam_rounded, label: provider.isHusband ? '闺房视讯' : '面对面对聊', color: const Color(0xFFF59E0B),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => const VideoCallScreen()));
+                  },
+                ),
+                tile(
+                  icon: Icons.contrast_rounded, label: '外观', color: const Color(0xFFA78BFA),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showThemeSheet(context);
+                  },
+                ),
+              ]),
+            ]),
           ),
         );
       },
     );
   }
+
 
   /// 外观：日间 / 夜间 / 跟随系统
   void _showThemeSheet(BuildContext context) {
@@ -1926,47 +1943,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildQuickActionItem({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: isDark ? 0.20 : 0.12),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: color.withValues(alpha: isDark ? 0.35 : 0.22),
-                  width: 1,
-                ),
-              ),
-              child: Icon(icon, color: color, size: 26),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Colors.white70 : const Color(0xFF334155),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
 }

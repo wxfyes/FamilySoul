@@ -433,6 +433,19 @@ class _ArmySheetState extends State<ArmySheet> {
                 ),
               ],
               const SizedBox(height: 16),
+              if (_wang?['hidden'] == true)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                  ),
+                  child: const Text('王家私兵由家主掌管：你只能看，不能招兵、调兵、购粮。',
+                      style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 12)),
+                ),
               Wrap(spacing: 10, runSpacing: 10, children: [
                 _pill(
                   icon: Icons.groups_rounded,
