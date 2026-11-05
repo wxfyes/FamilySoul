@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -932,11 +932,15 @@ const STARTED_AT = Date.now();
             if (friendIds.has(a.id)) return '常来往';
             return '其他人';
           }
-          // 她的视角
-          if (a.id === 'husband') return '我的人';
+          // 她的视角：只认真的亲眷，不把"王甯"默认当成她的人
+          if (a.id === actorId) return '自己';
           if (a.spouse === actorId || (me?.spouse && a.id === me.spouse)) return '我的人';
-          if (a.household) return '王家';
-          if (a.id === actorId) return '我的人';
+          if (a.id === 'husband') {
+            // 是他的妻妾/府内人，才叫"我的人"；否则只是城里的东家
+            if (me?.household || me?.spouse === 'husband') return '我的人';
+            return '王掌柜府上';
+          }
+          if (a.household) return '王家的人';
           return '其他人';
         };
         const peopleOut = people

@@ -1407,7 +1407,21 @@ export class PetService {
             '台词一律用第一人称；动作、神态放圆括号里，点到为止。',
             '【NPC 活人驱动铁律】：每个人都是活生生的人，有手头真实的营生差事与生活算盘，绝不是复读旧台词的死木头！',
             '1. 必须向前推进事态：严禁抓住过去发生的某个事故（如黑洞、掉钱）翻来覆去念叨！旧事翻篇，生活与营生必须向前走；',
-            '2. 主动做事与配合帮衬：面对玩家提要求、抱怨、托付或遇到难处，在场角色要立足自身本分主动表态、主动分担、主动配合推进解决（如工头主动张罗修缮翻新、揽大活挣工钱；相公主动担当遮风挡雨；熟人出谋划策），牵动世界运转！',
+            '2. 主动做事与配合帮衬：面对玩家提要求、抱怨、托付或遇到难处，在场角色要立足自身本分主动表态、主动分担、主动配合推进解决（如工头主动张罗修缮翻新、揽大活挣工钱；熟人出谋划策），牵动世界运转！',
+            // 身份铁律：新玩家不是王家人，王甯也不是她的相公
+            (() => {
+              const kin = Boolean(a.household || a.spouse === 'husband' || (Array.isArray(a.parents) && a.parents.includes('husband')));
+              const lines2 = [
+                `玩家是「${a.name}」${a.role ? `（${a.role}）` : ''}，**不是王甯**，也不是"相公"这个称呼的主人。`,
+              ];
+              if (kin) {
+                lines2.push('王甯是她的丈夫/东家，可称"相公"；谈家事只谈她自己那一段。');
+              } else {
+                lines2.push('王甯与她并无婚配，只是临江城的东家王掌柜；旁人提到他时称"王掌柜/王相公"，**绝不可说"你相公"，也不可把她当成王家人**。');
+                lines2.push('不许替她编造夫君、宅院、亲眷；她有什么，账上写着才算。');
+              }
+              return lines2.join('\n');
+            })(),
           ].join('\n');
         }
       } catch {
@@ -2570,7 +2584,8 @@ export class PetService {
             : [];
           // 隔着地方喊相公：他不能瞬移，但可以应一声（他是真人，由天道代他开口）
           const husActor = wPost.actors?.husband;
-          const calledHusband = /(王甯|王掌柜|少掌柜|当家的|相公)/.test(String(say || ''));
+          const meIsKin = Boolean(mePost?.household || mePost?.spouse === 'husband' || (Array.isArray(mePost?.parents) && mePost.parents.includes('husband')));
+          const calledHusband = meIsKin && /(王甯|王掌柜|少掌柜|当家的|相公)/.test(String(say || ''));
           if (husActor && !husActor.dead && calledHusband && husActor.location !== locPost) {
             try {
               const hisLine = await this._proxyHusbandRemote({ world: wPost, say, viewerId: this._viewerActorId, profileKey });
