@@ -26,6 +26,7 @@ import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
 import { runMigration, settleMigrants } from './migration.js';
 import { evictTrespassers } from './dwelling.js';
+import { pruneForeignRooms, buildPremises, buildCourts, settleItinerants } from './residence.js';
 import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
@@ -1498,6 +1499,18 @@ function onNewDay(world, events) {
     runMigration(world, nextEvent, events);
   } catch (err) {
     console.warn('[Migrate] 人口流动失败：', err.message);
+  }
+
+  // 每日：空间体检（清串模板房间、补经营场所与衙署、把流动小贩请回街）
+  // 放在日结里，是因为日结必然会把世界落盘，改动能真正写进去
+  try {
+    const a = pruneForeignRooms(world);
+    const b = settleItinerants(world);
+    const c = buildPremises(world);
+    const d = buildCourts(world);
+    if (a || b || c || d) console.log(`[Spaces] 日结体检：清 ${a}｜小贩归位 ${b}｜经营 ${c}｜衙署 ${d}`);
+  } catch (err) {
+    console.warn('[Spaces] 空间体检失败：', err.message);
   }
 
   // 每月初一：中馈月例（公中拨银给主母操持内宅）

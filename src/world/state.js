@@ -10,7 +10,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
-import { buildAllResidences, relinkResidence } from './residence.js';
+import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms } from './residence.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -960,11 +960,39 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 官府衙署层级化：照壁/大堂/二堂/花厅/大牢/校场（幂等）
+  try {
+    const n = buildCourts(world);
+    if (n) { console.log(`[Court] 建出 ${n} 间衙署房舍`); world.__migratedDirty = true; }
+  } catch { /* 忽略 */ }
+
+  // 经营场所立体化：三层酒楼、前店后坊、茶坊雅间（只建有主的，幂等）
+  try {
+    const n = buildPremises(world);
+    if (n) { console.log(`[Premises] 建出 ${n} 间经营空间`); world.__migratedDirty = true; }
+  } catch { /* 忽略 */ }
+
+  // 流动小贩归位：卖花女/货郎不许寄居在别人宅子里
+  try {
+    const n = settleItinerants(world);
+    if (n) { console.log(`[Residence] 把 ${n} 个流动小贩请回街市`); world.__migratedDirty = true; }
+  } catch { /* 忽略 */ }
+
+  // 每次读档：清掉"串了模板"的房间（酒楼里有正房、衙署里有灶房这种）
+  try {
+    const n = pruneForeignRooms(world);
+    if (n) { console.log(`[Spaces] 清掉 ${n} 间串模板的房间`); world.__migratedDirty = true; }
+  } catch { /* 忽略 */ }
+
   // 每次读档：把已有宅子的门路与房名理顺（不建东西，很便宜）
   try {
     for (const pid of Object.keys(world.places || {})) {
       const p = world.places[pid];
-      if (p && p.rooms) relinkResidence(world, pid);
+      if (p && p.rooms) {
+        const up = upgradeResidence(world, pid);
+        relinkResidence(world, pid);
+        if (up) world.__migratedDirty = true;
+      }
     }
   } catch { /* 忽略 */ }
 
@@ -1811,7 +1839,13 @@ export function migrateOwnership(world) {
 
 export function loadState(dataDir) {
   const __w = __loadStateInner(dataDir);
-  return migrateOwnership(__w);
+  const out = migrateOwnership(__w);
+  // 迁移真的改过东西才写盘，避免每次读档都白写一遍
+  if (out && out.__migratedDirty) {
+    delete out.__migratedDirty;
+    try { saveState(dataDir, out); } catch { /* 忽略 */ }
+  }
+  return out;
 }
 
 function __loadStateInner(dataDir) {

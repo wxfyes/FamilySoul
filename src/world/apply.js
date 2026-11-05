@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Apply 唯一结算层 —— 七层管道的第五层
  * 
  * 职责：
@@ -91,10 +91,31 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
       let finalTargetId = gate?.context?.targetPlaceId || null;
 
       if (!finalTargetId) {
-        const found = Object.entries(world.places).find(([k, p]) => k === targetPlaceName || p?.name === targetPlaceName || p?.name?.includes(targetPlaceName));
+        // 精确名 → 以该名结尾（如"临江·王宅·正房" ← "正房"）→ 才轮到包含；
+        // 绝不做"柳婶家 匹配到 刘婶家"这种串门
+        const exact = Object.entries(world.places).find(([k, p]) => k === targetPlaceName || p?.name === targetPlaceName);
+        const suffix = exact ? null : Object.entries(world.places).find(([, p]) => {
+          const n = String(p?.name || '');
+          return n.endsWith(`·${targetPlaceName}`) || n.endsWith(targetPlaceName);
+        });
+        const found = exact || suffix;
         if (found) {
           finalTargetId = found[0];
         } else {
+          // 先按"去哪儿"的规则翻译一次（王宅→正房/大门、后院→后院花园…），能落回真实地点就不造新景
+          let mapped = null;
+          try {
+            mapped = resolvePlaceTarget(world, targetPlaceName, { nearId: actor.location, actor });
+          } catch { /* 忽略 */ }
+          const looksRealPlace = /宅|院|府|楼|铺|店|栈|坊|仓|衙|寺|观|庙|街|巷|桥|渡|场|坊/.test(String(targetPlaceName));
+          if (mapped && world.places?.[mapped]) {
+            finalTargetId = mapped;
+            console.log(`[Apply:${intent.id}] 目标「${targetPlaceName}」归位到「${world.places[mapped].name}」`);
+          } else if (!looksRealPlace) {
+            // 不像地名：不造景，原地不动，交给天道用台词处理
+            console.log(`[Apply:${intent.id}] 目标「${targetPlaceName}」不是地名，不辟新景`);
+            break;
+          } else {
           world.flags = world.flags || {};
           world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
           finalTargetId = `place_${world.flags.placeSeq}`;
@@ -111,6 +132,7 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
           world.places[finalTargetId] = world.dynamicPlaces[finalTargetId];
           console.log(`[Apply:${intent.id}] 天道造景入册: 成功辟建【${targetPlaceName}】(id=${finalTargetId})`);
           stateChanged = true;
+          }
         }
       }
 

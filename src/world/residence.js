@@ -31,60 +31,105 @@ export function residenceGrade(name = '', scale = 0) {
 /** 各等第的院子：id 后缀、名字、用处 */
 const LAYOUTS = {
   1: [
-    { key: 'gate', name: '院门', use: 'gate' },
-    { key: 'main', name: '正房', use: 'bedroom' },
-    { key: 'wing', name: '厢房', use: 'bedroom' },
-    { key: 'kitchen', name: '灶房', use: 'kitchen' },
+    { key: 'gate', name: '院门', use: 'gate', depth: 1, access: 'public_outer' },
+    { key: 'main', name: '正房', use: 'bedroom', depth: 2, access: 'family_core' },
+    { key: 'wing', name: '厢房', use: 'bedroom', depth: 2, access: 'family_inner' },
+    { key: 'kitchen', name: '灶房', use: 'kitchen', depth: 3, access: 'servant_utility' },
   ],
   3: [
-    { key: 'gate', name: '门厅', use: 'gate' },
-    { key: 'front', name: '前院', use: 'yard' },
-    { key: 'hall', name: '正厅', use: 'hall' },
-    { key: 'main', name: '正房', use: 'bedroom' },
-    { key: 'east', name: '东厢', use: 'bedroom' },
-    { key: 'west', name: '西厢', use: 'bedroom' },
-    { key: 'kitchen', name: '庖厨', use: 'kitchen' },
-    { key: 'servant', name: '下房', use: 'servant' },
+    { key: 'gate', name: '门厅', use: 'gate', depth: 1, access: 'public_outer' },
+    { key: 'front', name: '前院', use: 'yard', depth: 1, access: 'public_outer' },
+    { key: 'hall', name: '正厅', use: 'hall', depth: 2, access: 'guest_main' },
+    { key: 'main', name: '正房', use: 'bedroom', depth: 3, access: 'family_core' },
+    { key: 'east', name: '东厢', use: 'bedroom', depth: 3, access: 'family_inner' },
+    { key: 'west', name: '西厢', use: 'bedroom', depth: 3, access: 'family_inner' },
+    { key: 'kitchen', name: '庖厨', use: 'kitchen', depth: 3, access: 'servant_utility' },
+    { key: 'servant', name: '下房', use: 'servant', depth: 3, access: 'servant_utility' },
   ],
   5: [
-    { key: 'gate', name: '门厅', use: 'gate' },
-    { key: 'front', name: '前院', use: 'yard' },
-    { key: 'reception', name: '前厅', use: 'hall' },
-    { key: 'hall', name: '正厅', use: 'hall' },
-    { key: 'study', name: '书房', use: 'study' },
-    { key: 'account', name: '账房', use: 'office' },
-    { key: 'main', name: '正房', use: 'bedroom' },
-    { key: 'east', name: '东厢', use: 'bedroom' },
-    { key: 'west', name: '西厢', use: 'bedroom' },
-    { key: 'garden', name: '后院花园', use: 'garden' },
-    { key: 'kitchen', name: '庖厨', use: 'kitchen' },
-    { key: 'servant', name: '下房', use: 'servant' },
-    { key: 'store', name: '库房', use: 'store' },
-    { key: 'gatehouse', name: '倒座房', use: 'guard' },
-    { key: 'stable', name: '马厩', use: 'stable' },
+    { key: 'gate', name: '门厅', use: 'gate', depth: 1, access: 'public_outer' },
+    { key: 'front', name: '前院', use: 'yard', depth: 1, access: 'public_outer' },
+    { key: 'sedan', name: '轿厅', use: 'hall', depth: 2, access: 'guest_outer' },
+    { key: 'hall', name: '正厅', use: 'hall', depth: 3, access: 'guest_main' },
+    { key: 'study', name: '书房', use: 'study', depth: 3, access: 'family_inner' },
+    { key: 'account', name: '账房', use: 'office', depth: 3, access: 'guest_main' },
+    { key: 'main', name: '正房', use: 'bedroom', depth: 4, access: 'family_core' },
+    { key: 'east', name: '东厢', use: 'bedroom', depth: 5, access: 'family_inner' },
+    { key: 'west', name: '西厢', use: 'bedroom', depth: 5, access: 'family_inner' },
+    { key: 'garden', name: '后院花园', use: 'garden', depth: 6, access: 'family_private' },
+    { key: 'kitchen', name: '庖厨', use: 'kitchen', depth: 7, access: 'servant_utility' },
+    { key: 'servant', name: '下房', use: 'servant', depth: 7, access: 'servant_utility' },
+    { key: 'store', name: '库房', use: 'store', depth: 7, access: 'servant_utility' },
+    { key: 'gatehouse', name: '倒座房', use: 'guard', depth: 1, access: 'public_outer' },
+    { key: 'stable', name: '马厩', use: 'stable', depth: 1, access: 'public_outer' },
   ],
+  // 七进豪门：按《营造》规制定死七进，深度与开门权限一并写清，绝不递归生长
   7: [
-    { key: 'gate', name: '门厅', use: 'gate' },
-    { key: 'front', name: '前院', use: 'yard' },
-    { key: 'sedan', name: '轿厅', use: 'hall' },
-    { key: 'reception', name: '前厅', use: 'hall' },
-    { key: 'hall', name: '正厅', use: 'hall' },
-    { key: 'council', name: '议事厅', use: 'hall' },
-    { key: 'study', name: '书房', use: 'study' },
-    { key: 'account', name: '账房', use: 'office' },
-    { key: 'main', name: '正房', use: 'bedroom' },
-    { key: 'east', name: '东厢', use: 'bedroom' },
-    { key: 'west', name: '西厢', use: 'bedroom' },
-    { key: 'garden', name: '后院花园', use: 'garden' },
-    { key: 'shrine', name: '祠堂', use: 'shrine' },
-    { key: 'kitchen', name: '庖厨', use: 'kitchen' },
-    { key: 'servant', name: '下房', use: 'servant' },
-    { key: 'store', name: '库房', use: 'store' },
-    { key: 'gatehouse', name: '倒座房', use: 'guard' },
-    { key: 'stable', name: '马厩', use: 'stable' },
-    { key: 'woodshed', name: '柴房', use: 'store' },
+    { key: 'gate', name: '朱漆大门', use: 'gate', depth: 1, access: 'public_outer' },
+    { key: 'front', name: '门头外院', use: 'yard', depth: 1, access: 'public_outer' },
+    { key: 'gatehouse', name: '门房倒座', use: 'guard', depth: 1, access: 'public_outer' },
+    { key: 'stable', name: '车舆马厩', use: 'stable', depth: 1, access: 'public_outer' },
+    { key: 'sedan', name: '仪门轿厅', use: 'hall', depth: 2, access: 'guest_outer' },
+    { key: 'reception', name: '迎客小厅', use: 'hall', depth: 2, access: 'guest_outer' },
+    { key: 'hall', name: '中堂大厅', use: 'hall', depth: 3, access: 'guest_main' },
+    { key: 'council', name: '议事厅', use: 'hall', depth: 3, access: 'guest_main' },
+    { key: 'account', name: '账房', use: 'office', depth: 3, access: 'guest_main' },
+    { key: 'study', name: '书房', use: 'study', depth: 3, access: 'family_inner' },
+    { key: 'main', name: '正房暖阁', use: 'bedroom', depth: 4, access: 'family_core' },
+    { key: 'east', name: '东厢房', use: 'bedroom', depth: 5, access: 'family_inner' },
+    { key: 'west', name: '西厢房', use: 'bedroom', depth: 5, access: 'family_inner' },
+    { key: 'garden', name: '临波后花园', use: 'garden', depth: 6, access: 'family_private' },
+    { key: 'shrine', name: '祠堂', use: 'shrine', depth: 6, access: 'family_private' },
+    { key: 'servant', name: '后罩房', use: 'servant', depth: 7, access: 'servant_utility' },
+    { key: 'kitchen', name: '大庖厨', use: 'kitchen', depth: 7, access: 'servant_utility' },
+    { key: 'store', name: '库房', use: 'store', depth: 7, access: 'servant_utility' },
+    { key: 'woodshed', name: '柴房', use: 'store', depth: 7, access: 'servant_utility' },
+    { key: 'barracks', name: '私兵值房', use: 'guard', depth: 7, access: 'servant_utility' },
   ],
 };
+
+/** 经营场所的立体空间：前店后坊、三层酒楼带地窖——同样定死，不递归 */
+const PREMISES = {
+  restaurant: [
+    { key: 'f1', name: '一层大堂', use: 'shop_floor', floor: 1 },
+    { key: 'f2', name: '二层雅阁', use: 'shop_floor', floor: 2 },
+    { key: 'f3', name: '三层天字阁', use: 'shop_floor', floor: 3 },
+    { key: 'kitchen', name: '后厨', use: 'kitchen', floor: 0 },
+    { key: 'cellar', name: '后院酒窖', use: 'store', floor: -1 },
+  ],
+  teahouse: [
+    { key: 'front', name: '临街茶堂', use: 'shop_floor', floor: 1 },
+    { key: 'back', name: '后坊焙茶', use: 'workshop', floor: 0 },
+    { key: 'room', name: '雅间', use: 'shop_floor', floor: 2 },
+  ],
+  shop: [
+    { key: 'front', name: '前店柜台', use: 'shop_floor', floor: 1 },
+    { key: 'back', name: '后坊库房', use: 'workshop', floor: 0 },
+  ],
+};
+
+/** 官府衙署：也是定死的层级，不递归 */
+const COURT = [
+  { key: 'gate', name: '照壁牌楼', use: 'gate', depth: 1, access: 'public_outer' },
+  { key: 'hall', name: '大堂公堂', use: 'hall', depth: 2, access: 'guest_main' },
+  { key: 'office', name: '二堂签押', use: 'office', depth: 3, access: 'family_inner' },
+  { key: 'inner', name: '内宅花厅', use: 'bedroom', depth: 4, access: 'family_private' },
+  { key: 'jail', name: '大牢', use: 'jail', depth: 0, access: 'servant_utility' },
+  { key: 'ground', name: '演武校场', use: 'yard', depth: 1, access: 'public_outer' },
+];
+
+/** 按名字判经营场所类型 */
+function premisesKind(name = '') {
+  const s = String(name || '');
+  if (/酒楼|酒肆|饭庄/.test(s)) return 'restaurant';
+  if (/茶坊|茶肆|茶楼|茶铺/.test(s)) return 'teahouse';
+  if (/铺|坊|行|栈|号|店/.test(s)) return 'shop';
+  return null;
+}
+
+
+/** 挑担走街的流动人口：卖花、货郎、挑夫、轿夫、游侠……他们不该寄居在别人民宅 */
+const ITINERANT = /卖花|货郎|挑夫|轿夫|行商|客商|游侠|乞儿|流民|脚夫|走街|串巷/;
 
 /** 下人按本分住哪 */
 const STAFF_USE = [
@@ -137,6 +182,7 @@ export function ensureResidence(world, rootId, { scale = 0, ownerId = null } = {
   root.rooms = root.rooms || {};
   root.grade = grade;
   root.residence = true;
+  if (grade >= 3) { root.depth = 4; root.access = 'family_core'; }
   if (ownerId && !root.owner) root.owner = ownerId;
 
   let built = 0;
@@ -152,9 +198,12 @@ export function ensureResidence(world, rootId, { scale = 0, ownerId = null } = {
       parent: rootId,
       owner: root.owner || ownerId || null,
       exits: [rootId],
+      depth: room.depth || null,
+      access: room.access || null,
+      floor: room.floor || null,
       dynamic: true,
     };
-    root.rooms[room.key] = { id: pid, name: room.name, use: room.use };
+    root.rooms[room.key] = { id: pid, name: room.name, use: room.use, depth: room.depth || null, access: room.access || null };
     built += 1;
   }
 
@@ -188,6 +237,7 @@ export function assignStaffQuarters(world, rootId) {
   let placed = 0;
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead) continue;
+    if (ITINERANT.test(String(a.role || ''))) continue;   // 流动小贩不占宅子
     const livesHere = a.home === rootId
       || a.location === rootId
       || (a.home && world.places?.[a.home]?.parent === rootId)
@@ -244,6 +294,43 @@ export function repairRooms(world, rootId) {
 /**
  * 只把门路与房名理顺（不建东西，每次读档都能跑，很便宜）
  */
+/**
+ * 把旧存档的院子升到当前模板：补缺的房间、补 depth/access、按模板改名。
+ * 只补不删，幂等。
+ */
+export function upgradeResidence(world, rootId) {
+  const root = world?.places?.[rootId];
+  if (!root?.rooms) return 0;
+  const grade = num(root.grade) || residenceGrade(root.name, 0);
+  const spec = LAYOUTS[grade] || LAYOUTS[3];
+  const segs = String(root.name || '宅').split('·').map((x) => x.trim()).filter(Boolean);
+  const houseName = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '宅');
+  let changed = 0;
+  for (const room of spec) {
+    const existing = root.rooms[room.key];
+    const pid = existing?.id || `${rootId}__${room.key}`;
+    let rp = world.places?.[pid];
+    if (!rp) {
+      rp = {
+        id: pid, name: `${houseName}·${room.name}`, residence: true, use: room.use,
+        parent: rootId, owner: root.owner || null, exits: [rootId], dynamic: true,
+      };
+      world.places[pid] = rp;
+      changed += 1;
+    }
+    if (room.depth && rp.depth !== room.depth) { rp.depth = room.depth; changed += 1; }
+    if (room.access && rp.access !== room.access) { rp.access = room.access; changed += 1; }
+    const want = `${houseName}·${room.name}`;
+    if (rp.name !== want) { rp.name = want; changed += 1; }
+    root.rooms[room.key] = { id: pid, name: room.name, use: room.use, depth: room.depth || null, access: room.access || null };
+  }
+  if (grade >= 3 && (root.depth !== 4 || root.access !== 'family_core')) {
+    root.depth = 4; root.access = 'family_core'; changed += 1;
+  }
+  relinkResidence(world, rootId);
+  return changed;
+}
+
 export function relinkResidence(world, rootId) {
   const root = world?.places?.[rootId];
   if (!root?.rooms) return 0;
@@ -307,6 +394,7 @@ export function buildAllResidences(world) {
   let rooms = 0;
   let upgraded = 0;
   pruneRunawayRooms(world);
+  pruneForeignRooms(world);
 
   // 安全阀：地点已经多到不正常，就先不建了，免得把进程拖死
   if (Object.keys(world?.places || {}).length > 4000) {
@@ -320,6 +408,8 @@ export function buildAllResidences(world) {
     // 院子本身不是宅子：有 parent 的都是某座宅子的房间，绝不再给它建院子
     if (p.parent) continue;
     if (String(pid).includes('__')) continue;
+    // 商业与衙署有自己的模板，宅院不要插手
+    if (premisesKind(p.name) || /衙|仓|庙|观|寺|学|院$/.test(String(p.name || ''))) continue;
     const looksHome = p.residence || /宅|院|府/.test(String(p.name || '')) || /^house_/.test(pid);
     if (!looksHome) continue;
     if (!p.residence && /客栈|酒|茶|铺|坊|仓|衙|庙|观/.test(String(p.name || ''))) continue;
@@ -343,4 +433,154 @@ export function buildAllResidences(world) {
     }
   }
   return { homes, rooms, upgraded };
+}
+
+/**
+ * 流动小贩归位：卖花女、货郎、挑夫这些不该住在别人家里。
+ * 只动人，不动房；每天巡检一次。
+ */
+export function settleItinerants(world) {
+  let moved = 0;
+  const street = world?.places?.street ? 'street' : null;
+  for (const a of Object.values(world?.actors || {})) {
+    if (!a || a.dead) continue;
+    if (!ITINERANT.test(String(a.role || ''))) continue;
+    const home = world.places?.[a.home];
+    const squatting = home && home.residence && home.owner && home.owner !== a.id;
+    if (!squatting && a.location !== a.home) continue;
+    if (home && home.owner === a.id) continue;
+    if (!street) continue;
+    a.home = street;
+    if (world.places?.[a.location]?.residence) a.location = street;
+    delete a.quarters;
+    moved += 1;
+  }
+  return moved;
+}
+
+/**
+ * 经营场所的立体空间（幂等）：三层酒楼、前店后坊、茶坊雅间。
+ * 与宅院同一套规矩：定死模板、双向开门、只建一次。
+ */
+export function buildPremises(world) {
+  let built = 0;
+  const places = world?.places || {};
+  if (Object.keys(places).length > 4000) return 0;
+  for (const [pid, p] of Object.entries(places)) {
+    if (!p || p.parent || String(pid).includes('__')) continue;
+    if (p.rooms && Object.keys(p.rooms).length) continue;
+    const kind = premisesKind(p.name);
+    if (!kind) continue;
+    // 已有房间也要进来（补缺 + 改名），不能直接跳过
+    // 有名有姓的铺子都给它把前店后坊补上（野摊不建）
+
+    const spec = PREMISES[kind];
+    p.rooms = p.rooms || {};
+    p.exits = Array.isArray(p.exits) ? p.exits : ['street'];
+    const segs = String(p.name || '铺').split('·').map((x) => x.trim()).filter(Boolean);
+    const base = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '铺');
+    for (const room of spec) {
+      const rid = `${pid}__${room.key}`;
+      if (!places[rid]) {
+        places[rid] = {
+          id: rid, name: `${base}·${room.name}`, parent: pid,
+          floor: room.floor, use: room.use, exits: [pid], dynamic: true, owner: p.owner || null,
+        };
+      }
+      const rp = places[rid];
+      if (rp) {
+        const want = `${base}·${room.name}`;
+        if (rp.name !== want) rp.name = want;
+        rp.use = room.use;
+        rp.floor = room.floor;
+      }
+      p.rooms[room.key] = { id: rid, name: room.name, use: room.use, floor: room.floor };
+      if (!p.exits.includes(rid)) p.exits.push(rid);
+      built += 1;
+    }
+    // 收尾：按模板把名字与楼层纠正（老存档里可能叫"灶房""院门"）
+    for (const room of spec) {
+      const rec = p.rooms[room.key];
+      const rp = rec && places[rec.id];
+      if (!rp) continue;
+      rec.name = room.name;
+      rec.use = room.use;
+      rec.floor = room.floor;
+      rp.name = `${base}·${room.name}`;
+      rp.use = room.use;
+      rp.floor = room.floor;
+    }
+  }
+  return built;
+}
+
+/**
+ * 官府衙署层级（幂等）：照壁牌楼、大堂、二堂签押、内宅花厅、大牢、校场。
+ */
+export function buildCourts(world) {
+  let built = 0;
+  const places = world?.places || {};
+  if (Object.keys(places).length > 4000) return 0;
+  for (const [pid, p] of Object.entries(places)) {
+    if (!p || p.parent || String(pid).includes('__')) continue;
+    if (!/衙|县衙|府衙|公堂/.test(String(p.name || ''))) continue;
+    p.rooms = p.rooms || {};
+    p.exits = Array.isArray(p.exits) ? p.exits : ['street'];
+    const segs = String(p.name || '衙').split('·').map((x) => x.trim()).filter(Boolean);
+    const base = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '衙');
+    for (const room of COURT) {
+      const rid = `${pid}__${room.key}`;
+      if (!places[rid]) {
+        places[rid] = {
+          id: rid, name: `${base}·${room.name}`, parent: pid, use: room.use,
+          depth: room.depth, access: room.access, exits: [pid], dynamic: true, owner: p.owner || null,
+        };
+      }
+      const rp = places[rid];
+      if (rp) {
+        const want = `${base}·${room.name}`;
+        if (rp.name !== want) rp.name = want;
+        rp.use = room.use; rp.depth = room.depth; rp.access = room.access;
+      }
+      p.rooms[room.key] = { id: rid, name: room.name, use: room.use, depth: room.depth, access: room.access };
+      if (!p.exits.includes(rid)) p.exits.push(rid);
+      built += 1;
+    }
+    for (const room of COURT) {
+      const rec = p.rooms[room.key];
+      const rp = rec && places[rec.id];
+      if (!rp) continue;
+      rec.name = room.name;
+      rp.name = `${base}·${room.name}`;
+      rp.use = room.use;
+      rp.depth = room.depth;
+      rp.access = room.access;
+    }
+  }
+  return built;
+}
+
+/**
+ * 清掉"串了模板"的房间：酒楼里不该有正房，衙署里不该有灶房。
+ * @returns {number} 清掉的房间数
+ */
+export function pruneForeignRooms(world) {
+  let removed = 0;
+  for (const [pid, p] of Object.entries(world?.places || {})) {
+    if (!p || !p.rooms || p.parent) continue;
+    const name = String(p.name || '');
+    // 商业/衙署优先按自己的模板清（哪怕它曾被误标成住宅）
+    let allowed = null;
+    const kind = premisesKind(name);
+    if (kind) allowed = new Set(PREMISES[kind].map((r) => r.key));
+    else if (/衙|县衙|府衙|公堂/.test(name)) allowed = new Set(COURT.map((r) => r.key));
+    if (!allowed) continue;
+    for (const [key, r] of Object.entries(p.rooms)) {
+      if (allowed.has(key)) continue;
+      if (r?.id && world.places[r.id]) delete world.places[r.id];
+      delete p.rooms[key];
+      removed += 1;
+    }
+  }
+  return removed;
 }

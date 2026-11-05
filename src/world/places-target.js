@@ -12,6 +12,10 @@
  */
 
 const SEMANTICS = [
+  { key: '地窖', test: /酒窖|地窖|窖/ },
+  { key: '天字阁', test: /天字|三楼|三层|雅阁/ },
+  { key: '后厨', test: /后厨|厨房|砧板/ },
+  { key: '大堂', test: /大堂|散座|柜台|前店/ },
   { key: '酒楼', test: /酒楼|酒肆|饭庄/ },
   { key: '码头', test: /码头|渡口|船坞|河埠/ },
   { key: '茶山', test: /茶山|茶园|山场/ },
@@ -52,6 +56,14 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
   const places = placeList(world);
   if (!places.length) return null;
   const text = String(hint || '');
+
+  // 王宅（含七进大宅院/王家大宅这种产业名）一律回丈夫正房或大门，绝不另辟孤岛
+  if (/王宅|王家大宅|七进大宅|王家庭院/.test(text)) {
+    const gate = 'husband_room__gate';
+    const main = 'husband_room';
+    if (world.places?.[gate]) return gate;
+    if (world.places?.[main]) return main;
+  }
 
   // ① 天道的暗示里直接点了某个地点的名字
   const byName = places
