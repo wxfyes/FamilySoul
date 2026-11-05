@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { sanePrice, priceHint } from './world/pricing.js';
 import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } from './world/naming.js';
-import { moveActor } from './world/position.js';
+import { moveActor, isHumanBound } from './world/position.js';
 import { hireStaff } from './world/employment.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -1056,6 +1056,55 @@ export class PetService {
     }
 
     return reply.trim();
+  }
+
+  /** 最近几句对话，供代演/兜底时接住指代（"他""那个人"） */
+  _recentSnippet(profileKey, n = 4) {
+    try {
+      const h = this.readHistory(profileKey).messages || [];
+      return h.slice(-n).map((m) => `${m.role === 'user' ? '客' : '答'}：${String(m.text || '').slice(0, 60)}`).join('\n');
+    } catch { return ''; }
+  }
+
+  /** 把"不该开口的人"的段落剔掉：不在场的人、以及不是本人操控的真人号 */
+  _stripIllegalSpeakers(reply) {
+    try {
+      const w = loadState(this.dataDir);
+      const me = this._viewerActorId ? w.actors?.[this._viewerActorId] : w.actors?.husband;
+      const here = me?.location;
+      const segs = String(reply || '').split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
+      const kept = [];
+      for (const seg of segs) {
+        const m = seg.match(/^【([^】\n]{1,12})】/);
+        if (!m) { kept.push(seg); continue; }
+        const spk = m[1].trim();
+        if (/天道|旁白|众人/.test(spk) || spk === (me?.name || '')) { kept.push(seg); continue; }
+        const who = Object.values(w.actors || {}).find((a) => a && !a.dead && a.name && (a.name === spk || spk.includes(a.name) || a.name.includes(spk)));
+        if (!who) { kept.push(seg); continue; }
+        // 同名可能既有 NPC 又有真人号：只要这个名字底下有真人号，就不许 AI 替他说话
+        const sameNameReal = Object.values(w.actors || {}).some(
+          (a) => a && !a.dead && a.name === who.name && (/^usr_/.test(String(a.id)) || isHumanBound(w, a.id)),
+        );
+        const rel = me?.relations?.[who.id] || who.relations?.[me?.id] || {};
+        const kin = Boolean(me?.spouse === who.id || who.spouse === me?.id
+          || (me?.household && who.household)
+          || rel.lover || Number(rel.desire) >= 40 || Number(rel.trust) >= 55);
+        const isRealUser = /^usr_/.test(String(who.id)) || isHumanBound(w, who.id) || sameNameReal;
+        if (isRealUser && !kin) {
+          console.log(`[Presence] 剔除非本人操控的真人发言：${spk}`);
+          continue;
+        }
+        if (who.location !== here && !(isRealUser && kin)) {
+          console.log(`[Presence] 剔除非在场发言：${spk}`);
+          continue;
+        }
+        kept.push(seg);
+      }
+      const merged = kept.join('').trim();
+      return merged || '';
+    } catch {
+      return String(reply || '');
+    }
   }
 
   async chat({ text = '', modality = 'text', profileKey = 'husband', roleName = null, isVideoCall = false, actorId = null } = {}) {
@@ -2683,7 +2732,7 @@ export class PetService {
               hearerName: mePost?.name || '',
               hearerPlace: String(wPost.places?.[locPost]?.name || ''),
               said: String(say || '').slice(0, 200),
-              recent: '',
+              recent: this._recentSnippet(profileKey, 4),
             });
             const npRes = await this.llmClient.complete({
               system: npPrompt.system,
@@ -3157,6 +3206,18 @@ export class PetService {
         const spk = m[1].trim();
         if (/天道|旁白|众人/.test(spk) || spk === (mePres?.name || '')) { kept.push(seg); continue; }
         const who = Object.values(wPres.actors || {}).find((a) => a && !a.dead && a.name && (a.name === spk || spk.includes(a.name) || a.name.includes(spk)));
+        // 真人角色（别的玩家在操作的号）不能被 AI 代他说话；只有"亲眷隔空应声"这一种例外
+        if (who && who.id !== mePres?.id) {
+          const rel2 = mePres?.relations?.[who.id] || who.relations?.[mePres?.id] || {};
+          const kin2 = Boolean(mePres?.spouse === who.id || who.spouse === mePres?.id
+            || (mePres?.household && who.household)
+            || rel2.lover || Number(rel2.desire) >= 40 || Number(rel2.trust) >= 55);
+          const isRealUser = /^usr_/.test(String(who.id)) || isHumanBound(wPres, who.id);
+          if (isRealUser && !kin2) {
+            console.log(`[Presence] 剔除非本人操控的真人发言：${spk}`);
+            continue;
+          }
+        }
         if (who && who.location !== hereLoc) {
           // 例外：王甯是真人常客，他的相好/妻妾喊他，他隔着地方应一句是合理的；
           // 生客（如离析）喊他，就绝不许他"人在万花楼"开口。
@@ -3192,7 +3253,7 @@ export class PetService {
             hearerName: mePres?.name || '客人',
             hearerPlace: String(wPres.places?.[hereLoc]?.name || ''),
             said: String(say || '').slice(0, 200),
-            recent: '',
+            recent: this._recentSnippet(profileKey, 4),
           });
           try {
             const res2 = await this.llmClient.complete({
@@ -3278,6 +3339,11 @@ export class PetService {
         console.warn('[Quotes] 记录失败：', err.message);
       }
     }
+    // 成文前最后一道：把不该开口的人再剔一次（后段追加的旁人也会被挡住）
+    try {
+      const cleaned = this._stripIllegalSpeakers(reply);
+      if (cleaned) reply = cleaned;
+    } catch { /* 忽略 */ }
     const assistantMsg = { id: `a-${now}`, role: 'assistant', text: reply, at: now };
     if (audioKey) {
       assistantMsg.audioKey = audioKey;
@@ -3680,6 +3746,17 @@ export class PetService {
           ? '这一条是【钩子】：必须抛出一件**需要相公当场决断**的事——有人在等他回话、有买卖要拍板、有人找上门、账上出了岔子。要具体到人、地、事，别只说"要不要去看看"。'
           : '';
       let cleanAsName = asName ? String(asName).trim() : null;
+      // 真人号不许被"主动推送"代他说话（他不是 NPC）
+      try {
+        const wGuard = peek(this.dataDir);
+        const who0 = cleanAsName
+          ? (wGuard.actors?.[cleanAsName] || Object.values(wGuard.actors || {}).find((a) => a && a.name === cleanAsName))
+          : null;
+        if (who0 && (/^usr_/.test(String(who0.id)) || isHumanBound(wGuard, who0.id))) {
+          console.log(`[Push] 跳过真人角色 ${who0.name}，不替他说话`);
+          return null;
+        }
+      } catch { /* 忽略 */ }
       if (cleanAsName && /^[a-zA-Z_0-9]+$/.test(cleanAsName)) {
         const wSnap = peek(this.dataDir);
         const aObj = wSnap.actors?.[cleanAsName] || (typeof matchActor === 'function' ? matchActor(wSnap.actors, cleanAsName) : null);
