@@ -29,66 +29,84 @@ class MessageBubble extends StatelessWidget {
     final isUser = message.isUser;
     final timeStr = DateFormat('HH:mm').format(message.timestamp);
     final speakerName = displaySpeakerName;
+    final meta = _SpeakerMeta.resolve(speakerName, isUser: isUser);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 7.0),
       child: Row(
         mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            _buildAvatar(context, isUser: false, name: speakerName),
-            const SizedBox(width: 8),
+            _buildAvatar(context, isUser: false, meta: meta),
+            const SizedBox(width: 10),
           ],
           Flexible(
             child: Column(
               crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
-                if (!isUser && speakerName.isNotEmpty && !message.isPending)
+                // 伴侣 / NPC 身份称谓胶囊药丸（雅致国风标）
+                if (!isUser && !message.isPending)
                   Padding(
-                    padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: _colorForName(speakerName),
-                            shape: BoxShape.circle,
-                          ),
+                    padding: const EdgeInsets.only(left: 2.0, bottom: 5.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: meta.primaryColor.withValues(alpha: isDark ? 0.22 : 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: meta.primaryColor.withValues(alpha: isDark ? 0.35 : 0.22),
+                          width: 0.8,
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          speakerName,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade600,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(meta.symbol, style: const TextStyle(fontSize: 10.5)),
+                          const SizedBox(width: 4),
+                          Text(
+                            meta.title.isEmpty ? meta.name : '${meta.title} · ${meta.name}',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: meta.primaryColor,
+                              letterSpacing: 0.3,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
+
+                // 核心对话气泡（大圆角、现代轻呼吸投影、通透质感）
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                   decoration: BoxDecoration(
                     color: isUser
-                        ? const Color(0xFF2563EB) // 精致科技蓝
+                        ? const Color(0xFF2563EB) // 高级科技雅蓝
                         : (message.isError
                             ? const Color(0xFFFEE2E2)
-                            : Theme.of(context).cardColor),
+                            : (isDark ? const Color(0xFF1E222D) : Colors.white)),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
                       topRight: const Radius.circular(18),
                       bottomLeft: Radius.circular(isUser ? 18 : 4),
                       bottomRight: Radius.circular(isUser ? 4 : 18),
                     ),
+                    border: isUser
+                        ? null
+                        : Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.05),
+                            width: 0.8,
+                          ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
@@ -99,17 +117,13 @@ class MessageBubble extends StatelessWidget {
                           children: [
                             if (message.displayCleanText.isNotEmpty &&
                                 message.displayCleanText != '（发来了一个表情包）')
-                              SelectableText(
+                              ..._buildFormattedText(
+                                context,
                                 message.displayCleanText,
-                                style: TextStyle(
-                                  fontSize: 15.5,
-                                  height: 1.45,
-                                  color: isUser
-                                      ? Colors.white
-                                      : (message.isError
-                                          ? const Color(0xFFDC2626)
-                                          : Theme.of(context).textTheme.bodyLarge?.color),
-                                ),
+                                isUser: isUser,
+                                isError: message.isError,
+                                meta: meta,
+                                isDark: isDark,
                               ),
                             if (message.isError)
                               Padding(
@@ -141,14 +155,14 @@ class MessageBubble extends StatelessWidget {
                           ],
                         ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4.0),
                   child: Text(
                     timeStr,
                     style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
+                      fontSize: 10.5,
+                      color: isDark ? Colors.white30 : Colors.grey.shade400,
                     ),
                   ),
                 ),
@@ -156,74 +170,166 @@ class MessageBubble extends StatelessWidget {
             ),
           ),
           if (isUser) ...[
-            const SizedBox(width: 8),
-            _buildAvatar(context, isUser: true, name: '我'),
+            const SizedBox(width: 10),
+            _buildAvatar(context, isUser: true, meta: meta),
           ],
         ],
       ),
     );
   }
 
-  static const List<Color> _assistantPalette = [
-    Color(0xFF8B5CF6),
-    Color(0xFFEC4899),
-    Color(0xFF0EA5E9),
-    Color(0xFFF59E0B),
-    Color(0xFF10B981),
-    Color(0xFF6366F1),
-  ];
-
-  /// 同一个名字永远得到同一种颜色（不随运行变化）
-  Color _colorForName(String name) {
-    if (name.isEmpty) return _assistantPalette.first;
-    var h = 0;
-    for (final c in name.codeUnits) {
-      h = (h * 31 + c) & 0x7fffffff;
+  /// 呼吸感图文排版：神态动作与台词分离，告别长篇大论挤压
+  List<Widget> _buildFormattedText(
+    BuildContext context,
+    String raw, {
+    required bool isUser,
+    required bool isError,
+    required _SpeakerMeta meta,
+    required bool isDark,
+  }) {
+    // 过滤多余的首尾引号或分角括号前缀
+    var cleaned = raw.trim();
+    if (cleaned.startsWith('：“') && cleaned.endsWith('”')) {
+      cleaned = cleaned.substring(2, cleaned.length - 1);
+    } else if (cleaned.startsWith(':"') && cleaned.endsWith('"')) {
+      cleaned = cleaned.substring(2, cleaned.length - 1);
     }
-    return _assistantPalette[h % _assistantPalette.length];
+
+    final segments = _parseSegments(cleaned);
+    final widgets = <Widget>[];
+
+    for (var i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      if (seg.isAction) {
+        // 动作/神态描写：柔和斜体小字 + 雅致左侧微竖线
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3.0),
+            child: Container(
+              padding: const EdgeInsets.only(left: 7.0, top: 1.0, bottom: 1.0),
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: isUser
+                        ? Colors.white38
+                        : meta.primaryColor.withValues(alpha: isDark ? 0.45 : 0.35),
+                    width: 2.0,
+                  ),
+                ),
+              ),
+              child: Text(
+                seg.text,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.4,
+                  fontStyle: FontStyle.italic,
+                  color: isUser
+                      ? Colors.white70
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        // 说话对白：清晰字阶，行高自然饱满
+        widgets.add(
+          Padding(
+            padding: EdgeInsets.only(top: i > 0 ? 3.0 : 0.0, bottom: i < segments.length - 1 ? 3.0 : 0.0),
+            child: SelectableText(
+              seg.text,
+              style: TextStyle(
+                fontSize: 15.5,
+                height: 1.48,
+                letterSpacing: 0.2,
+                color: isUser
+                    ? Colors.white
+                    : (isError
+                        ? const Color(0xFFDC2626)
+                        : (isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B))),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return widgets;
   }
 
-  /// 「跑堂伙计·阿吉」取「阿」，「沈婉儿」取「沈」
-  String _initialOf(String name) {
-    final parts = name.split(RegExp(r'[·•.]'));
-    final last = parts.last.trim();
-    if (last.isNotEmpty) return last.characters.first;
-    return name.isNotEmpty ? name.characters.first : 'A';
+  /// 智能拆解神态动作括号 （...） 与常规台词
+  List<_TextSegment> _parseSegments(String text) {
+    final list = <_TextSegment>[];
+    final reg = RegExp(r'（[^）]+）|\([^\)]+\)');
+    var last = 0;
+    for (final m in reg.allMatches(text)) {
+      if (m.start > last) {
+        final t = text.substring(last, m.start).trim();
+        if (t.isNotEmpty) list.add(_TextSegment(text: t, isAction: false));
+      }
+      final act = m.group(0)!.trim();
+      if (act.isNotEmpty) list.add(_TextSegment(text: act, isAction: true));
+      last = m.end;
+    }
+    if (last < text.length) {
+      final t = text.substring(last).trim();
+      if (t.isNotEmpty) list.add(_TextSegment(text: t, isAction: false));
+    }
+    return list.isEmpty ? [_TextSegment(text: text, isAction: false)] : list;
   }
 
-  Widget _buildAvatar(BuildContext context, {required bool isUser, required String name}) {
+  /// 雅致国风水墨印章头像
+  Widget _buildAvatar(BuildContext context, {required bool isUser, required _SpeakerMeta meta}) {
     final provider = context.watch<ChatProvider>();
-    final base = isUser ? const Color(0xFF3B82F6) : _colorForName(name);
-    final remoteUrl = provider.avatarUrlFor(name);
+    final remoteUrl = provider.avatarUrlFor(meta.raw);
 
-    final fallback = Center(
-      child: Text(
-        isUser ? '我' : _initialOf(name),
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
+    // 古典印章回退微标
+    final fallback = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [meta.primaryColor, meta.secondaryColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              meta.symbol,
+              style: const TextStyle(fontSize: 10, height: 1.1),
+            ),
+            Text(
+              meta.name.isNotEmpty ? meta.name.characters.first : (isUser ? '我' : '伴'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                height: 1.1,
+              ),
+            ),
+          ],
         ),
       ),
     );
 
     final avatar = Container(
-      width: 38,
-      height: 38,
+      width: 42,
+      height: 42,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: isUser
-              ? [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)]
-              : [base, Color.lerp(base, Colors.black, 0.28)!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        border: Border.all(
+          color: meta.primaryColor.withValues(alpha: 0.35),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: base.withValues(alpha: 0.25),
-            blurRadius: 6,
+            color: meta.primaryColor.withValues(alpha: 0.22),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -233,16 +339,16 @@ class MessageBubble extends StatelessWidget {
           : Image.network(
               remoteUrl,
               fit: BoxFit.cover,
-              width: 38,
-              height: 38,
+              width: 42,
+              height: 42,
               errorBuilder: (_, __, ___) => fallback,
               loadingBuilder: (c, child, progress) => progress == null ? child : fallback,
             ),
     );
 
-    // 长按头像 → 从相册换一张（上传到服务器，全家共享）
+    // 长按头像 → 从相册更换
     return GestureDetector(
-      onLongPress: () => _pickAvatar(context, name),
+      onLongPress: () => _pickAvatar(context, meta.raw),
       child: avatar,
     );
   }
@@ -583,6 +689,150 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 文本分段：普通台词 vs 动作神态描写
+class _TextSegment {
+  final String text;
+  final bool isAction;
+
+  const _TextSegment({required this.text, required this.isAction});
+}
+
+/// 发言角色身份与雅致国风美学元数据
+class _SpeakerMeta {
+  final String raw;
+  final String title;
+  final String name;
+  final String symbol;
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  const _SpeakerMeta({
+    required this.raw,
+    required this.title,
+    required this.name,
+    required this.symbol,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+
+  static _SpeakerMeta resolve(String rawSpeaker, {required bool isUser}) {
+    if (isUser) {
+      return const _SpeakerMeta(
+        raw: '我',
+        title: '相公',
+        name: '我',
+        symbol: '👑',
+        primaryColor: Color(0xFF2563EB),
+        secondaryColor: Color(0xFF1D4ED8),
+      );
+    }
+
+    final s = rawSpeaker.trim();
+
+    // 1. 沈婉儿（正妻 · 牡丹朱砂）
+    if (s.contains('婉儿') || s.contains('婉')) {
+      return _SpeakerMeta(
+        raw: s,
+        title: '正妻',
+        name: '沈婉儿',
+        symbol: '🌸',
+        primaryColor: const Color(0xFFE11D48), // 朱砂瑰红
+        secondaryColor: const Color(0xFFBE123C),
+      );
+    }
+
+    // 2. 林芸娘（侧妾 · 幽兰黛青）
+    if (s.contains('芸娘') || s.contains('芸')) {
+      return _SpeakerMeta(
+        raw: s,
+        title: '妾室',
+        name: '林芸娘',
+        symbol: '🌿',
+        primaryColor: const Color(0xFF0284C7), // 黛青水墨
+        secondaryColor: const Color(0xFF0369A1),
+      );
+    }
+
+    // 3. 小翠（贴身丫鬟 · 翠竹清影）
+    if (s.contains('小翠') || s.contains('翠')) {
+      return _SpeakerMeta(
+        raw: s,
+        title: '贴身',
+        name: '小翠',
+        symbol: '🎋',
+        primaryColor: const Color(0xFF059669), // 竹韵嫩青
+        secondaryColor: const Color(0xFF047857),
+      );
+    }
+
+    // 4. 名伶花魁（苏映雪 / 紫嫣）
+    if (s.contains('映雪') || s.contains('紫嫣') || s.contains('苏映雪') || s.contains('花魁')) {
+      final n = s.contains('映雪') ? '苏映雪' : (s.contains('紫嫣') ? '紫嫣' : '名伶');
+      return _SpeakerMeta(
+        raw: s,
+        title: '名伶',
+        name: n,
+        symbol: '🎶',
+        primaryColor: const Color(0xFFC026D3), // 海棠绯紫
+        secondaryColor: const Color(0xFFA21CAF),
+      );
+    }
+
+    // 5. 掌柜行首（周有福 / 吴掌柜）
+    if (s.contains('掌柜') || s.contains('周有福') || s.contains('吴有德') || s.contains('吴掌柜')) {
+      final n = s.contains('周') ? '周有福' : (s.contains('吴') ? '吴有德' : '掌柜');
+      return _SpeakerMeta(
+        raw: s,
+        title: '掌柜',
+        name: n,
+        symbol: '🏮',
+        primaryColor: const Color(0xFFD97706), // 暖金琥珀
+        secondaryColor: const Color(0xFFB45309),
+      );
+    }
+
+    // 6. 官府 / 捕快 / 官绅（杨振华 / 知府 / 差役）
+    if (s.contains('知府') || s.contains('杨振华') || s.contains('捕快') || s.contains('官差') || s.contains('衙役')) {
+      final n = s.contains('杨') ? '杨知府' : '差役';
+      return _SpeakerMeta(
+        raw: s,
+        title: '官府',
+        name: n,
+        symbol: '⚔️',
+        primaryColor: const Color(0xFF475569), // 墨色金石
+        secondaryColor: const Color(0xFF334155),
+      );
+    }
+
+    // 7. 通用市井伴侣 / 客卿（名字哈希古典色调）
+    final clean = s.replaceAll(RegExp(r'[【】·•.\[\]:："”]'), '').trim();
+    final name = clean.isEmpty ? '伴侣' : (clean.length <= 4 ? clean : clean.substring(clean.length - 2));
+
+    const palette = [
+      Color(0xFF8B5CF6),
+      Color(0xFFEC4899),
+      Color(0xFF0EA5E9),
+      Color(0xFFF59E0B),
+      Color(0xFF10B981),
+      Color(0xFF6366F1),
+    ];
+    var h = 0;
+    for (final c in s.codeUnits) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    final pc = palette[h % palette.length];
+
+    return _SpeakerMeta(
+      raw: s,
+      title: '客卿',
+      name: name,
+      symbol: '🍵',
+      primaryColor: pc,
+      secondaryColor: Color.lerp(pc, Colors.black, 0.28)!,
     );
   }
 }

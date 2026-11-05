@@ -810,50 +810,9 @@ class _ChatScreenState extends State<ChatScreen> {
               leading: const Icon(Icons.payments_rounded, color: Color(0xFFE0B252)),
               title: const Text('记一笔花销', style: TextStyle(color: Colors.white)),
               subtitle: const Text('房钱 · 货款 · 打点 · 赏银', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
-              onTap: () async {
-                final messengerP = ScaffoldMessenger.of(context);
+              onTap: () {
                 Navigator.pop(context);
-                final ctrlA = TextEditingController();
-                final ctrlT = TextEditingController(text: '花销');
-                final navCtx = context;
-                final ok = await showDialog<bool>(
-                  context: navCtx,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: const Color(0xFF1B1E28),
-                    title: const Text('记一笔花销', style: TextStyle(color: Colors.white, fontSize: 16)),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: ctrlT,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(labelText: '名目', labelStyle: TextStyle(color: Colors.white38)),
-                        ),
-                        TextField(
-                          controller: ctrlA,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(labelText: '银子（两）', labelStyle: TextStyle(color: Colors.white38)),
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('算了')),
-                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('付')),
-                    ],
-                  ),
-                );
-                if (ok != true) return;
-                final amount = double.tryParse(ctrlA.text.trim()) ?? 0;
-                final title = ctrlT.text.trim().isEmpty ? '花销' : ctrlT.text.trim();
-                final line = await provider.api.payManual(amount, title);
-                if (!mounted) return;
-                if (line != null) {
-                  messengerP.showSnackBar(
-                    SnackBar(content: Text(line), duration: const Duration(milliseconds: 2200), behavior: SnackBarBehavior.floating),
-                  );
-                  _refreshPlace();
-                }
+                _showPayDialog(context, provider);
               },
             ),
             ListTile(
@@ -1531,7 +1490,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
+
+          // 右侧：+ 号常用功能底板（转场出门/记账/家兵/世界/拍照）
+          IconButton(
+            onPressed: () => _showQuickActionSheet(context, provider),
+            icon: const Icon(
+              Icons.add_circle_outline_rounded,
+              color: Color(0xFF8B5CF6),
+              size: 27,
+            ),
+            tooltip: '便捷功能',
+          ),
+          const SizedBox(width: 4),
 
           // 右侧：打字发送按钮
           IconButton.filled(
@@ -1555,9 +1526,220 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+
+  Future<void> _showPayDialog(BuildContext context, ChatProvider provider) async {
+    final messengerP = ScaffoldMessenger.of(context);
+    final ctrlA = TextEditingController();
+    final ctrlT = TextEditingController(text: '花销');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B1E28),
+        title: const Text('记一笔花销', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrlT,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: '名目', labelStyle: TextStyle(color: Colors.white38)),
+            ),
+            TextField(
+              controller: ctrlA,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: '银子（两）', labelStyle: TextStyle(color: Colors.white38)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('算了')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('付')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final amount = double.tryParse(ctrlA.text.trim()) ?? 0;
+    final title = ctrlT.text.trim().isEmpty ? '花销' : ctrlT.text.trim();
+    final line = await provider.api.payManual(amount, title);
+    if (!mounted) return;
+    if (line != null) {
+      messengerP.showSnackBar(
+        SnackBar(content: Text(line), duration: const Duration(milliseconds: 2200), behavior: SnackBarBehavior.floating),
+      );
+      _refreshPlace();
+    }
+  }
+
+  void _showQuickActionSheet(BuildContext context, ChatProvider provider) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF181C26) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildQuickActionItem(
+                      icon: Icons.explore_rounded,
+                      label: '转场出门',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
+                        ).then((_) => _refreshPlace());
+                      },
+                    ),
+                    _buildQuickActionItem(
+                      icon: Icons.payments_rounded,
+                      label: '记一笔账',
+                      color: const Color(0xFFE0B252),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showPayDialog(context, provider);
+                      },
+                    ),
+                    _buildQuickActionItem(
+                      icon: Icons.shield_rounded,
+                      label: '随身家兵',
+                      color: const Color(0xFF10B981),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => ArmySheet(
+                            api: provider.api,
+                            onChanged: () => setState(() {}),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildQuickActionItem(
+                      icon: Icons.public_rounded,
+                      label: '我的世界',
+                      color: const Color(0xFF38BDF8),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildQuickActionItem(
+                      icon: Icons.camera_alt_rounded,
+                      label: '拍照端详',
+                      color: const Color(0xFFEC4899),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showPhotoSourceSheet();
+                      },
+                    ),
+                    _buildQuickActionItem(
+                      icon: Icons.videocam_rounded,
+                      label: provider.isHusband ? '闺房视讯' : '面对面对聊',
+                      color: const Color(0xFFF59E0B),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const VideoCallScreen()),
+                        );
+                        if (mounted) _jumpToBottom();
+                      },
+                    ),
+                    const SizedBox(width: 58),
+                    const SizedBox(width: 58),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickActionItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: isDark ? 0.20 : 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: color.withValues(alpha: isDark ? 0.35 : 0.22),
+                  width: 1,
+                ),
+              ),
+              child: Icon(icon, color: color, size: 26),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white70 : const Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
-
-
-
-
-
