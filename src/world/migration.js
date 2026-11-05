@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 人口流动 v2：由事出人，人来由天道定名。
  *
  * 引擎只登记"发生了什么"：
@@ -8,6 +8,8 @@
  * 若连日没有天道应答（无 LLM 或失败），引擎才用最朴素的方式给个名字把人落下，
  * 不至于让"来了人却查无此人"。
  */
+
+import { inferMaritalStatus } from './persona.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -67,9 +69,29 @@ export function fallbackName(world, gender) {
 
 /** 真正把人写进世界（由天道定名后调用，或兜底时调用） */
 export function materializeMigrant(world, pm, { name, age, background } = {}) {
-  const nm = String(name || '').trim() || fallbackName(world, pm.gender);
-  if (!nm) return null;
-  if (Object.values(world.actors || {}).some((a) => a && a.name === nm)) return null;
+  const gender = pm.gender === 'female' ? 'female' : 'male';
+  const taken = (n) => Object.values(world.actors || {}).some((a) => a && a.name === n);
+
+  // 名字冲突不许卡死：顺位补字（李四 → 李四郎 / 李四娘 / 李四氏 / 李四哥）
+  const suffixes = gender === 'female' ? ['娘', '氏', '姐', '姑'] : ['郎', '哥', '生', '二'];
+  let nm = String(name || '').trim();
+  if (!nm || taken(nm)) {
+    const base = nm || fallbackName(world, gender) || '';
+    nm = base;
+    if (!nm || taken(nm)) {
+      for (const suf of suffixes) {
+        const cand = `${base}${suf}`;
+        if (!taken(cand)) { nm = cand; break; }
+      }
+    }
+    if (!nm || taken(nm)) {
+      for (let i = 0; i < 10; i += 1) {
+        const cand = fallbackName(world, gender);
+        if (cand && !taken(cand)) { nm = cand; break; }
+      }
+    }
+  }
+  if (!nm || taken(nm)) return null;   // 真的取不出名字才放弃（下轮会再试）
 
   const id = `npc_mig_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const landingPlace = pm.landing && world.places?.[pm.landing] ? pm.landing : 'street';
@@ -82,7 +104,7 @@ export function materializeMigrant(world, pm, { name, age, background } = {}) {
     money: Number(pm.money) || 0.5,
     home: landingPlace,
     location: landingPlace,
-    marital: pm.cause === 'bride' ? 'married' : 'single',
+    marital: inferMaritalStatus(nm, pm.role, Number(age) || Number(pm.age) || 25, gender),
     origin: 'spawned',
     background: background ? String(background).slice(0, 120) : undefined,
     cause: pm.cause,
