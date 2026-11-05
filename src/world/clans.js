@@ -30,6 +30,23 @@ const SURNAMES = (
   + '毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公'
 ).split('');
 
+/** 与王家真有走动的那几族：本宗、姻亲、商帮 */
+export function relatedClanIds(world) {
+  const related = new Set();
+  const me = world.actors?.husband;
+  const mySurname = String(me?.name || '').slice(0, 1);
+  if (mySurname) related.add(`clan_${mySurname}`);
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead) continue;
+    const isKin = a.household || a.spouse === 'husband' || a.relations?.husband;
+    if (!isKin) continue;
+    const s2 = String(a.name || '').slice(0, 1);
+    if (s2) related.add(`clan_${s2}`);
+  }
+  if (world.clans?.bang) related.add('bang');
+  return related;
+}
+
 export function ensureClans(world) {
   world.clans = world.clans && typeof world.clans === 'object' ? world.clans : {};
 
@@ -90,18 +107,7 @@ export function runClanVisits(world, events, nextEvent) {
   const me = world.actors?.husband;
   const fame = num(me?.fame?.value);
 
-  // 谁跟王家真有走动：本宗（同姓王）、姻亲（妻妾的姓）、商帮
-  const related = new Set();
-  const mySurname = String(me?.name || '').slice(0, 1);
-  if (mySurname) related.add(`clan_${mySurname}`);
-  for (const a of Object.values(world.actors || {})) {
-    if (!a || a.dead) continue;
-    const isKin = a.household || a.spouse === 'husband' || a.relations?.husband?.trust !== undefined;
-    if (!isKin) continue;
-    const s2 = String(a.name || '').slice(0, 1);
-    if (s2) related.add(`clan_${s2}`);
-  }
-  if (world.clans.bang) related.add('bang');
+  const related = relatedClanIds(world);
 
   for (const clan of Object.values(world.clans)) {
     if (!clan) continue;

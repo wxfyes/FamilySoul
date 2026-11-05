@@ -36,7 +36,7 @@ import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, t
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
 import { marketSnapshot } from './world/prices.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
-import { ensureClans, clanBacking } from './world/clans.js';
+import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
 import { canalFrozen } from './world/season.js';
 import { AssistantService } from './assistant-service.js';
 import { UserRegistry } from './user-registry.js';
@@ -1409,7 +1409,12 @@ const STARTED_AT = Date.now();
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         market: marketSnapshot(world),
         fame: { value: fameOf(world, me?.id || 'husband'), tags: (world.actors?.[me?.id || 'husband']?.fame?.tags || []) },
-        clans: Object.values(world.clans || {}).map((c) => ({ id: c.id, name: c.name, relation: c.relation, influence: c.influence })),
+        clans: (() => {
+          const rel = relatedClanIds(world);
+          return Object.values(world.clans || {})
+            .filter((c) => c && rel.has(c.id))
+            .map((c) => ({ id: c.id, name: c.name, relation: c.relation, influence: c.influence }));
+        })(),
         season: { season: world.clock?.season || '', weather: world.clock?.weather || '', canalFrozen: canalFrozen(world) },
         factions: Object.values(world.factions || {}).map((f) => ({
           id: f.id, name: f.name, kind: f.kind, leader: f.leader,
