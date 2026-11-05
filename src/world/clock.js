@@ -25,6 +25,7 @@ import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
 import { runMigration, settleMigrants } from './migration.js';
+import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
@@ -1481,6 +1482,14 @@ function onNewDay(world, events) {
     }
   } catch (err) {
     console.warn('[Migrate] 落脚失败：', err.message);
+  }
+
+  // 每月：全天下匪患（民怨地方自生，官府能剿则剿，剿不了就坐大）
+  try {
+    maybeSpawnBandits(world, events, nextEvent);
+    runBanditEcosystem(world, events, nextEvent);
+  } catch (err) {
+    console.warn('[Bandit] 匪患推演失败：', err.message);
   }
 
   // 每月：人口流动（灾荒逃难、招工投奔、商旅往来、投亲嫁娶——由事出人，不按配额）

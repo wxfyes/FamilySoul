@@ -38,6 +38,7 @@ import { marketSnapshot } from './world/prices.js';
 import { roomPriceAt, propertyPriceAt } from './world/pricing.js';
 import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { materializeMigrant, fallbackName } from './world/migration.js';
+import { quellBandits, banditStrengthTotal } from './world/bandits.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
 import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
@@ -607,6 +608,7 @@ const STARTED_AT = Date.now();
         else if (act === 'gear') result = buyGear(world, fid, String(body.kind || 'weapon'), Number(body.qty) || 0);
         else if (act === 'call') result = callToArms(world, fid, { city: String(body.city || ''), max: Number(body.max) || 60, kind: String(body.kind || 'guard') });
         else if (act === 'pay_arrears') result = payArrears(world, fid);
+        else if (act === 'quell_bandits') result = quellBandits(world, String(body.banditId || ''), Number(body.troops) || 0, String(body.city || ''));
         else if (act === 'army') result = { ok: true, troops: totalTroops(world, factionOf(world, fid)), stationed: factionOf(world, fid)?.stationed || {} };
 
         if (result.ok) saveState(DATA_DIR, world);
@@ -1490,6 +1492,12 @@ const STARTED_AT = Date.now();
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         market: marketSnapshot(world),
         goods: goodsSnapshot(world),
+        bandits: Object.values(world.bandits || {}).map((b) => ({
+          id: b.id, name: b.name, kind: b.kind, tier: b.tier,
+          strength: Number(b.strength) || 0, leader: b.leader, city: b.homeCity,
+          silver: Number(b.silver) || 0, grain: Number(b.grain) || 0,
+        })),
+        banditsTotal: banditStrengthTotal(world),
         household: { allowance: Number(world.assets?.householdAllowance) || 4.0, arrears: world.assets?.householdArrears || { months: 0, owed: 0 }, silver: Number(world.assets?.silver) || 0 },
         fame: { value: fameOf(world, me?.id || 'husband'), tags: (world.actors?.[me?.id || 'husband']?.fame?.tags || []) },
         clans: (() => {
@@ -3111,6 +3119,10 @@ const STARTED_AT = Date.now();
               ownerName: pr.owner === 'husband' ? '王甯' : (pr.owner ? world.actors?.[pr.owner]?.name || pr.owner : ''),
             })),
           },
+          bandits: Object.values(world.bandits || {}).map((b) => ({
+            id: b.id, name: b.name, kind: b.kind, tier: b.tier, strength: b.strength,
+            leader: b.leader, homeCity: b.homeCity, silver: b.silver, grain: b.grain, region: b.region,
+          })),
           actors,
           pending: world.pending || [],
           promises: (world.promises || []).filter((p) => p && !p.done),
