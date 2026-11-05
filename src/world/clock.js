@@ -24,7 +24,7 @@ import { runMilitaryDay, setWarEventSink, runPayday } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
-import { runMigration } from './migration.js';
+import { runMigration, settleMigrants } from './migration.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
@@ -1473,6 +1473,15 @@ function onNewDay(world, events) {
       if (text) addRumor(world, { text, about: [], tone: act === 'city_taken' ? -1 : 0, weight: 4 });
     }
   } catch { /* 忽略 */ }
+
+  // 每日：落脚（来了三天的人，自己在城里安身）
+  try {
+    for (const ev of settleMigrants(world, events, nextEvent)) {
+      events.push(nextEvent(world, ev));
+    }
+  } catch (err) {
+    console.warn('[Migrate] 落脚失败：', err.message);
+  }
 
   // 每月：人口流动（灾荒逃难、招工投奔、商旅往来、投亲嫁娶——由事出人，不按配额）
   try {
