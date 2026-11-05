@@ -12,20 +12,24 @@
 ```json
 {
   "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-05 22:40",
-  "active_task": "在场铁律收口：只有『当前地点在场者』与『本人操控的账号』能开口（王甯不串场、离析不被代演）",
-  "priority": "P0_PRESENCE_INVARIANT",
+  "last_updated": "2026-11-05 23:05",
+  "active_task": "房间改懒展开（地点表 1091→138）、冷启动 54ms、位置自愈日志降噪",
+  "priority": "PERF_ARCHITECTURE",
   "changed_files": [
-    "src/pet-service.js",
-    "src/server.js"
+    "src/world/residence.js（materializeRoom / collapseRoomPlaces）",
+    "src/world/places-target.js（按需展开）",
+    "src/world/apply.js（按需展开）",
+    "src/server.js（菜单列出账上的院子）",
+    "src/world/state.js（巡检收拢 + 日志降噪）"
   ],
   "prod_metrics": {
-    "chat": "2.5~3.9s（主模型占绝大部分）",
-    "api_me": "37~65ms",
-    "menu": "34~43ms"
+    "places": 138,
+    "cold_start_api_me": "54ms",
+    "warm_api_me": "39~45ms",
+    "warm_menu": "36~47ms",
+    "chat": "2.6~3.7s"
   },
   "regression_tests": "20/20 PASSED",
-  "client_reinstall_needed": false,
   "reviewer_action": "请审查信箱"
 }
 ```
