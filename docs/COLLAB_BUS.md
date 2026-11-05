@@ -26,7 +26,8 @@
   "regression_tests": "20/20 PASSED",
   "flutter_analyze": "0 issues",
   "reviewer_verdict_previous": "招募弹窗安家银修正已验收合格通过（17:47 APK已就绪）",
-  "reviewer_action": "请审查信箱"
+  "pending_question": "见文末【待审查官裁决】——亲眷（妻妾）是否允许隔空应声",
+  "reviewer_action": "请审查信箱（含一处待裁决）"
 }
 ```
 
