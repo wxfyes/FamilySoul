@@ -11,15 +11,20 @@ def case(name):
     return deco
 
 
+import uuid
+
 def run_node(code, timeout=120):
-    path = '.tmp_regress_case.mjs'
+    path = f'.tmp_regress_{uuid.uuid4().hex[:8]}.mjs'
     io.open(path, 'w', encoding='utf-8').write(code)
     try:
         r = subprocess.run(['node', path], capture_output=True, text=True, encoding='utf-8', timeout=timeout)
         return (r.stdout or '') + (r.stderr or '')
     finally:
         if os.path.exists(path):
-            os.remove(path)
+            try:
+                os.remove(path)
+            except Exception:
+                pass
 
 
 HEAD = r'''

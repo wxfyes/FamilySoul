@@ -1404,6 +1404,32 @@ function human(sec){
   const d = Math.floor(sec/86400), h = Math.floor(sec%86400/3600), m = Math.floor(sec%3600/60);
   return (d? d+'天':'') + (h? h+'小时':'') + m + '分';
 }
+// 统一女眷名分位份推导
+function rankOf(a) {
+  const r = String(a?.role || '');
+  if (/正妻|大娘子|结发/.test(r)) return '正妻';
+  if (/如夫人|二房|侧室|妾/.test(r)) return '二房';
+  if (/通房|丫鬟|婢/.test(r)) return '通房';
+  return a?.household ? '府内' : '外室';
+}
+// 统一同榻亲密与名分礼制推导（彻底杜绝将正妻/侧室误标为相好）
+function getIntimacyLabel(a, im) {
+  if (!im) im = a?.intimacy || {};
+  if (im.ritual === 'unlocked') return '解禁 · 档' + (im.tone ?? 0);
+  const rank = rankOf(a);
+  const isOut = !a?.household;
+  if (im.consummated) {
+    if (rank === '正妻') return '琴瑟和鸣 · 结发正妻';
+    if (rank === '二房') return '雨意云情 · 如夫人';
+    if (rank === '通房') return '承欢侍寝 · 通房';
+    if (isOut) return '私定终身 · 相好';
+    return '温存燕好 · 府内';
+  }
+  if (rank === '正妻') return '相敬如宾 · 正房端庄';
+  if (rank === '二房') return '守分安道 · 端庄';
+  if (rank === '通房') return '贴身侍候 · 恪守本分';
+  return '端庄守礼';
+}
 // 与后端一致的态度阶梯（仅用于展示）
 function attitude(a){
   if (!a.relations) return '—';
@@ -1544,7 +1570,7 @@ function render(w){
 
         const r = a.relations || {};
         const im = a.intimacy || {};
-        let intimacyText = im.ritual === 'unlocked' ? `解禁 · 档${im.tone ?? 0}` : (im.consummated ? '已欢好 · 相好' : '端庄守礼');
+        let intimacyText = getIntimacyLabel(a, im);
 
         return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
           <td><b>${a.name}</b> ${a.household ? '<span class="tag" style="margin-left:4px">府内</span>' : '<span class="tag muted" style="margin-left:4px">外室</span>'}</td>
@@ -2149,9 +2175,24 @@ function render(w){
     }
 
     const bar = (v, cls = '') => `<div class="bar"><i class="${cls}" style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
-    let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
-    if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
-    if (a.onPeriod) intimacy = '月事中';
+    let intimacy = '—';
+    if (a.gender === 'female') {
+      if (a.pregnancy && !a.pregnancy.born) {
+        intimacy = '有孕 · ' + Math.floor((a.pregnancy.days || 0) / 30) + '个月';
+      } else if (a.onPeriod) {
+        intimacy = '月事中';
+      } else if (im.ritual === 'unlocked') {
+        intimacy = '解禁·档' + (im.tone ?? 0);
+      } else if (im.consummated) {
+        const rank = rankOf(a);
+        if (rank === '正妻') intimacy = '琴瑟和鸣';
+        else if (rank === '二房') intimacy = '雨意云情';
+        else if (rank === '通房') intimacy = '承欢侍寝';
+        else intimacy = '红颜相好';
+      } else {
+        intimacy = a.household ? '端庄' : '守礼';
+      }
+    }
 
     return `<tr style="cursor:pointer" data-city="${c}" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td>
