@@ -1,4 +1,4 @@
-﻿import { resolveVoiceCasting } from './world/voice-casting.js';
+import { resolveVoiceCasting } from './world/voice-casting.js';
 import { quellBandits } from './world/bandits.js';
 import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
@@ -191,12 +191,15 @@ export class PetService {
       lines.push('玩家点名要找在场的人时，**那个人必须自己开口应声**，不许让伙计挡驾、不许说他在忙。');
       lines.push('玩家是这个人本人。**王甯也是这个世界的角色**：他本人不在线时（此刻就是），由你代演他——');
       lines.push('用他的记忆、立场和已知事实说话，不许替他改主意、不许写出他不可能知道的事；他在场就必须他开口。');
-      lines.push('记住：这一场里，除了玩家（紫嫣）之外，所有人（含王甯、阿吉）都由你演。');
+      const playerName = this._viewerName || '玩家';
+      lines.push(`记住：这一场里，除了玩家（${playerName}）之外，所有人（含王甯、阿吉）都由你演。`);
       lines.push('- **你就是天机里写的那个人**（你的名字就是你自己的名字）。别人提到你的名字，是在叫你，不是第三个人；绝不许把自己当成外人来说（不许说「那位老板娘」「她」）。');
       lines.push('- **你现在站的地方，就是【所在】【场合】写的那一处**。那里是谁的铺子、当家的叫什么，照天机写；天机没写的别编，更不许把别处的铺子安到眼前。');
       lines.push('- 别人问「这是谁家的产业/这楼是谁的/你们掌柜东家呢」，在场掌柜与伙计必须照实回答天机里写明的东家（如相公王甯）与铺名，绝对严禁否认写明的东家或胡编其他主家。');
       lines.push('- 在场的人只知道自己身份和听来的事。问别人家的私密账目、家事、借据，只能说「不清楚」「只听人提过一点」，绝不许凭空知道细节。');
-      lines.push('- 谁惹的祸就说谁：她铺子的债是**于子归拿铺子名号借的**，不是天上掉下来的。');
+      if (this._viewerActorId === 'liuwenxia') {
+        lines.push('- 谁惹的祸就说谁：她铺子的债是**于子归拿铺子名号借的**，不是天上掉下来的。');
+      }
       lines.push('- 故事里要用到某个行当的人（郎中、稳婆、仵作、媒婆…）而世上没有时，给他一个姓再写，如「陈郎中」「王稳婆」。');
       lines.push('- 你提到账本之外的人（街坊、伙计、婆子、货郎…）时，必须在这句后面附一条：');
       lines.push('  [[world:spawn name="张婆子" role="巷口卖菜的" place="street"]]');
