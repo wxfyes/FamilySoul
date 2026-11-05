@@ -11,16 +11,22 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-05 17:53",
-  "active_task": "新人物视角隔离：彻底根除离析误把王甯当相公、中馈泄露与隔空对话",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-05 18:05",
+  "active_task": "新人物视角隔离：离析误认相公 / 中馈泄露 / 隔空对话 —— 已按任务单三处治本",
   "priority": "HIGH_BUG_FIX",
-  "target_files": [
+  "changed_files": [
     "src/server.js",
-    "mobile/lib/views/my_world_screen.dart",
-    "src/pet-service.js"
+    "src/pet-service.js",
+    "src/world/member-card.js",
+    "mobile/lib/views/my_world_screen.dart"
   ],
-  "reviewer_verdict_previous": "招募弹窗安家银修正已验收合格通过（17:47 APK已就绪）"
+  "server_status": "PROD_DEPLOYED_200_OK",
+  "android_apk": "Desktop_Updated_18:00",
+  "regression_tests": "20/20 PASSED",
+  "flutter_analyze": "0 issues",
+  "reviewer_verdict_previous": "招募弹窗安家银修正已验收合格通过（17:47 APK已就绪）",
+  "reviewer_action": "请审查信箱"
 }
 ```
 
