@@ -300,7 +300,12 @@ export function repairRooms(world, rootId) {
  */
 export function upgradeResidence(world, rootId) {
   const root = world?.places?.[rootId];
-  if (!root?.rooms) return 0;
+  if (!root?.rooms || root.parent || String(rootId).includes('__')) return 0;
+  const name = String(root.name || '');
+  if (/·(东厢房|西厢房|东跨院|西跨院|正房|后院|庖厨|灶房|下房|门厅|倒座|马厩|柴房|祠堂|书房|账房|私兵值房)$/.test(name)) return 0;
+  if (premisesKind(name) || /衙|县衙|府衙|公堂|牢|摊|铺|坊|行|栈|号|店|楼|肆|院$|仓|庙|观|寺|学|校场|码头/.test(name)) {
+    if (!root.residence) return 0;
+  }
   const grade = num(root.grade) || residenceGrade(root.name, 0);
   const spec = LAYOUTS[grade] || LAYOUTS[3];
   const segs = String(root.name || '宅').split('·').map((x) => x.trim()).filter(Boolean);
@@ -415,7 +420,7 @@ export function buildAllResidences(world) {
     if (!p.residence && /客栈|酒|茶|铺|坊|仓|衙|庙|观/.test(String(p.name || ''))) continue;
 
     const prop = (world.assets?.properties || []).find(
-      (x) => x && (x.place === pid || (x.name && String(p.name || '').includes(String(x.name).split('（')[0]))),
+      (x) => x && (x.placeId === pid || x.place === pid || x.id === pid),
     );
     const scale = prop && /七进/.test(String(prop.name || '')) ? 7 : prop && /大宅|五进/.test(String(prop.name || '')) ? 5 : 0;
     const before = p.rooms ? Object.keys(p.rooms).length : 0;
@@ -486,6 +491,7 @@ export function buildPremises(world) {
           id: rid, name: `${base}·${room.name}`, parent: pid,
           floor: room.floor, use: room.use, exits: [pid], dynamic: true, owner: p.owner || null,
         };
+        built += 1;
       }
       const rp = places[rid];
       if (rp) {
@@ -496,7 +502,6 @@ export function buildPremises(world) {
       }
       p.rooms[room.key] = { id: rid, name: room.name, use: room.use, floor: room.floor };
       if (!p.exits.includes(rid)) p.exits.push(rid);
-      built += 1;
     }
     // 收尾：按模板把名字与楼层纠正（老存档里可能叫"灶房""院门"）
     for (const room of spec) {
@@ -523,7 +528,9 @@ export function buildCourts(world) {
   if (Object.keys(places).length > 4000) return 0;
   for (const [pid, p] of Object.entries(places)) {
     if (!p || p.parent || String(pid).includes('__')) continue;
-    if (!/衙|县衙|府衙|公堂/.test(String(p.name || ''))) continue;
+    const name = String(p.name || '');
+    if (/摊|牢|客栈|铺|坊|仓|庙|观/.test(name)) continue;
+    if (!/衙|县衙|府衙|公堂/.test(name)) continue;
     p.rooms = p.rooms || {};
     p.exits = Array.isArray(p.exits) ? p.exits : ['street'];
     const segs = String(p.name || '衙').split('·').map((x) => x.trim()).filter(Boolean);
@@ -535,6 +542,7 @@ export function buildCourts(world) {
           id: rid, name: `${base}·${room.name}`, parent: pid, use: room.use,
           depth: room.depth, access: room.access, exits: [pid], dynamic: true, owner: p.owner || null,
         };
+        built += 1;
       }
       const rp = places[rid];
       if (rp) {
@@ -544,7 +552,6 @@ export function buildCourts(world) {
       }
       p.rooms[room.key] = { id: rid, name: room.name, use: room.use, depth: room.depth, access: room.access };
       if (!p.exits.includes(rid)) p.exits.push(rid);
-      built += 1;
     }
     for (const room of COURT) {
       const rec = p.rooms[room.key];
@@ -581,6 +588,29 @@ export function pruneForeignRooms(world) {
       delete p.rooms[key];
       removed += 1;
     }
+  }
+  return removed;
+}
+
+/** 清掉"不归相公管"的城的衙署内部（早先按全国建的那一批） */
+export function pruneRemoteCourts(world) {
+  const myCities = new Set(['临江府', '京城']);
+  for (const pr of (world.assets?.properties || [])) {
+    const n = String(pr?.name || '');
+    const m = n.match(/^([^·]{2,6}?)[·（]/);
+    if (m) myCities.add(m[1]);
+    if (pr?.city) myCities.add(String(pr.city));
+  }
+  let removed = 0;
+  for (const [pid, p] of Object.entries(world?.places || {})) {
+    if (!p || p.parent || !p.rooms) continue;
+    if (!/衙|县衙|府衙|公堂/.test(String(p.name || ''))) continue;
+    const cityOf = String(p.name || '').split('·')[0];
+    if (myCities.has(cityOf) || /临江|京城/.test(String(p.name || ''))) continue;
+    for (const r of Object.values(p.rooms)) {
+      if (r?.id && world.places[r.id]) { delete world.places[r.id]; removed += 1; }
+    }
+    delete p.rooms;
   }
   return removed;
 }

@@ -1,4 +1,4 @@
-﻿import { resolveVoiceCasting } from './world/voice-casting.js';
+import { resolveVoiceCasting } from './world/voice-casting.js';
 import { quellBandits } from './world/bandits.js';
 import { resolvePlaceTarget } from './world/places-target.js';
 import fs from 'node:fs';
@@ -2219,6 +2219,7 @@ export class PetService {
         system: systemPrompt,
         messages,
       });
+      console.log(`[stage] 主回复完成 ${Date.now() - startedAt}ms`);
       console.log(
         `[Chat] 用时 ${Date.now() - startedAt}ms（模型 ${completion.elapsedMs ?? '?'}ms，提示 ${systemPrompt.length} 字）`,
       );
@@ -2226,6 +2227,22 @@ export class PetService {
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');
       reply = this.mergeSameSpeaker(this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall)));
+
+      // 场上只有一个人、而主回复没写分角标记时，直接补上她的花名——
+      // 这样就不必再为同一个人开第二次模型（那一步要 6~8 秒）
+      try {
+        if (this._viewerActorId && reply && !/【[^】\n]{1,12}】/.test(reply)) {
+          const wNow = loadState(this.dataDir);
+          const meNow = wNow.actors?.[this._viewerActorId];
+          const hereNow = Object.values(wNow.actors || {}).filter(
+            (x) => x && !x.dead && x.id !== this._viewerActorId && x.location === meNow?.location,
+          );
+          if (hereNow.length === 1) {
+            reply = `【${hereNow[0].name}】：${String(reply).trim()}`;
+            console.log(`[Chat] 单人场景补花名：${hereNow[0].name}`);
+          }
+        }
+      } catch { /* 忽略 */ }
       // 没写分角标记的回复，补上主角色花名，免得客户端回落成账号标题「温柔小娘子」
       try {
         const hasMarker = /【[^】\n]{1,12}】/.test(reply);
@@ -2603,7 +2620,10 @@ export class PetService {
           console.log('[Proxy] 点名候选 ' + namedPresent.length + ' 人：' + namedPresent.map((x) => x.name).join('、'));
           // 极简与事实驱动：仅当玩家明确叫了在场某人、或当前交谈对象在场且主回复未出时极窄补位；绝不乱抓路人
           const replyIsNarration = /(就站在|四下冷清|你到了|没人接话|没人应声)/.test(String(reply || ''));
-          const replyHasPresentSpeaker = !replyIsNarration && presentNamesNow.some((n) => String(reply || '').includes(n));
+          const replyHasPresentSpeaker = !replyIsNarration && (
+            presentNamesNow.some((n) => String(reply || '').includes(n) || String(reply || '').includes(n.length > 2 ? n.slice(-2) : n))
+            || /【[^】\n]{1,12}】/.test(reply)
+          );
           // 没人被点名时，谁接话？规则：
           //   ① 他上次跟谁说话，就还是谁
           //   ② 否则此处在场者只有一个 → 就是他
@@ -2623,9 +2643,19 @@ export class PetService {
           }
           const proxyTargets = namedPresent.length ? namedPresent
             : (partnerHere.length && !replyHasPresentSpeaker ? partnerHere : fallbackTarget);
+          // 主回复已经是一段没有分角标记的独白（唯一在场者）时，那就是她在回答，
+          // 不再为同一个人再开一次模型——这就是 8~10 秒的一半
           for (const npc of proxyTargets.slice(0, 1)) {
-            const already = new RegExp(`【[^】]*${String(npc.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(String(reply));
-            if (already) continue;
+            // 主回复里已经有这个人（哪怕没写方括号标记），就不要再花一次模型调用代演
+            // —— 一次聊天连开两个模型，就是 10 秒的根源
+            const shortName = npc.name.length > 2 ? npc.name.slice(-2) : npc.name;
+            const already = String(reply).includes(npc.name)
+              || String(reply).includes(shortName)
+              || /\u3010[^\u3011\n]{1,12}\u3011/.test(String(reply));
+            if (already) {
+              console.log(`[Proxy] 主回复已含「${npc.name}」，跳过代演（省一次模型调用）`);
+              continue;
+            }
             const npcMem = (wPost.memories || [])
               .filter((m) => String(m?.text || '').includes(npc.name))
               .map((m) => String(m.text))
@@ -2874,7 +2904,8 @@ export class PetService {
 
     // 天道定下一步：她被推进了新的处境，就现生成那句（不写死）
     try {
-      if (this._viewerActorId) {
+      // 不再在回复链里等这一次模型；改由后台补写（world 自己的推演器会接手）
+      if (false && this._viewerActorId) {
         const wArc = loadState(this.dataDir);
         const arc = wArc.arcs?.[this._viewerActorId];
         if (arc && arc.pendingStep) {
@@ -2907,7 +2938,7 @@ export class PetService {
 
     // 问进账：数字必须准确，模型没给就由引擎直接报
     try {
-      if (this._viewerActorId && /(进多少|日入|收入|赚多少|多少钱|几两)/.test(String(say || ''))) {
+      if (this._viewerActorId && /(日入|进项|月入|收入|赚多少|净赚)/.test(String(say || ''))) {
         const wM = loadState(this.dataDir);
         const meM = wM.actors?.[this._viewerActorId];
         const props = (wM.assets?.properties || []).filter((p) => p && p.keeper === this._viewerActorId);
@@ -3112,7 +3143,9 @@ export class PetService {
     }
 
     // 天道回执落账、优雅古风中文标签转换、NPC 告辞离场判定
+    const __t1 = Date.now();
     reply = this.processNarrativeTags(reply, say);
+    console.log(`[stage] 叙事标签处理 ${Date.now() - __t1}ms`);
 
     const now = Date.now();
     let audioKey = null;
@@ -3149,6 +3182,7 @@ export class PetService {
       console.log(`[Chat] 💬 当前为纯文本模式 (手机端右上角语音开关未开启，若需语音请在手机右上角点开喇叭)`);
     }
 
+    console.log(`[stage] 到准备返回 ${Date.now() - startedAt}ms`);
     const userMsg = { id: `u-${now}`, role: 'user', text: say, at: now };
 
     // 真人扮演世界人物时，把她说的原话记进世界（原文照录，不经 AI 解读）
@@ -3310,7 +3344,9 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    console.log(`[stage] 收口段完成 ${Date.now() - startedAt}ms`);
     this.saveHistory(profileKey, history);
+    console.log(`[stage] 历史已存 ${Date.now() - startedAt}ms`);
 
     // 点了一个不在场的人 → 直接报他在哪，别让在场的人对着他说话
     try {

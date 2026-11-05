@@ -10,7 +10,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
-import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms } from './residence.js';
+import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts } from './residence.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -978,23 +978,30 @@ export function migrateOwnership(world) {
     if (n) { console.log(`[Residence] 把 ${n} 个流动小贩请回街市`); world.__migratedDirty = true; }
   } catch { /* 忽略 */ }
 
-  // 每次读档：清掉"串了模板"的房间（酒楼里有正房、衙署里有灶房这种）
+  // 空间清理（串模板房间 / 小贩归位 / 补房间 / 门路）：同一进程内最多每 60 秒跑一次，
+  // 不然每次读档都扫一千多个地点，接口会被拖慢
   try {
-    const n = pruneForeignRooms(world);
-    if (n) { console.log(`[Spaces] 清掉 ${n} 间串模板的房间`); world.__migratedDirty = true; }
-  } catch { /* 忽略 */ }
-
-  // 每次读档：把已有宅子的门路与房名理顺（不建东西，很便宜）
-  try {
-    for (const pid of Object.keys(world.places || {})) {
-      const p = world.places[pid];
-      if (p && p.rooms) {
-        const up = upgradeResidence(world, pid);
-        relinkResidence(world, pid);
-        if (up) world.__migratedDirty = true;
+    const now = Date.now();
+    if (now - (globalThis.__spaceSweptAt || 0) > 60000) {
+      globalThis.__spaceSweptAt = now;
+      const a0 = pruneRemoteCourts(world);
+      const a = pruneForeignRooms(world) + a0;
+      const b = settleItinerants(world);
+      const c = buildPremises(world);
+      const d = buildCourts(world);
+      let up = 0;
+      for (const pid of Object.keys(world.places || {})) {
+        const pp = world.places[pid];
+        if (pp && pp.rooms) { up += upgradeResidence(world, pid); relinkResidence(world, pid); }
+      }
+      if (a || b || c || d || up) {
+        console.log(`[Spaces] 巡检：清 ${a}｜小贩 ${b}｜经营 ${c}｜衙署 ${d}｜升级 ${up}`);
+        world.__migratedDirty = true;
       }
     }
-  } catch { /* 忽略 */ }
+  } catch (e) {
+    console.warn('[Spaces] 巡检失败：', e.message);
+  }
 
   // 宅院巡检：同一个世界日只跑一次（不然每次读档都扫一千多个地点，接口会被拖死）
   try {
@@ -1430,14 +1437,16 @@ export function migrateOwnership(world) {
       return true;
     });
   } catch { /* 忽略 */ }
-  // 强力清除所有 clinic / workshop 等英文幽灵地名，全员位置自愈归位
+  // 强力清除所有 clinic / workshop 等英文幽灵地名，全员位置自愈归位（60 秒一次，别每读档都刷）
   try {
+    if (Date.now() - (globalThis.__ghostHealedAt || 0) > 60000) {
+    globalThis.__ghostHealedAt = Date.now();
     delete world.places?.clinic;
     delete world.places?.workshop;
     delete world.places?.school;
 
     for (const [aid, a] of Object.entries(world.actors || {})) {
-      if (!a) continue;
+      if (!a || a.dead) continue;
       const isGhost = a.location === 'clinic' || a.location === 'workshop' || !world.places?.[a.location] || /^[a-zA-Z_-]+$/.test(String(world.places?.[a.location]?.name || ''));
       if (isGhost) {
         if (aid === 'waner') {
@@ -1451,6 +1460,7 @@ export function migrateOwnership(world) {
           console.log(`[State] ${a.name} 位置自愈归位 → ${a.location}`);
         }
       }
+    }
     }
   } catch (e) { console.warn('[State] 幽灵地点清理异常:', e.message); }
 
@@ -1837,8 +1847,25 @@ export function migrateOwnership(world) {
   return world;
 }
 
+let __stateCache = { key: '', mtime: 0, size: 0, world: null };
+
 export function loadState(dataDir) {
-  const __w = __loadStateInner(dataDir);
+  const file = statePath(dataDir);
+  let __w = null;
+  try {
+    const st = fs.statSync(file);
+    const key = path.resolve(file);
+    if (__stateCache.world && __stateCache.key === key
+      && __stateCache.mtime === st.mtimeMs && __stateCache.size === st.size) {
+      // 文件没变：直接给一份克隆，连迁移都不用再跑
+      return __stateCache.world;
+    } else {
+      __w = __loadStateInner(dataDir);
+      __stateCache = { key, mtime: st.mtimeMs, size: st.size, world: structuredClone(__w) };
+    }
+  } catch {
+    __w = __loadStateInner(dataDir);
+  }
   const out = migrateOwnership(__w);
   // 迁移真的改过东西才写盘，避免每次读档都白写一遍
   if (out && out.__migratedDirty) {
@@ -2040,12 +2067,49 @@ function __loadStateInner(dataDir) {
   return resWorld;
 }
 
+let __stateBatch = null;
+
+/** 开始批量：这一轮里的 saveState 只记在内存，最后统一写一次盘 */
+export function beginStateBatch() {
+  __stateBatch = { world: null, dataDir: null };
+}
+
+/** 结束批量：把最后一次的世界写盘 */
+export function endStateBatch(dataDir) {
+  const b = __stateBatch;
+  __stateBatch = null;
+  if (b && b.world && dataDir) {
+    try { saveState(dataDir, b.world); } catch { /* 忽略 */ }
+  }
+}
+
 export function saveState(dataDir, world) {
+  // 批量模式下只记住最后一次，不真的写盘（一轮聊天能少写十几次 1MB）
+  if (__stateBatch) {
+    __stateBatch.world = world;
+    __stateBatch.dataDir = dataDir;
+    try {
+      __stateCache = { key: path.resolve(statePath(dataDir)), mtime: (__stateCache.mtime || 0), size: (__stateCache.size || 0), world };
+    } catch { /* 忽略 */ }
+    return;
+  }
   const file = statePath(dataDir);
   fs.mkdirSync(worldDir(dataDir), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(world, null, 2), 'utf8');
+  // 不再 pretty-print：省一半体积与序列化时间（线上存档已 1MB+）
+  fs.writeFileSync(tmp, JSON.stringify(world), 'utf8');
   fs.renameSync(tmp, file);
+
+  // 写透缓存：刚存的这份就是最新世界，下次读档直接命中，不必重新解析
+  try {
+    const st = fs.statSync(file);
+    __stateCache = {
+      key: path.resolve(file),
+      mtime: st.mtimeMs,
+      size: st.size,
+      world,
+    };
+  } catch { /* 忽略 */ }
 }
 
 /* ── 事件流（append-only）────────────────────────────────── */

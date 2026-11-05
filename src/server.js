@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from './world/residence.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +13,7 @@ import { PetService } from './pet-service.js';
 import { startWorldClock, peek, buildMorningReport } from './world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
+import { beginStateBatch, endStateBatch } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -3706,13 +3707,21 @@ const STARTED_AT = Date.now();
   if (req.method === 'POST' && pathname === '/dsh-surfcore/pet-api/chat') {
     try {
       const body = await parseJsonBody(req);
-      const result = await petService.chat({
-        text: body.text,
-        modality: body.modality || 'text',
-        profileKey: currentMember.memberKey,
-        roleName: currentMember.role,
-        actorId: currentMember.actor || null,
-      });
+      const t0 = Date.now();
+      beginStateBatch();
+      let result;
+      try {
+        result = await petService.chat({
+          text: body.text,
+          modality: body.modality || 'text',
+          profileKey: currentMember.memberKey,
+          roleName: currentMember.role,
+          actorId: currentMember.actor || null,
+        });
+      } finally {
+        endStateBatch(DATA_DIR);
+      }
+      console.log(`[ChatTotal] 服务端总耗时 ${Date.now() - t0}ms（成员 ${currentMember.memberKey}）`);
       return sendJson(res, result.ok ? 200 : 500, result);
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });

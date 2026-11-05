@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import https from 'node:https';
 /**
  * 多模型智能双通道容灾客户端（OpenAI 兼容协议）
@@ -358,7 +358,15 @@ export class LlmClient {
     let lastError = null;
     for (const ch of channels) {
       try {
-        console.log(`[LLM] 正在请求【${ch.name}】(模式: ${this.llmMode}, 模型: ${ch.model})...`);
+        // 标出是谁发起的（哪一行），方便定位"一次聊天串几次模型"
+        let caller = '';
+        try {
+          const stack = String(new Error().stack || '').split('\n');
+          const hit = stack.find((x) => x.includes('pet-service.js') || x.includes('server.js'));
+          const m = hit && hit.match(/[\\/]([a-z-]+\.js):(\d+):\d+/);
+          if (m) caller = `${m[1]}:${m[2]}`;
+        } catch { /* 忽略 */ }
+        console.log(`[LLM] 正在请求【${ch.name}】(模式: ${this.llmMode}, 模型: ${ch.model})${caller ? ` ← ${caller}` : ''}...`);
         const result = await this._callEndpoint({
           name: ch.name,
           baseUrl: ch.baseUrl,
