@@ -1,4 +1,4 @@
-import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPartyMembers } from './party.js';
+﻿import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPartyMembers } from './party.js';
 /**
  * 召唤与走动 —— 把"叫谁过来""我去谁那儿"落到世界账本上
  *
@@ -8,6 +8,7 @@ import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPa
 import { loadState, saveState } from './state.js';
 import { isValidPlaceName } from './intent.js';
 import { moveActor } from './position.js';
+import { resolvePlaceTarget, isOuting } from './places-target.js';
 import { matchActor } from './naming.js';
 
 const SUMMON_VERBS = /(叫|请|唤|传|让|召|叫来|喊)/;
@@ -672,62 +673,45 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
 export function applyNpcDeparture(dataDir, replyText, sayText = '') {
   const text = String(replyText || '');
   if (!text) return [];
+
+  // 只有天道明确写了 [[depart:谁|去哪儿]] 才动身。
+  // 台词里出现"退下""这就去"这类词，一律只当台词，不再由正则偷听触发位移。
+  const tags = [...text.matchAll(/\[\[depart:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+  if (!tags.length) return [];
+
   const world = loadState(dataDir);
   const left = [];
-  const segs = text.split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
 
-  const husbandDismiss = /(你(先|且)?(回|走)吧|回去吧|回吧|退下吧|你退下|回去歇着|你且回去|你先走|你们(先|且)?(回|走)吧|你们回去|回府吧|回府|各自回吧|散了吧|各回各家|我先走了|明天再见|天亮见)/.test(String(sayText || ''));
-
-  for (const seg of segs) {
-    const m = seg.match(/^【([^】\n]{1,12})】/);
-    if (!m) continue;
-    const name = m[1].trim();
-    const bodyOnly = seg.replace(/^【[^】\n]{1,12}】[:：]?/, '');
-
-    const npcSaysLeave = /(下楼|告辞|先回|回去|回铺子|回家|走了|且回去|先走了|退下|这就走|先走一步|这就回去|这就告辞|先行一步|妾身先退|小人先退|保重|回府|回后院)/.test(bodyOnly);
-    const dismissedAndAgreed = husbandDismiss && /(诶|好|这就|妾身|小人|明白|遵命|省得|行|保重)/.test(bodyOnly);
-
-    if (!npcSaysLeave && !dismissedAndAgreed) continue;
-
+  for (const m of tags) {
+    const name = String(m[1] || '').trim();
+    const hint = String(m[2] || '').trim();
     const actor = matchActor(world.actors, name);
     if (!actor) continue;
 
-    // 1. 出府办差意图（去牙行、跑一趟、去码头、去酒楼等）：真正出府！
-    const isGoingOut = /(牙行|跑一趟|去铺子|去酒楼|去码头|去街上|去请|去买|出门|动身|这就去|这就跑)/.test(bodyOnly);
-    if (isGoingOut) {
-      const dest = /酒楼/.test(bodyOnly) ? 'canal_restaurant'
-        : /码头/.test(bodyOnly) ? 'dock'
-        : 'street';
-      moveActor(world, actor.id, dest, 'world', '出府办差');
-      actor.away = { place: dest, untilDay: (Number(world.clock?.day) || 1) + 1 };
-      actor.activity = { text: '出府跑腿办差', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
-      left.push(actor.name);
-      console.log(`[Departure] ${actor.name}(${actor.id}) 领命出府办差 → ${dest}`);
+    const from = actor.location;
+    const dest = resolvePlaceTarget(world, hint, { nearId: from, actor });
+    if (!dest || dest === from) continue;
+
+    const moved = moveActor(world, actor.id, dest, 'world', `离场：${hint.slice(0, 10)}`);
+    if (!moved?.ok) {
+      console.warn(`[Departure] ${actor.name} 没能去「${hint}」：${moved?.error || '无去处'}`);
       continue;
     }
 
-    // 2. 退下回房歇息意图（退下、歇息、回东厢、回房、相公早些歇着等）：离开相公正房
-    const isRetiring = /(歇下|歇息|回房|回东厢|回西厢|回屋|退下|先行退下|不打扰相公|相公早些歇着|各忙各的)/.test(bodyOnly) || dismissedAndAgreed;
-    if (isRetiring) {
-      const targetPlace = actor.id === 'yunnia' ? 'east_wing' : (actor.id === 'xiaocui' ? 'backyard' : (actor.home && actor.home !== 'husband_room' ? actor.home : 'backyard'));
-      const realTarget = world.places?.[targetPlace] ? targetPlace : 'backyard';
-      if (actor.location !== realTarget) {
-        moveActor(world, actor.id, realTarget, 'world', '回房歇息');
-        actor.activity = { text: '回房歇息', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
-        left.push(actor.name);
-        console.log(`[Departure] ${actor.name}(${actor.id}) 告退回房歇息 → ${realTarget}`);
-        continue;
-      }
+    actor.activity = {
+      text: `去了${world.places?.[dest]?.name || '别处'}`,
+      at: world.clock?.hour || 0,
+      day: world.clock?.day || 1,
+    };
+    if (isOuting(world, from, dest)) {
+      actor.away = { place: dest, untilDay: (Number(world.clock?.day) || 1) + 1, hint };
+    } else {
+      delete actor.away;
     }
-
-    // 3. 外部 NPC 告辞离场回自家
-    const home = (actor.home && world.places?.[actor.home]) ? actor.home : 'street';
-    if (!home || actor.location === home) continue;
-
-    moveActor(world, actor.id, home, 'world', '告辞归位');
     left.push(actor.name);
-    console.log(`[Departure] NPC ${actor.name}(${actor.id}) 告辞离场，归位至 ${world.places?.[home]?.name || home}`);
+    console.log(`[Departure] ${actor.name}(${actor.id}) → ${world.places?.[dest]?.name || dest}`);
   }
+
   if (left.length > 0) saveState(dataDir, world);
   return left;
 }

@@ -1853,7 +1853,7 @@ function fireAppointments(world, events) {
           isPublic: true,
         }),
       );
-      const safeSpeaker = actor ? actor.name : (world.actors?.[ap.name]?.name || (ap.name === 'heshun' ? '何顺' : String(ap.name || '')));
+      const safeSpeaker = actor ? actor.name : (world.actors?.[ap.name]?.name || String(ap.name || ''));
       queueProactive(world, {
         reason: 'appointment_missed',
         facts: { who: safeSpeaker, text: ap.text, place: world.places?.[meetPlace]?.name || '' },
@@ -1923,8 +1923,22 @@ function syncToRealClock(world, nowMs) {
   if (world.clock.hour !== realHour) world.clock.hour = realHour;
 }
 
+/** 到点收回"在外办差"的状态：away 过期就销账，别让人永远挂着出差 */
+function sweepAway(world) {
+  const day = Number(world.clock?.day) || 1;
+  for (const a of Object.values(world.actors || {})) {
+    if (!a || a.dead || !a.away) continue;
+    if (Number(a.away.untilDay) >= day) continue;
+    delete a.away;
+    if (a.activity && /差|去|离|办/.test(String(a.activity.text || ''))) {
+      a.activity = null;
+    }
+  }
+}
+
 function advanceHour(world, events, nowMs) {
   world.clock.hour += 1;
+  try { sweepAway(world); } catch { /* 忽略 */ }
   // 每小时：私宅巡检——不是这宅子的人，待久了或入夜就请出去
   try {
     evictTrespassers(world, events, nextEvent);

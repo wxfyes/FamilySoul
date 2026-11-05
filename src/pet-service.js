@@ -1,5 +1,6 @@
-import { resolveVoiceCasting } from './world/voice-casting.js';
+﻿import { resolveVoiceCasting } from './world/voice-casting.js';
 import { quellBandits } from './world/bandits.js';
+import { resolvePlaceTarget } from './world/places-target.js';
 import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { sanePrice, priceHint } from './world/pricing.js';
@@ -336,6 +337,7 @@ export class PetService {
     lines.push('- 【按需开口，严禁全员排队报幕】：同场有多人在时，每轮通常只需 1~2 人自然开口回应即可！谁有心事、谁被相公问到、谁专司此职，谁才说话；绝不许三个人像合唱团一样一人一句轮流排队发言！');
     lines.push('- 【姐妹自然互聊，相公从旁品赏】：在场妻妾不仅能直接对相公说，更可以彼此温存商议（如大娘子婉儿问芸娘柜台茶事、芸娘细声向姐姐回禀、两人互相谦让分忧），呈现真实江南大户人家的生动烟火气；');
     lines.push('- 【丫鬟侍女恪守规矩，绝不抢戏】：小翠专司端茶倒水、添炭掌灯，在旁垂手静听伺候；除非相公或大娘子明确向她吩咐差事（如“小翠去沏茶”），小翠绝不可在主子正经商议时句句强行插嘴表态！');
+    lines.push('- 【离场要写标签】：真有人起身走了（回房、出府、去码头、去酒楼、告辞），在末尾写 [[depart:谁|去哪儿]]；引擎会真的把他挪过去，并从在场名单里划掉。只是嘴上说"这就去"不算走，别乱写。');
     lines.push('- 【物理派人传话真实法则】：若派了小翠、阿吉出门去传话或办差，下人领命行礼退下即可；【绝对严禁】让远在别处的人（如酒楼掌柜、外头伙计）在同一轮里瞬间在内宅现身开口！必须等真正到场或小厮通报后才可登场。');
     lines.push('- 【呼名必应与主次分明】：相公明确问谁，谁首位作答；未被问及的在场眷属，若无重要补充，不必勉强凑话，在旁温茶静听即可。');
 
@@ -684,20 +686,14 @@ export class PetService {
               at: wT.clock?.hour || 0,
               day: wT.clock?.day || 1,
             };
-            const isOutTask = /(牙行|外头|跑一趟|码头|酒楼|茶山|市井|请|买|采|查|送|街)/.test(what);
-            const isYardTask = /(倒座房|后院|东厢|西厢|厨房|灶房|库房|账册|名册|收拾)/.test(what);
-            if (isOutTask) {
-              const dest = /酒楼/.test(what) ? 'canal_restaurant'
-                : /码头/.test(what) ? 'dock'
-                : /茶山/.test(what) ? 'tea_mountain'
-                : 'street';
-              who.location = dest;
+            // 去哪儿由 places-target 统一翻译成真实地点，位移只走 moveActor
+            const dest = resolvePlaceTarget(wT, what, { nearId: who.location, actor: who });
+            const moved = dest ? moveActor(wT, who.id, dest, 'world', `领差：${String(what).slice(0, 12)}`) : { ok: false };
+            if (moved?.ok) {
               who.away = { place: dest, untilDay: (Number(wT.clock?.day) || 1) + Math.min(days, 2) };
-              console.log(`[Task] ${who.name} 领命出府办差 → ${dest}`);
-            } else if (isYardTask) {
-              const dest = /东厢/.test(what) ? 'east_wing' : 'backyard';
-              who.location = dest;
-              console.log(`[Task] ${who.name} 领命去后院/厢房忙内务 → ${dest}`);
+              console.log(`[Task] ${who.name} 领命离开 → ${wT.places?.[dest]?.name || dest}`);
+            } else {
+              console.warn(`[Task] ${who.name} 没能动身（${moved?.error || '无去处'}）`);
             }
           }
           const targetName = who?.name || whoName;
@@ -1032,15 +1028,15 @@ export class PetService {
       console.warn('[Pay] 处理失败：', err.message);
     }
 
-    // 9. 最终兜底：剔除任何未识别的英文系统标签，绝不向客户端吐裸露英文 [[...]]
-    reply = reply.replace(/\[\[[a-zA-Z0-9_]+:[^\]]*\]\]/g, '').replace(/\[\[[^\]]*\]\]/g, '');
-
-    // 10. NPC 告辞离场：识别离场并走单一移动入口规范挪回自家或长街
+    // 9. NPC 告辞离场：先照 [[depart:谁|去哪]] 把真位移走完，再清标签
     try {
       applyNpcDeparture(dataDir, reply, sayText);
     } catch (err) {
       console.warn('[Departure] 离场处理失败：', err.message);
     }
+
+    // 10. 最终兜底：剔除任何未识别的系统标签，绝不向客户端吐裸露 [[...]]
+    reply = reply.replace(/\[\[[a-zA-Z0-9_]+:[^\]]*\]\]/g, '').replace(/\[\[[^\]]*\]\]/g, '');
 
     // 11. 孤立与未闭合中文括号治理（彻底杜绝末尾单挂 "（" 或残缺括号）
     reply = reply.replace(/[（(]\s*$/g, '').trim();
@@ -3579,10 +3575,11 @@ export class PetService {
       if (cleanAsName && /^[a-zA-Z_0-9]+$/.test(cleanAsName)) {
         const wSnap = peek(this.dataDir);
         const aObj = wSnap.actors?.[cleanAsName] || (typeof matchActor === 'function' ? matchActor(wSnap.actors, cleanAsName) : null);
-        cleanAsName = aObj?.name || (cleanAsName === 'heshun' ? '何顺' : '伙计');
+        cleanAsName = aObj?.name || (aObj?.role ? String(aObj.role).slice(0, 4) : '店里的伙计');
       }
 
-      const isHouseholdWife = /婉儿|芸娘|柳儿/.test(cleanAsName || '');
+      const speakerActor = wSnap?.actors ? Object.values(wSnap.actors).find((x) => x && x.name === cleanAsName) : null;
+      const isHouseholdWife = Boolean(speakerActor && (speakerActor.household || speakerActor.spouse === 'husband'));
       const identity = cleanAsName
         ? (isHouseholdWife
             ? `你现在是「${cleanAsName}」本人，正在房中。没有人跟你说话，是你主动开口找相公。用「${cleanAsName}」温婉亲近的口吻说话。`
