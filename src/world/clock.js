@@ -20,7 +20,7 @@ import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
 import { spreadRumors, addRumor } from './rumors.js';
 import { moveActor } from './position.js';
-import { runMilitaryDay, setWarEventSink } from './warfare.js';
+import { runMilitaryDay, setWarEventSink, runPayday } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
@@ -1399,6 +1399,10 @@ function onNewDay(world, events) {
       try { events.push(nextEvent(w, ev)); } catch { /* 忽略 */ }
     });
     runMilitaryDay(world, events);
+    // 每月初一放饷；发不出就是欠饷，欠久了会逃兵、哗变
+    for (const ev of runPayday(world, events)) {
+      try { events.push(nextEvent(world, ev)); } catch { /* 忽略 */ }
+    }
   } catch (err) {
     console.warn('[Army] 军需结算失败：', err.message);
   }
