@@ -10,7 +10,7 @@
  */
 
 import { factionOf, factionSilver, factionStrength } from './factions.js';
-import { recruit, besiege, bribeCity, buyGrain, march, troopsAt, totalTroops, fortify } from './warfare.js';
+import { recruit, besiege, bribeCity, buyGrain, march, troopsAt, totalTroops, fortify, changeCityOwner } from './warfare.js';
 import { canReach } from './geography.js';
 
 const num = (v) => {
@@ -103,7 +103,7 @@ export function buildStrategyPrompt(world) {
   const system = [
     '你是这个世界的天道，负责推演天下大势。',
     '只输出 JSON 数组，不要解释。每个元素形如：',
-    '{"faction":"势力id","action":"recruit|buy_grain|besiege|bribe|fortify|hold","target":"城名或空","amount":数字,"reason":"一句话理由"}',
+    '{"faction":"势力id","action":"recruit|buy_grain|march|besiege|bribe|fortify|hold","target":"城名或空","amount":数字,"reason":"一句话理由"}',
     '规则：',
     '1. 只能给出现有势力与现有城；不要编造。',
     '2. 兵不够、粮不够时，不许让他们打仗——你可以让他们囤粮、募兵或按兵不动。',
@@ -141,7 +141,25 @@ export function applyStrategyDecisions(world, decisions, sink) {
     let r = null;
     if (action === 'recruit') r = recruit(world, fid, amount);
     else if (action === 'buy_grain') r = buyGrain(world, fid, Math.max(10, amount));
-    else if (action === 'besiege') r = besiege(world, { attacker: fid, cityName: target, troops: amount });
+    else if (action === 'besiege') {
+      // 天道说"打这座城"，但兵还在别处：引擎先让它开拔过去，而不是驳回
+      const here = troopsAt(world, f, target);
+      if (here < 1) {
+        const from = Object.entries(f.stationed || {})
+          .sort((a, b) => num(b[1]) - num(a[1]))[0]?.[0];
+        if (from) {
+          const sendTroops = Math.max(1, Math.min(amount, Math.round(num(f.stationed[from]) * 0.8)));
+          const mv = march(world, fid, from, target, sendTroops);
+          r = mv.ok
+            ? { ok: true, text: `${f.name}自${from}发兵 ${mv.troops}，${mv.days}日可至${target}` }
+            : { ok: false, error: mv.error };
+        } else {
+          r = { ok: false, error: '无兵可派' };
+        }
+      } else {
+        r = besiege(world, { attacker: fid, cityName: target, troops: amount });
+      }
+    }
     else if (action === 'bribe') r = bribeCity(world, fid, target, amount);
     else if (action === 'fortify') r = fortify(world, fid, target, amount);
     else continue;
@@ -184,7 +202,7 @@ export function maybeSpawnWarlord(world, sink) {
     relations: { court: -60 },
     createdDay: day,
   };
-  ct.owner = fid;
+  changeCityOwner(world, cityName, fid);
   ct.unrest = Math.max(0, num(ct.unrest) - 10);
   const text = `${cityName}民怨沸腾，有人竖旗自立，号「${cityName}义军」`;
   if (sink) sink(world, { action: 'warlord_spawn', actor: null, place: cityName, payload: { text } });

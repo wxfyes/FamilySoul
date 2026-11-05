@@ -4073,6 +4073,8 @@ server.listen(PORT, '0.0.0.0', () => {
             ensureFactions(w0);
             let applied = [];
             if (petService.llmClient?.isReady?.()) {
+              w0.flags = w0.flags || {};
+              w0.flags.strategyByLLM = true;   // 今天这套由天道驱动，时钟不再跑规则推演
               const { system, user } = buildStrategyPrompt(w0);
               const out = await petService.llmClient.complete({
                 system, messages: [{ role: 'user', content: user }], temperature: 0.7, maxTokens: 700,

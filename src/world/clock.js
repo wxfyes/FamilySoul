@@ -1419,10 +1419,11 @@ function onNewDay(world, events) {
     }
   } catch { /* 忽略 */ }
 
-  // 每 7 日：无人指挥的势力自己动（有 LLM 时由 server 侧接管，这里兜底）
+  // 每 7 日：无人指挥的势力自己动
+  // 有天道时由 server 侧跑 LLM 推演（flags.strategyByLLM 标记），这里只做兜底，绝不双跑
   try {
     const day = Number(world.clock?.day) || 1;
-    if (day % 7 === 0) {
+    if (day % 7 === 0 && !world.flags?.strategyByLLM) {
       npcStrategyTurn(world, events, (w, ev) => {
         try { events.push(nextEvent(w, ev)); } catch { /* 忽略 */ }
       });
