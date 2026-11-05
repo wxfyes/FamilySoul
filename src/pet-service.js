@@ -3352,8 +3352,7 @@ export class PetService {
         if (/[·・]/.test(nm) || /天道|旁白|众人/.test(nm)) return m0;
         const a = Object.values(wS.actors || {}).find((x) => x && !x.dead && x.name === nm);
         if (!a) return m0;
-        const role = String(a.role || '').trim();
-        if (!role) return m0;
+        const role = String(a.role || '').trim() || (a.humanBound ? '游侠' : '');
         let title = role
           .replace(/^临江府?/, '')
           .replace(/（.*?）/g, '')

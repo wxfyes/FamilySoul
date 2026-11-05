@@ -3949,6 +3949,32 @@ const STARTED_AT = Date.now();
         if (!merged && dropped.length) merged = dropped.join(' ').replace(/^[：:]+/, '').trim();
         if (merged && merged !== txt) result.reply.text = merged;
       } catch (e) { /* 忽略 */ }
+
+      // 站在别人门口说「通禀/求见」：服务端真去叩门，门房的话直接写在回话最前面
+      try {
+        if (/通禀|通报|求见|递帖|叫门|叩门|拜见|拜访|请见|能进去|让我进去|进屋/.test(String(body.text || ''))) {
+          const wK = loadState(DATA_DIR);
+          const meK = wK.actors?.[String(currentMember.actor || 'husband')] || wK.actors?.husband;
+          const hereK = wK.places?.[meK?.location];
+          const atGate = /大门|门房|门厅|仪门|轿厅/.test(String(hereK?.name || '')) || hereK?.use === 'gate';
+          if (atGate) {
+            const homeK = residenceOf(wK, hereK.id) || wK.places?.[hereK.parent];
+            if (homeK?.residence && String(homeK.owner || '') !== String(meK?.id || '')) {
+              const vK = knock(wK, meK.id, homeK.id);
+              if (vK.allowed && vK.place) {
+                grantPass(wK, meK.id, homeK.id, wK.clock?.day);
+                moveActor(wK, meK.id, vK.place, 'world', '通禀允入');
+                saveState(DATA_DIR, wK);
+                result.reply.text = `（门房进去回了话，回身让开：「${vK.reason}」你进了${wK.places?.[vK.place]?.name || ''}。）\n` + String(result.reply.text || '');
+              } else {
+                saveState(DATA_DIR, wK);
+                result.reply.text = `（门房拦住：「${vK.reason}」）\n` + String(result.reply.text || '');
+              }
+            }
+          }
+        }
+      } catch (errK) { console.log('[Knock] 叩门异常：', errK.message); }
+
       console.log(`[ChatTotal] 服务端总耗时 ${Date.now() - t0}ms（成员 ${currentMember.memberKey}）`);
       return sendJson(res, result.ok ? 200 : 500, result);
     } catch (err) {

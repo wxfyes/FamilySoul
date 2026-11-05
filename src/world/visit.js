@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 门房规矩：外人不许直闯内院，得走「递帖 — 通禀 — 允入」。
  *
  * 规矩只看三件事（不写死人名）：
@@ -76,7 +76,9 @@ export function knock(world, visitorId, residenceId) {
   const rooms = home.rooms || {};
   const hallKey = ['hall', 'main', '正厅', '中堂'].find((k) => rooms[k]);
   const hallId = hallKey ? rooms[hallKey].id : (rooms.main?.id || rooms.gate?.id || null);
-  const allowed = kin || trust >= 40;
+  // 白天且主人在家：生客也放进中堂（主人家自己看着办）；内院/卧房仍要交情
+  const dayTime = hour >= 6 && hour < 21;
+  const allowed = kin || trust >= 40 || (dayTime && ownerHere);
   if (!allowed) {
     return { allowed: false, reason: '门房进去回了一声，主人说与你不相熟，改日再会', place: null, owner, hall: hallId };
   }
