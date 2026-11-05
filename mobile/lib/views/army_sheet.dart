@@ -76,7 +76,19 @@ class _ArmySheetState extends State<ArmySheet> {
     if (!mounted) return;
     setState(() => _busy = false);
     final ok = r?['ok'] == true;
-    final msg = ok ? okPrefix : (r?['error']?.toString() ?? '没办成');
+    // 招募是"一呼百应"：报实际来投人数，而不是报你喊了多少
+    String msg;
+    if (!ok) {
+      msg = r?['error']?.toString() ?? '没办成';
+    } else if (r?['came'] != null) {
+      final came = r?['came'];
+      final asked = r?['asked'];
+      final pay = r?['monthlyPay'];
+      msg = '一呼百应：喊 $asked 人，来投 $came 人'
+          '${pay != null ? '（月饷 $pay 两/月）' : ''}';
+    } else {
+      msg = okPrefix;
+    }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       behavior: SnackBarBehavior.floating,
@@ -91,7 +103,9 @@ class _ArmySheetState extends State<ArmySheet> {
   Future<void> _pickCount({
     required String title,
     required String unit,
-    required int unitPrice,
+    required double unitPrice,
+    double? monthly,
+    String? note,
     required int min,
     required int max,
     required List<int> presets,
@@ -115,7 +129,19 @@ class _ArmySheetState extends State<ArmySheet> {
             const SizedBox(height: 16),
             Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            Text('$unitPrice 两 / $unit', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text('安家银 ${unitPrice.toStringAsFixed(2)} 两 / $unit', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            if (monthly != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('月饷 $monthly 两 / $unit / 月（每月初一放饷）',
+                    style: const TextStyle(color: Color(0xFFE0B252), fontSize: 11.5)),
+              ),
+            if (note != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 10, right: 10),
+                child: Text(note, textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white30, fontSize: 11)),
+              ),
             const SizedBox(height: 18),
             Wrap(spacing: 10, runSpacing: 10, children: [
               for (final p in presets)
@@ -126,7 +152,7 @@ class _ArmySheetState extends State<ArmySheet> {
                 ),
             ]),
             const SizedBox(height: 20),
-            Text('共 ${count * unitPrice} 两',
+            Text('共 ${(count * unitPrice).toStringAsFixed(2)} 两',
                 style: const TextStyle(color: _gold, fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 18),
             Row(children: [
@@ -370,12 +396,14 @@ class _ArmySheetState extends State<ArmySheet> {
               Wrap(spacing: 10, runSpacing: 10, children: [
                 _pill(
                   icon: Icons.groups_rounded,
-                  label: '招募家丁',
+                  label: '招募家丁 ·安家0.2两',
                   color: _accent,
                   onTap: () => _pickCount(
                     title: '招募家丁',
                     unit: '人',
-                    unitPrice: 1,
+                    unitPrice: 0.2,
+                    monthly: 0.6,
+                    note: '一呼百应：来投多少看你的名声与这座城的日子，喊 50 人未必来 50 个。',
                     min: 1,
                     max: 500,
                     presets: const [5, 10, 20, 50],
@@ -385,12 +413,14 @@ class _ArmySheetState extends State<ArmySheet> {
                 ),
                 _pill(
                   icon: Icons.shield_moon_rounded,
-                  label: '招募护院',
+                  label: '招募护院 ·安家0.5两',
                   color: Colors.purpleAccent,
                   onTap: () => _pickCount(
                     title: '招募护院',
                     unit: '人',
-                    unitPrice: 3,
+                    unitPrice: 0.5,
+                    monthly: 0.9,
+                    note: '护院是精壮武师，安家银比家丁贵些，月饷 0.9 两；一样是看名声与民心来人。',
                     min: 1,
                     max: 200,
                     presets: const [2, 5, 10, 20],
@@ -405,7 +435,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '购粮',
                     unit: '石',
-                    unitPrice: 1,
+                    unitPrice: 1.0,
                     min: 1,
                     max: 2000,
                     presets: const [50, 100, 300],
@@ -420,7 +450,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买兵器',
                     unit: '件',
-                    unitPrice: 1,
+                    unitPrice: 1.0,
                     min: 1,
                     max: 500,
                     presets: const [20, 50, 100],
@@ -435,7 +465,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买铠甲',
                     unit: '件',
-                    unitPrice: 2,
+                    unitPrice: 2.0,
                     min: 1,
                     max: 500,
                     presets: const [20, 50, 100],
@@ -450,7 +480,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买战马',
                     unit: '匹',
-                    unitPrice: 9,
+                    unitPrice: 9.0,
                     min: 1,
                     max: 200,
                     presets: const [5, 10, 20],
@@ -465,7 +495,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买攻城器械',
                     unit: '架',
-                    unitPrice: 40,
+                    unitPrice: 40.0,
                     min: 1,
                     max: 10,
                     presets: const [1, 2, 3],
