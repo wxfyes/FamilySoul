@@ -134,6 +134,11 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     final mil = (d['military'] as Map?)?.cast<String, dynamic>();
     final standing = (d['standing'] as Map?)?.cast<String, dynamic>() ?? {};
     final props = (assets['properties'] as List?) ?? const [];
+    final household = (d['household'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final hhAllowance = (household['allowance'] as num?)?.toDouble() ?? 4.0;
+    final hhArrears = (household['arrears'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final hhMonths = (hhArrears['months'] as num?)?.toInt() ?? 0;
+    final hhOwed = (hhArrears['owed'] as num?)?.toDouble() ?? 0;
     final married = (self['married'] as String?) ?? '';
     final spouseName = (self['spouseName'] as String?) ?? '';
     final residence = (self['residence'] as String?) ?? '';
@@ -248,6 +253,39 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
           children: [
             _kv('现银', '${_num(assets['silver'], digits: 2)} 两'),
             _kv('日入', '${_num(assets['daily'], digits: 2)} 两/日'),
+            _kv('中馈月例', '${hhAllowance.toStringAsFixed(1)} 两/月'),
+            if (hhMonths > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text('中馈欠拨 $hhMonths 月，共 ${hhOwed.toStringAsFixed(1)} 两',
+                        style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12.5)),
+                  ),
+                  InkWell(
+                    onTap: () async {
+                      final r = await widget.api.householdPay();
+                      if (!mounted) return;
+                      final ok = r?['ok'] == true;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ok ? (r?['text']?.toString() ?? '已补发') : (r?['error']?.toString() ?? '没办成')),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(milliseconds: 1600),
+                      ));
+                      if (ok) setState(() {});
+                    },
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text('补发中馈', style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 12)),
+                    ),
+                  ),
+                ]),
+              ),
             if (props.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 6),

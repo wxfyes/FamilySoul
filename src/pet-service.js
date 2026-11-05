@@ -1,4 +1,5 @@
 ﻿import { resolveVoiceCasting } from './world/voice-casting.js';
+import { quellBandits } from './world/bandits.js';
 import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { sanePrice, priceHint } from './world/pricing.js';
@@ -935,6 +936,36 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 7.7 带兵出征：[[quell:匪名|人数]] —— 说了就真打，结果写回正文
+    try {
+      const quellTag = reply.match(/\[\[quell:([^\]]+)\]\]/);
+      if (quellTag) {
+        const parts = String(quellTag[1] || '').split('|').map((x) => x.trim());
+        const want = parts[0] || '';
+        const troops = Math.max(1, Math.round(Number(parts[1]) || 20));
+        const wQ = loadState(this.dataDir);
+        const list = Object.values(wQ.bandits || {});
+        const hit = list.find((b) => b && (b.name === want || b.name.includes(want) || String(b.leader || '') === want))
+          || list[0];
+        if (hit) {
+          const fQ = wQ.factions?.wangjia;
+          const fromCity = Object.keys(fQ?.stationed || {})[0] || hit.homeCity;
+          const r = quellBandits(wQ, hit.id, troops, fromCity);
+          saveState(this.dataDir, wQ);
+          if (r && r.ok) {
+            reply = String(reply || '').replace(/\[\[quell:[^\]]+\]\]/g, '').trim();
+            reply += `\n（${r.win ? '大获全胜' : '受挫'}：${r.text}）`;
+            console.log(`[Quell] ${hit.name} → ${r.win ? '剿平' : '失败'}`);
+          } else {
+            reply = String(reply || '').replace(/\[\[quell:[^\]]+\]\]/g, '').trim();
+            reply += `\n（${r?.error || '未能出征'}）`;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Quell] 出征失败：', e.message);
+    }
+
     // 8. 待付款声明：[[pay:标题|选项=价|选项=价]] 挂待付款，正文剥离
     try {
       const payTag = reply.match(/\[\[pay:([^\]]+)\]\]/);
@@ -1064,12 +1095,26 @@ export class PetService {
       contextHintEarly += '（【用人规矩】要开张、要添人手时，你替产业点人：[[staff:产业名|人名|身份]]，例如 [[staff:运河码头三层大酒楼|周有福|掌柜]]。没有这个人就现起一个名字，世上就真有这个人了。）\n';
       contextHintEarly += '（【习性规矩】长期相处真的改了某个人的性子（更顺从、更敢顶嘴、开始怕你…），你可以在回复末尾附 [[trait:谁|哪一样|+5]]，一次最多动 5~10，别乱给。这东西会跟着她一辈子。）\n';
       contextHintEarly += `（【物价参考】${priceHint()}。报钱一律照这个来，不许编出"一晚房钱三两"这种价。）\n`;
+      contextHintEarly += '（【出征规矩】相公若说「点齐护院去平了某寨」，你只在末尾写 [[quell:匪名|人数]]；引擎会真的打，并把战报回给你，你再写成台词。）\n';
       contextHintEarly += '（【兵事规矩】相公若要募兵、买军械，你不要自己报数，只写 [[recruit:人数]] 或 [[gear:兵器|数量]]（兵器/铠甲/战马/攻城器械）；引擎会算钱粮并让他在界面上确认，确认后才真的成军。）\n';
       contextHintEarly += '（【打探规矩】相公若差人去打听一个人的底细，或某处生意的实情，你把这桩事记成差事；等有了结果，用 [[clue:一句话底细|谁打探的]] 落进世界。打探可能只得到传言、也可能打草惊蛇，别一次给全。）\n';
       contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
+    } catch { /* 忽略 */ }
+
+    // 苦主求庇：本地或邻道有 2 阶以上匪患，市井就会有人来诉苦（只给事实，台词由天道写）
+    try {
+      const wB = loadState(this.dataDir);
+      const meB = this._viewerActorId ? wB.actors?.[this._viewerActorId] : wB.actors?.husband;
+      const big = Object.values(wB.bandits || {})
+        .filter((b) => b && Number(b.tier) >= 2)
+        .slice(0, 2);
+      if (big.length) {
+        const lines = big.map((b) => `${b.name}（${b.homeCity}，${b.strength} 人，${b.tier} 阶）`).join('、');
+        contextHintEarly += `（【匪患实况】${lines}。若相公在城中，可安排客商或百姓来诉苦求庇；台词照实情写，别编额外的匪。）\n`;
+      }
     } catch { /* 忽略 */ }
 
     // 朝廷近况：国库多少、够不够发俸、民心如何——天道讲朝堂戏时必须有账可依

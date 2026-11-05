@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -28,7 +28,7 @@ import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
 import { getMoney, setMoney, spendMoney, syncMoney } from './world/money.js';
 import { isPlaceName } from './world/naming.js';
-import { hireStaff } from './world/employment.js';
+import { hireStaff, visiblePropertiesOf } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
 import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
@@ -895,12 +895,7 @@ const STARTED_AT = Date.now();
         // 可去的地方：当前出口 + 自有产业 + 有人的地方
         const exits = (world.places?.[curId]?.exits || []).map((id) => ({ id, name: placeName(id) }));
         // 产业只给"自己的"：相公看相公的，其他人只看自己名下或自己管的
-        const props = (world.assets?.properties || [])
-          .filter((x) => {
-            if (!x) return false;
-            if (actorId === 'husband') return x.owner === 'husband' || x.keeper === 'husband' || (!x.owner && !x.keeper);
-            return x.owner === actorId || x.keeper === actorId;
-          })
+        const props = visiblePropertiesOf(world, actorId)
           .map((x) => ({ name: x.name, income: x.incomePerDay || 0 }));
         const occupied = {};
         for (const a of people) {
@@ -1427,13 +1422,7 @@ const STARTED_AT = Date.now();
         todos.push({ kind: pr.loan ? '借款' : '承诺', text: pr.text || '', day: pr.due });
       }
       // 产业归属解耦：相公看相公产业，女眷看女眷私产
-      const props = (world.assets?.properties || []).filter((p) => {
-        if (!p) return false;
-        if (isHusband) {
-          return p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper);
-        }
-        return p.keeper === actorId || p.owner === actorId;
-      });
+      const props = visiblePropertiesOf(world, actorId || 'husband');
       const arc = actorId ? world.arcs?.[actorId] : null;
       const f = actorId ? world.forces?.[actorId] : world.military;
       const troops = f ? (Number(f.guards) || 0) + (Number(f.militia) || 0) + (Number(f.army) || 0) : 0;

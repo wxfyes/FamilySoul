@@ -67,3 +67,20 @@ export function hireStaff(world, { propName = '', name = '', role = '伙计', vi
 
   return { ok: true, actor: a, prop, created };
 }
+
+/**
+ * 谁看得见哪些产业（唯一出处）。
+ * 相公：自己名下、自己管的、以及无主的老铺；
+ * 其他人：只看得见自己名下或自己管的。
+ */
+export function visiblePropertiesOf(world, actorId) {
+  const props = Array.isArray(world?.assets?.properties) ? world.assets.properties : [];
+  const id = actorId || 'husband';
+  return props.filter((p) => {
+    if (!p) return false;
+    if (id === 'husband') {
+      return p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper);
+    }
+    return p.owner === id || p.keeper === id;
+  });
+}

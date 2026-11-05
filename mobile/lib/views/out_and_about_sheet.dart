@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
+import 'trade_sheet.dart';
 
 /// 出门 · 找人 · 赴约 —— 底部抽屉（三个 tab，点一下就执行）
 /// 走的是服务端同一套管道（/api/world/menu|go|summon|todo），不碰聊天逻辑。
@@ -184,6 +185,35 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8, top: 2),
+          child: Row(children: [
+            InkWell(
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => TradeSheet(api: widget.api),
+                );
+              },
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0B252).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFFE0B252).withValues(alpha: 0.45)),
+                ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.storefront_rounded, size: 14, color: Color(0xFFE0B252)),
+                  SizedBox(width: 6),
+                  Text('商货行栈', style: TextStyle(color: Color(0xFFE0B252), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
         if (homes.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.only(left: 4, bottom: 6, top: 2),
