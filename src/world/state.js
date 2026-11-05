@@ -8,6 +8,8 @@ import { ensureBonds } from './bonds.js';
 import { ensureFactions } from './factions.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { ensureClans } from './clans.js';
+import { repairTrespassHomes } from './dwelling.js';
+import { linkCouples } from './couples.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -964,6 +966,27 @@ export function migrateOwnership(world) {
       if (!a.gender || a.gender === 'unknown') {
         a.gender = inferGenderFromIdentity(a.name, a.role, 'male');
       }
+    }
+  } catch { /* 忽略 */ }
+
+  // 一次性：从角色描述与同住关系补出夫妻（spouse 成唯一事实源）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.couplesLinked) {
+      const pairs = linkCouples(world);
+      world.flags.couplesLinked = { day: world.clock?.day || 1, pairs: pairs.length };
+      if (pairs.length) console.log(`[Couple] 结成夫妻 ${pairs.length} 对：${pairs.map((x) => x.join('—')).join('、')}`);
+    }
+  } catch { /* 忽略 */ }
+
+  // 一次性：把"把别人私宅当自己家"的旧数据纠正回自家（如过门人占了玩家小院）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.trespassHomesRepaired) {
+      const evs = [];
+      const fixed = repairTrespassHomes(world, evs, (w, e) => ({ ...e, at: Date.now(), day: w.clock?.day || 1 }));
+      world.flags.trespassHomesRepaired = { day: world.clock?.day || 1, fixed: fixed.length };
+      if (fixed.length) console.log(`[Dwelling] 纠正 ${fixed.length} 个错占私宅的住处`);
     }
   } catch { /* 忽略 */ }
 

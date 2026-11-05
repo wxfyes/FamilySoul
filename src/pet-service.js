@@ -2508,6 +2508,7 @@ export class PetService {
             console.log('[Proxy] 事实' + facts.length + '条：' + facts.slice(-4).join(' ｜ ').slice(0, 160));
             const pp = buildProxyPrompt({
               actor: husPost,
+              hearer: mePost,
               memories: hisMem,
               facts,
               hearerName: mePost?.name || '',
@@ -2625,6 +2626,7 @@ export class PetService {
             const herePlaceFact = placeFacts(wPost, locPost || npc.location);
             const npPrompt = buildProxyPrompt({
               actor: npc,
+              hearer: mePost,
               memories: npcMem,
               facts: npcFacts.concat([
                 herePlaceFact,
@@ -3273,6 +3275,7 @@ export class PetService {
         if (target) {
           const pN = buildProxyPrompt({
             actor: target,
+            hearer: husN,
             memories: (wN.memories || []).filter((m) => String(m?.text || '').includes(target.name)).map((m) => String(m.text)).slice(-4),
             facts: (wN.npcArcs?.[target.id]?.lastStep ? [`你眼下的事：${wN.npcArcs[target.id].lastStep}`] : []),
             hearerName: husN?.name || '相公',
@@ -3373,6 +3376,7 @@ export class PetService {
         if (pickL) {
           const pL = buildProxyPrompt({
             actor: pickL,
+            hearer: meL,
             memories: (wL.memories || []).filter((m) => String(m?.text || '').includes(pickL.name)).map((m) => String(m.text)).slice(-3),
             facts: wL.npcArcs?.[pickL.id]?.lastStep ? [`你眼下的事：${wL.npcArcs[pickL.id].lastStep}`] : [],
             hearerName: meL?.name || '相公',
@@ -3476,6 +3480,7 @@ export class PetService {
           if (already) continue;
           const pM = buildProxyPrompt({
             actor: who,
+            hearer: meM,
             memories: (wM.memories || []).filter((m) => String(m?.text || '').includes(who.name)).map((m) => String(m.text)).slice(-3),
             facts: wM.npcArcs?.[who.id]?.lastStep ? [`你眼下的事：${wM.npcArcs[who.id].lastStep}`] : [],
             hearerName: meM?.name || '相公',

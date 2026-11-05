@@ -674,11 +674,21 @@ const STARTED_AT = Date.now();
             if (!/^[\u4e00-\u9fa5]{2,4}$/.test(whoName)) continue;
             if (Object.values(world.actors || {}).some((x) => x && x.name === whoName)) { spawnedName = whoName; continue; }
             const nid = `npc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            // 过门人：有自己的家、有作息；绝不把玩家的私宅当自己家
+            const isHomeOfPlayer = Boolean(world.places?.[a.location]?.residence);
             world.actors[nid] = {
-              id: nid, name: whoName, role: whoRole, gender: 'unknown',
-              home: a.location, location: a.location, money: 0, relations: {}, schedule: [],
+              id: nid, name: whoName, role: whoRole,
+              gender: inferGenderFromIdentity(whoName, whoRole, 'male'),
+              age: inferAgeFromIdentity(whoName, whoRole, '', nid),
+              money: round2(0.3 + Math.random() * 2),
+              relations: {},
               origin: 'dm_opening', createdDay: world.clock?.day || 1,
             };
+            const nearId = isHomeOfPlayer ? 'street' : (world.places?.[a.location] && !world.places[a.location].residence ? a.location : 'street');
+            const ownHome = ensureDwelling(world, nid, whoName, nearId);
+            world.actors[nid].home = ownHome;
+            world.actors[nid].location = nearId === 'street' ? ownHome : nearId;
+            world.actors[nid].schedule = defaultSchedule(whoRole, nearId, ownHome);
             spawnedName = whoName;
             console.log(`[Opening] 天道立了个过门人：${whoName}（${whoRole}）`);
           }

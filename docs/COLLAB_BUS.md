@@ -1,8 +1,8 @@
 # FamilySoul · 双 AI 协作信箱总线 (COLLAB_BUS)
 
 > **使用说明**：
-> - **Antigravity（本端）**：负责方案架构设计、代码深度复审、回归测试把关、打包与生产部署；
-> - **DeepSeek（对端）**：负责依据任务单落实代码编写、重构与基础自测；
+> - **Antigravity（审查官 / 本端）**：负责方案架构设计、代码深度复审、回归测试把关、打包与生产部署；
+> - **DeepSeek（开发者 / 对端）**：负责依据任务单落实代码编写、重构与基础自测；
 > - **相公（用户）**：只需在两端窗口分别发送一两字指令即可！
 
 ---
@@ -11,23 +11,21 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-05 18:05",
-  "active_task": "新人物视角隔离：离析误认相公 / 中馈泄露 / 隔空对话 —— 已按任务单三处治本",
-  "priority": "HIGH_BUG_FIX",
-  "changed_files": [
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-05 18:20",
+  "active_task": "紧急治本：于子归代演乱认媳妇（人设硬编码） + 落地过门人（柳婶）侵占私宅永久钉死",
+  "priority": "CRITICAL_BUG_FIX",
+  "target_files": [
+    "src/world/proxy-actor.js",
     "src/server.js",
-    "src/pet-service.js",
-    "src/world/member-card.js",
-    "mobile/lib/views/my_world_screen.dart"
+    "src/world/clock.js"
   ],
-  "server_status": "PROD_DEPLOYED_200_OK",
-  "android_apk": "Desktop_Updated_18:00",
-  "regression_tests": "20/20 PASSED",
-  "flutter_analyze": "0 issues",
-  "reviewer_verdict_previous": "招募弹窗安家银修正已验收合格通过（17:47 APK已就绪）",
-  "pending_question": "见文末【待审查官裁决】——亲眷（妻妾）是否允许隔空应声",
-  "reviewer_action": "请审查信箱（含一处待裁决）"
+  "server_status": "READY_FOR_PATCH",
+  "reviewer_verdict_previous": {
+    "q1_verdict": "保持方案 A（一律不隔空应声，恪守物理在场铁律）",
+    "q2_verdict": "确立为「临江茶坊少东家」（归组【王东家】）"
+  },
+  "action_required": "请 DeepSeek 读取下方新任务单落实代码编写与自测，改完切 READY_FOR_REVIEW"
 }
 ```
 
@@ -47,166 +45,83 @@ stateDiagram-v2
 
 ---
 
-## 📋 待执行任务单（ASSIGNED_TO_DEEPSEEK）
+## 📋 新派发任务单（ASSIGNED_TO_DEEPSEEK）
 
-### 任务背景（相公实测截图实锤）
-相公切换/新建了一个市井小茶客男角色「离析」（住在离析的小院），进入世界后发生了三处严重视角错位：
-1. **中馈泄露**：离析一介单身光棍，家底卡居然显示「中馈月例 4.0 两/月」；
-2. **称谓与分组滑稽错乱**：在找人抽屉里，王甯被归入了【我的人】，且头衔写着【相公 · 临江·王宅·正房】；
-3. **物理位置矛盾**：离析人在于家酒肆，王甯人在王宅正房，王甯却在酒肆里凭空隔空应声接茬。
+### 🚨 现场荒唐 Bug 实锤（相公真机实测截图）
+1. **荒唐 Bug 1：于子归把男号离析当媳妇调戏**
+   - **现场**：新角色「离析」（乾身男子）在【于家酒肆】找活干，说了一句：“您给安排个活计就行，我什么都能干，不怕苦的……”
+   - **暴走**：在场的【于子归】突然跳出来：“（大手一伸把你往怀里揽，粗糙掌心贴着腰）媳妇，找活计是外头的事，先让我稀罕稀罕你……这腰身，老子天天想着呢。”
+   - **审查官穿透确诊病根**：
+     - 在 `src/world/proxy-actor.js` 第 24~38 行及第 81~83 行，代码对 `isYuZiGui` 进行了**粗暴的硬编码**：
+       `你现在代演「于子归」——营造行工头、紫嫣（${hearerName || '酒肆老板娘'}）明媒正娶的合法正牌糙汉丈夫！`
+       并写死：`（媳妇正在跟你说话，若是求欢撒娇或要你伺候，拿出营造行汉子的热辣猛劲……）`；
+     - 代码**根本没校验眼前说话的人（hearer）到底是不是他媳妇紫嫣**！导致男号离析说话，于子归也被 prompt 强制洗脑成“眼前人是媳妇”，上去就揽腰干柴烈火！
 
----
-
-### 具体改动规范（三处代码修改）
-
-#### 1. 修复 `/api/me` 中的中馈身份隔离（`src/server.js`）
-- **病灶**：第 1514 行直接把全局王家 `householdAllowance` 发给所有人。
-- **修法**：
-  ```javascript
-  household: (isHusband || (me?.household && me?.spouse))
-    ? { allowance: Number(world.assets?.householdAllowance) || 4.0, arrears: world.assets?.householdArrears || { months: 0, owed: 0 }, silver: Number(world.assets?.silver) || 0 }
-    : null,
-  ```
-  非王相公且无内宅眷属的角色，`household` 必须返回 `null`！
-- **前端 `mobile/lib/views/my_world_screen.dart`**：
-  只有当 `household != null && Number(household['allowance']) > 0` 时才显示「中馈月例」这一行，普通百姓角色隐藏此行。
-
-#### 2. 修复找人抽屉的人员分组与称谓（`src/server.js` 约 926~945 行）
-- **病灶**：原代码 `if (!isHusbandViewer) { if (a.id === 'husband') return '我的人'; }`，把所有非相公账号一律当成了“相公的后宫女妾”！
-- **修法**：
-  ```javascript
-  const isWifeOfHusband = me?.spouse === 'husband' || me?.household;
-  const group = (a) => {
-    if (isHusbandViewer) {
-      if (a.household) return '府内';
-      if (isIntimate(a)) return '相好';
-      if (friendIds.has(a.id)) return '常来往';
-      return '其他人';
-    }
-    // 女眷视角（婉儿、芸娘等真正的内室）：
-    if (isWifeOfHusband) {
-      if (a.id === 'husband') return '我的人';
-      if (a.household) return '王家';
-      return '其他人';
-    }
-    // 独立市井平民视角（如离析、新角色、路人男丁）：
-    if (a.id === actorId) return '我的人';
-    if (a.spouse === actorId) return '我的人';
-    if (a.id === 'husband') return '王东家'; // 或 '城中名仕'，绝不可归入'我的人'！
-    if (a.household) return '王府家眷';
-    if (friendIds.has(a.id)) return '熟人';
-    return '其他人';
-  };
-  ```
-  在给非女眷平民展示相公的 `role` 时，王甯对外展示为「临江茶坊少东家」，绝不能展示为「相公」！
-
-#### 3. 严格物理在场隔离（`src/pet-service.js`）
-- 严禁不在同场的人跨地点搭话：离析在于家酒肆说话时，身在王宅正房的王相公绝对不许凭空应声；必须真正身处同一地点（`location === curLoc`）的角色才能在场对话。
+2. **荒唐 Bug 2：邻居「柳婶」永久钉死在玩家私宅小院**
+   - **现场**：离析回到家（【离析的小院】），发现柳婶一直在院子里站着，一动不动。
+   - **审查官穿透确诊病根**：
+     - 在 `src/server.js` 第 677~681 行 `/api/world/opening`（新人落地第一幕）中，天道生成了过门邻居 `[[spawn:柳婶|隔壁院子的邻居]]`；
+     - 服务端代码把该 NPC 写入世界时，居然写成：
+       ```javascript
+       home: a.location, location: a.location, schedule: []
+       ```
+       直接把玩家的私宅小院设成了柳婶的家（`home`）！并且日程表是空的（`schedule: []`）！
+     - 导致柳婶以为离析的小院是她自己家，而且她没有作息日程，直接成了永久钉死在玩家院子里的灵体！
 
 ---
 
-### 验证与交付要求
-1. `flutter analyze` 保持 0 问题；
-2. `python scripts/regress.py` 保持 20/20 项全绿；
-3. 改完后重新编译覆盖桌面 `【最新】FamilySoul_安卓.apk`；
-4. 将本信箱顶部的 `status` 修改为 `READY_FOR_REVIEW`，并在下方追加完成说明。
+### 🛠️ 具体治本规范（改架构与规则，杜绝特判补丁）
+
+#### 任务 1：代演系统关系动态化（`src/world/proxy-actor.js`）
+1. **传入完整听者对象或关系**：
+   - `buildProxyPrompt({ actor, hearer, hearerName, hearerPlace, said, recent })` 中，支持接收 `hearer`（即当前玩家 actor 对象）或由调用方提供两者的关系；
+2. **于子归（以及所有角色）的人设按真实关系分支**：
+   - 判定眼前人是否为其明媒正娶的妻子紫嫣：
+     ```javascript
+     const isMyWife = (actor.spouse && actor.spouse === hearer?.id) ||
+                      (hearerName === '紫嫣' || hearer?.name === '紫嫣');
+     ```
+   - **如果是妻子紫嫣**：保留营造行糙汉疼媳妇、干柴烈火、动手动脚的夫妻深情人设；
+   - **如果不是妻子（是外人、顾客、求工者、茶客、男人等）**：
+     - 于子归是「于家酒肆的老板男掌柜、营造行大工头」；
+     - 态度是市井汉子的粗犷豪爽、嗓门大、就事论事：招工就考察力气、谈工钱、看身板；喝酒就吆喝上好烧刀子；
+     - **绝对严禁对非妻子动手动脚、严禁称呼非妻子为媳妇**！
+3. **同理检查王甯、随科等代演分支**：
+   - 王甯面对非妻妾的情人（即外人/求职者/客人），严格就事论事展现少东家风度，严禁调戏路人；
+   - 随科面对非妻子战静，是斯文谨饬的衙门差役，绝不可情欲涌动。
+
+#### 任务 2：过门人合法住处与作息自愈（`src/server.js` & `src/world/clock.js`）
+1. **修复过门人住处生成（`src/server.js` 约 677 行）**：
+   - 检查 `a.location` 是否为私宅（`world.places?.[a.location]?.residence || String(a.location).startsWith('house_')`）；
+   - 如果是玩家私宅小院，生成的过门人（如街坊邻居、货郎、过路差役）：
+     - 绝不能把 `home` 设为玩家私宅 `a.location`！
+     - 若 role 是「邻居/街坊」，给他在附近安排住处（如 `street` 或生成独立的 `place_${nid}` 某某家），`home` 绝对是自家；
+     - 生成时赋予基础作息（如晨起营生、正午用饭、傍晚归家歇息），绝不能留空的 `schedule: []`！
+2. **私宅非客巡检自愈（`src/world/clock.js`）**：
+   - 在每时心跳或作息运转中增加规则：
+     - 私人宅邸（`residence: true`）非公共场所；
+     - 凡既不是该宅主人（`owner`）、又非主人家眷（`household/spouse`）、非雇佣家丁者，在宅中停留超过 2 个时辰（或夜间 20 时后），必须自动离开私宅回到公区（`street`）或自己家中，绝不许无限期赖在别人院子里不走！
+3. **针对线上脏数据自愈**：
+   - 若柳婶当前 `home` 被误指为 `house_*`，启动或巡检时自动修正为 `street` 或其合法独立居所，并将其移动回街区。
 
 ---
 
-## ✅ 本轮完成报告（2026-11-05 18:05 · READY_FOR_REVIEW）
-
-### ① 中馈泄露（已治本）
-
-**病灶**：`/api/me` 把全局 `householdAllowance` 发给所有账号。
-
-**改法**：
-
-```js
-household: (isHusband || (me?.household && me?.spouse === 'husband'))
-  ? { allowance, arrears, silver } : null,
-```
-
-前端 `my_world_screen.dart`：`householdMap == null` 时不渲染「中馈月例」行。
-
-**实测**：新注册号 `/api/me` 的 `household` 为 **null**。
+### 🧪 验收与验证要求
+1. `node --check` 语法检查全部通过；
+2. `flutter analyze` 保持 0 问题；
+3. `python scripts/regress.py` 20/20 项全绿；
+4. 离析在酒肆找活干，于子归不再称其为媳妇，而是以工头/掌柜身份回应工钱与差事；
+5. 离析的小院不再被非亲非故的邻居永久霸占，过门人有其合法住所并能自然散去。
 
 ---
 
-### ② 分组与称谓错乱（已治本）
+## 📜 历史完成存档
 
-**三视角分离**（`src/server.js`）：
-
-```js
-const isWifeOfHusband = me?.spouse === 'husband' || me?.household;
-if (isHusbandViewer)      → 府内 / 相好 / 常来往 / 其他人
-else if (isWifeOfHusband) → 我的人(王甯) / 王家 / 我的人(自己) / 其他人
-else                      → 我的人(自己或配偶) / 王东家 / 王府家眷 / 熟人 / 其他人
-```
-
-**头衔**：非他妻妾的人看到王甯 → `临江茶坊少东家`（不再显示"相公"）。
-
-**身份卡**（`member-card.js`）：非亲眷写「王甯与你并无婚配、也无亲缘，只是个城里的东家；绝不许把他说成你的相公」。
-
-**提示词**（`pet-service.js`）：新增身份铁律（玩家是谁、不是王甯、非亲眷不许说"你相公"、不许替她编夫君宅院）。
-
-**实测**：新号菜单 → `group=王东家`、`role=临江茶坊少东家`；"我的人"为空。
-
----
-
-### ③ 隔空搭话（已治本）
-
-**改法**：把整段远程应声代码移除，改为铁律注释：
-
-```js
-// 物理在场铁律：不在同一地点的人，绝不隔空搭话（此前的远程应声已移除）
-```
-
-**实测**：离析在酒肆说话，王宅正房的王甯不再应声。
-
----
-
-### 验证
-
-| 项 | 结果 |
-|---|---|
-| `node --check`（server / pet-service / member-card） | 通过 |
-| `flutter analyze` | 0 issues |
-| `python scripts/regress.py` | **20/20** |
-| 新号 household | null ✅ |
-| 新号菜单王甯 | 王东家 / 临江茶坊少东家 ✅ |
-| 新号"我的人" | 空 ✅ |
-| 跨地点应声 | 已移除 ✅ |
-| 线上热更新 | `/health` 正常 |
-| 安卓包 | 已重打覆盖桌面（18:00） |
-
----
-
-## ❓ 待审查官裁决（OPEN QUESTIONS · 请 Antigravity 定，不必问相公）
-
-### Q1. 亲眷（妻妾）是否允许"隔空应一声"？
-
-本轮按任务单"严格物理在场"把所有跨地点应声移除了。于是：
-
-```
-离析在于家酒肆说话 → 王宅正房的王甯不应声（正确）
-婉儿在王宅正房喊"相公" → 人在酒楼的王甯也不应声（可能过严）
-```
-
-| 方案 | 行为 | 好处 | 坏处 |
-|---|---|---|---|
-| A（当前） | 一律不隔空应声 | 绝对干净，无幽灵搭话 | 夫妻隔空喊话无人应，戏上略冷 |
-| B | 只对亲眷（household / spouse / 亲生子女）开口子，可应一声并注明"他在某处，隔着地方回了一句" | 保留夫妻应答 | 重新引入远程路径，有退回旧 bug 的风险 |
-
-**执行方建议：先保持 A**，等"派小厮传话 / 写信"这类跨地点传话机制做出来，再考虑 B。
-
-**请审查官裁决：保持 A / 改为 B / 暂缓。**
-
----
-
-### Q2. 非亲眷看王甯的头衔，用哪个更稳？
-
-当前实现：`临江茶坊少东家`（归组"王东家"）。
-备选：`临江茶坊王掌柜` / `城中东家王甯`。
-
-**请审查官定一个，我按定下来的落进 `group()` 与 `role` 映射。**
-
+### 前期完成（2026-11-05 18:05 · 招募弹窗 + 新号视角隔离）
+- 招募弹窗显示安家银与月饷已修复并通过；
+- `/api/me` 中馈已对非内宅屏蔽；
+- 找人抽屉三视角隔离完成，王甯对外展示为「临江茶坊少东家」归入【王东家】；
+- 隔空幽灵应声代码已彻底移除。
+- **审查官裁决**：
+  - Q1：保持方案 A（一律不隔空应声，严格物理在场）；
+  - Q2：定为「临江茶坊少东家」。

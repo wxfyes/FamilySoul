@@ -1,10 +1,45 @@
 /**
- * 代演 —— 真人不在场或在场 NPC 需接话时，由一次极小的模型调用替他说一句
+ * 代演 —— 真人不在场或在场 NPC 需接话时，由一次极小的模型调用替他说一句。
+ *
+ * 【本文件的铁律】
+ * 代演的人设一律由「他与眼前这个人是什么关系」推出来，绝不按角色名硬写死。
+ * 同一个于子归：
+ *   面对自己媳妇  → 糙汉疼媳妇、动手动脚
+ *   面对来求职的  → 工头掌柜，问力气、谈工钱
+ *   面对不相干的  → 市井汉子，粗声粗气就事论事
+ * 关系来源只有一个：actor.spouse / actor.relations / actor.lovers。
  */
+
+/** 他与听者的关系（唯一出处） */
+export function relationOf(actor, hearer) {
+  if (!actor || !hearer) return 'outsider';
+  const hid = String(hearer.id || '');
+  if (!hid) return 'outsider';
+  if (actor.spouse && String(actor.spouse) === hid) return 'spouse';
+  if (Array.isArray(actor.lovers) && actor.lovers.includes(hid)) return 'lover';
+  const rel = actor.relations?.[hid] || {};
+  if (rel.lover || rel.intimacy === 'lover') return 'lover';
+  if (Number(rel.desire) >= 70 && Number(rel.trust) >= 60) return 'lover';
+  if (actor.id === 'husband' && hearer.household) return 'household';
+  if (actor.household && hearer.id === 'husband') return 'household';
+  if (actor.household && hearer.household) return 'household';
+  return 'outsider';
+}
+
+/** 说话人的行当气质（按身份类别，不按姓名） */
+function flavorOf(actor) {
+  const text = `${actor?.role || ''} ${actor?.name || ''}`;
+  if (/工头|营造|泥瓦|木匠|力工/.test(text)) return 'rough';
+  if (/书办|书吏|衙役|吏|先生|夫子/.test(text)) return 'scholar';
+  if (/东家|掌柜|少东家|商人|客商/.test(text)) return 'merchant';
+  if (/婆|婶|娘|嫂|丫鬟|绣/.test(text)) return 'woman';
+  return 'townsfolk';
+}
 
 /**
  * @param {object} p
  * @param {object} p.actor 他要演的人（世界里的 actor）
+ * @param {object} [p.hearer] 正在跟他说话的人（actor）
  * @param {string[]} p.memories 与他有关的旧事
  * @param {string[]} p.facts 事实清单
  * @param {string} p.hearerName 正在跟他说话的人
@@ -13,61 +48,56 @@
  * @param {string} p.recent 最近几句对话（可选）
  * @returns {{system:string, user:string, maxTokens:number}}
  */
-export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName, hearerPlace, said, recent = '' }) {
+export function buildProxyPrompt({ actor, hearer = null, memories = [], facts = [], hearerName, hearerPlace, said, recent = '' }) {
   const actorName = actor?.name || '王甯';
-  const isYuZiGui = actorName === '于子归' || actor?.id === 'npc_2' || /于子归|于工头/.test(actorName);
-  const isHusband = actor?.id === 'husband' || actorName === '王甯';
-  const isSuiKe = actorName === '随科' || actor?.id === 'npc_suike' || /随科|随书办/.test(actorName);
+  const relation = relationOf(actor, hearer);
+  const intimate = relation === 'spouse' || relation === 'lover';
+  const flavor = flavorOf(actor);
+  const who = hearer?.name || hearerName || '对方';
 
-  let roleInstructions = [];
+  const lines = [];
+  lines.push(`你现在代演「${actorName}」——${actor?.role || '城中人'}。他本人不在线，由你按他的立场说话。`);
 
-  if (isYuZiGui) {
-    // ══════ 【于子归·营造行工头·正牌糙汉丈夫人设】 ══════
-    roleInstructions = [
-      `你现在代演「于子归」——营造行工头、紫嫣（${hearerName || '酒肆老板娘'}）明媒正娶的合法正牌糙汉丈夫！`,
-      '【核心夫妻人设与性情铁律（会做事、会疼人、真刀真枪的硬汉）】：',
-      '1. 【身份与真情】：你是紫嫣明媒正娶的男人！手下几十号兄弟，身强力壮、干柴烈火。你平日在外跑工期，心里把媳妇当命根子疼！',
-      '2. 【主动做事与担当】：媳妇铺子有难处、债账发愁，你拍胸脯主动揽大活赶工挣大银子顶上；门面桌椅旧了，你主动挽袖子修缮翻新，牵动生计；',
-      '3. 【夫妻床笫真刀真枪与粗野荤话】：',
-      '   - 面对娇妻撒娇、抱怨、求欢、要你伺候或身体接触：绝不许温吞水原地打转，必须真刀真枪动起来！',
-      '   - 动作具体有力：大手揽过丰腴身子褪裙解衫、覆身而上架起双腿、粗大阳物挺入深处抽送撞击；',
-      '   - 满嘴糙汉干柴烈火的真情粗话（如“老子这就插进去了”、“小妖精夹得这么紧”、“老子顶得你舒坦不舒坦”），既勇猛又小心护着娇妻肚子；',
-      '   - 若娇妻说要走、回家、乏了或叫停，立刻收劲放行，满头大汗取温热汗巾替她仔细擦拭整理裙袄，温存呵护；',
-      '4. 【绝对禁忌 · 彻底禁止复读】：绝对严禁把「黑洞/塌出/空洞」当成口头禅复读！那陈年旧事早填平翻篇了！你的心思全在媳妇、手头大工与自家日子上！',
-      '5. 只写于子归自己说的话，一到两句；不要旁白、不要写别人的台词、不要以名字开头。',
-    ];
-  } else if (isHusband) {
-    // ══════ 【王甯·茶坊少东家·相公人设】 ══════
-    roleInstructions = [
-      `你现在代演「王甯」——临江茶坊少东家。他本人不在线，由你按他的记忆与立场说话。`,
-      '铁律：',
-      '1. 你只依据下面「事实清单」说话。清单里没有的关系、金钱、去处、承诺，你一律不知道——说不记得/不清楚，绝不许推断、绝不许编。',
-      '2. 你就是他本人。别人问「王掌柜在不在」，问的就是你，不许说「他不在」。',
-      '3. 面对不同女人展现不同魅力：对正妻沈婉儿端庄深情又有夫妻情趣；对妾室芸娘极尽温存宠溺；对情人（如紫嫣、战静）霸道风流、调弄深入，床笫间动作热辣、荤话低沉肉感；',
-      '4. 若对方说乏了、要走或停歇，体贴放行，替她穿好衣裳温存照料，绝不霸道硬来。',
-      '5. 只写他自己说的话，一到两句；不要旁白、不要写别人的台词、不要以他的名字开头。',
-    ];
-  } else if (isSuiKe) {
-    // ══════ 【随科·县衙书吏·斯文破防人设】 ══════
-    roleInstructions = [
-      `你现在代演「随科」——县衙书办，战静的丈夫。平日斯文拘谨，在妻子战静面前却极有夫妻情分。`,
-      '1. 面对外事谨慎唯诺，但在私密闺房中被妻子撩拨后反差极大，呼吸急促粗喘，斯文外表下克制不住的情欲涌动；',
-      '2. 只写他自己说的话，一到两句；不要旁白、不要写别人的台词、不要以名字开头。',
-    ];
+  // ① 关系铁律：这是本轮最要紧的一条，写在最前面
+  if (intimate) {
+    lines.push(`【眼前这个人】：${who}，是他的${relation === 'spouse' ? '结发之人' : '相好'}。可以有关起门来的亲近与疼惜，但要像活人，不要写成荤段子。`);
   } else {
-    // ══════ 【其他通用 NPC · 鲜活市井活人】 ══════
-    roleInstructions = [
-      `你现在代演「${actorName}」——身份：${actor?.role || '城中人'}。`,
-      '铁律：',
-      '1. 你是江南市井中活生生的人，有手头营生与现实盘算，绝不是读台词的木头 NPC。',
-      '2. 面对对方的话，先正面回应，并结合自己的本分主动推进事态、商议对策或辅助配合，绝不机械复读陈年旧事故。',
-      '3. 若对方询问此处铺子/酒楼/产业是谁家的、东家是谁，必须严格依据「事实清单」回答东家，绝不可凭空编造其他外姓主家！',
-      '4. 只写他/她自己说的话，一到两句；不要旁白、不要写别人的台词、不要以名字开头。',
-    ];
+    lines.push(`【眼前这个人】：${who}，**与他没有婚配、不是他的相好，只是个外人**。`);
+    lines.push('绝不可称对方"媳妇/娘子/宝贝"，绝不可动手动脚、揽腰拉手，绝不可说"想你了"这类私房话。');
   }
 
+  // ② 行当气质
+  if (flavor === 'rough') {
+    lines.push(intimate
+      ? '你是营造行的大工头，手上几十号兄弟，嗓门大、力气足；对着自家媳妇会粗声粗气地疼人，会拍胸脯把难处揽下来。'
+      : '你是营造行的大工头、酒肆的男掌柜：嗓门大、手脚快、就事论事。来求职的，先看他身板力气、问会什么手艺、谈工钱与吃住；来吃酒的，吆喝一声上酒上菜。');
+  } else if (flavor === 'scholar') {
+    lines.push(intimate
+      ? '你在衙门当差，人前谨饬寡言，回到房里对自家人才有几分软话。'
+      : '你在衙门当差，说话谨慎、按规矩来；对外人客客气气，不逾矩。');
+  } else if (flavor === 'merchant') {
+    lines.push(intimate
+      ? '你是做买卖的人，对自家妻室温和体贴，账目上的事也肯与她商量。'
+      : '你是做买卖的人：先问客人要什么、多少价、几时交货；客气、精明、不卑不亢。');
+  } else if (flavor === 'woman') {
+    lines.push(intimate
+      ? '你与对方是自家人，说话亲热随意，会念叨柴米、会护短。'
+      : '你是市井里的妇人，说话有分寸；对着生客，只答该答的，不热络也不失礼。');
+  } else {
+    lines.push(intimate
+      ? '你与对方是自家人，说话随意亲切，会顾着对方冷暖。'
+      : '你是江南市井里活生生的人，有自己的营生与盘算；对生客客气但保持距离。');
+  }
+
+  // ③ 通用铁律
+  lines.push('铁律：');
+  lines.push('1. 只依据下面「事实清单」说话；清单里没有的关系、银钱、去处、承诺，一律不知道，不许编。');
+  lines.push('2. 先正面回应对方这句话，再按自己的本分推进一步（招工就谈差事工钱，买卖就谈货价，闲话就接闲话）。');
+  lines.push('3. 不许复读陈年旧事；不许替对方说话；不许写旁白。');
+  lines.push('4. 只写他自己说的话，一到两句；不要以名字开头。');
+
   const system = [
-    ...roleInstructions,
+    ...lines,
     memories.length ? `旧事记忆：${memories.slice(-4).join('；')}` : '',
     facts.length ? `事实清单：${facts.slice(-6).join('；')}` : '',
   ]
@@ -77,10 +107,10 @@ export function buildProxyPrompt({ actor, memories = [], facts = [], hearerName,
   const user = [
     recent ? `刚才你们说的：\n${recent}` : '',
     `此刻在「${hearerPlace || '铺子里'}」。`,
-    `${hearerName || '对方'}说：${said}`,
-    isYuZiGui
-      ? '（媳妇正在跟你说话，若是求欢撒娇或要你伺候，拿出营造行汉子的热辣猛劲，具体动作挺入抽送伺候她；若她说走或累了，体贴放行擦拭！）'
-      : '（先正面回应对方这句话；保持人物生动口吻，绝不念套话。）',
+    `${who}说：${said}`,
+    intimate
+      ? '（就眼前这句话接下去；亲近要像过日子的人，不要写成露骨荤话。）'
+      : '（就眼前这句话正面回应；你是他的行当身份，不是他媳妇的丈夫。）',
     `请以「${actorName}」的身份，直接说一到两句。`,
   ]
     .filter(Boolean)

@@ -25,6 +25,7 @@ import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
 import { runMigration, settleMigrants } from './migration.js';
+import { evictTrespassers } from './dwelling.js';
 import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
@@ -1923,6 +1924,12 @@ function syncToRealClock(world, nowMs) {
 
 function advanceHour(world, events, nowMs) {
   world.clock.hour += 1;
+  // 每小时：私宅巡检——不是这宅子的人，待久了或入夜就请出去
+  try {
+    evictTrespassers(world, events, nextEvent);
+  } catch (err) {
+    console.warn('[Dwelling] 私宅巡检失败：', err.message);
+  }
   if (world.clock.hour >= 24) {
     world.clock.hour = 0;
     world.clock.day += 1;
