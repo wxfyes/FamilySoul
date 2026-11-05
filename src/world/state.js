@@ -1395,6 +1395,22 @@ export function migrateOwnership(world) {
     }
   }
 
+  // 国库尺度：历史上的"几百两"是民间尺度误用，一次性抬到国家尺度（百万级）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.treasuryScaleDone) {
+      world.court = world.court || {};
+      const tr = world.court.treasury = world.court.treasury || {};
+      const cur = Number(tr.silver) || 0;
+      if (cur < 100000) {
+        tr.silver = 1200000;
+        tr.grain = Math.max(Number(tr.grain) || 0, 800);
+        console.log('[Treasury] 国库改按国家尺度记账：1200000 两（原 %s 两）', cur);
+      }
+      world.flags.treasuryScaleDone = { day: world.clock?.day || 1 };
+    }
+  } catch { /* 忽略 */ }
+
   // 税率落成数据：没写过的补 10%；历史上被 `|| 10` 暗中按 10% 收税的城，一次性明确为 10%
   // （只做一次，之后 0 就是真的免税，不再回填）
   try {

@@ -1,0 +1,53 @@
+import io
+p = 'src/world/clock.js'
+s = io.open(p, encoding='utf-8-sig').read()
+
+# ① 秋粮折银也要按国家尺度
+s = s.replace("const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 1.2 * 100) / 100;",
+              "const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 1.2 * K * 100) / 100;")
+
+# ② 贪墨：截留的一部分真的进了官员私囊（官商勾结的本钱）
+old = """  // 国库见底：加税或欠俸
+  if (tr.silver < 0) {"""
+new = """  // 贪墨：截留的一部分进了官员自己的口袋（国库漏多少，官就肥多少）
+  try {
+    const holders = Object.values(world.court?.offices || {}).filter((o) => o && o.holder && !o.vacant)
+      .map((o) => world.actors?.[o.holder]).filter((a) => a && !a.dead);
+    if (skim > 0 && holders.length) {
+      const each = Math.round((skim * 0.3 / holders.length) * 100) / 100;
+      for (const a of holders) a.money = Math.round(((Number(a.money) || 0) + each) * 100) / 100;
+      tr.detail.skimToOfficials = Math.round(each * holders.length * 100) / 100;
+    }
+  } catch { /* 忽略 */ }
+
+  // 赈灾：国库出钱；出不起，灾民就自己想办法
+  try {
+    const disasters = (events || []).filter((e) => e && e.action === 'disaster').length;
+    if (disasters > 0) {
+      const relief = disasters * 5000;
+      if (Number(tr.silver) >= relief) {
+        tr.silver = Math.round((Number(tr.silver) - relief) * 100) / 100;
+        tr.lastExpense = Math.round((Number(tr.lastExpense) + relief) * 100) / 100;
+        tr.detail.relief = relief;
+        for (const ct of Object.values(world.cities || {})) {
+          if (ct) ct.unrest = Math.max(0, (Number(ct.unrest) || 0) - 2);
+        }
+      } else {
+        tr.silver = 0;
+        tr.detail.relief = 0;
+        world.flags = world.flags || {};
+        world.flags.courtPressure = Math.min(100, (Number(world.flags.courtPressure) || 0) + 5);
+        for (const ct of Object.values(world.cities || {})) {
+          if (ct) ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 4);
+        }
+        events.push(nextEvent(world, { action: 'relief_short', actor: 'court', place: null, payload: { text: '国库拨不出赈灾粮款，灾民聚于城外' }, isPublic: true }));
+      }
+    }
+  } catch { /* 忽略 */ }
+
+  // 国库见底：加税或欠俸
+  if (tr.silver < 0) {"""
+if old in s and '贪墨' not in s:
+    s = s.replace(old, new, 1)
+    print('① 贪墨入库 + 赈灾支出')
+io.open(p, 'w', encoding='utf-8-sig').write(s)

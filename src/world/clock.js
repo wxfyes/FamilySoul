@@ -864,7 +864,7 @@ function runPersonalEconomy(world, events) {
 function runTreasury(world, events) {
   const day = Number(world.clock?.day) || 1;
   world.court = world.court || {};
-  const tr = world.court.treasury = world.court.treasury || { silver: 1200, grain: 800, lastIncome: 0, lastExpense: 0 };
+  const tr = world.court.treasury = world.court.treasury || { silver: 1200000, grain: 800, lastIncome: 0, lastExpense: 0 };
 
   // 收：城税 + 商税 + 关税（朝廷的城才上缴）
   let income = 0;
@@ -896,10 +896,69 @@ function runTreasury(world, events) {
   const pay = ((Number(mil.army) || 0) + (Number(mil.militia) || 0) * 0.5) / 100 * 2;
   const expense = Math.round((salary + pay) * 100) / 100;
 
-  tr.silver = Math.round(((Number(tr.silver) || 0) + income - expense) * 100) / 100;
-  tr.lastIncome = Math.round(income * 100) / 100;
-  tr.detail = { cityTax: Math.round((income - tradeTax - tariff) * 100) / 100, tradeTax, tariff, tariffCities };
-  tr.lastExpense = expense;
+  // 国家尺度：朝廷的银库以"国库两"计（民间 1 两 = 国库 100 两）
+  const K = 100;
+  const grossIncome = Math.round(income * K * 100) / 100;
+  const salaryPay = Math.round(expense * K * 100) / 100;
+
+  // 制度性损耗：火耗、漂没、截留、层层盘剥（国库越大、衙门越松，漏得越多）
+  const courtPressure = Number(world.flags?.courtPressure) || 0;
+  const skimRate = Math.min(0.35, 0.06 + courtPressure / 400 + (Number(world.flags?.courtBankrupt) ? 0.05 : 0));
+  const skim = Math.round(grossIncome * skimRate * 100) / 100;
+
+  tr.silver = Math.round(((Number(tr.silver) || 0) + grossIncome - skim - salaryPay) * 100) / 100;
+  tr.lastIncome = grossIncome;
+  tr.lastExpense = Math.round((salaryPay + skim) * 100) / 100;
+  tr.detail = {
+    cityTax: Math.round((income - tradeTax - tariff) * K * 100) / 100,
+    tradeTax: Math.round(tradeTax * K * 100) / 100,
+    tariff: Math.round(tariff * K * 100) / 100,
+    salary: salaryPay,
+    skim,
+    skimRate: Math.round(skimRate * 1000) / 1000,
+  };
+
+  // 贪墨：截留的一部分进了官员自己的口袋（国库漏多少，官就肥多少）
+  try {
+    const holders = Object.values(world.court?.offices || {})
+      .filter((o) => o && o.holder && !o.vacant)
+      .map((o) => world.actors?.[o.holder])
+      .filter((a) => a && !a.dead);
+    if (skim > 0 && holders.length) {
+      const each = Math.round((skim * 0.3 / holders.length) * 100) / 100;
+      for (const a of holders) a.money = Math.round(((Number(a.money) || 0) + each) * 100) / 100;
+      tr.detail.skimToOfficials = Math.round(each * holders.length * 100) / 100;
+    }
+  } catch { /* 忽略 */ }
+
+  // 赈灾：国库出钱；出不起，灾民就自己想办法
+  try {
+    const disasters = (events || []).filter((e) => e && e.action === 'disaster').length;
+    if (disasters > 0) {
+      const relief = disasters * 5000;
+      if (Number(tr.silver) >= relief) {
+        tr.silver = Math.round((Number(tr.silver) - relief) * 100) / 100;
+        tr.lastExpense = Math.round((Number(tr.lastExpense) + relief) * 100) / 100;
+        tr.detail.relief = relief;
+        for (const ct of Object.values(world.cities || {})) {
+          if (ct) ct.unrest = Math.max(0, (Number(ct.unrest) || 0) - 2);
+        }
+      } else {
+        tr.silver = 0;
+        tr.detail.relief = 0;
+        world.flags = world.flags || {};
+        world.flags.courtPressure = Math.min(100, (Number(world.flags.courtPressure) || 0) + 5);
+        for (const ct of Object.values(world.cities || {})) {
+          if (ct) ct.unrest = Math.min(100, (Number(ct.unrest) || 0) + 4);
+        }
+        events.push(nextEvent(world, {
+          action: 'relief_short', actor: 'court', place: null,
+          payload: { text: '国库拨不出赈灾粮款，灾民聚于城外' }, isPublic: true,
+        }));
+      }
+    }
+  } catch { /* 忽略 */ }
+
 
   // 国库见底：加税或欠俸
   if (tr.silver < 0) {
@@ -915,7 +974,7 @@ function runTreasury(world, events) {
   }
 
   // 欠俸：国库长期不足，官府只能加派、贪腐更狠
-  if (tr.silver < 300) {
+  if (tr.silver < 300000) {
     world.flags = world.flags || {};
     world.flags.courtPressure = Math.min(100, (Number(world.flags.courtPressure) || 0) + 2);
     if (day % 7 === 0) {
@@ -927,7 +986,7 @@ function runTreasury(world, events) {
   if (day % 30 === 0) {
     // 秋粮折银：陈粮卖一部分换现银（丰年多、荒年少）
     const grainNow = Number(tr.grain) || 0;
-    const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 1.2 * 100) / 100;
+    const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 1.2 * K * 100) / 100;
     if (grainToSilver > 0) {
       tr.silver = Math.round(((Number(tr.silver) || 0) + grainToSilver) * 100) / 100;
       tr.grain = Math.max(0, grainNow - Math.round(grainNow * 0.1));
