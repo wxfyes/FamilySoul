@@ -1412,6 +1412,7 @@ export class PetService {
             `玩家扮演的是${a.name}（${a.role || ''}）。**你不演她**——她已经由真人控制。`,
             '你负责演这个世界的其他人：**严格只限当前真实在场的人**。不在场的人一律不会说话、不能凭空出现，绝不许生造路人掌柜或无关NPC插嘴打断。',
             '**谁在场，就由谁开口**；不在场的人不会说话，也不能凭空出现。',
+            '**提到不在场的人（比如王掌柜）时，只能由在场的人转述"他怎样怎样"，绝对不许给他写【某某】：的台词**——写了也会被引擎整段删掉。',
             '每个人的身份、性情、对玩家的态度，由【在场】与【你此刻知道的实况】决定。',
             '绝不替玩家说话、绝不替她做决定、绝不描写她的心理活动，也不要写"她心想"。',
             '她的话可能是试探、也可能是遮掩——你按人物本来的处境应答，不必点破，也不必全信。',
@@ -3177,14 +3178,39 @@ export class PetService {
       if (merged) {
         reply = merged;
       } else {
-        // 全被剔掉（他这句里只有一个不在场的人）：改成在场者的旁观叙述，绝不让人隔空开腔
+        // 全被剔掉（这一轮只有不在场的人在说话）：不写死文案，
+        // 让在场的人真的回答一句（她认不认识、知不知道，由天道照实情说）
         const presentOne = Object.values(wPres.actors || {}).find(
           (a) => a && !a.dead && a.id !== mePres?.id && a.location === hereLoc && a.name,
         );
-        reply = presentOne
-          ? `【${presentOne.name}】：（${presentOne.name}听你提起这个名字，顿了顿）他此刻人不在跟前。`
-          : '（你问的人此刻不在跟前，四下无人接话。）';
-        console.log('[Presence] 该句只剩不在场者，已改为在场叙述');
+        if (presentOne) {
+          const pp2 = buildProxyPrompt({
+            actor: presentOne,
+            hearer: mePres,
+            memories: [],
+            facts: [personFacts(wPres, presentOne.id)].filter(Boolean),
+            hearerName: mePres?.name || '客人',
+            hearerPlace: String(wPres.places?.[hereLoc]?.name || ''),
+            said: String(say || '').slice(0, 200),
+            recent: '',
+          });
+          try {
+            const res2 = await this.llmClient.complete({
+              system: pp2.system,
+              messages: [{ role: 'user', content: pp2.user }],
+              maxTokens: 150,
+              temperature: 0.8,
+            });
+            const line2 = wrapProxyLine(presentOne.name, res2?.text);
+            reply = line2 || `【${presentOne.name}】：（摇了摇头）这名字我没听过。`;
+          } catch {
+            reply = `【${presentOne.name}】：（摇了摇头）这名字我没听过。`;
+          }
+          console.log(`[Presence] 该句只剩不在场者，改由在场者 ${presentOne.name} 回答`);
+        } else {
+          reply = '（你问的人此刻不在跟前，四下无人接话。）';
+          console.log('[Presence] 该句只剩不在场者，且场上无人');
+        }
       }
     } catch { /* 忽略 */ }
 
