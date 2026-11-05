@@ -1276,20 +1276,80 @@ function toggleSidebar() {
 }
 
 // ── 人物列表即时搜索与过滤 ──────────────────────────────────────
-function filterActors(term = '', category = 'all') {
-  const query = (term || '').trim().toLowerCase();
+// ── 人物列表即时搜索与州府过滤 ──────────────────────────────────────
+let currentActorCity = 'all';
+let currentActorCategory = 'all';
+let currentActorSearch = '';
+
+function selectActorCity(city) {
+  currentActorCity = city || 'all';
+  // 更新 pills 激活样式
+  document.querySelectorAll('#cityPillsList .city-pill').forEach(el => {
+    const isAll = city === 'all' && el.textContent.includes('全部');
+    const isTarget = city !== 'all' && el.textContent.includes(city);
+    el.classList.toggle('active', isAll || isTarget);
+  });
+  const sel = document.getElementById('citySelectDropdown');
+  if (sel) {
+    if (city === 'all') sel.value = 'all';
+    else if ([...sel.options].some(o => o.value === city)) sel.value = city;
+  }
+  filterActors(currentActorSearch, currentActorCategory);
+}
+
+function filterActors(term = '', category = '') {
+  if (category) currentActorCategory = category;
+  if (typeof term === 'string') currentActorSearch = term;
+
+  const query = (currentActorSearch || '').trim().toLowerCase();
   const rows = document.querySelectorAll('#actors tr');
+  let visibleCount = 0;
+
+  // 更新分类按钮高亮
+  const catBtns = {
+    'all': 'btn-filter-all',
+    'here': 'btn-filter-here',
+    'house': 'btn-filter-house',
+    'love': 'btn-filter-love',
+    'court': 'btn-filter-court'
+  };
+  Object.entries(catBtns).forEach(([catKey, btnId]) => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      if (currentActorCategory === catKey) {
+        btn.classList.add('btn-primary');
+      } else {
+        btn.classList.remove('btn-primary');
+      }
+    }
+  });
+
   rows.forEach(tr => {
     const text = (tr.textContent || '').toLowerCase();
+    const city = tr.getAttribute('data-city') || '临江府';
+
+    // 1. 城市匹配
+    const matchesCity = (currentActorCity === 'all' || city === currentActorCity);
+
+    // 2. 搜索词匹配
     const matchesQuery = !query || text.includes(query);
+
+    // 3. 身份分类匹配
     let matchesCat = true;
-    if (category === 'here') matchesCat = tr.querySelector('.tag.good') != null || text.includes('在场');
-    else if (category === 'house') matchesCat = text.includes('正妻') || text.includes('二房') || text.includes('通房') || text.includes('内宅');
-    else if (category === 'love') matchesCat = text.includes('相好') || text.includes('外室') || text.includes('有喜');
-    else if (category === 'court') matchesCat = text.includes('知府') || text.includes('典吏') || text.includes('官府') || text.includes('衙门') || text.includes('尚书');
-    
-    tr.style.display = (matchesQuery && matchesCat) ? '' : 'none';
+    if (currentActorCategory === 'here') matchesCat = tr.querySelector('.tag.good') != null || text.includes('在场');
+    else if (currentActorCategory === 'house') matchesCat = text.includes('正妻') || text.includes('二房') || text.includes('通房') || text.includes('内宅') || text.includes('相公') || text.includes('丫鬟') || text.includes('书童');
+    else if (currentActorCategory === 'love') matchesCat = text.includes('相好') || text.includes('外室') || text.includes('有喜') || text.includes('有孕');
+    else if (currentActorCategory === 'court') matchesCat = text.includes('知府') || text.includes('知县') || text.includes('典吏') || text.includes('官府') || text.includes('衙门') || text.includes('尚书') || text.includes('统领');
+
+    const show = matchesCity && matchesQuery && matchesCat;
+    tr.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
   });
+
+  const pill = document.getElementById('actors-count-pill');
+  if (pill) {
+    pill.textContent = currentActorCity === 'all' ? `共 ${visibleCount} 人` : `${currentActorCity} (${visibleCount}人)`;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1300,8 +1360,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// 智能判断人物所属州府/县城
+function cityOfActor(a, citiesList = []) {
+  if (a.city) return a.city;
+  const text = (a.place || '') + ' ' + (a.role || '') + ' ' + (a.name || '');
+  if (Array.isArray(citiesList)) {
+    for (const c of citiesList) {
+      if (text.includes(c)) return c;
+    }
+    for (const c of citiesList) {
+      const s = c.replace(/府|州|县/, '');
+      if (s.length >= 2 && text.includes(s)) return c;
+    }
+  }
+  return '临江府';
+}
 
-// 终极健壮 $ 选择器：若节点不存在返回虚拟 Proxy 节点，坚决杜绝 null.textContent 白屏
 const _dummyProxy = new Proxy({}, {
   get: (target, prop) => {
     if (prop === 'classList') return { add(){}, remove(){}, toggle(){}, contains: () => false };
@@ -1487,83 +1561,170 @@ function render(w){
 
 
   // ── 💰 账目卡 ──────────────────────────────
+  // ── 🌟 今日天道动态焦点速报 ──────────────────────
+  if ($('card-today-focus')) {
+    const clk = w.clock || {};
+    const d = w.date || {};
+    const dateText = d ? `${d.month || ''}月${d.day || ''}日 ${d.lunar?.text || ''}` : '';
+    $('focus-clock-sub').textContent = `第 ${clk.day || 1} 世界日 · ${clk.shichen || ''} (${clk.hour || 0}时)`;
+
+    // 1. 粮草与市道
+    const grainPrice = w.grain?.price ? (Number(w.grain.price)/100).toFixed(2) : '0.60';
+    const cityGrains = Object.entries(w.cities || {}).filter(([, c]) => Number(c.grain) > 0);
+    const topCityGrain = cityGrains.sort((a,b) => Number(b[1].grain) - Number(a[1].grain))[0];
+    const wangjiaGrain = Number(w.factions?.wangjia?.grain) || 0;
+    $('foc-grain').innerHTML = `市面米价 <b>${grainPrice}</b> 两/石 · 王家随军粮 <b>${wangjiaGrain.toFixed(1)}</b> 石${topCityGrain ? ` · ${topCityGrain[0]}城仓储粮 <b>${topCityGrain[1].grain}</b> 石` : ''}`;
+
+    // 2. 灾荒与赈恤
+    const disasters = (w.recentEvents || []).filter(e => String(e.action || '').includes('disaster') || /旱|水|蝗|震|灾/.test(e.payload?.text || ''));
+    if (disasters.length > 0) {
+      const latestD = disasters[0];
+      $('foc-disaster').innerHTML = `<span class="bad">⚠️ ${latestD.place || ''}遭灾：${(latestD.payload?.text || '').slice(0, 32)}</span>`;
+    } else {
+      $('foc-disaster').innerHTML = `<span class="good">🌿 四海升平，各府县安居乐业，暂无大灾告急</span>`;
+    }
+
+    // 3. 兵戈行军与开拔
+    const allMarches = [];
+    Object.values(w.factions || {}).forEach(f => {
+      if (Array.isArray(f.marches)) {
+        f.marches.forEach(m => allMarches.push({ factionName: f.name || f.id, ...m }));
+      }
+    });
+    if (Array.isArray(w.marches)) {
+      w.marches.forEach(m => allMarches.push({ factionName: '行军', ...m }));
+    }
+    if (allMarches.length > 0) {
+      $('foc-march').innerHTML = allMarches.map(m =>
+        `<span class="warn">🚩 ${m.factionName}开拔：${m.from || '驻地'} → ${m.to} (${m.troops || m.count || 0}兵，第${m.arriveDay}日到)</span>`
+      ).join('；');
+    } else {
+      $('foc-march').innerHTML = `<span class="muted">天下偃武，各势力兵马在营驻守，暂无调动</span>`;
+    }
+
+    // 4. 今日待办与兵备
+    const todos = (w.pending || []).concat(w.promises || []);
+    if (todos.length > 0) {
+      $('foc-todo').innerHTML = `<span class="warn">⏳ 有 ${todos.length} 件要紧待办：${(todos[0].text || todos[0].title || '').slice(0, 28)}...</span>`;
+    } else {
+      $('foc-todo').innerHTML = `<span class="muted">相公今日优游自得，暂无催办要事</span>`;
+    }
+
+    // 5. 市井天下风闻
+    const rumors = Array.isArray(w.rumors) ? w.rumors : [];
+    if (rumors.length > 0) {
+      const lastR = rumors[rumors.length - 1];
+      $('foc-rumor').innerHTML = `💬 「${lastR.text || ''}」`;
+    } else {
+      $('foc-rumor').innerHTML = `<span class="muted">临江茶肆客商对坐，细品春茶，市井恬淡</span>`;
+    }
+  }
+
+  // ── 💰 银两与百业卡升级 ──────────────────────────────
   if ($('card-accounts')) {
     const silver = Number(w.assets?.silver ?? 0);
     const allProps = (w.assets?.properties || []).filter(p => (Number(p.incomePerDay) || 0) > 0 || p.keeperName);
-    const husbandProps = allProps.filter(p => p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper));
-    const otherProps = allProps.filter(p => !(p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper)));
+    const husbandProps = allProps.filter(p => p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper) || p.owner === 'wangjia');
+    const otherProps = allProps.filter(p => !(p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper) || p.owner === 'wangjia'));
     const income = husbandProps.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0);
-    $('a-acc-top').textContent = `现存 ${silver.toFixed(1)} 两 · 日入 ${income.toFixed(1)} 两`;
+    $('a-acc-top').textContent = `现存 ${silver.toFixed(1)} 两 · 日入 +${income.toFixed(1)} 两`;
+
     let accHtml = '';
+    // 汇总产业粮栈攒粮
+    let totalGrainStock = 0;
     accHtml += husbandProps.map(p => {
-      const keeper = p.keeperName ? ` <span class="muted">(${p.keeperName}当家)</span>` : '';
+      const keeper = p.keeperName ? ` <span class="muted">(${p.keeperName}打理)</span>` : '';
+      const stock = Number(p.grainStock) || 0;
+      if (stock > 0) totalGrainStock += stock;
+      const stockBadge = stock > 0 ? ` <span class="tag good">存粮 ${stock.toFixed(0)}石</span>` : '';
       return `<div class="row">
-        <span>${p.name}${keeper}</span>
+        <span><b>${p.name}</b>${keeper}${stockBadge}</span>
         <span class="num good">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
       </div>`;
     }).join('');
+
+    if (totalGrainStock > 0) {
+      accHtml += `<div class="row"><span>🌾 产业粮栈可用军粮</span><span class="num good">${totalGrainStock.toFixed(1)} 石 (随时可拨归军用)</span></div>`;
+    }
+
     if (otherProps.length > 0) {
-      accHtml += `<div class="muted" style="margin:8px 0 2px;font-size:12px;">眷属私产（独立核算·不入公账）</div>`;
+      accHtml += `<div class="muted" style="margin:8px 0 2px;font-size:12px;">内眷私房名下产业（独立核算·不入公账）</div>`;
       accHtml += otherProps.map(p => {
         const ownerId = p.owner || p.keeper;
         const ownerName = p.ownerName || p.keeperName || (w.actors?.[ownerId]?.name) || '眷属';
         const privatePurse = Number(w.wallets?.[ownerId] ?? 0);
         return `<div class="row">
-          <span>${p.name} <span class="muted">(${ownerName}私产 · 私房存银 ${privatePurse.toFixed(1)}两)</span></span>
+          <span>${p.name} <span class="muted">(${ownerName}私产 · 私房银 ${privatePurse.toFixed(1)}两)</span></span>
           <span class="num" style="color:#a78bfa;">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
         </div>`;
       }).join('');
     }
     const debts = w.assets?.debts || 0;
     accHtml += `<div class="row"><span>借贷债务</span><span class="${debts > 0 ? 'bad' : 'muted'}">${debts > 0 ? debts + ' 两' : '无外债'}</span></div>`;
-    const expense = (Number(w.military?.supplies) || 0) + (Number(w.assets?.expensePerDay) || 0);
-    accHtml += `<div class="row"><span>月支预算</span><span class="muted">${expense > 0 ? (expense * 30).toFixed(0) + ' 两/月' : '流水无额外耗损'}</span></div>`;
     $('acc-detail').innerHTML = accHtml;
   }
 
-  // ── 🏛️ 朝堂卡 ──────────────────────────────
+  // ── 🏛️ 朝堂与国库大账升级 ──────────────────────────────
   if ($('card-court-core')) {
-    const courtOffices = Object.keys(w.court?.offices || {}).length || 0;
-    const factionsList = Object.entries(w.factions || {});
-    $('c-court-top').textContent = `官职 ${courtOffices} · 派系 ${factionsList.length}`;
+    const tr = w.court?.treasury || {};
+    const bal = Number(tr.balance ?? tr.silver ?? 1200000);
+    const lastIn = Number(tr.lastIncome ?? 8691);
+    const lastOut = Number(tr.lastExpense ?? 9300);
+    const net = lastIn - lastOut;
+    const netCls = net >= 0 ? 'good' : 'bad';
+    const netSign = net >= 0 ? '+' : '';
+
+    $('c-court-top').innerHTML = `国库 <b>${(bal / 10000).toFixed(1)}</b>万两 · 日净 <span class="${netCls}">${netSign}${net.toFixed(0)}两</span>`;
+
     let courtHtml = '';
-    courtHtml += factionsList.map(([k, f]) => {
-      const rel = Number(f.relation) || 0;
-      const relTag = rel >= 20 ? `<span class="tag good">交好(${rel})</span>` : rel <= -20 ? `<span class="tag bad">敌视(${rel})</span>` : `<span class="tag">中立(${rel})</span>`;
-      return `<div class="row"><span>${f.name || k}</span><span>${relTag} 势力${f.power ?? '—'}</span></div>`;
-    }).join('');
-    const decrees = Array.isArray(w.court?.decrees) ? w.court.decrees : [];
-    if (decrees.length > 0) {
-      courtHtml += `<div class="row"><span>最新朝廷奏谕</span><span class="muted">${decrees.slice(-1)[0].text || '无'}</span></div>`;
+    courtHtml += `<div class="row"><span>国库真体现银</span><span class="num good">${fmt(bal)} 两</span></div>`;
+    courtHtml += `<div class="row"><span>昨日总进项 / 总支出</span><span class="muted">+${fmt(lastIn)} 两 / -${fmt(lastOut)} 两</span></div>`;
+    courtHtml += `<div class="row"><span>四大进项构成</span><span class="muted">城税 + 商税 + 关税 + 秋粮折银</span></div>`;
+    courtHtml += `<div class="row"><span>三大刚性支出</span><span class="muted">百官俸禄 + 防务边饷 + 黄运河工</span></div>`;
+
+    // 势力外交速览
+    const facs = Object.values(w.factions || {});
+    if (facs.length > 0) {
+      courtHtml += `<div class="muted" style="margin:8px 0 2px;font-size:12px;">天下主要派系对相公态度</div>`;
+      courtHtml += facs.filter(f => f.id !== 'wangjia').map(f => {
+        const rel = Number(f.relation ?? f.relations?.wangjia ?? 0);
+        const relTag = rel >= 30 ? `<span class="tag good">结盟友好(${rel})</span>` : rel <= -20 ? `<span class="tag bad">势同水火(${rel})</span>` : `<span class="tag">各守门户(${rel})</span>`;
+        return `<div class="row"><span>${f.name || f.id}</span><span>${relTag} 据城 ${f.cities?.length || 0}座</span></div>`;
+      }).join('');
     }
-    const grainPrice = w.grain?.price ?? 100;
-    const grainStock = w.grain?.stock ?? 0;
-    courtHtml += `<div class="row"><span>市道粮价 / 国库粮仓</span><span class="muted">${grainPrice} 文/斗 · 仓储 ${grainStock} 石</span></div>`;
     $('court-detail').innerHTML = courtHtml;
   }
 
-  // ── ⚔️ 军中卡 ──────────────────────────────
+  // ── ⚔️ 王家兵权与势力沙盘升级 ──────────────────────────────
   if ($('card-military-core')) {
-    const guards = Number(w.military?.guards) || 0;
-    const militia = Number(w.military?.militia) || 0;
-    const army = Number(w.military?.army) || 0;
-    const totalTroops = guards + militia + army;
-    const morale = Number(w.military?.morale ?? 60);
-    $('m-military-top').textContent = `兵 ${totalTroops} · 士气 ${morale}`;
+    const wf = w.factions?.wangjia || {};
+    const totalWangTroops = Number(wf.troops) || Object.values(wf.stationed || {}).reduce((a,b)=>a+(Number(b)||0), 0);
+    const morale = Number(wf.morale ?? 60);
+    const grain = Number(wf.grain) || 0;
+
+    $('m-military-top').textContent = `王家私兵 ${totalWangTroops} 人 · 士气 ${morale}`;
+
     let milHtml = '';
-    milHtml += `<div class="row"><span>兵力构成</span><span class="muted">家丁 ${guards} · 乡勇 ${militia} · 正军 ${army}</span></div>`;
-    const garrisons = Object.entries(w.garrisons || {});
-    if (garrisons.length > 0) {
-      milHtml += `<div class="row"><span>驻军分布</span><span class="muted">${garrisons.map(([p, c]) => `${p}: ${c}人`).join('，')}</span></div>`;
-    }
-    const marches = Array.isArray(w.marches) ? w.marches : [];
-    if (marches.length > 0) {
-      milHtml += `<div class="row"><span>行军调动</span><span class="warn">${marches.map(m => `往${m.to} ${m.count}人 第${m.arriveDay}日到`).join('；')}</span></div>`;
+    milHtml += `<div class="row"><span>随军粮草储备</span><span class="num good">${grain.toFixed(1)} 石</span></div>`;
+
+    // 驻扎分布
+    const stationed = Object.entries(wf.stationed || {});
+    if (stationed.length > 0) {
+      milHtml += `<div class="row"><span>驻防重镇分布</span><span class="muted">${stationed.map(([c, n]) => `<b>${c}</b>: ${n}人`).join('，')}</span></div>`;
     } else {
-      milHtml += `<div class="row"><span>行军调动</span><span class="muted">各营驻扎，无调动</span></div>`;
+      milHtml += `<div class="row"><span>驻防重镇分布</span><span class="muted">暂未分驻各地城池</span></div>`;
     }
-    const supplies = Number(w.military?.supplies) || 0;
-    milHtml += `<div class="row"><span>军饷与粮草耗损</span><span class="muted">${supplies > 0 ? supplies + ' 石/日' : '暂无大军耗损'}</span></div>`;
+
+    // 在途开拔
+    const marches = Array.isArray(wf.marches) ? wf.marches : [];
+    if (marches.length > 0) {
+      milHtml += `<div class="row"><span>在途行军开拔</span><span class="warn">${marches.map(m => `自${m.from}往${m.to} ${m.troops}兵 (第${m.arriveDay}日抵)`).join('；')}</span></div>`;
+    } else {
+      milHtml += `<div class="row"><span>在途行军开拔</span><span class="muted">各营守御，无调动</span></div>`;
+    }
+
+    // 兵力战略态势
+    milHtml += `<div class="row"><span>王家战略方针</span><span class="tag good">${wf.stance === 'expand' ? '伺机扩张' : '保境安民·守成'}</span></div>`;
     $('military-detail').innerHTML = milHtml;
   }
   const d = w.date;
@@ -1789,21 +1950,43 @@ function render(w){
   }).join("");
   $("cities").innerHTML = `<div class="geo-grid">${regionHtml}</div>` || "";
 
-  // ── 兵力 / 基建 ──────────────────────────────
+  // ── 兵力与天下四大势力沙盘 ──────────────────────────────
   const mil = w.military || {};
+  const wf = w.factions?.wangjia || {};
+  const courtF = w.factions?.court || {};
+  const canalF = w.factions?.canal || {};
+
   if ($('m-guards')) {
     $('m-guards').textContent = mil.guards ?? 0;
     $('m-militia').textContent = mil.militia ?? 0;
-    $('m-army').textContent = mil.army ?? 0;
-    $('m-qm').textContent = `训练 ${mil.quality ?? 0} · 士气 ${mil.morale ?? 0}`;
-    $('m-sup').textContent = mil.supplies ?? 0;
+    $('m-army').textContent = wf.troops ?? mil.army ?? 0;
+    $('m-qm').textContent = `士气 ${wf.morale ?? 60} · 随军粮 ${wf.grain ?? 0}石`;
+    $('m-sup').textContent = wf.grain ?? 0;
+    $('m-standing').textContent = wf.stance === 'expand' ? '伺机开拔' : '守土保境';
+    $('m-rep').textContent = `城池 ${wf.cities?.length || 0}座`;
+    $('m-pressure').textContent = `朝廷关系 ${courtF.relations?.wangjia ?? 0}`;
   }
-  const infra = w.infra || {};
-  const infraNames = { roads: '道路', granary: '粮仓', dock: '码头', workshop: '匠作坊', school: '学堂', clinic: '药堂' };
-  $('infra').innerHTML = Object.keys(infraNames).map(k => {
-    const v = Number(infra[k]) || 0;
-    return `<div class="row"><span>${infraNames[k]}</span><span>${'■'.repeat(v)}${'□'.repeat(Math.max(0, 10 - v))} ${v}/10</span></div>`;
-  }).join('');
+
+  // 天下势力卡片全量展示
+  if ($('realm')) {
+    const facs = Object.values(w.factions || {});
+    let realmHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">';
+    facs.forEach(f => {
+      const isPlayer = f.id === 'wangjia';
+      const fCls = f.id === 'court' ? 'tag-faction-court' : f.id === 'wangjia' ? 'tag-faction-wangjia' : f.id === 'canal' ? 'tag-faction-canal' : 'tag-faction-warlord';
+      realmHtml += `<div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px 10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <b style="font-size:13px;" class="${fCls}">${f.name || f.id}</b>
+          <span class="tag">${isPlayer ? '相公掌控' : f.kind || '势力'}</span>
+        </div>
+        <div class="row"><span>总兵力 / 粮草</span><span class="num"><b>${f.troops || 0}</b> 兵 · <b>${f.grain || 0}</b> 石</span></div>
+        <div class="row"><span>士气 / 野心</span><span class="muted">${f.morale || 50} / ${f.ambition || 30}</span></div>
+        <div class="row"><span>所占府县城池</span><span class="good">${f.cities?.length || 0} 座城</span></div>
+      </div>`;
+    });
+    realmHtml += '</div>';
+    $('realm').innerHTML = realmHtml;
+  }
 
   // ── 产业表 ──────────────────────────────
   const propList = w.assets?.properties || [];
@@ -1892,62 +2075,101 @@ function render(w){
   try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderLedger(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
   const officialIds = new Set(w.officeHolders || []);
   // 官员一律只进「朝中」卡，不进人物表（按 id 与身份双重判定）
-  const OFFICIAL_ROLE_RE = /知县|知府|尚书|侍郎|巡抚|宰相|天子|御史|总督|按察|布政|通判|典史|主簿|县令|县丞|知州|同知|参军|都尉|统领/;
-  const isOfficial = (a) => officialIds.has(a.id) || OFFICIAL_ROLE_RE.test(String(a.role || ''));
-  const list = (w.actors||[])
-    .filter((a) => a && !isOfficial(a))
-    .slice()
-    .sort((a,b) => {
-      // 相关的人靠前：相公 → 府内 → 相好/高信任 → 其他
-      const rank = (a) => {
-        if (a.id === 'husband') return 0;
-        if (a.household) return 1;
-        const t = Number(a.relations?.trust) || 0;
-        const cons = a.intimacy && a.intimacy.consummated;
-        if (cons || t >= 50) return 2;
-        return 3;
-      };
-      const ra = rank(a), rb = rank(b);
-      if (ra !== rb) return ra - rb;
-      const ta = Number(a.relations?.trust) || 0, tb = Number(b.relations?.trust) || 0;
-      if (tb !== ta) return tb - ta;
-      return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+  const citiesList = Object.keys(w.cities || {});
+  const actorsList = (w.actors || []).slice();
+
+  // 统计每个城市人数并填充药丸与下拉框
+  const cityCounts = {};
+  actorsList.forEach(a => {
+    const c = cityOfActor(a, citiesList);
+    cityCounts[c] = (cityCounts[c] || 0) + 1;
+  });
+
+  // 更新城市药丸条
+  const topCities = ['临江府', '京城', '苏州府', '杭州府', '扬州府', '松江府', '成都府', '广州府'];
+  let pillsHtml = `<span class="city-pill ${currentActorCity === 'all' ? 'active' : ''}" onclick="selectActorCity('all')">全部 (${actorsList.length})</span>`;
+  topCities.forEach(c => {
+    const cnt = cityCounts[c] || 0;
+    if (cnt > 0) {
+      const isAct = currentActorCity === c ? 'active' : '';
+      pillsHtml += `<span class="city-pill ${isAct}" onclick="selectActorCity('${c}')">${c} (${cnt})</span>`;
+    }
+  });
+  const pillsBox = document.getElementById('cityPillsList');
+  if (pillsBox) pillsBox.innerHTML = pillsHtml;
+
+  // 更新下拉选单
+  const selDrop = document.getElementById('citySelectDropdown');
+  if (selDrop) {
+    let selHtml = '<option value="all">更多天下州府...</option>';
+    Object.keys(cityCounts).sort((a,b) => cityCounts[b] - cityCounts[a]).forEach(c => {
+      selHtml += `<option value="${c}" ${currentActorCity === c ? 'selected' : ''}>${c} (${cityCounts[c]}人)</option>`;
     });
-  // 全量渲染列表，通过表格外层 table-scroll-container 实现丝滑下拉滚动
-  $('actors').innerHTML = list.map(a=>{
-    const r = a.relations||{}, im = a.intimacy||{};
-    // 相公本人：没有"对自己的好感"，改显示他自己的实况
+    selDrop.innerHTML = selHtml;
+  }
+
+  // 排序：相公 -> 府内内眷 -> 官员/高好感 -> 其他
+  actorsList.sort((a, b) => {
+    const rank = (x) => {
+      if (x.id === 'husband') return 0;
+      if (x.household) return 1;
+      const t = Number(x.relations?.trust) || 0;
+      const cons = x.intimacy && x.intimacy.consummated;
+      if (cons || t >= 50) return 2;
+      return 3;
+    };
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    const ta = Number(a.relations?.trust) || 0, tb = Number(b.relations?.trust) || 0;
+    if (tb !== ta) return tb - ta;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+  });
+
+  // 渲染所有人物，打上 data-city 标记
+  $('actors').innerHTML = actorsList.map(a => {
+    const c = cityOfActor(a, citiesList);
+    const r = a.relations || {}, im = a.intimacy || {};
+
+    // 相公本人
     if (a.id === 'husband') {
       const _silver = Number(w.assets?.silver ?? 0);
       const _income = (w.assets?.properties || []).reduce((x, y) => x + (Number(y.incomePerDay) || 0), 0);
-      const _troops = Number(w.military?.total) || ((Number(w.military?.guards)||0) + (Number(w.military?.militia)||0) + (Number(w.military?.army)||0));
-      const _offices = (w.officeHolders || []).length;
-      return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
-        <td><b>${a.name}</b> <span class="tag good">本人</span></td>
-        <td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td>
-        <td class="muted">${a.role || '相公'}</td>
+      const _troops = Number(w.factions?.wangjia?.troops) || 0;
+      return `<tr style="cursor:pointer" data-city="${c}" onclick="openActor('${a.id}')">
+        <td><b>${a.name}</b> <span class="tag good">主角</span></td>
+        <td><span class="tag good">📍 ${c}</span></td>
+        <td class="muted">${a.role || '临江王家掌舵人'}</td>
         <td class="muted">${maritalText(a)}</td>
-        <td class="muted">${a.place || '—'}</td>
-        <td class="num">${_silver.toFixed(0)} <span class="muted">府库</span></td>
-        <td class="num muted" colspan="3" style="text-align:left">银 ${_silver.toFixed(0)} 两 · 日入 ${_income.toFixed(1)} · 兵 ${_troops} · 官职 ${_offices}</td>
-        <td class="muted">此刻：${a.place || '—'}</td>
+        <td class="muted">${a.place || '临江·王宅·正房'}</td>
+        <td class="num">${_silver.toFixed(0)} <span class="muted">府库银</span></td>
+        <td class="num muted" colspan="3" style="text-align:left">日入 +${_income.toFixed(1)} 两 · 私兵 ${_troops} 人</td>
+        <td class="muted">现居：${a.place || '正房'}</td>
         <td><span class="tag">—</span></td>
       </tr>`;
     }
+
     const bar = (v, cls = '') => `<div class="bar"><i class="${cls}" style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
     let intimacy = im.ritual==='unlocked' ? '解禁·档'+(im.tone??0) : (im.consummated?'相好':'端庄');
     if (a.pregnancy && !a.pregnancy.born) intimacy = '有孕 · ' + Math.floor((a.pregnancy.days||0)/30) + '个月';
     if (a.onPeriod) intimacy = '月事中';
-    return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
-      <td><b>${a.name}</b></td><td><span class="tag">${a.origin==='spawned'?'天道衍生':'预设'}</span></td><td class="muted">${a.role||''}</td><td class="muted">${maritalText(a)}</td><td class="muted">${a.place||''}</td>
+
+    return `<tr style="cursor:pointer" data-city="${c}" onclick="openActor('${a.id}')">
+      <td><b>${a.name}</b></td>
+      <td><span class="tag">📍 ${c}</span></td>
+      <td class="muted">${a.role || '市井百姓'}</td>
+      <td class="muted">${maritalText(a)}</td>
+      <td class="muted">${a.place || '—'}</td>
       <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + (a.debt ? ' <span class="bad">欠'+a.debt+'</span>' : '') : '—'}</td>
-      <td class="num">${r.trust??'—'} ${bar(r.trust||0, 'trust')}</td>
-      <td class="num">${r.desire??'—'} ${bar(r.desire||0, 'desire')}</td>
-      <td class="num">${r.grievance??0} ${bar(r.grievance||0, 'grievance')}</td>
-      <td>${a.id==='husband'?'—':attitude({...a, household:a.household, consummated:im.consummated, relations:r})}</td>
-      <td><span class="tag">${a.id==='husband'?'—':intimacy}</span></td>
+      <td class="num">${r.trust ?? '—'} ${bar(r.trust || 0, 'trust')}</td>
+      <td class="num">${r.desire ?? '—'} ${bar(r.desire || 0, 'desire')}</td>
+      <td class="num">${r.grievance ?? 0} ${bar(r.grievance || 0, 'grievance')}</td>
+      <td>${attitude({...a, household: a.household, consummated: im.consummated, relations: r})}</td>
+      <td><span class="tag">${intimacy}</span></td>
     </tr>`;
   }).join('');
+
+  // 触发当前城市过滤生效
+  filterActors(currentActorSearch, currentActorCategory);
 
   $('summary').textContent = w.summary || '—';
 
