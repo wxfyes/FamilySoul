@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 兵权与夺城（v2）：兵有驻地，粮有仓，路要通，仗要打几天。
  *
  * 规则：
@@ -74,7 +74,7 @@ export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) 
 
   const cost = round2(come * k.cost);
   const grain = round2(come * k.grain);
-  if (num(f.grain) < grain) return { ok: false, error: `粮不够：${come} 人要 ${grain} 石` };
+  if (num(f.grain) < grain) return { ok: false, error: `粮不够：${come} 人要 ${grain} 石（府库只剩 ${round2(f.grain)} 石，先去购粮）` };
   if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `安家银不够：要 ${cost} 两` };
 
   f.grain = round2(num(f.grain) - grain);

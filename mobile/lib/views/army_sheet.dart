@@ -51,6 +51,18 @@ class _ArmySheetState extends State<ArmySheet> {
   int get _troops => (_wang?['troops'] as num?)?.toInt() ?? 0;
   int get _strength => (_wang?['strength'] as num?)?.toInt() ?? 0;
   num get _grain => (_wang?['grain'] as num?) ?? 0;
+
+  /// 粮价走世界行情（明制一石约 0.6 两），不再写死 1 两
+  double get _grainPrice {
+    final m = (_world?['market'] as List?) ?? const [];
+    for (final x in m) {
+      if (x is Map && x['key'] == 'grain') {
+        final p = (x['price'] as num?)?.toDouble();
+        if (p != null && p > 0) return p;
+      }
+    }
+    return 0.6;
+  }
   int get _fresh => (_wang?['fresh'] as num?)?.toInt() ?? 0;
   num get _monthlyPay => (_wang?['monthlyPay'] as num?) ?? (_troops * 1.0);
   Map<String, dynamic> get _arrears => (_wang?['arrears'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -80,6 +92,8 @@ class _ArmySheetState extends State<ArmySheet> {
     String msg;
     if (!ok) {
       msg = r?['error']?.toString() ?? '没办成';
+    } else if (r?['error'] != null && r?['ok'] != true) {
+      msg = '招募不成：${r?['error']}';
     } else if (r?['came'] != null) {
       final came = r?['came'];
       final asked = r?['asked'];
@@ -104,6 +118,7 @@ class _ArmySheetState extends State<ArmySheet> {
     required String title,
     required String unit,
     required double unitPrice,
+    double? grainPer,
     double? monthly,
     String? note,
     required int min,
@@ -130,6 +145,22 @@ class _ArmySheetState extends State<ArmySheet> {
             Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text('安家银 ${unitPrice.toStringAsFixed(2)} 两 / $unit', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            if (grainPer != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '需粮 ${(count * grainPer).toStringAsFixed(1)} 石（府库 ${_grain.toStringAsFixed(1)} 石）',
+                  style: TextStyle(
+                    color: _grain + 0.001 < count * grainPer ? const Color(0xFFFCA5A5) : Colors.white38,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+            if (grainPer != null && _grain + 0.001 < count * grainPer)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('存粮不够，先去【购粮】', style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 11.5)),
+              ),
             if (monthly != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -402,6 +433,7 @@ class _ArmySheetState extends State<ArmySheet> {
                     title: '招募家丁',
                     unit: '人',
                     unitPrice: 0.2,
+                    grainPer: 0.2,
                     monthly: 0.6,
                     note: '一呼百应：来投多少看你的名声与这座城的日子，喊 50 人未必来 50 个。',
                     min: 1,
@@ -419,6 +451,7 @@ class _ArmySheetState extends State<ArmySheet> {
                     title: '招募护院',
                     unit: '人',
                     unitPrice: 0.5,
+                    grainPer: 0.3,
                     monthly: 0.9,
                     note: '护院是精壮武师，安家银比家丁贵些，月饷 0.9 两；一样是看名声与民心来人。',
                     min: 1,
@@ -435,7 +468,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '购粮',
                     unit: '石',
-                    unitPrice: 1.0,
+                    unitPrice: _grainPrice,
                     min: 1,
                     max: 2000,
                     presets: const [50, 100, 300],
