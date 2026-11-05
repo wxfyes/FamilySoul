@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadState, saveState, worldDate } from './world/state.js';
@@ -128,7 +128,7 @@ export class UserRegistry {
       marital: 'single',
       spouse: null,
       residence: { type: 'own', placeId: houseId },
-      money: 20, // 20两碎银起步盘缠
+      money: 1.5, // 1.5两碎银起步盘缠（布衣起点，最多1.5两）
       relations: {
         husband: { trust: 0, desire: 0, fear: 0, grievance: 0 },
       },

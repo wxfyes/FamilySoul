@@ -543,6 +543,10 @@ const STARTED_AT = Date.now();
       try {
         const member = resolveMember(req, url);
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const isHusband = member.memberKey === 'husband' || member.role === '相公' || member.actor === 'husband';
+        if (!isHusband) {
+          return sendJson(res, 403, { ok: false, error: '布衣白身擅掌兵权形同聚众谋逆！唯有一方家主（王相公）方可操盘府邸家兵。' });
+        }
         const body = await parseJsonBody(req, 64 * 1024);
         const world = loadState(DATA_DIR);
         ensureFactions(world);
