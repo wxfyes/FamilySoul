@@ -3943,6 +3943,8 @@ const STARTED_AT = Date.now();
           kept.push(seg);
         }
         let merged = kept.join('').trim();
+        // 引擎标签绝不能漏到戏里给相公看（[[spawn:柳婶|…]] 这类）
+        merged = merged.replace(/\[\[[^\]\n]{1,60}\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
         // 全被剔掉：把话留下、把人名去掉，改成旁白，绝不给他挂错名
         if (!merged && dropped.length) merged = dropped.join(' ').replace(/^[：:]+/, '').trim();
         if (merged && merged !== txt) result.reply.text = merged;

@@ -832,6 +832,18 @@ class _SpeakerMeta {
       }
     }
 
+    // 6.8 旁白 / 天道：是叙述，不是人
+    if (s.contains('旁白') || s.contains('天道') || s.contains('众人')) {
+      return _SpeakerMeta(
+        raw: s,
+        title: '旁白',
+        name: '',
+        symbol: '🕯️',
+        primaryColor: const Color(0xFF64748B),
+        secondaryColor: const Color(0xFF475569),
+      );
+    }
+
     // 7. 通用市井伴侣 / 客卿（名字哈希古典色调）
     final clean = s.replaceAll(RegExp(r'[【】·•.\[\]:："”]'), '').trim();
     final name = clean.isEmpty ? '伴侣' : (clean.length <= 4 ? clean : clean.substring(clean.length - 2));

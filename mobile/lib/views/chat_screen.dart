@@ -704,7 +704,7 @@ class _ChatScreenState extends State<ChatScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF8B5CF6) : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
@@ -934,10 +934,16 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       drawer: _buildDrawer(context, provider),
       appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+        foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
         elevation: 0.5,
         titleSpacing: 0,
         centerTitle: true,
-        title: Container(
+        title: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Container(
           height: 32,
           padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
@@ -953,6 +959,8 @@ class _ChatScreenState extends State<ChatScreen> {
               _buildDomainTab(0, '🌸 宿命乾坤'),
               _buildDomainTab(1, '🤖 天机助手'),
             ],
+          ),
+            ),
           ),
         ),
         actions: [
@@ -1037,7 +1045,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    color: const Color(0xFF1B1E28),
+                    color: isDark ? const Color(0xFF1B1E28) : const Color(0xFFF1F5F9),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
