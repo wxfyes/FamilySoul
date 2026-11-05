@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 岁时：人会老，孩子会长，家业要有人接。
  *
  * 规则（全部是事实，不写剧情）：
@@ -13,7 +13,7 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export const DAYS_PER_YEAR = 30;
+export const DAYS_PER_YEAR = 360;   // 与世界历法一致：360 日一年（四季各 90 日）
 
 const STAGES = [
   { until: 3, role: '襁褓婴孩' },
@@ -34,8 +34,8 @@ export function runAging(world, events, nextEvent) {
     if (!trackable) continue;
 
     const age = num(a.age);
-    if (!(age > 0)) continue;
-    a.age = age + 1;
+    if (!Number.isFinite(age)) continue;
+    a.age = age + 1;   // 婴孩也要长（0 岁同样要长）
 
     // 体魄：五十之后渐衰
     if (a.age >= 50) {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 道统：名分与清议。
  *
  * 只有一件事是真的：一个人在外面是什么名声，会影响别人怎么对他。
@@ -50,7 +50,9 @@ export function addFame(world, actorId, delta, tag) {
 /** 名分：能不能称制（看名声与城数） */
 export function legitimacy(world, actorId) {
   const fame = fameOf(world, actorId);
-  const cities = (world.factions?.wangjia?.cities || []).length;
+  // 找出以他为首的势力；没有势力就只按名声算
+  const own = Object.values(world.factions || {}).find((f) => f && f.leader === actorId);
+  const cities = own ? (own.cities || []).length : 0;
   const base = Math.round(fame / 2) + cities * 5;
   return Math.max(0, Math.min(100, base + 20));
 }

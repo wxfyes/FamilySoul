@@ -375,7 +375,7 @@ function runLifecycle(world, events, queuePush) {
   // ② 衰老与病亡：一年长一岁；过了五十，日子开始咬人
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead || a.id === 'husband') continue;
-    if (day % 360 === 0) a.age = (Number(a.age) || 20) + 1;
+    // 长岁统一由 aging.js 负责（此处不再重复加岁）
     const age = Number(a.age) || 20;
     if (age < 45) continue;
     const p = Math.min(0.5, (age - 45) * 0.01);
@@ -1025,7 +1025,7 @@ function runTreasury(world, events) {
   }
 
   // 秋收入仓（每 30 天一次），灾荒出仓
-  if (day % 30 === 0) {
+  if (day % 360 === 240) {
     // 秋粮折银：陈粮卖一部分换现银（丰年多、荒年少）
     const grainNow = Number(tr.grain) || 0;
     const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 0.3 * K * 100) / 100;
@@ -1533,8 +1533,6 @@ function dailyIncomeOf(world, prop) {
   let rate = 0.025;
   rate *= 0.7 + Math.min(2.0, price / 100) * 0.3;          // 物价与市面景气
   rate *= 1 - Math.min(0.5, unrest / 200);                 // 民心
-  if (/茶/.test(String(prop.name || ''))) rate *= season === 'spring' ? 1.3 : season === 'winter' ? 0.85 : 1.05;
-  if (/酒/.test(String(prop.name || ''))) rate *= season === 'winter' ? 1.35 : 1.1;
   rate *= 0.85 + Math.min(0.5, trust / 200);               // 掌柜得力（信任 100 → 1.35x）
   if (staffCount > 0) rate *= 1 + Math.min(1.5, staffCount * 0.3); // 人手：每人 +30%，封顶 2.5x
   rate *= 1 + Math.min(0.6, (daysOpen - 1) * 0.02);        // 商誉：老店常客多（封顶 1.6x）

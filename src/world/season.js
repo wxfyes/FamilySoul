@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 物候：季节与天气对人间有物理制约。
  *
  * 只做四件事（都是"事"，不是"台词"）：
@@ -9,6 +9,8 @@
  *
  * 所有判断都从 world.clock.season / weather 来，不写死日期。
  */
+
+import { neighborRegions } from './geography.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -63,9 +65,19 @@ export function maybeOutbreak(world, events, nextEvent) {
   const disasters = (events || []).filter((e) => e && e.action === 'disaster').length;
   if (!disasters) return false;
   if (Math.random() > 0.25) return false;
+
+  // 只在本道与相邻道扩散，不做全国一刀切
+  const region = String((events[0] && events[0].place) || world.actors?.husband?.place || '');
+  const spreadRegions = new Set();
+  if (region) {
+    spreadRegions.add(region);
+    for (const nb of neighborRegions(world, region)) spreadRegions.add(nb);
+  }
   let hit = 0;
   for (const ct of Object.values(world.cities || {})) {
     if (!ct) continue;
+    const r = String(ct.region || '');
+    if (spreadRegions.size && !spreadRegions.has(r)) continue;
     ct.unrest = Math.min(100, num(ct.unrest) + 5);
     hit += 1;
   }
