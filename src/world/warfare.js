@@ -20,9 +20,10 @@ const num = (v) => {
 };
 const round2 = (v) => Math.round(num(v) * 100) / 100;
 
-export const RECRUIT_COST = 1.2;   // 家丁安家银（古代募兵约一两上下）
+export const MONTHLY_PAY = 1.0;    // 每兵每月饷银（一两/月）
+export const RECRUIT_COST = 0.2;   // 安家银（意思一下，真正的担子是月饷）
 export const RECRUIT_GRAIN = 0.2;   // 随身粮
-export const PAY_PER_DAY = 0.05;
+export const PAY_PER_DAY = MONTHLY_PAY / 30;
 export const GRAIN_PER_DAY = 0.02;
 export const GRAIN_PRICE = 0.6;
 
@@ -34,10 +35,49 @@ export const TRAIN_DAYS = 7;
 
 // 三种人：家丁（看家最便宜）、护院（精壮）、营兵（要地盘）
 export const RECRUIT_KINDS = {
-  guard: { name: '家丁', cost: 1.2, grain: 0.2, morale: 0, note: '看家护院' },
-  retainer: { name: '护院', cost: 3.0, grain: 0.3, morale: 1, note: '精壮护院' },
-  army: { name: '营兵', cost: 4.0, grain: 0.4, morale: 2, note: '能出征的营兵' },
+  guard: { name: '家丁', cost: 0.2, grain: 0.2, morale: 0, note: '看家护院' },
+  retainer: { name: '护院', cost: 0.5, grain: 0.3, morale: 1, note: '精壮护院' },
+  army: { name: '营兵', cost: 0.8, grain: 0.4, morale: 2, note: '能出征的营兵' },
 };
+
+/**
+ * 一呼百应：不是花钱买人，是看你的名声与这座城的日子。
+ * 名声越高、民心越稳，来投的人越多；荒年乱世反而有人来吃粮。
+ */
+export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) {
+  const f = factionOf(world, fid);
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const town = city && world.cities?.[city] ? city : factionCapital(world, f);
+  const ct = world.cities?.[town];
+  if (!ct) return { ok: false, error: '没有这座城' };
+
+  const fame = Number(world.actors?.[f.leader]?.fame?.value) || 0;
+  const unrest = Number(ct.unrest) || 0;
+  const wealth = Number(ct.wealth) || 30;
+  const base = 3 + fame / 6 + (50 - unrest) / 4 + wealth / 20;
+  const luck = 0.6 + Math.random() * 0.8;
+  let come = Math.round(base * luck);
+  come = Math.max(1, Math.min(Math.max(1, max), come));
+
+  const k = RECRUIT_KINDS[kind] || RECRUIT_KINDS.guard;
+  const cost = round2(come * k.cost);
+  const grain = round2(come * k.grain);
+  if (num(f.grain) < grain) return { ok: false, error: `粮不够：${come} 人要 ${grain} 石` };
+  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `安家银不够：要 ${cost} 两` };
+
+  f.grain = round2(num(f.grain) - grain);
+  setStationed(world, f, town, troopsAt(world, f, town) + come);
+  f.fresh = Math.round(num(f.fresh) + come);
+  f.freshUntilDay = (Number(world.clock?.day) || 1) + TRAIN_DAYS;
+  fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}一呼百应，来投 ${come} 人` } });
+  return { ok: true, came: come, asked: max, troops: totalTroops(world, f), city: town, cost, monthlyPay: round2(totalTroops(world, f) * MONTHLY_PAY) };
+}
+
+/** 每月饷银与口粮（给面板显示） */
+export function upkeepOf(world, f) {
+  const troops = totalTroops(world, f);
+  return { troops, monthlyPay: round2(troops * MONTHLY_PAY), monthlyGrain: round2(troops * GRAIN_PER_DAY * 30) };
+}
 
 let eventSink = null;
 

@@ -6,7 +6,7 @@
  */
 import { ensureBonds } from './bonds.js';
 import { ensureFactions } from './factions.js';
-import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
+import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { ensureClans } from './clans.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
@@ -957,6 +957,35 @@ export function forceOf(world, who = 'husband') {
 
 /** 老存档补归属：地点/势力/线索没写主人的，按预设补上，别让自检一直报无主 */
 export function migrateOwnership(world) {
+  // 性别：天道衍生的人可能是 unknown，一律按名字与身份补
+  try {
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead) continue;
+      if (!a.gender || a.gender === 'unknown') {
+        a.gender = inferGenderFromIdentity(a.name, a.role, 'male');
+      }
+    }
+  } catch { /* 忽略 */ }
+
+  // 一次性：按新世情重算非亲眷的婚配（旧规则把 24 岁以上全判已婚，导致"全城皆已婚"）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.maritalRecheckV2) {
+      let changed = 0;
+      for (const a of Object.values(world.actors || {})) {
+        if (!a || a.dead || a.id === 'husband') continue;
+        const kin = a.household || a.spouse === 'husband' || a.spouse;
+        const pregnant = a.pregnancy && !a.pregnancy.born;
+        if (kin || pregnant) continue;
+        if (!(Number(a.age) >= 18 && Number(a.age) <= 45)) continue;
+        const next = inferMaritalStatus(a.name, a.role, a.age, a.gender);
+        if (next !== a.marital) { a.marital = next; changed += 1; }
+      }
+      world.flags.maritalRecheckV2 = { day: world.clock?.day || 1, changed };
+      if (changed) console.log(`[Persona] 按世情重判婚配 ${changed} 人`);
+    }
+  } catch { /* 忽略 */ }
+
   // 婚配：成年而缺字段的人，按世情补上（61 岁浆洗婆子不该是"待字闺中"）
   try {
     let fixed = 0;

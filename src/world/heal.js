@@ -1,4 +1,4 @@
-﻿import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
+﻿import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -219,6 +219,11 @@ export function healWorld(world) {
   try {
     for (const a of Object.values(world.actors || {})) {
       if (!a || a.dead) continue;
+      // 性别不许留 unknown：看不出女子特征就当男子
+      if (!a.gender || a.gender === 'unknown') {
+        a.gender = inferGenderFromIdentity(a.name, a.role, 'male');
+        fixes.push(`${a.name}性别校正为${a.gender === 'male' ? '男' : '女'}`);
+      }
       const text = `${a.name || ''} ${a.role || ''}`;
       const looksOld = /婆|嬷嬷|老太|妪|翁|老汉|老者/.test(text);
       if (looksOld && Number(a.age) < 45) {

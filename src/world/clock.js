@@ -24,6 +24,7 @@ import { runMilitaryDay, setWarEventSink } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
+import { runDemography } from './demography.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
@@ -1411,6 +1412,13 @@ function onNewDay(world, events) {
       if (text) addRumor(world, { text, about: [], tone: act === 'city_taken' ? -1 : 0, weight: 4 });
     }
   } catch { /* 忽略 */ }
+
+  // 每月：人口补充（年轻未婚的人太少，市井自然补进几个）
+  try {
+    runDemography(world, nextEvent, events);
+  } catch (err) {
+    console.warn('[Demo] 人口补充失败：', err.message);
+  }
 
   // 每月：士林清议、宗族走动（都只说事实，不写台词）
   try {

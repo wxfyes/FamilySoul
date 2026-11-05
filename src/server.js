@@ -32,7 +32,7 @@ import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
 import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
-import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear } from './world/warfare.js';
+import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear, callToArms, upkeepOf } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
 import { marketSnapshot } from './world/prices.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
@@ -549,6 +549,7 @@ const STARTED_AT = Date.now();
         else if (act === 'station') result = stationTroops(world, fid, String(body.from || ''), String(body.city || ''), Number(body.troops) || 0);
         else if (act === 'transfer') result = transferPropertyGrain(world, fid, String(body.prop || ''), String(body.city || ''), Number(body.shi) || 0);
         else if (act === 'gear') result = buyGear(world, fid, String(body.kind || 'weapon'), Number(body.qty) || 0);
+        else if (act === 'call') result = callToArms(world, fid, { city: String(body.city || ''), max: Number(body.max) || 60, kind: String(body.kind || 'guard') });
         else if (act === 'army') result = { ok: true, troops: totalTroops(world, factionOf(world, fid)), stationed: factionOf(world, fid)?.stationed || {} };
 
         if (result.ok) saveState(DATA_DIR, world);
@@ -1033,13 +1034,17 @@ const STARTED_AT = Date.now();
           ensureFactions(world);
           const rMil = pend.action === 'gear'
             ? buyGear(world, 'wangjia', String(pend.gearKind || 'weapon'), Number(pend.qty) || 0)
-            : recruit(world, 'wangjia', Number(pend.qty) || 0, String(pend.city || ''), String(pend.recruitKind || 'guard'));
+            : (pend.action === 'call'
+              ? callToArms(world, 'wangjia', { city: String(pend.city || ''), max: Number(pend.qty) || 20, kind: String(pend.recruitKind || 'guard') })
+              : recruit(world, 'wangjia', Number(pend.qty) || 0, String(pend.city || ''), String(pend.recruitKind || 'guard')));
           if (!rMil.ok) return sendJson(res, 200, { ok: false, error: rMil.error });
           delete world.pendingAction;
           saveState(DATA_DIR, world);
           const line = pend.action === 'gear'
             ? `（已购军械，银两照扣。现存：${JSON.stringify(rMil.gear || {})}）`
-            : `（已募 ${pend.qty} 人，成军需七日。现总兵 ${rMil.troops}，驻 ${rMil.city}。）`;
+            : (pend.action === 'call'
+              ? `（一呼百应，来投 ${rMil.came} 人。现总兵 ${rMil.troops}，驻 ${rMil.city}，月饷 ${rMil.monthlyPay} 两。）`
+              : `（已募 ${pend.qty} 人，成军需七日。现总兵 ${rMil.troops}，驻 ${rMil.city}。）`);
           return sendJson(res, 200, { ok: true, line });
         }
 
@@ -1433,6 +1438,8 @@ const STARTED_AT = Date.now();
           strength: factionStrength(world, f),
           cities: (f.cities || []).slice(0, 12),
           gear: f.gear || {},
+          monthlyPay: Math.round((Number(f.troops) || 0) * 1.0 * 100) / 100,
+          monthlyGrain: Math.round((Number(f.troops) || 0) * 0.02 * 30 * 100) / 100,
           fresh: Number(f.fresh) || 0,
           freshUntilDay: Number(f.freshUntilDay) || 0,
           stationed: f.stationed || {},
@@ -3084,6 +3091,7 @@ const STARTED_AT = Date.now();
           morale: Number(f.morale) || 0, ambition: Number(f.ambition) || 0,
           strength: factionStrength(world, f), cities: (f.cities || []).slice(0, 12),
           gear: f.gear || {}, fresh: Number(f.fresh) || 0, freshUntilDay: Number(f.freshUntilDay) || 0,
+          monthlyPay: upkeepOf(world, f).monthlyPay, monthlyGrain: upkeepOf(world, f).monthlyGrain,
           stationed: f.stationed || {}, marches: (f.marches || []).map((m) => ({ to: m.to, troops: m.troops, arriveDay: m.arriveDay })),
         })),
           appointments: (world.appointments || [])

@@ -888,8 +888,8 @@ export class PetService {
         wMil.pendingAction = {
           kind: 'military',
           id: `pend_mil_${Date.now()}`,
-          title: '募兵',
-          action: 'recruit',
+          title: '招募',
+          action: 'call',
           recruitKind,
           qty: count,
           city: town,

@@ -52,6 +52,7 @@ class _ArmySheetState extends State<ArmySheet> {
   int get _strength => (_wang?['strength'] as num?)?.toInt() ?? 0;
   num get _grain => (_wang?['grain'] as num?) ?? 0;
   int get _fresh => (_wang?['fresh'] as num?)?.toInt() ?? 0;
+  num get _monthlyPay => (_wang?['monthlyPay'] as num?) ?? (_troops * 1.0);
   num get _silver {
     final assets = _world?['assets'];
     if (assets is Map) return (assets['silver'] as num?) ?? 0;
@@ -251,37 +252,37 @@ class _ArmySheetState extends State<ArmySheet> {
                 const SizedBox(width: 10),
                 _stat('战力', '$_strength', _green),
                 const SizedBox(width: 10),
-                _stat('存粮', '${_grain.toStringAsFixed(0)} 石', _gold),
+                _stat('月饷', '${_monthlyPay.toStringAsFixed(0)} 两', _gold),
               ]),
               const SizedBox(height: 16),
               Wrap(spacing: 10, runSpacing: 10, children: [
                 _pill(
                   icon: Icons.groups_rounded,
-                  label: '募家丁 ·1.2两',
+                  label: '招募家丁',
                   color: _accent,
                   onTap: () => _pickCount(
-                    title: '募家丁',
+                    title: '招募家丁',
                     unit: '人',
                     unitPrice: 1,
                     min: 1,
                     max: 500,
                     presets: const [5, 10, 20, 50],
-                    action: 'recruit',
+                    action: 'call',
                     extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'guard'},
                   ),
                 ),
                 _pill(
                   icon: Icons.shield_moon_rounded,
-                  label: '募护院 ·3两',
+                  label: '招募护院',
                   color: Colors.purpleAccent,
                   onTap: () => _pickCount(
-                    title: '募护院',
+                    title: '招募护院',
                     unit: '人',
                     unitPrice: 3,
                     min: 1,
                     max: 200,
                     presets: const [2, 5, 10, 20],
-                    action: 'recruit',
+                    action: 'call',
                     extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'retainer'},
                   ),
                 ),
@@ -387,6 +388,8 @@ class _ArmySheetState extends State<ArmySheet> {
                       ]),
                     ),
                 ]),
+              Text('存粮 ${_grain.toStringAsFixed(0)} 石 · 月饷 ${_monthlyPay.toStringAsFixed(0)} 两/月 · 月粮 ${((_wang?['monthlyGrain'] as num?) ?? 0).toStringAsFixed(0)} 石/月',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
               if (_gear.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(
