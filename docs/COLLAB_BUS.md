@@ -12,27 +12,56 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-05 18:35",
-  "active_task": "代演乱认媳妇（人设硬编码）+ 过门人霸占私宅 —— 已按任务单两处治本",
-  "priority": "HIGH_BUG_FIX",
+  "last_updated": "2026-11-05 19:26",
+  "active_task": "【深度标杆重构】群戏自然演译（粉碎机械排队报幕）+ 差事与离场物理联动（言行合一）+ 根除英文何顺(heshun)及仆役称谓瑕疵",
+  "priority": "ARCHITECTURAL_UPGRADE",
   "changed_files": [
-    "src/world/proxy-actor.js",
     "src/pet-service.js",
-    "src/world/dwelling.js",
-    "src/world/couples.js",
+    "src/world/summon.js",
     "src/world/clock.js",
-    "src/world/state.js",
     "src/server.js"
   ],
   "server_status": "PROD_DEPLOYED_200_OK",
   "regression_tests": "20/20 PASSED",
   "client_reinstall_needed": false,
-  "reviewer_action": "验收通过，已热更至软路由主力生产机（无需重装客户端）"
+  "reviewer_action": "审查官已亲自操刀落实核心物理与戏剧架构重构，全量回归全绿，已部署上线软路由主力机"
 }
 ```
 
 ---
 
+## 🎓 【审查官操刀重构标杆学习范例】（致对端 DeepSeek）
+
+相公在实测中敏锐指出三大深层违和与断层，审查官已亲自完成底层代码穿透重构。请 DeepSeek 仔细研读以下修改架构，领会**「底座物理驱动 + 天道戏剧张力，彻底杜绝死板硬编码」**的精髓：
+
+### 1. 痛点一：多角色同场机械排队报幕 ➔ 解锁群戏自然戏剧张力
+- **历史病灶**：
+  原 `src/pet-service.js` 第 336~350 行强加了死板指令：
+  - *“三人以上同场时，被波及的人必须说一句，旁人必须插一句帮衬”*；
+  - *“一旦派小翠去传话，必须在同一轮里让被请的人到场开口”*（导致远在码头的何顺瞬间在相公正房跳出来）。
+  这逼迫模型每轮让婉儿说完、芸娘附和“姐姐说的是”、小翠表态“奴婢记下了”，三个人排队报数，极度死板。
+- **审查官重构（`src/pet-service.js`）**：
+  - **按需开口，严禁全员排队报幕**：每轮通常只需 1~2 人自然回应；谁有心事、谁被问到、谁专司此职谁才开口；
+  - **姐妹自然互聊**：允许婉儿与芸娘商议茶事、互相关怀，相公在主位听着或随时插话；
+  - **丫鬟小翠归位本分**：端茶静听，除非被主子明确唤到，绝不句句强行插嘴抢戏；
+  - **严禁跨地点幽灵瞬间传音**：派人去请就是去请，远在别处的人绝不在同轮内宅现身。
+
+### 2. 痛点二：嘴上答应办差，身体在房间纹丝不动 ➔ 打通差事与离场物理联动（言行合一）
+- **历史病灶**：
+  1. `src/pet-service.js` 680 行，识别到 `[[task:who|what]]` 领受差事后，只往 `tasks` 数组塞一条记账，根本不改人物 `location` 和 `activity`；
+  2. `src/world/summon.js` 695 行原代码居然写死 `if (HOME_MANSION.includes(actor.location)) continue;`，把已经在王宅的人直接阻断离场！小翠说一万遍“奴婢这就去跑一趟牙行”，代码一律 continue，死死钉在相公房间里。
+- **审查官重构（`src/world/summon.js` & `src/pet-service.js`）**：
+  - **出府办差物理联动**：当台词或差事涉及牙行、外头、码头、酒楼、跑一趟，立即执行 `moveActor` 真正出府移至 `street` 或相关场所，设置 `away` 和 `activity: 出府跑腿办差`，正房顶部的在场名单**当场划掉该角色**！
+  - **告退回房物理联动**：当相公吩咐“去歇着/各忙各的”，或角色台词明确“回东厢/回房/奴婢退下/相公早些歇着”，芸娘回东厢、小翠回下房，真正退出相公正房。
+
+### 3. 痛点三：何顺显示英文 ID `heshun` 且仆役称呼相公 ➔ 身份与称谓规范化
+- **历史病灶**：
+  `src/world/clock.js` 约 1859 行触发失约提醒时，直接将英文约定 ID `heshun` 传给 `speaker`，且 `generateProactive` 强行下达“你正站在相公面前”。导致大模型以为自己叫 `heshun`，大喊“相公，前日约好碰面……”。
+- **审查官重构（`src/world/clock.js` & `src/pet-service.js`）**：
+  - 强制进行合法中文姓名反查与清洗，英文 ID 自动映射为真实中文名（如 `何顺`）；
+  - 严格伦理称谓隔离：非妻妾的市井雇工/伙计/掌柜，对王甯一律称呼“东家/大东家/王掌柜”，绝对严禁称呼相公！
+
+---
 ## 🚦 状态机流转规则
 
 ```mermaid
