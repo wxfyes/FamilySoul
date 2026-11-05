@@ -172,6 +172,61 @@
   - `husband_room__barracks`：私兵家丁演武值房（王家护院日常操演扎营）；
   - 属性：`depth: 7`, `access: 'servant_utility'`;
 
+### 💡 【审查官亲授：防搞坏·保姆级静态模板写法】（绝无递归、零炸库风险）
+
+很多生成器之所以搞坏系统，就是因为“写了递归循环去猜名字，导致自咬尾巴无限长房间”。
+真正的工业级生成器必须遵循 **KISS（极简纯粹）原则**：**【纯字典配置 + 一次性遍历挂载】**。
+
+请 DeepSeek 直接参考以下纯净写法重构 `src/world/residence.js`，保证 100% 稳如泰山：
+
+```javascript
+// 规范：王府七进豪宅静态字典（严禁动态递归推导！）
+const WANG_MANSION_ROOMS = [
+  { id: 'husband_room__gate', name: '临江·王宅·朱漆大门', depth: 1, use: 'gate', exits: ['street', 'husband_room__sedan'] },
+  { id: 'husband_room__sedan', name: '临江·王宅·仪门轿厅', depth: 2, use: 'hall', exits: ['husband_room__gate', 'husband_room__hall'] },
+  { id: 'husband_room__hall', name: '临江·王宅·中堂大厅', depth: 3, use: 'hall', exits: ['husband_room__sedan', 'husband_room'] },
+  { id: 'husband_room', name: '临江·王宅·正房', depth: 4, use: 'bedroom', exits: ['husband_room__hall', 'husband_room__east', 'husband_room__west', 'husband_room__garden', 'street'] }, // 保持老 ID 兼容！
+  { id: 'husband_room__east', name: '临江·王宅·东厢房', depth: 5, use: 'bedroom', exits: ['husband_room'] },
+  { id: 'husband_room__west', name: '临江·王宅·西厢房', depth: 5, use: 'bedroom', exits: ['husband_room'] },
+  { id: 'husband_room__garden', name: '临江·王宅·后花园', depth: 6, use: 'garden', exits: ['husband_room', 'husband_room__servant'] },
+  { id: 'husband_room__servant', name: '临江·王宅·后罩房', depth: 7, use: 'servant', exits: ['husband_room__garden', 'husband_room__kitchen', 'husband_room__barracks'] },
+  { id: 'husband_room__kitchen', name: '临江·王宅·大庖厨', depth: 7, use: 'kitchen', exits: ['husband_room__servant'] },
+  { id: 'husband_room__barracks', name: '临江·王宅·演武值房', depth: 7, use: 'barracks', exits: ['husband_room__servant'] },
+];
+
+/**
+ * 极简幂等挂载：一次性灌入，绝不递归！
+ */
+export function ensureWangMansion(world) {
+  if (!world.places) world.places = {};
+  for (const r of WANG_MANSION_ROOMS) {
+    if (!world.places[r.id]) {
+      world.places[r.id] = {
+        id: r.id,
+        name: r.name,
+        parent: 'husband_room',
+        depth: r.depth,
+        use: r.use,
+        exits: [...r.exits],
+        owner: 'husband',
+        residence: true,
+      };
+    } else {
+      // 老房间补全属性，不覆盖
+      world.places[r.id].depth = r.depth;
+      world.places[r.id].parent = r.id === 'husband_room' ? null : 'husband_room';
+    }
+  }
+}
+```
+
+**为什么这种写法绝对不会再搞坏？**
+1. **零递归**：全是固定 ID，绝不可能出现 `husband_room__main__gate` 这种长串套娃；
+2. **零地名歧义**：每个房间的全称和深度清晰确定，抽屉排序和 `places-target.js` 匹配直接命中；
+3. **老存档平滑兼容**：`husband_room` 原地保留为第四进核心正房，婉儿依然安坐其中，相公回家一步到位！
+
+---
+
 ### 2. 运河码头三层大酒楼立体空间生成器（`p1`）
 - **一层（临街喧闹大堂）**：跑堂柜台、散座百客、市井闲话、算盘账台；
 - **二层（雅阁与曲艺）**：听风轩、临波阁、倚翠轩等雅间，附设评弹说书挑台；
