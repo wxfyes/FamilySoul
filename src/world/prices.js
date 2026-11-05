@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 物价：天下熙熙皆为利来。
  *
  * 只维护"指数"，不维护每一笔买卖：
@@ -18,7 +18,7 @@ const num = (v) => {
 };
 
 export const COMMODITIES = {
-  grain: { name: '粮', base: 0.6 },
+  grain: { name: '粮', base: 0.4 },
   tea: { name: '茶', base: 1.2 },
   silk: { name: '丝', base: 3.0 },
   salt: { name: '盐', base: 0.8 },

@@ -1079,7 +1079,11 @@ export class PetService {
         const m = seg.match(/^【([^】\n]{1,12})】/);
         if (!m) { kept.push(seg); continue; }
         const spk = m[1].trim();
-        if (/天道|旁白|众人/.test(spk) || spk === (me?.name || '')) { kept.push(seg); continue; }
+        // 系统/差事类标头不是人（如「领受差事 · 林芸娘」），原样留着
+        if (/[·・]/.test(spk) || /天道|旁白|众人|差事|任务|系统|回执|结算/.test(spk) || spk === (me?.name || '')) {
+          kept.push(seg);
+          continue;
+        }
         const who = Object.values(w.actors || {}).find((a) => a && !a.dead && a.name && (a.name === spk || spk.includes(a.name) || a.name.includes(spk)));
         if (!who) { kept.push(seg); continue; }
         // 同名可能既有 NPC 又有真人号：只要这个名字底下有真人号，就不许 AI 替他说话
@@ -1163,6 +1167,20 @@ export class PetService {
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
+    } catch { /* 忽略 */ }
+
+    // 今日真实行情：粮价、盐价等按引擎的数，不许天道随口报（"四钱一石"这种便宜价会坑了相公）
+    try {
+      const wPx = loadState(this.dataDir);
+      const mePx = this._viewerActorId ? wPx.actors?.[this._viewerActorId] : wPx.actors?.husband;
+      const cityPx = Object.values(wPx.cities || {}).find((c) => c && c.name && String(wPx.places?.[mePx?.location]?.name || '').includes(String(c.name).slice(0, 2)))?.name
+        || Object.keys(wPx.cities || {})[0] || '临江府';
+      const g = grainPrice(wPx, cityPx);
+      const parts = [`${cityPx}今日米价 ${g.toFixed(2)} 两/石（买 10 石 = ${(g * 10).toFixed(2)} 两，买 50 石 = ${(g * 50).toFixed(2)} 两）`];
+      for (const k of ['salt', 'tea', 'silk', 'iron']) {
+        try { parts.push(`${k === 'salt' ? '盐' : k === 'tea' ? '茶' : k === 'silk' ? '丝' : '铁'} ${priceAt(wPx, cityPx, k).toFixed(2)} 两`); } catch { /* 忽略 */ }
+      }
+      contextHintEarly += `（【今日行情】${parts.join('；')}。凡谈到价钱，一律照这个数说；绝不许可自报一个更便宜的价来哄相公。此前若说过别的价，以这条为准。）\n`;
     } catch { /* 忽略 */ }
 
     // 府中兵事与存粮：家眷与管家自然知道家里有多少兵、多少粮（不必相公逐条交代）

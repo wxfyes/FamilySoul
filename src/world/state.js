@@ -978,6 +978,35 @@ export function migrateOwnership(world) {
     if (n) { console.log(`[Residence] 把 ${n} 个流动小贩请回街市`); world.__migratedDirty = true; }
   } catch { /* 忽略 */ }
 
+  // 一次性：粮价基数归位（明末江南丰年一石约四钱）
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.priceBaseFixV1) {
+      world.market = world.market || {};
+      if (world.market.grain) world.market.grain.base = 0.4;
+      world.flags.priceBaseFixV1 = { day: world.clock?.day || 1 };
+      console.log('[Price] 粮价基数归位 0.4 两/石');
+    }
+  } catch { /* 忽略 */ }
+
+  // 一次性：清掉"几个铺子/若干铺"这类被量词骗出来的假产业
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.propertyCleanupV2) {
+      const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+      const before = props.length;
+      const bad = [];
+      world.assets.properties = props.filter((p) => {
+        const nm = String(p?.name || '');
+        const fake = /^(几个|若干|多家|一些|这一个|那一个|某|好多|数个|几间|几处)/.test(nm);
+        if (fake) bad.push(nm);
+        return !fake;
+      });
+      world.flags.propertyCleanupV2 = { removed: before - world.assets.properties.length };
+      if (bad.length) console.log(`[Property] 清掉假产业：${bad.join('、')}`);
+    }
+  } catch { /* 忽略 */ }
+
   // 空间清理（串模板房间 / 小贩归位 / 补房间 / 门路）：同一进程内最多每 60 秒跑一次，
   // 不然每次读档都扫一千多个地点，接口会被拖慢
   try {

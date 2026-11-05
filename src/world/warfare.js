@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 兵权与夺城（v2）：兵有驻地，粮有仓，路要通，仗要打几天。
  *
  * 规则：
@@ -339,15 +339,14 @@ export function buyGrain(world, fid, shi, city) {
   const cost = round2(amount * unitPrice);
   if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：买 ${amount} 石要 ${cost} 两` };
 
+  // 粮进府库（招兵、放粮看的都是这一个数）；城里另记一份徭赈库存，供赈济与守城用
+  f.grain = round2(num(f.grain) + amount);
   const town = city && world.cities?.[city] ? city : (Array.isArray(f.cities) && f.cities[0]) || '';
   if (town && world.cities?.[town]) {
-    world.cities[town].grain = round2(num(world.cities[town].grain) + amount);
-    if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-    return { ok: true, grain: world.cities[town].grain, city: town, cost };
+    world.cities[town].grain = round2(num(world.cities[town].grain) + Math.round(amount * 0.3 * 100) / 100);
   }
-  f.grain = round2(num(f.grain) + amount);
   if (f.id === 'wangjia') syncWangjiaToMilitary(world);
-  return { ok: true, grain: f.grain, city: '', cost };
+  return { ok: true, grain: f.grain, city: town, cost, unitPrice };
 }
 
 /** 产业粮转军粮：把自家粮栈产出的粮调进某城仓 */
