@@ -17,7 +17,9 @@ export function inferGenderFromIdentity(name = '', role = '', fallback = 'male')
   const text = `${name} ${role}`;
   if (/[娘婆姑嫂妹姐氏妇母女妮媛嫣娟婷妍嫦娥姬妃嫔]/.test(String(name || ''))) return 'female';
   if (/丫鬟|丫头|侍女|婆子|妇人|寡妇|稳婆|媒婆|绣娘|尼|婢|妾|公主|王妃|太太|小姐|姑娘/.test(text)) return 'female';
-  if (/[公郎爷叔伯先生]*/.test('') && /先生|郎君|公子|老爷|少爷|和尚|道士|僧|侠|镖师|捕快/.test(text)) return 'male';
+  if (/先生|郎君|公子|老爷|少爷|和尚|道士|僧|侠|镖师|捕快|教头|武师/.test(text)) return 'male';
+  // 名字里带这些字，基本是男子
+  if (/彪|虎|龙|刚|强|勇|铁|钢|山|川|军|武|雄|豪|霸|峰|磊|鹏|虎|豹|骏|驹|锤|刀|箭/.test(String(name || ''))) return 'male';
   return fallback;
 }
 

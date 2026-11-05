@@ -219,6 +219,11 @@ export function healWorld(world) {
   try {
     for (const a of Object.values(world.actors || {})) {
       if (!a || a.dead) continue;
+      // 明显男子名却被当成女子 → 纠正
+      if (a.gender === 'female' && /彪|虎|龙|刚|强|勇|铁|钢|军|武|雄|豪|霸|峰|磊|鹏|豹|骏|驹/.test(String(a.name || ''))) {
+        a.gender = 'male';
+        fixes.push(`${a.name}性别校正为男（名字是男子名）`);
+      }
       // 性别不许留 unknown：看不出女子特征就当男子
       if (!a.gender || a.gender === 'unknown') {
         a.gender = inferGenderFromIdentity(a.name, a.role, 'male');
