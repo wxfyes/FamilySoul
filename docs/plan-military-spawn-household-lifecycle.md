@@ -1,151 +1,185 @@
-# 军饷月结与危机状态机 · 新人入世底座 · 中馈月例重构方案
+# 军饷月结与危机深化 · 小家中馈柴米自洽 · 新人入世底座重构方案
 
-> **编制依据**：用户对“军饷日扣违背常识、欠饷兵变缺失”、“新人进场底座单薄如塑料”、“小家柴米油盐中馈”的核心指示。  
-> **指导思想**：恪守《AGENTS.md》最高第一铁律，彻底禁止打补丁，从**状态机规则、单一数据写入口、社会因果网络**三层治本。  
-> **任务目标**：将古代真正的军旅放饷与欠饷危机、市井新人入世的血肉因果、以及王家小日子的中馈月例全量落地。
+> **编制基准**：《AGENTS.md》最高第一铁律（彻底禁止打补丁，修架构、修单一入口、修规则闭环）  
+> **面向对象**：FamilySoul 核心开发 AI（请严格按本方案落地实现，严禁缩水）  
+> **核心目标**：彻底解决“柴米油盐无人管、天道生活真空悬浮、DM长人生成空壳”的系统性底座缺失。
 
 ---
 
-## 模块一：军饷月结与拖欠兵变危机状态机（彻底废除日扣）
+## 零、必须认清的架构本质
 
-### 1. 痛点诊断
-目前 `src/world/warfare.js:250` 每日执行 `total * (MONTHLY_PAY / 30)`：
-- 古代军队绝无“每日发碎银”之理，日扣导致相公某天手头偶尔没现银就立即判定欠饷、逃兵，极其荒唐；
-- 抹杀了古代军队最惊心动魄的矛盾——**【拖欠军饷、军心浮动、逃兵与营中哗变】**。
+用户指出的核心痛点是：
+1. **生活花销不能没人操心，但也不可能让相公每天去买酱油买醋**。必须由**天道建立【公中中馈月例银】自发运转体系**——月初天道自动划拨银两给主母沈婉儿操持内宅，平时谁也不用烦琐记账；有钱内宅安适，没钱触发典当危机，形成完整的烟火气闭环！
+2. **新人进场底座不能是空壳**。目前 `demography.js` 已补充年轻人口，但天道 DM 临场长人（`dispatch.js: [[world:spawn]]`）依然缺少岁数、婚配与初始盘缠，必须由单一入口在生成时一次性完整赋权！
+3. **大军博弈不能悬浮**。正规营兵不能在布衣阶段无门槛狂募；欠饷 3 个月哗变必须有概率洗劫府库反噬相公，形成真实政治经济博弈！
 
-### 2. 架构正道设计
-在 `src/world/warfare.js` 与 `src/world/clock.js` 实施三步重构：
+---
 
-#### ① 口粮与饷银权责分离
-- **吃粮（日结）**：维持每日扣粮（每日每兵 0.02 石，兵营每日生火造饭）；
-- **发饷（月结）**：**彻底删除每日扣饷代码**，改为每 30 个世界日（放饷日）集中发放。
+## 一、第一支柱：小家中馈柴米月例银（天道自动掌管生活花销）
 
-#### ② 建立欠饷危机状态机（`faction.arrears`）
-势力表增加欠饷结构：
-```javascript
-f.arrears = {
-  unpaidMonths: 0,    // 连续拖欠月数
-  debtSilver: 0,      // 累计拖欠饷银总额
-  lastPayDay: 0       // 上次放饷世界日
-};
-```
+### 1. 核心设计原则
+- **微观全自动**：平时任何角色与相公都不用手动买米买油买炭；
+- **宏观按月扣**：每月初一（与军饷同日，`day % 30 === 0`），天道自发从相公公中（`world.assets.silver`）划拨 **中馈月例银（默认 4.0 两/月）** 给主母沈婉儿；
+- **危机自洽演进**：公中有钱则家宅和睦，公中无钱则触发分级内宅危机。
 
-每月放饷日（`day % 30 === 0`）运行 `runMilitaryMonthlyPay(world, events)`：
-```javascript
-export function runMilitaryMonthlyPay(world, events) {
-  for (const f of Object.values(world.factions || {})) {
-    if (!f || num(f.troops) <= 0) continue;
-    const need = round2(num(f.troops) * MONTHLY_PAY); // 每兵 1 两
-    const paid = spendFactionSilver(world, f, need);
-
-    if (paid) {
-      // 足额放饷
-      f.arrears.unpaidMonths = 0;
-      f.arrears.debtSilver = 0;
-      f.morale = Math.min(100, num(f.morale) + 5);
-      fire(world, { action: 'army_paid', actor: f.leader, payload: { text: `${f.name}如期足额发放月饷 ${need} 两，三军欢呼` } });
-    } else {
-      // 欠饷！危机升级
-      f.arrears.unpaidMonths = (f.arrears.unpaidMonths || 0) + 1;
-      f.arrears.debtSilver = round2((f.arrears.debtSilver || 0) + need);
-
-      if (f.arrears.unpaidMonths === 1) {
-        // 欠饷 1 个月：怨言四起
-        f.morale = Math.max(0, num(f.morale) - 15);
-        fire(world, { action: 'army_unpaid_1', actor: f.leader, payload: { text: `${f.name}月饷无着，拖欠 ${f.arrears.debtSilver} 两，营中怨声四起` } });
-      } else if (f.arrears.unpaidMonths === 2) {
-        // 欠饷 2 个月：开小差逃兵、偷当兵甲
-        f.morale = Math.max(0, num(f.morale) - 25);
-        const flee = Math.max(2, Math.round(num(f.troops) * 0.2));
-        reduceTroops(world, f, flee);
-        fire(world, { action: 'army_desert', actor: f.leader, payload: { text: `${f.name}欠饷两月，士卒心寒，夜半逃走 ${flee} 人` } });
-      } else if (f.arrears.unpaidMonths >= 3) {
-        // 欠饷 3 个月以上：兵变哗变！
-        const rebel = Math.max(5, Math.round(num(f.troops) * 0.4));
-        reduceTroops(world, f, rebel);
-        f.morale = 20;
-        fire(world, { action: 'army_mutiny', actor: f.leader, payload: { text: `${f.name}欠饷百日，军营哗变！乱兵哄抢库房作鸟兽散` } });
-      }
-    }
+### 2. 数据结构规范（`world.assets`）
+```json
+{
+  "silver": 128.5,
+  "householdAllowance": 4.0,
+  "householdArrears": {
+    "months": 0,
+    "owed": 0.0
   }
 }
 ```
 
-#### ③ 支持随时“补发积欠军饷 / 犒赏”
-暴露接口 `POST /api/world/military/repay`：
-相公随时可筹款把 `f.arrears.debtSilver` 补齐，士兵补领白花花银两，军心瞬间大振、士气回血。
+### 3. 时钟挂接与状态机（`src/world/clock.js: onNewDay`）
+每月初一（`day % 30 === 0`）与 `runPayday` 并行触发 `runHouseholdPayday(world, events)`：
+
+- **情境 A：足额划拨（`silver >= householdAllowance`）**：
+  - 扣除银两：`silver -= allowance`；
+  - 若此前有积欠（`householdArrears.months > 0`）：
+    - 扣清积欠或提示补齐，清零 `householdArrears`；
+    - 生成事件：`【中馈】月初公中拨足银两并补齐旧欠，婉儿喜逐颜开，采买绸缎细米，内宅欢欣。`；
+    - 妻妾（沈婉儿、林芸娘等府内眷属）好感提升，怨怼清零；
+  - 若日常正常发放：
+    - 生成事件：`【中馈】月初发下公中月例银 四两，婉儿操持采办应季柴炭米粮，内宅井井有条。`；
+    - 眷属心境安稳，日常闲聊可自然引用应季柴米（如冬日暖炉、春日新茶）。
+
+- **情境 B：短缺欠发（`silver < householdAllowance` 进入危机状态机）**：
+  - `householdArrears.months += 1`；
+  - `householdArrears.owed += allowance`；
+  - **欠 1 个月（暗中典当）**：
+    - 主母婉儿隐忍持家，事件：`【中馈】公中银两短缺，月例未发。婉儿暗中典当旧素银钗贴补米面柴火，内宅暗生愁容。`；
+    - 眷属怨怼 `grievance += 5`；
+  - **欠 2 个月（下人议论）**：
+    - 府内用度紧缩，事件：`【中馈】公中已两月未发月钱，丫鬟小厮私下私语相公家道中落，冬日炭火减半。`；
+    - 眷属怨怼 `grievance += 10`，市井流传微弱风闻：*“听说王相公府上近来手头颇紧…”*；
+  - **欠 3 个月及以上（内宅裂痕）**：
+    - 粗茶淡饭，生计艰难，事件：`【中馈】公中三月无粮饷银米，丫鬟告假离府，芸娘垂泪，内宅生计维艰。`；
+    - 妻妾信任 `trust -= 15`，怨怼大增。
+
+### 4. 补发与贴补接口（`src/server.js`）
+- 提供 `POST /api/world/household { action: 'pay_arrears' }`：
+  - 相公手头有银子时可一键补齐积欠月例，补齐后眷属怨怼平复，生成事件：`相公拿出银两贴补内宅，婉儿重掌中馈，家宅复归安泰。`
+- 在 `GET /api/me` 和 Web 看板中输出 `householdAllowance` 与 `householdArrears`，让相公随时掌握家计。
 
 ---
 
-## 模块二：新人入世五重因果底座（重塑 `dispatch.js` 的 `spawn`）
+## 二、第二支柱：DM 临场入世 `spawn` 彻底厚实化（`src/world/dispatch.js`）
 
-### 1. 痛点诊断
-目前 `src/world/dispatch.js:285-335` 生成新人：
-- 凭空造一个铺子，塞一套死板日程；没有籍贯出身、无来临江动机、眼里只有相公一人（社交孤岛）、身上无盘缠、街坊无反应，塑料感极重。
+### 1. 现存 Bug 与病因分析
+- 在 `src/world/dispatch.js` 的 `kind === 'spawn'` 分支中，天道 DM 临时长人时只赋了 `id`、`name`、`role`、`location`、`home`、`goals`，**完全漏掉了 `age`、`gender`（部分逻辑仍可能留空）、`marital` 和 `money`**！
+- 这导致生成的角色岁数为空，随身一文不名，直到事后读档被 `heal.js` 补齐，严重违反了“单一写入口”原则。
 
-### 2. 架构正道设计
-彻底重构 `spawn` 底座，引入纯函数 `generateActorOrigin(name, role, world)`：
+### 2. 彻底治本修法（`dispatch.js`）
+在 `world.actors[id] = { ... }` 写入时，必须无条件调用现成的全套推断规则一次性赋予完整人格底座：
 
-#### ① 籍贯与出身动机（来龙去脉）
-新人自动抽取符合古代世情的**【入世身份】**：
-- **避灾流民型**：徐州/豫东遭大旱，携家带口南下乞食的匠人/苦力（随身银 0.2 两，甚至欠外债 1 两）；
-- **商帮驻埠型**：徽商/洞庭商帮引荐来临江设铺的掌柜（随身银 30~80 两，挂靠 `临江商帮`）；
-- **落第寄居型**：江南道落第文士，客居茶肆替客商写家信算账（随身银 1.5 两）；
-- **江湖行旅型**：运河漕运镖师、跑船水手，暂歇客栈（随身银 4~10 两）。
-
-#### ② 社交纽带与宗族锚定（拒绝孤岛）
-生成新人时，不再是 `relations: { husband: ... }`：
-- **同姓归族**：若新人姓沈、林、王、陆，自动关联城内对应宗族（`clans`）；
-- **街坊保甲**：自动与落脚地同一地点的 1~2 位街坊建立 `街坊 (浅交)` 关系（如：王婆是紫嫣与阿吉的街坊）；
-- **对相公的初始态度**：根据相公名声（仁商/义士）赋予基础好感（40~60）。
-
-#### ③ 市井风闻全城联动
-新人进场 `spawn` 成功后，自动注入一条市井风闻：
 ```javascript
-addRumor(world, {
-  text: `东街新来了一位${role}「${name}」，据说是从${originPlace}避乱过来的`,
-  about: [id],
-  weight: 3
-});
+// 1. 性别（严禁 unknown）
+const gender = inferGenderFromIdentity(name, args.role, args.gender || 'male');
+
+// 2. 年龄（根据行当与姓名自然推断，绝不允许留空）
+const age = inferAgeFromIdentity(name, args.role, gender, id);
+
+// 3. 婚配（按古代世情梯次自然推断）
+const marital = inferMaritalStatus(name, args.role, age, gender);
+
+// 4. 初始盘缠（根据身份行当赋予真实碎银，绝不空腹入世）
+const money = (() => {
+  const r = String(args.role || '');
+  if (/客商|掌柜|东家|盐商|富商/.test(r)) return Math.round((8 + Math.random() * 15) * 10) / 10; // 8~23两
+  if (/郎中|教书|相士|捕头|镖头/.test(r)) return Math.round((3 + Math.random() * 5) * 10) / 10;   // 3~8两
+  if (/小贩|货郎|绣娘|帮佣|伙计|茶博士/.test(r)) return Math.round((1 + Math.random() * 2) * 10) / 10; // 1~3两
+  if (/流民|乞儿|叫花子/.test(r)) return Math.round(Math.random() * 0.3 * 100) / 100;           // 0~0.3两
+  return Math.round((1 + Math.random() * 3) * 10) / 10; // 默认 1~4两
+})();
+
+// 5. 初始社会关系（不再只有 husband 孤悬一人）
+const relations = {
+  husband: { trust: 50, desire: 30, fear: 0, grievance: 0 }
+};
+// 从同地点或街坊中挑选一位已有 NPC，建立街坊或旧识关系
+const neighbors = Object.values(world.actors || {}).filter(a => a && !a.dead && a.id !== id && (a.location === assignedLoc || a.home === assignedHome));
+if (neighbors.length > 0) {
+  const peer = neighbors[Math.floor(Math.random() * neighbors.length)];
+  relations[peer.id] = { trust: 60, relation: '街坊' };
+  peer.relations = peer.relations || {};
+  peer.relations[id] = { trust: 60, relation: '街坊' };
+}
 ```
-客商与内眷（婉儿/芸娘）在茶余饭后自然能念叨出新邻居。
 
 ---
 
-## 模块三：小家柴米油盐与中馈月例底座
+## 三、第三支柱：兵制深化（营兵准入门槛与哗变反噬）
 
-### 1. 痛点诊断
-缺乏市井细碎开销体系，但若事事买菜记账又会陷入微观灾难。
+### 1. 正规野战营兵（`army`）准入门槛（`src/world/warfare.js: callToArms`）
+- **常理规则**：
+  - 家丁（`guard`，看家护院）与护院（`retainer`，武师镖客）属于豪门家眷私卫，布衣大贾亦可私雇；
+  - **营兵（`army`，执坚披甲的经制大军）**：私蓄甲士在古代等同谋逆！
+- **代码实现**：
+  - 招募 `kind === 'army'` 时，必须校验：
+    - 相公势力 `f.cities` 拥有至少一座城池（据有一方）；
+    - 或相公拥有官方武职/朝廷授衔（`world.appointments` 中有相关武职）；
+  - 若皆无，则返回拒绝：`{ ok: false, error: '未奉朝命或未据城池，擅募野战营兵形同聚众谋逆！目前只可招募家丁与护院。' }`。
 
-### 2. 架构正道设计：古代大家族【中馈月例制】
-
-#### ① 公中柴米月例银（宏观物理底座）
-在 `world.assets` 中确立 `householdAllowance`（公中月例）：
-- 基础开销：每月 15 两白银（涵盖厨房割肉买菜、油盐酱醋、薪炭柴火、伙计丫鬟伙食）；
-- 随府中女眷人数与人手自动按人头微调（`10 + householdCount * 2.5` 两/月）；
-- 每月由管家/芸娘从府库统一支取，底层自发运转，平稳自洽。
-
-#### ② 节令中馈烟火（天道剧情涌现）
-大模型在日常闲聊中，结合时节自动生成中馈日常：
-- **立冬**：芸娘报账添置无烟银丝炭、给全府裁做冬衣；
-- **端午/中秋**：婉儿张罗分送街坊节礼、备办桂花蜜饯；
-- **银两充裕**：红颜喜笑颜开；若府库亏空，内眷主动典当私房共渡难关。
-
-#### ③ 相公随街采买大件（情趣与浪漫）
-支持相公在东街购买高阶家私与绫罗绸缎：
-- 绸缎庄购“苏绣锦缎”（8两）➔ 赠发妻婉儿，情意大涨；
-- 木器行购“黄花梨拔步床”（35两）➔ 换入卧房，提升闺房情趣与受孕福气。
+### 2. 欠饷 3 个月哗变反噬府库（`src/world/warfare.js: runPayday`）
+- 当欠饷达到 3 个月触发 `mutiny` 哗变时：
+  - 溃散 25% 兵力；
+  - 所在城池民怨上升（`unrest + 10`）；
+  - **新增反噬逻辑**：有 30% 概率溃兵啸聚洗劫军资：
+    - 若驻地城池有公粮，劫走 `Math.min(num(ct.grain), 50)` 石；
+    - 或若相公府库有余银，劫掠走少量余银（不超过 50 两），并发布天道公开事件：
+      `【营中哗变】欠饷三月，溃兵洗劫了驻地府库并呼啸散去，地方震动！`
 
 ---
 
-## 四、 验收与回归标准
+## 四、落地实施清单与验证要求
 
-| 验收项目 | 期望行为 |
-|---|---|
-| **军饷发放** | 每日不再扣碎银；每 30 天统一扣月饷（1两/兵/月） |
-| **拖欠军饷** | 欠饷 1 月士气 -15 怨言；欠饷 2 月逃兵 20%；欠饷 3 月营中哗变 |
-| **补发积欠** | 相公筹钱补发积欠军饷后，士气立刻止跌回升 |
-| **新人进场** | 带有明确籍贯动机、初始盘缠、自动关联街坊宗族，并化为茶客风闻 |
-| **中馈月例** | 每月定额扣除公中柴米银，天道自然唠叨应季买炭添衣 |
-| **回归测试** | `python scripts/regress.py` 维持 **20/20 全绿** |
+1. **修改文件**：
+   - `src/world/clock.js`：挂接每月初一 `runHouseholdPayday`，驱动中馈月例银与危机状态机；
+   - `src/world/dispatch.js`：重构 `kind === 'spawn'`，当场赋予岁数、性别、婚配、初始盘缠与街坊关系；
+   - `src/world/warfare.js`：营兵准入门槛校验、欠饷 3 月哗变反噬洗劫；
+   - `src/server.js`：增加中馈补欠接口 `POST /api/world/household { action: 'pay_arrears' }`，在 `/api/me` 返回 `householdAllowance` 与 `householdArrears`；
+   - `mobile/lib/views/army_sheet.dart`（如有需要）或相应前端看板展示公中月例。
+2. **严禁打补丁**：
+   - 严禁对沈婉儿、林芸娘写写死特判；
+   - 严禁出现“先生成空壳再靠 heal 修正”的伪修复；
+3. **交付验收要求**：
+   - 语法检查：`node --check` 必须全数通过；
+   - 本地自测：验证初一自动扣除中馈月例银、欠费危机事件生成、`[[world:spawn]]` 人物数据完整、营兵门槛拦截；
+   - 回归测试：`python scripts/regress.py` 必须保持 **20 / 20 项全绿**；
+   - 编写整改汇报文档：`docs/report-household-and-spawn-fixes.md` 供审查官复审。
 
+---
+
+## 五、落地实况（v1.1 · 已实现部分）
+
+> 本节由执行方补充：方案一旦落地，就在这里标记状态，避免文档与代码脱节。
+
+| 方案条目 | 状态 | 落点 |
+|---|---|---|
+| 中馈月例银（4 两/月，月初划拨） | ✅ 已实现 | `clock.js#runHouseholdPayday` |
+| 中馈欠拨三级危机（1/2/3 月） | ✅ 已实现 | 同上（怨怼 +5/+10/+15，3 月信任 -15） |
+| 中馈补欠接口 | ✅ 已实现 | `POST /api/world/household { action:'pay_arrears' }` |
+| 中馈字段进负载 | ✅ 已实现 | `/api/me` 的 `household: { allowance, arrears, silver }` |
+| spawn 补齐性别/年龄/婚配 | ✅ 已实现 | `dispatch.js`（走 `persona.js` 单一推导） |
+| spawn 补初始盘缠 | ✅ 已实现 | 同上（按身份 0.3~23 两） |
+| spawn 补街坊关系 | ✅ 已实现 | 同上（同地点/同街坊随机一人，双向） |
+| 营兵准入门槛（据城或受朝命） | ✅ 已实现 | `warfare.js#callToArms` |
+| 欠饷 3 月哗变 + 洗劫反噬 | ✅ 已实现 | `warfare.js#runPayday`（30% 概率，粮≤50 石、银≤50 两） |
+
+### 与方案的偏差（执行时做的调整）
+
+1. **月饷不是统一 1 两**：按兵种分档——家丁 0.6、护院 0.9、营兵 1.5（依据明万历山东土兵 0.9 两、南兵 1.5 两）。
+2. **中馈危机文案不写死名字**：方案里点名"婉儿"，实现改为遍历 `household` 眷属，文案统称"主母/内宅"，避免对某个角色特判。
+3. **spawn 的街坊关系**：方案写"从同地点或街坊中挑一人"，实现为"同地点或同 home"，并双向写入。
+4. **营兵门槛**额外接受"在任官职"作为替代（`world.court.offices` 中有本人），不只认城。
+5. **哗变洗劫**有 30% 概率，不是必抢（避免每次欠饷都把玩家洗成白板）。
+
+### 仍待补的（下一版）
+
+- 中馈只到"发/欠/补"，还没有"具体采买了什么"的清单（柴炭米粮分项）。
+- 营兵的"受朝命"目前只认 `court.offices`，未接"朝廷册封/武职"的完整体系。
+- 哗变后没有"招抚溃兵"的补救路径。

@@ -62,6 +62,16 @@ export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) 
   come = Math.max(1, Math.min(Math.max(1, max), come));
 
   const k = RECRUIT_KINDS[kind] || RECRUIT_KINDS.guard;
+
+  // 私蓄甲士等同谋逆：营兵须据城或受朝命
+  if (kind === 'army') {
+    const hasCity = Array.isArray(f.cities) && f.cities.length > 0;
+    const hasOffice = Boolean(world.court?.offices && Object.values(world.court.offices).some((o) => o && o.holder === f.leader));
+    if (!hasCity && !hasOffice) {
+      return { ok: false, error: '未奉朝命、未据城池，擅募野战营兵形同聚众谋逆！眼下只可招家丁与护院。' };
+    }
+  }
+
   const cost = round2(come * k.cost);
   const grain = round2(come * k.grain);
   if (num(f.grain) < grain) return { ok: false, error: `粮不够：${come} 人要 ${grain} 石` };
@@ -148,7 +158,24 @@ export function runPayday(world, events) {
         const flee = Math.max(1, Math.round(num(f.stationed[town]) * 0.25));
         setStationed(world, f, town, Math.max(0, troopsAt(world, f, town) - flee));
         f.morale = 20;
-        out.push({ action: 'mutiny', actor: f.leader, place: town, payload: { text: `${f.name}欠饷三月，营中哗变，溃散 ${flee} 人` } });
+        let lootText = '';
+        // 溃兵啸聚：三成概率洗劫军粮与府库
+        if (Math.random() < 0.3) {
+          try {
+            const ct = world.cities?.[town];
+            if (ct && num(ct.grain) > 0) {
+              const takeGrain = Math.min(num(ct.grain), 50);
+              ct.grain = round2(num(ct.grain) - takeGrain);
+              lootText += `劫走军粮 ${takeGrain} 石；`;
+            }
+            const lootSilver = Math.min(num(world.assets?.silver), 50);
+            if (lootSilver > 0) {
+              world.assets.silver = round2(num(world.assets.silver) - lootSilver);
+              lootText += `掠去府库 ${lootSilver} 两；`;
+            }
+          } catch { /* 忽略 */ }
+        }
+        out.push({ action: 'mutiny', actor: f.leader, place: town, payload: { text: `${f.name}欠饷三月，营中哗变，溃散 ${flee} 人${lootText ? `，${lootText}` : ''}` } });
         try {
           if (world.cities?.[town]) world.cities[town].unrest = Math.min(100, num(world.cities[town].unrest) + 10);
         } catch { /* 忽略 */ }

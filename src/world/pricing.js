@@ -47,3 +47,28 @@ export function priceHint() {
     .map(([k, v]) => `${v.name} (${k})：约 ${v.typical} 两/${v.unit}（${v.min}~${v.max}）`)
     .join('；');
 }
+
+/**
+ * 城的等级：由富庶与物价定（临江府这种大埠，地价自然比小县贵）
+ * 0.6 ~ 2.6 倍
+ */
+export function cityFactor(world, cityName) {
+  const ct = world?.cities?.[cityName];
+  if (!ct) return 1;
+  const wealth = Number(ct.wealth) || 30;
+  const price = Number(ct.price) || 100;
+  const f = (wealth / 50) * (price / 100);
+  return Math.round(Math.max(0.6, Math.min(2.6, f)) * 100) / 100;
+}
+
+/** 某城的房价/地价（key = shop 或 mansion） */
+export function propertyPriceAt(world, cityName, key) {
+  const base = priceOf(key);
+  return Math.round(base * cityFactor(world, cityName) * 100) / 100;
+}
+
+/** 某城的房钱（住店按城价） */
+export function roomPriceAt(world, cityName) {
+  const base = priceOf('inn_room');
+  return Math.round(base * cityFactor(world, cityName) * 100) / 100;
+}

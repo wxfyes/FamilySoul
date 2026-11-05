@@ -703,6 +703,62 @@ function runLoanDues(world, events, queuePush) {
  * 给足了她们手头宽裕、怨气消；发不出，她们自己想办法——
  * 这层不写台词，只让"体面钱"真的存在。
  */
+/** 中馈月例：每月初一，公中拨银给主母操持内宅 */
+function runHouseholdPayday(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  if (day % 30 !== 0) return;
+  world.assets = world.assets && typeof world.assets === 'object' ? world.assets : {};
+  const allowance = Number(world.assets.householdAllowance) || 4.0;
+  world.assets.householdAllowance = allowance;
+  const ar = world.assets.householdArrears = world.assets.householdArrears || { months: 0, owed: 0 };
+  const silver = Number(world.assets.silver) || 0;
+
+  const mistresses = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.household);
+  if (!mistresses.length) return;
+
+  if (silver >= allowance + Number(ar.owed || 0)) {
+    const total = Math.round((allowance + Number(ar.owed || 0)) * 100) / 100;
+    world.assets.silver = Math.round((silver - total) * 100) / 100;
+    const hadArrears = Number(ar.months) > 0;
+    ar.months = 0;
+    ar.owed = 0;
+    for (const a of mistresses) {
+      const rel = a.relations?.husband;
+      if (rel) {
+        rel.grievance = Math.max(0, Math.round((Number(rel.grievance) || 0) - 5));
+        rel.trust = Math.min(100, Math.round((Number(rel.trust) || 50) + (hadArrears ? 3 : 1)));
+      }
+    }
+    events.push(nextEvent(world, {
+      action: 'household_payday', actor: 'husband', place: 'husband_room',
+      payload: { text: hadArrears ? `公中拨足银两并补齐旧欠，内宅欢欣` : `月初发下公中月例银 ${allowance} 两，内宅井井有条` },
+      isPublic: false,
+    }));
+    return;
+  }
+
+  // 发不出：欠
+  ar.months = Number(ar.months) + 1;
+  ar.owed = Math.round((Number(ar.owed) + allowance) * 100) / 100;
+  const g = ar.months >= 3 ? 15 : ar.months === 2 ? 10 : 5;
+  for (const a of mistresses) {
+    const rel = a.relations?.husband;
+    if (rel) {
+      rel.grievance = Math.min(100, Math.round((Number(rel.grievance) || 0) + g));
+      if (ar.months >= 3) rel.trust = Math.max(0, Math.round((Number(rel.trust) || 50) - 15));
+    }
+  }
+  const text = ar.months >= 3
+    ? '公中三月未拨月例，丫鬟告假离府，内宅生计维艰'
+    : ar.months === 2
+      ? '公中两月未发月钱，下人私下私语家道中落，炭火减半'
+      : '公中银两短缺，月例未发，主母暗中典当贴补米面';
+  events.push(nextEvent(world, {
+    action: 'household_arrears', actor: 'husband', place: 'husband_room',
+    payload: { text }, isPublic: ar.months >= 2,
+  }));
+}
+
 function runAllowances(world, events) {
   const day = Number(world.clock?.day) || 1;
   if (day % 30 !== 0) return;
@@ -1423,6 +1479,13 @@ function onNewDay(world, events) {
     runDemography(world, nextEvent, events);
   } catch (err) {
     console.warn('[Demo] 人口补充失败：', err.message);
+  }
+
+  // 每月初一：中馈月例（公中拨银给主母操持内宅）
+  try {
+    runHouseholdPayday(world, events);
+  } catch (err) {
+    console.warn('[Household] 中馈结算失败：', err.message);
   }
 
   // 每月：士林清议、宗族走动（都只说事实，不写台词）

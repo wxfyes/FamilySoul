@@ -35,6 +35,8 @@ import { ensureFactions, factionOf, factionSilver, factionStrength, spendFaction
 import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear, callToArms, upkeepOf, payArrears } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
 import { marketSnapshot } from './world/prices.js';
+import { roomPriceAt, propertyPriceAt } from './world/pricing.js';
+import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
 import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
@@ -433,6 +435,59 @@ const STARTED_AT = Date.now();
       return sendJson(res, 500, { ok: false, error: err.message });
     }
   }
+
+    // 0.042 中馈：补发内宅积欠月例
+    if (req.method === 'POST' && pathname === '/api/world/household') {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = loadState(DATA_DIR);
+        world.assets = world.assets && typeof world.assets === 'object' ? world.assets : {};
+        const ar = world.assets.householdArrears || { months: 0, owed: 0 };
+        const act = String(body.action || 'pay_arrears');
+        if (act !== 'pay_arrears') return sendJson(res, 200, { ok: false, error: '未知动作' });
+        if (!(Number(ar.owed) > 0)) return sendJson(res, 200, { ok: false, error: '内宅并不欠月例' });
+        const need = Math.round(Number(ar.owed) * 100) / 100;
+        const silver = Number(world.assets.silver) || 0;
+        if (silver < need) return sendJson(res, 200, { ok: false, error: `银不够：欠 ${need} 两，手头 ${silver.toFixed(2)} 两` });
+        world.assets.silver = Math.round((silver - need) * 100) / 100;
+        world.assets.householdArrears = { months: 0, owed: 0 };
+        for (const a of Object.values(world.actors || {})) {
+          if (!a || a.dead || !a.household) continue;
+          const rel = a.relations?.husband;
+          if (rel) {
+            rel.grievance = Math.max(0, Math.round((Number(rel.grievance) || 0) - 10));
+            rel.trust = Math.min(100, Math.round((Number(rel.trust) || 50) + 5));
+          }
+        }
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, text: `补发内宅积欠 ${need} 两，婉儿重掌中馈，家宅复归安泰` });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 0.043 商货买卖：盐 / 茶 / 丝 / 铁 / 药（真买真卖，有货有价）
+    if (req.method === 'POST' && pathname === '/api/world/trade') {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = loadState(DATA_DIR);
+        const act = String(body.action || 'buy');
+        const city = String(body.city || '');
+        const good = String(body.good || '');
+        const qty = Number(body.qty) || 0;
+        const r = act === 'sell'
+          ? sellGoods(world, member.actor || 'husband', { city, good, qty })
+          : buyGoods(world, member.actor || 'husband', { city, good, qty });
+        if (r.ok) saveState(DATA_DIR, world);
+        return sendJson(res, 200, r);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
 
     // 0.044 善举：施粥 / 平价粜米（花钱买名声，压民怨）
     if (req.method === 'POST' && pathname === '/api/world/charity') {
@@ -1075,6 +1130,17 @@ const STARTED_AT = Date.now();
 
         if (pend.kind === 'lodging') {
           const innId = pend.inn || 'inn';
+          // 住店价按城分级（临江府贵、小县便宜）
+          const cityOfInn = world.cities?.临江府 ? '临江府' : Object.keys(world.cities || {})[0];
+          const fair = roomPriceAt(world, cityOfInn);
+          if (fair > 0) {
+            // 差价退补：天道报贵了就退，报便宜了就按城价补
+            const diff = Math.round((price - fair) * 100) / 100;
+            if (Math.abs(diff) > 0.005) {
+              if (diff > 0) world.assets.silver = Math.round((Number(world.assets.silver) + diff) * 100) / 100;
+              else if (Number(world.assets.silver) >= -diff) world.assets.silver = Math.round((Number(world.assets.silver) + diff) * 100) / 100;
+            }
+          }
           const roomName = opt?.label || '上房';
           const roomId = `${innId}_room`;
           world.places = world.places || {};
@@ -1422,6 +1488,8 @@ const STARTED_AT = Date.now();
           .map((c) => ({ text: c.text, day: c.day })),
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         market: marketSnapshot(world),
+        goods: goodsSnapshot(world),
+        household: { allowance: Number(world.assets?.householdAllowance) || 4.0, arrears: world.assets?.householdArrears || { months: 0, owed: 0 }, silver: Number(world.assets?.silver) || 0 },
         fame: { value: fameOf(world, me?.id || 'husband'), tags: (world.actors?.[me?.id || 'husband']?.fame?.tags || []) },
         clans: (() => {
           const rel = relatedClanIds(world);
