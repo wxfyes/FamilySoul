@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Apply 唯一结算层 —— 七层管道的第五层
  * 
  * 职责：
@@ -160,6 +160,30 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
           }
         }
       }
+
+      // 门禁：别人的私宅，外人不许直接进正房内院——先到大门/门房
+      try {
+        const dest = world.places?.[finalTargetId];
+        if (dest && dest.residence) {
+          const owner = String(dest.owner || '');
+          const meId = String(actor.id || '');
+          const isFamily = actor.household || actor.spouse === 'husband' || meId === owner
+            || (owner && world.actors?.[owner]?.household && actor.household);
+          const invited = Boolean(actor.invitedBy && actor.invitedBy === owner);
+          if (owner && owner !== meId && !isFamily && !invited) {
+            const parentId = dest.parent || (owner === 'husband' ? 'husband_room' : '');
+            const gateKey = 'gate';
+            const gateId = parentId && world.places?.[parentId]?.rooms?.[gateKey]?.id;
+            if (gateId && gateId !== finalTargetId) {
+              const made = materializeRoom(world, parentId, gateKey);
+              if (made) {
+                console.log(`[Gate] ${actor.name} 想进${world.places?.[parentId]?.name || ''}内院，被门房拦在大门`);
+                finalTargetId = made;
+              }
+            }
+          }
+        }
+      } catch { /* 忽略 */ }
 
       // 移动发起者
       const oldLoc = actor.location;

@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from './world/residence.js';
 import { describeRoom, roomForHour } from './world/room-life.js';
 import fs from 'node:fs';
@@ -3886,17 +3886,29 @@ const STARTED_AT = Date.now();
         const meId = currentMember.actor || 'husband';
         const segs = txt.split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
         const kept = [];
+        const dropped = [];
         for (const seg of segs) {
           const m = seg.match(/^【([^】\n]{1,12})】/);
           if (!m) { kept.push(seg); continue; }
           const spk = m[1].trim();
+          // 服务端出口铁律：只在当前地点的人能开口（本人除外）
+          const baseName = spk.includes('·') ? spk.split('·').pop().trim() : spk;
+          const meNow = wOut.actors?.[meId];
+          const who = Object.values(wOut.actors || {}).find((a) => a && !a.dead && a.name === baseName);
+          if (who && who.id !== meId && who.location !== meNow?.location) {
+            console.log(`[Presence:出口] 剔除非在场发言：${spk}`);
+            dropped.push(String(seg).replace(/^【[^】\n]{1,12}】/, '').trim());
+            continue;
+          }
           const isRealOther = Object.values(wOut.actors || {}).some(
-            (a) => a && !a.dead && a.name === spk && a.id !== meId && /^usr_/.test(String(a.id)),
+            (a) => a && !a.dead && a.name === baseName && a.id !== meId && /^usr_/.test(String(a.id)),
           );
           if (isRealOther) { console.log(`[Presence:出口] 剔除非本人操控的真人发言：${spk}`); continue; }
           kept.push(seg);
         }
-        const merged = kept.join('').trim();
+        let merged = kept.join('').trim();
+        // 全被剔掉：把话留下、把人名去掉，改成旁白，绝不给他挂错名
+        if (!merged && dropped.length) merged = dropped.join(' ').replace(/^[：:]+/, '').trim();
         if (merged && merged !== txt) result.reply.text = merged;
       } catch (e) { /* 忽略 */ }
       console.log(`[ChatTotal] 服务端总耗时 ${Date.now() - t0}ms（成员 ${currentMember.memberKey}）`);

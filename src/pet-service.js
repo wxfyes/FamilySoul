@@ -1059,6 +1059,22 @@ export class PetService {
     return reply.trim();
   }
 
+  /** 这一句里提到了谁：给代演的人一句底细（谁、做什么的、此刻在哪） */
+  _mentionFacts(world, text, exceptId) {
+    try {
+      const out = [];
+      for (const a of Object.values(world?.actors || {})) {
+        if (!a || a.dead || !a.name || a.id === exceptId) continue;
+        if (!String(text || '').includes(a.name)) continue;
+        const where = world.places?.[a.location]?.name || '别处';
+        const rel = a.id === 'husband' ? '临江茶坊东家' : (a.role || '城中人');
+        out.push(`${a.name}：${rel}，此刻在${where}`);
+        if (out.length >= 3) break;
+      }
+      return out;
+    } catch { return []; }
+  }
+
   /** 最近几句对话，供代演/兜底时接住指代（"他""那个人"） */
   _recentSnippet(profileKey, n = 4) {
     try {
@@ -2266,6 +2282,11 @@ export class PetService {
         say,
         present: hereActors,
       });
+      // 指名的人不在场，就不能把发言权交给他（否则他会隔空开腔）
+      if (turnTarget && turnTarget.actor && turnTarget.actor.location !== myLoc) {
+        console.log(`[TurnTarget] 指名者不在场：${turnTarget.actor.name}（此刻在${wTurn.places?.[turnTarget.actor.location]?.name || '别处'}），改由在场者接话`);
+        turnTarget = resolveTurnTarget({ world: wTurn, viewerId: myActorId, say: '', present: hereActors });
+      }
       if (turnTarget && turnTarget.actor) {
         const tActor = turnTarget.actor;
         const tName = tActor.name;
@@ -2763,7 +2784,7 @@ export class PetService {
               actor: npc,
               hearer: mePost,
               memories: npcMem,
-              facts: npcFacts.concat([
+              facts: npcFacts.concat(this._mentionFacts(wPost, say, npc.id)).concat([
                 herePlaceFact,
                 personFacts(wPost, npc.id),
                 (wPost.npcArcs || {})[npc.id]?.lastStep
@@ -3293,7 +3314,7 @@ export class PetService {
             actor: presentOne,
             hearer: mePres,
             memories: [],
-            facts: [personFacts(wPres, presentOne.id)].filter(Boolean),
+            facts: [personFacts(wPres, presentOne.id)].concat(this._mentionFacts(wPres, say, presentOne.id)).filter(Boolean),
             hearerName: mePres?.name || '客人',
             hearerPlace: String(wPres.places?.[hereLoc]?.name || ''),
             said: String(say || '').slice(0, 200),
@@ -3345,6 +3366,12 @@ export class PetService {
         if (!title || title === nm) return m0;
         return `【${title}·${nm}】`;
       });
+    } catch { /* 忽略 */ }
+
+    // 身份前缀补完之后，再按在场铁律收一遍（防止后段把不在场的人加回来）
+    try {
+      const cleaned2 = this._stripIllegalSpeakers(reply);
+      if (cleaned2) reply = cleaned2;
     } catch { /* 忽略 */ }
 
     const now = Date.now();
