@@ -866,8 +866,10 @@ function runTreasury(world, events) {
   world.court = world.court || {};
   const tr = world.court.treasury = world.court.treasury || { silver: 1200, grain: 800, lastIncome: 0, lastExpense: 0 };
 
-  // 收：朝廷的城
+  // 收：城税 + 商税 + 关税（朝廷的城才上缴）
   let income = 0;
+  let tariffCities = 0;
+  let tradeTax = 0;
   for (const ct of Object.values(world.cities || {})) {
     if (!ct) continue;
     const courtOwned = !ct.owner || ct.owner === 'court';
@@ -875,7 +877,18 @@ function runTreasury(world, events) {
     const rawTax = Number(ct.tax);
     const tax = Math.max(0, Math.min(50, Number.isFinite(rawTax) ? rawTax : 10));
     income += Math.round(((Number(ct.wealth) || 30) * tax) / 100 / 3 * 100) / 100;
+
+    // 商税：市面上做买卖抽的厘金（税基薄，但城多）
+    const wealth = Number(ct.wealth) || 30;
+    tradeTax += wealth * 0.02;
+
+    // 关税：靠水有码头的城，才有过税可抽
+    const region = String(ct.region || '');
+    if (/运河|码头|江南|淮|漕/.test(region + String(ct.name || ''))) tariffCities += 1;
   }
+  tradeTax = Math.round(tradeTax * 100) / 100;
+  const tariff = Math.round(tariffCities * 3 * 100) / 100;
+  income = Math.round((income + tradeTax + tariff) * 100) / 100;
   // 支：官俸 + 军饷
   const offices = Object.values(world.court.offices || {}).filter((o) => o && o.holder && !o.vacant);
   const salary = offices.length * 1.5;
@@ -885,6 +898,7 @@ function runTreasury(world, events) {
 
   tr.silver = Math.round(((Number(tr.silver) || 0) + income - expense) * 100) / 100;
   tr.lastIncome = Math.round(income * 100) / 100;
+  tr.detail = { cityTax: Math.round((income - tradeTax - tariff) * 100) / 100, tradeTax, tariff, tariffCities };
   tr.lastExpense = expense;
 
   // 国库见底：加税或欠俸
@@ -911,6 +925,14 @@ function runTreasury(world, events) {
 
   // 秋收入仓（每 30 天一次），灾荒出仓
   if (day % 30 === 0) {
+    // 秋粮折银：陈粮卖一部分换现银（丰年多、荒年少）
+    const grainNow = Number(tr.grain) || 0;
+    const grainToSilver = Math.round(Math.min(200, grainNow * 0.1) * 1.2 * 100) / 100;
+    if (grainToSilver > 0) {
+      tr.silver = Math.round(((Number(tr.silver) || 0) + grainToSilver) * 100) / 100;
+      tr.grain = Math.max(0, grainNow - Math.round(grainNow * 0.1));
+      events.push(nextEvent(world, { action: 'grain_sale', actor: 'court', place: null, payload: { text: `秋粮折银 ${grainToSilver} 两` }, isPublic: true }));
+    }
     tr.grain = Math.min(3000, (Number(tr.grain) || 0) + 600);
     events.push(nextEvent(world, { action: 'harvest', actor: 'court', place: null, payload: { text: '秋收入仓' }, isPublic: true }));
   }
