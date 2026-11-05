@@ -9,6 +9,8 @@ import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../providers/chat_provider.dart';
 import '../services/offline_asr_service.dart';
+import '../services/theme_controller.dart';
+import 'digest_sheet.dart';
 import '../widgets/message_bubble.dart';
 import 'settings_screen.dart';
 import 'my_world_screen.dart';
@@ -775,57 +777,7 @@ class _ChatScreenState extends State<ChatScreen> {
             const Divider(height: 1, color: Colors.white10),
 
             // ── 主入口 ──
-            ListTile(
-              leading: const Icon(Icons.explore_outlined, color: Color(0xFF8B5CF6)),
-              title: const Text('出门 · 找人 · 赴约', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('去哪儿、叫谁来、赴哪个约', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
-              onTap: () {
-                Navigator.pop(context);
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => OutAndAboutSheet(api: provider.api),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.groups_rounded, color: Color(0xFF8B5CF6)),
-              title: const Text('家兵', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('募兵 · 购粮 · 军械 · 驻军', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
-              onTap: () {
-                Navigator.pop(context);
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => ArmySheet(
-                    api: provider.api,
-                    onChanged: () => setState(() {}),
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.payments_rounded, color: Color(0xFFE0B252)),
-              title: const Text('记一笔花销', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('房钱 · 货款 · 打点 · 赏银', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
-              onTap: () {
-                Navigator.pop(context);
-                _showPayDialog(context, provider);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.public_rounded, color: Colors.white70),
-              title: const Text('我的世界', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('时辰 · 家底 · 待办 · 线索', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
-                );
-              },
-            ),
+            // （出门/家兵/记账/今日看板/我的世界 都已收进输入框左侧的 + 菜单，这里不再重复）
             ListTile(
               leading: const Icon(Icons.videocam_rounded, color: Color(0xFF8B5CF6)),
               title: Text(
@@ -1417,12 +1369,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildTopQuickChip(
-                  icon: Icons.payments_outlined,
-                  label: '记一笔账',
+                  icon: Icons.today_outlined,
+                  label: '今日',
                   isDark: isDark,
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    _showPayDialog(context, provider);
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => DigestSheet(api: provider.api),
+                    );
                   },
                 ),
                 const SizedBox(width: 8),
@@ -1841,6 +1798,29 @@ class _ChatScreenState extends State<ChatScreen> {
                       },
                     ),
                     _buildQuickActionItem(
+                      icon: Icons.today_rounded,
+                      label: '今日看板',
+                      color: const Color(0xFFE0B252),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => DigestSheet(api: provider.api),
+                        );
+                      },
+                    ),
+                    _buildQuickActionItem(
+                      icon: Icons.contrast_rounded,
+                      label: '外观',
+                      color: const Color(0xFF94A3B8),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showThemeSheet(context);
+                      },
+                    ),
+                    _buildQuickActionItem(
                       icon: Icons.public_rounded,
                       label: '我的世界',
                       color: const Color(0xFF38BDF8),
@@ -1888,6 +1868,61 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// 外观：日间 / 夜间 / 跟随系统
+  void _showThemeSheet(BuildContext context) {
+    final theme = context.read<ThemeController>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF12131A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          const Text('外观模式', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 14),
+          for (final m in [ThemeMode.system, ThemeMode.light, ThemeMode.dark])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                onTap: () async {
+                  await theme.setMode(m);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: theme.mode == m ? const Color(0xFF8B5CF6).withValues(alpha: 0.18) : const Color(0xFF1A1B25),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: theme.mode == m ? const Color(0xFF8B5CF6) : Colors.white10),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                      m == ThemeMode.system ? Icons.brightness_auto_rounded : (m == ThemeMode.light ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+                      size: 18,
+                      color: theme.mode == m ? Colors.white : Colors.white54,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      m == ThemeMode.system ? '跟随系统' : (m == ThemeMode.light ? '日间' : '夜间'),
+                      style: TextStyle(color: theme.mode == m ? Colors.white : Colors.white70, fontSize: 14),
+                    ),
+                    const Spacer(),
+                    if (theme.mode == m) const Icon(Icons.check_rounded, size: 18, color: Color(0xFF8B5CF6)),
+                  ]),
+                ),
+              ),
+            ),
+        ]),
+      ),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/chat_provider.dart';
+import 'services/theme_controller.dart';
 import 'views/chat_screen.dart';
 
 void main() {
@@ -16,11 +17,13 @@ class SurfCoreApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
       ],
-      child: MaterialApp(
+      child: Consumer<ThemeController>(
+        builder: (context, theme, _) => MaterialApp(
         title: 'SurfCore 伴侣',
         debugShowCheckedModeBanner: false,
-        themeMode: ThemeMode.system,
+        themeMode: theme.mode,
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.light,
@@ -52,6 +55,7 @@ class SurfCoreApp extends StatelessWidget {
           cardColor: const Color(0xFF1E293B),
         ),
         home: const ChatScreen(),
+        ),
       ),
     );
   }
