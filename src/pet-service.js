@@ -869,6 +869,66 @@ export class PetService {
 
     // 军规：严禁在此粗暴正则偷听文字挂待付款，付款必须由 App 客户端交互或模型显式 [[pay:...]] 触发
 
+    // 7.9 募兵/买军械：说了也要确认——挂待办单，等 App 点确认才真的花钱招人
+    try {
+      const milTag = reply.match(/\[\[(?:recruit|military):([^\]]+)\]\]/);
+      if (milTag) {
+        const body3 = String(milTag[1] || '').split('|').map((x) => x.trim());
+        const count = Math.max(1, Math.min(500, Math.round(Number(body3[0]) || 0) || 10));
+        const wMil = loadState(dataDir);
+        const meMil = this._viewerActorId ? wMil.actors?.[this._viewerActorId] : wMil.actors?.husband;
+        const fMil = wMil.factions?.wangjia;
+        const town = (Array.isArray(fMil?.cities) && fMil.cities[0]) || '临江府';
+        const costRecruit = count * 12;
+        const grainRecruit = Math.round(count * 0.5 * 10) / 10;
+        wMil.pendingAction = {
+          kind: 'military',
+          id: `pend_mil_${Date.now()}`,
+          title: '募兵',
+          action: 'recruit',
+          qty: count,
+          city: town,
+          options: [{ key: `募兵${count}`, label: `募兵 ${count} 人（耗粮 ${grainRecruit} 石）`, price: costRecruit }],
+          by: meMil?.id || 'husband',
+          askedDay: wMil.clock?.day || 1,
+          askedHour: wMil.clock?.hour || 0,
+        };
+        saveState(dataDir, wMil);
+        console.log(`[Mil] 天道报募兵：${count} 人，${costRecruit} 两，待确认`);
+        reply = reply.replace(/\[\[(?:recruit|military):[^\]]+\]\]/g, '').trim();
+      }
+    } catch { /* 忽略 */ }
+
+    // 7.95 买军械：[[gear:兵器|20]]
+    try {
+      const gearTag = reply.match(/\[\[gear:([^\]]+)\]\]/);
+      if (gearTag) {
+        const parts = String(gearTag[1] || '').split('|').map((x) => x.trim());
+        const kindMap = { 兵器: 'weapon', 甲: 'armor', 铠甲: 'armor', 马: 'horse', 战马: 'horse', 攻城器械: 'siege', 器械: 'siege' };
+        const kind = kindMap[parts[0]] || 'weapon';
+        const qty = Math.max(1, Math.min(500, Math.round(Number(parts[1]) || 0) || 10));
+        const priceMap = { weapon: 3, armor: 5, horse: 20, siege: 300 };
+        const nameMap = { weapon: '兵器', armor: '铠甲', horse: '战马', siege: '攻城器械' };
+        const wG = loadState(dataDir);
+        const meG = this._viewerActorId ? wG.actors?.[this._viewerActorId] : wG.actors?.husband;
+        wG.pendingAction = {
+          kind: 'military',
+          id: `pend_gear_${Date.now()}`,
+          title: '军械',
+          action: 'gear',
+          gearKind: kind,
+          qty,
+          options: [{ key: `${nameMap[kind]}${qty}`, label: `买${nameMap[kind]} ${qty} 件`, price: qty * priceMap[kind] }],
+          by: meG?.id || 'husband',
+          askedDay: wG.clock?.day || 1,
+          askedHour: wG.clock?.hour || 0,
+        };
+        saveState(dataDir, wG);
+        console.log(`[Mil] 天道报军械：${nameMap[kind]} ${qty}，待确认`);
+        reply = reply.replace(/\[\[gear:[^\]]+\]\]/g, '').trim();
+      }
+    } catch { /* 忽略 */ }
+
     // 8. 待付款声明：[[pay:标题|选项=价|选项=价]] 挂待付款，正文剥离
     try {
       const payTag = reply.match(/\[\[pay:([^\]]+)\]\]/);
@@ -980,6 +1040,7 @@ export class PetService {
     try {
       contextHintEarly += '（【用人规矩】要开张、要添人手时，你替产业点人：[[staff:产业名|人名|身份]]，例如 [[staff:运河码头三层大酒楼|周有福|掌柜]]。没有这个人就现起一个名字，世上就真有这个人了。）\n';
       contextHintEarly += '（【习性规矩】长期相处真的改了某个人的性子（更顺从、更敢顶嘴、开始怕你…），你可以在回复末尾附 [[trait:谁|哪一样|+5]]，一次最多动 5~10，别乱给。这东西会跟着她一辈子。）\n';
+      contextHintEarly += '（【兵事规矩】相公若要募兵、买军械，你不要自己报数，只写 [[recruit:人数]] 或 [[gear:兵器|数量]]（兵器/铠甲/战马/攻城器械）；引擎会算钱粮并让他在界面上确认，确认后才真的成军。）\n';
       contextHintEarly += '（【打探规矩】相公若差人去打听一个人的底细，或某处生意的实情，你把这桩事记成差事；等有了结果，用 [[clue:一句话底细|谁打探的]] 落进世界。打探可能只得到传言、也可能打草惊蛇，别一次给全。）\n';
       contextHintEarly += '（【差事规矩】相公吩咐谁去办一件事时，把它记成差事：[[task:谁|办什么|几天]]。后面有进展就 [[tasklog:片段|一句话]]，办成了 [[taskdone:片段|结果]]。谁去办由你按他的性情定，不必凑数。）\n';
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';

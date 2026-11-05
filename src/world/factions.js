@@ -133,7 +133,16 @@ export function factionStrength(world, f) {
   if (troops <= 0) return 0;
   const morale = Math.max(10, Math.min(120, num(f.morale) || 50));
   const quality = f.id === 'wangjia' ? Math.max(20, num(world.military?.quality) || 50) : 50;
-  return Math.round(troops * (0.6 + morale / 100) * (quality / 50));
+  // 新兵只算四成战力
+  const fresh = Math.min(num(f.fresh), troops);
+  const effective = (troops - fresh) + fresh * 0.4;
+  // 装备系数（兵甲马）
+  const g = f.gear || {};
+  const wpn = Math.min(num(g.weapon), troops) / Math.max(1, troops);
+  const arm = Math.min(num(g.armor), troops) / Math.max(1, troops);
+  const horse = Math.min(num(g.horse), troops) / Math.max(1, troops);
+  const gear = 0.7 + wpn * 0.3 + arm * 0.25 + horse * 0.35;
+  return Math.round(effective * (0.6 + morale / 100) * (quality / 50) * gear);
 }
 
 /** 把王家势力回写进 world.military（兼容旧显示） */

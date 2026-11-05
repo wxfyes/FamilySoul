@@ -32,7 +32,7 @@ import { hireStaff } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
 import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
-import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops } from './world/warfare.js';
+import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
 import { AssistantService } from './assistant-service.js';
 import { UserRegistry } from './user-registry.js';
@@ -508,6 +508,7 @@ const STARTED_AT = Date.now();
         else if (act === 'march') result = march(world, fid, String(body.from || ''), String(body.city || ''), Number(body.troops) || 0);
         else if (act === 'station') result = stationTroops(world, fid, String(body.from || ''), String(body.city || ''), Number(body.troops) || 0);
         else if (act === 'transfer') result = transferPropertyGrain(world, fid, String(body.prop || ''), String(body.city || ''), Number(body.shi) || 0);
+        else if (act === 'gear') result = buyGear(world, fid, String(body.kind || 'weapon'), Number(body.qty) || 0);
         else if (act === 'army') result = { ok: true, troops: totalTroops(world, factionOf(world, fid)), stationed: factionOf(world, fid)?.stationed || {} };
 
         if (result.ok) saveState(DATA_DIR, world);
@@ -978,6 +979,21 @@ const STARTED_AT = Date.now();
         }
         if (body.actionId && pend.id && String(body.actionId) !== String(pend.id)) {
           return sendJson(res, 200, { ok: false, error: '这笔账已经过时了' });
+        }
+
+        // 兵事单：募兵/军械自己扣钱（走同一入口），不重复收
+        if (pend.kind === 'military') {
+          ensureFactions(world);
+          const rMil = pend.action === 'gear'
+            ? buyGear(world, 'wangjia', String(pend.gearKind || 'weapon'), Number(pend.qty) || 0)
+            : recruit(world, 'wangjia', Number(pend.qty) || 0, String(pend.city || ''));
+          if (!rMil.ok) return sendJson(res, 200, { ok: false, error: rMil.error });
+          delete world.pendingAction;
+          saveState(DATA_DIR, world);
+          const line = pend.action === 'gear'
+            ? `（已购军械，银两照扣。现存：${JSON.stringify(rMil.gear || {})}）`
+            : `（已募 ${pend.qty} 人，成军需七日。现总兵 ${rMil.troops}，驻 ${rMil.city}。）`;
+          return sendJson(res, 200, { ok: true, line });
         }
 
         // 选哪一档
@@ -2996,6 +3012,7 @@ const STARTED_AT = Date.now();
           silver: Math.round(factionSilver(world, f) * 100) / 100,
           morale: Number(f.morale) || 0, ambition: Number(f.ambition) || 0,
           strength: factionStrength(world, f), cities: (f.cities || []).slice(0, 12),
+          gear: f.gear || {}, fresh: Number(f.fresh) || 0, freshUntilDay: Number(f.freshUntilDay) || 0,
           stationed: f.stationed || {}, marches: (f.marches || []).map((m) => ({ to: m.to, troops: m.troops, arriveDay: m.arriveDay })),
         })),
           appointments: (world.appointments || [])

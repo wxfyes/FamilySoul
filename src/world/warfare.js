@@ -24,7 +24,38 @@ export const PAY_PER_DAY = 0.05;
 export const GRAIN_PER_DAY = 0.02;
 export const GRAIN_PRICE = 0.6;
 
+/** 军械作价（两） */
+export const GEAR_PRICES = { weapon: 3, armor: 5, horse: 20, siege: 300 };
+export const GEAR_NAMES = { weapon: '兵器', armor: '铠甲', horse: '战马', siege: '攻城器械' };
+/** 新兵成军天数 */
+export const TRAIN_DAYS = 7;
+
 let eventSink = null;
+
+/** 装备系数：兵甲齐备者更强（0.7 ~ 1.6） */
+export function gearFactor(f) {
+  const troops = Math.max(1, Number(f?.troops) || 0);
+  const g = f?.gear || {};
+  const wpn = Math.min(Number(g.weapon) || 0, troops) / troops;
+  const arm = Math.min(Number(g.armor) || 0, troops) / troops;
+  const horse = Math.min(Number(g.horse) || 0, troops) / troops;
+  return 0.7 + wpn * 0.3 + arm * 0.25 + horse * 0.35;
+}
+
+/** 买军械 */
+export function buyGear(world, fid, kind, qty) {
+  const f = factionOf(world, fid);
+  if (!f) return { ok: false, error: '没有这个势力' };
+  const k = String(kind || '');
+  const price = GEAR_PRICES[k];
+  if (!price) return { ok: false, error: '没有这种军械' };
+  const n = Math.max(1, Math.min(500, Math.round(num(qty))));
+  const cost = round2(n * price);
+  if (!spendFactionSilver(world, f, cost)) return { ok: false, error: `银不够：${n} 件${GEAR_NAMES[k]}要 ${cost} 两` };
+  f.gear = f.gear && typeof f.gear === 'object' ? f.gear : {};
+  f.gear[k] = Math.round((Number(f.gear[k]) || 0) + n);
+  return { ok: true, gear: f.gear, cost };
+}
 export function setWarEventSink(fn) {
   eventSink = fn;
 }
@@ -112,6 +143,9 @@ export function recruit(world, fid, count, city) {
 
   f.grain = round2(num(f.grain) - needGrain);
   setStationed(world, f, town, troopsAt(world, f, town) + n);
+  // 新募之兵要练：七天之内战力只有四成
+  f.fresh = Math.round(num(f.fresh) + n);
+  f.freshUntilDay = (Number(world.clock?.day) || 1) + TRAIN_DAYS;
   f.morale = Math.min(100, Math.round(num(f.morale) + 1));
   fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}募兵 ${n} 人` } });
   return { ok: true, troops: totalTroops(world, f), stationed: troopsAt(world, f, town), city: town, cost };
@@ -202,6 +236,16 @@ export function runMilitaryDay(world, events) {
     }
   }
 
+  // 新兵成军
+  for (const f of Object.values(world.factions || {})) {
+    if (!f || !(Number(f.fresh) > 0)) continue;
+    if ((Number(world.clock?.day) || 1) >= (Number(f.freshUntilDay) || 0)) {
+      fire(world, { action: 'army_ready', actor: f.leader, place: null, payload: { text: `${f.name}新募 ${f.fresh} 兵已成军` } });
+      f.fresh = 0;
+      f.freshUntilDay = 0;
+    }
+  }
+
   // 行军抵达
   for (const f of Object.values(world.factions || {})) {
     if (!f || !Array.isArray(f.marches)) continue;
@@ -254,7 +298,8 @@ export function besiege(world, { attacker, cityName, troops }) {
   if (send < 1) return { ok: false, error: '兵力不足' };
 
   const defense = Math.round((num(ct.defense) || 10) + (num(ct.garrison) || 0) * 1.2);
-  const attackPower = Math.round(factionStrength(world, f) * (send / Math.max(1, totalTroops(world, f))));
+  const siegeBonus = Math.min(60, Math.round((Number(f.gear?.siege) || 0) * 15));
+  const attackPower = Math.round(factionStrength(world, f) * (send / Math.max(1, totalTroops(world, f))) + siegeBonus);
   const roll = 0.8 + Math.random() * 0.5;
   const win = attackPower * roll > defense;
 
