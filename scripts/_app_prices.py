@@ -1,65 +1,54 @@
 import io
-
-# App 家兵面板：价格按行情，加"家丁/护院"两种募法
 p = 'mobile/lib/views/army_sheet.dart'
 s = io.open(p, encoding='utf-8').read()
 
-# 募兵 → 家丁（1.2 两）/ 护院（3 两）
-old = """                _pill(
-                  icon: Icons.groups_rounded,
-                  label: '募兵',
-                  color: _accent,
-                  onTap: () => _pickCount(
-                    title: '募兵',
-                    unit: '人',
-                    unitPrice: 12,
-                    min: 1,
-                    max: 500,
-                    presets: const [10, 30, 50, 100],
-                    action: 'recruit',
-                    extra: {'city': cities.isNotEmpty ? cities.first.key : ''},
-                  ),
-                ),"""
-new = """                _pill(
-                  icon: Icons.groups_rounded,
-                  label: '募家丁',
-                  color: _accent,
-                  onTap: () => _pickCount(
-                    title: '募家丁',
-                    unit: '人',
-                    unitPrice: 1,
-                    min: 1,
-                    max: 500,
-                    presets: const [5, 10, 20, 50],
-                    action: 'recruit',
-                    extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'guard', 'unitCost': 1.2},
-                  ),
-                ),
-                _pill(
-                  icon: Icons.shield_moon_rounded,
-                  label: '募护院',
-                  color: Colors.purpleAccent,
-                  onTap: () => _pickCount(
-                    title: '募护院',
-                    unit: '人',
-                    unitPrice: 3,
-                    min: 1,
-                    max: 200,
-                    presets: const [2, 5, 10, 20],
-                    action: 'recruit',
-                    extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'retainer', 'unitCost': 3},
-                  ),
-                ),"""
-if old in s:
-    s = s.replace(old, new, 1)
-    print('① 家丁/护院两个募法')
+# ① 统一从服务端价目取价（没有就退回默认值）
+if 'double _priceOf(' not in s:
+    s = s.replace("  /// 粮价走世界行情（明制一石约 0.6 两），不再写死 1 两",
+"""  /// 价格一律问服务端要（/api/me.prices），拿不到才用兜底值
+  double _priceOf(String key, double fallback) {
+    final m = (_world?['prices'] as Map?)?.cast<String, dynamic>();
+    final v = (m?[key] as num?)?.toDouble();
+    return (v != null && v > 0) ? v : fallback;
+  }
 
-# 购粮/军械价格改成行情
-s = s.replace("unitPrice: 1,\n                    min: 1,\n                    max: 2000,\n                    presets: const [50, 100, 300],",
-              "unitPrice: 1,\n                    min: 1,\n                    max: 2000,\n                    presets: const [50, 100, 300],")
-s = s.replace("title: '买兵器',\n                    unit: '件',\n                    unitPrice: 3,", "title: '买兵器',\n                    unit: '件',\n                    unitPrice: 1,")
-s = s.replace("title: '买铠甲',\n                    unit: '件',\n                    unitPrice: 5,", "title: '买铠甲',\n                    unit: '件',\n                    unitPrice: 2,")
-s = s.replace("title: '买战马',\n                    unit: '匹',\n                    unitPrice: 20,", "title: '买战马',\n                    unit: '匹',\n                    unitPrice: 9,")
-s = s.replace("title: '买攻城器械',\n                    unit: '架',\n                    unitPrice: 300,", "title: '买攻城器械',\n                    unit: '架',\n                    unitPrice: 40,")
+  /// 粮价走世界行情（明制一石约 0.6 两），不再写死 1 两""", 1)
+    print('① 加 _priceOf')
+
+# ② 粮价/购粮改用它
+s = s.replace("""  double get _grainPrice {
+    final m = (_world?['market'] as List?) ?? const [];
+    for (final x in m) {
+      if (x is Map && x['key'] == 'grain') {
+        final p = (x['price'] as num?)?.toDouble();
+        if (p != null && p > 0) return p;
+      }
+    }
+    return 0.6;
+  }""",
+"""  double get _grainPrice {
+    final direct = _priceOf('grain', 0);
+    if (direct > 0) return direct;
+    final m = (_world?['market'] as List?) ?? const [];
+    for (final x in m) {
+      if (x is Map && x['key'] == 'grain') {
+        final p = (x['price'] as num?)?.toDouble();
+        if (p != null && p > 0) return p;
+      }
+    }
+    return 0.4;
+  }""")
+print('② 粮价优先服务端')
+
+# ③ 兵器/铠甲/战马/攻城器械/家丁/护院 全改成服务端价
+s = s.replace("                    unitPrice: 0.2,\n                    grainPer: 0.2,", "                    unitPrice: _priceOf('guard_gift', 0.2),\n                    grainPer: 0.2,")
+s = s.replace("                    unitPrice: 0.5,\n                    grainPer: 0.3,", "                    unitPrice: _priceOf('retainer_gift', 0.5),\n                    grainPer: 0.3,")
+for old, key, fb in [("unitPrice: 0.6,", "weapon", 0.6), ("unitPrice: 1.8,", "armor", 1.8), ("unitPrice: 12.0,", "horse", 12.0), ("unitPrice: 40.0,", "siege", 40.0), ("unitPrice: 9.0,", "horse", 12.0)]:
+    s = s.replace(old, f"unitPrice: _priceOf('{key}', {fb}),")
+print('③ 军械按服务端价')
+
+# ④ 购粮弹层的标签不该叫"安家银"
+s = s.replace("Text('安家银 ${unitPrice.toStringAsFixed(2)} 两 / $unit'",
+              "Text('${title == '购粮' ? '粮价' : '安家银'} ${unitPrice.toStringAsFixed(2)} 两 / $unit'")
+print('④ 购粮标签改"粮价"')
 io.open(p, 'w', encoding='utf-8').write(s)
-print('② 军械价改行情')

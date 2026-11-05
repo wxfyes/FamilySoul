@@ -37,11 +37,12 @@ import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
 import { recruit, buyGrain, besiege, bribeCity, fortify, march, stationTroops, transferPropertyGrain, troopsAt, totalTroops, buyGear, callToArms, upkeepOf, payArrears } from './world/warfare.js';
 import { buildStrategyPrompt, applyStrategyDecisions } from './world/strategy.js';
-import { marketSnapshot } from './world/prices.js';
-import { roomPriceAt, propertyPriceAt } from './world/pricing.js';
+import { marketSnapshot, grainPrice } from './world/prices.js';
+import { roomPriceAt, propertyPriceAt, priceOf } from './world/pricing.js';
 import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { materializeMigrant, fallbackName } from './world/migration.js';
 import { quellBandits, banditStrengthTotal } from './world/bandits.js';
+import { RECRUIT_KINDS } from './world/warfare.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
 import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
@@ -1576,6 +1577,20 @@ const STARTED_AT = Date.now();
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         market: marketSnapshot(world),
         goods: goodsSnapshot(world),
+        prices: (() => {
+          try {
+            const out = {};
+            for (const k of ['weapon', 'armor', 'horse', 'siege', 'inn_room', 'inn_bed', 'meal', 'wine', 'wage_day', 'servant_month', 'shop', 'mansion']) {
+              out[k] = priceOf(k);
+            }
+            const c0 = Object.keys(world.cities || {})[0];
+            out.grain = grainPrice(world, c0);
+            // 招募安家银也从兵制表里取，App 不再写死
+            out.guard_gift = RECRUIT_KINDS.guard.cost;
+            out.retainer_gift = RECRUIT_KINDS.retainer.cost;
+            return out;
+          } catch { return {}; }
+        })(),
         room: (() => {
           try {
             const meId = actorId || 'husband';

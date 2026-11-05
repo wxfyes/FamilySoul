@@ -52,8 +52,17 @@ class _ArmySheetState extends State<ArmySheet> {
   int get _strength => (_wang?['strength'] as num?)?.toInt() ?? 0;
   num get _grain => (_wang?['grain'] as num?) ?? 0;
 
+  /// 价格一律问服务端要（/api/me.prices），拿不到才用兜底值
+  double _priceOf(String key, double fallback) {
+    final m = (_world?['prices'] as Map?)?.cast<String, dynamic>();
+    final v = (m?[key] as num?)?.toDouble();
+    return (v != null && v > 0) ? v : fallback;
+  }
+
   /// 粮价走世界行情（明制一石约 0.6 两），不再写死 1 两
   double get _grainPrice {
+    final direct = _priceOf('grain', 0);
+    if (direct > 0) return direct;
     final m = (_world?['market'] as List?) ?? const [];
     for (final x in m) {
       if (x is Map && x['key'] == 'grain') {
@@ -61,7 +70,7 @@ class _ArmySheetState extends State<ArmySheet> {
         if (p != null && p > 0) return p;
       }
     }
-    return 0.6;
+    return 0.4;
   }
   int get _fresh => (_wang?['fresh'] as num?)?.toInt() ?? 0;
   num get _monthlyPay => (_wang?['monthlyPay'] as num?) ?? (_troops * 1.0);
@@ -144,7 +153,7 @@ class _ArmySheetState extends State<ArmySheet> {
             const SizedBox(height: 16),
             Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
-            Text('安家银 ${unitPrice.toStringAsFixed(2)} 两 / $unit', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text('${title == '购粮' ? '粮价' : '安家银'} ${unitPrice.toStringAsFixed(2)} 两 / $unit', style: const TextStyle(color: Colors.white38, fontSize: 12)),
             if (grainPer != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -432,7 +441,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '招募家丁',
                     unit: '人',
-                    unitPrice: 0.2,
+                    unitPrice: _priceOf('guard_gift', 0.2),
                     grainPer: 0.2,
                     monthly: 0.6,
                     note: '一呼百应：来投多少看你的名声与这座城的日子，喊 50 人未必来 50 个。',
@@ -450,7 +459,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '招募护院',
                     unit: '人',
-                    unitPrice: 0.5,
+                    unitPrice: _priceOf('retainer_gift', 0.5),
                     grainPer: 0.3,
                     monthly: 0.9,
                     note: '护院是精壮武师，安家银比家丁贵些，月饷 0.9 两；一样是看名声与民心来人。',
@@ -513,7 +522,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买战马',
                     unit: '匹',
-                    unitPrice: 9.0,
+                    unitPrice: _priceOf('horse', 12.0),
                     min: 1,
                     max: 200,
                     presets: const [5, 10, 20],
@@ -528,7 +537,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   onTap: () => _pickCount(
                     title: '买攻城器械',
                     unit: '架',
-                    unitPrice: 40.0,
+                    unitPrice: _priceOf('siege', 40.0),
                     min: 1,
                     max: 10,
                     presets: const [1, 2, 3],
