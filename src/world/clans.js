@@ -38,7 +38,8 @@ export function relatedClanIds(world) {
   if (mySurname) related.add(`clan_${mySurname}`);
   for (const a of Object.values(world.actors || {})) {
     if (!a || a.dead) continue;
-    const isKin = a.household || a.spouse === 'husband' || a.relations?.husband;
+    // 亲眷只认：府内人、配偶是相公、或相公的亲生子女（不能把"认识相公"算亲戚）
+    const isKin = a.household || a.spouse === 'husband' || (Array.isArray(a.parents) && a.parents.includes('husband'));
     if (!isKin) continue;
     const s2 = String(a.name || '').slice(0, 1);
     if (s2) related.add(`clan_${s2}`);
