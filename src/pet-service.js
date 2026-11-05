@@ -1165,6 +1165,19 @@ export class PetService {
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
     } catch { /* 忽略 */ }
 
+    // 府中兵事与存粮：家眷与管家自然知道家里有多少兵、多少粮（不必相公逐条交代）
+    try {
+      const wMil2 = loadState(this.dataDir);
+      const fj = (wMil2.factions || {}).wangjia;
+      if (fj) {
+        const kinds = fj.kinds || {};
+        const total = Number(fj.troops) || 0;
+        contextHintEarly += `（【府中兵事】家丁 ${Number(kinds.guard) || 0} 人、护院 ${Number(kinds.retainer) || 0} 人、营兵 ${Number(kinds.army) || 0} 人（共 ${total} 人）；`
+          + `月饷 ${(Number(fj.monthlyPay) || 0).toFixed(1)} 两；府库存粮 ${(Number(fj.grain) || 0).toFixed(1)} 石。`
+          + `家里管事的人（正妻、管家）自然知道这些数目，问起就照实说；但别主动炫耀兵力。）\n`;
+      }
+    } catch { /* 忽略 */ }
+
     // 此间陈设与可做之事：只给事实，怎么接戏由天道决定
     try {
       const wRoom = loadState(this.dataDir);
