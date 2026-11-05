@@ -1531,6 +1531,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           maxLines: 4,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _handleSend(),
+                          // iOS 上点别处也要能把键盘收回去
+                          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                           style: TextStyle(
                             fontSize: 15.5,
                             color: isDark ? Colors.white : const Color(0xFF1E293B),
