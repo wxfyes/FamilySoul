@@ -1,6 +1,7 @@
 ﻿import { resolveVoiceCasting } from './world/voice-casting.js';
 import { quellBandits } from './world/bandits.js';
 import { resolvePlaceTarget } from './world/places-target.js';
+import { describeRoom } from './world/room-life.js';
 import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { sanePrice, priceHint } from './world/pricing.js';
@@ -1162,6 +1163,18 @@ export class PetService {
       contextHintEarly += '（【造物规矩】剧情确实需要一个世上没有的去处时，你可以在回复末尾附 [[build:地名|挂在哪处之下]]，例 [[build:听雨轩|临江茶坊]]。名字要像地名（2~6字，别用"那里/某处"这种）。每天最多立五处。）\n';
       contextHintEarly += '（【了结规矩】若一件约定或承诺在剧情里真的办完了/彻底黄了，你在回复末尾附 [[deal:片段|成]] 或 [[deal:片段|不成]]，片段取自那件事的原话。别自己宣布"这事就当没发生过"，要有个交代。）\n';
       contextHintEarly += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
+    } catch { /* 忽略 */ }
+
+    // 此间陈设与可做之事：只给事实，怎么接戏由天道决定
+    try {
+      const wRoom = loadState(this.dataDir);
+      const meRoom = this._viewerActorId ? wRoom.actors?.[this._viewerActorId] : wRoom.actors?.husband;
+      const rd = describeRoom(wRoom, meRoom?.location);
+      if (rd && rd.furnish?.length) {
+        contextHintEarly += `（【此间】${rd.name}：有${rd.furnish.join('、')}。` +
+          `在场的人：${rd.occupants.filter((x) => x.id !== meRoom?.id).map((x) => x.name).join('、') || '无人'}。` +
+          `在这里能做的事：${(rd.can || []).join('、')}。要写就照着陈设写，别凭空添不存在的物件。）\n`;
+      }
     } catch { /* 忽略 */ }
 
     // 苦主求庇：本地或邻道有 2 阶以上匪患，市井就会有人来诉苦（只给事实，台词由天道写）

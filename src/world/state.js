@@ -10,7 +10,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
-import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces } from './residence.js';
+import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -984,6 +984,12 @@ export function migrateOwnership(world) {
     const now = Date.now();
     if (now - (globalThis.__spaceSweptAt || 0) > 60000) {
       globalThis.__spaceSweptAt = now;
+      // 住户按位份归位（正妻正房、二房东厢、丫鬟下房…）
+      try {
+        for (const [pid, pl] of Object.entries(world.places || {})) {
+          if (pl && pl.rooms) assignStaffQuarters(world, pid);
+        }
+      } catch { /* 忽略 */ }
       const collapsed = collapseRoomPlaces(world);   // 房间收回账上，不再各占一个地点
       const a0 = pruneRemoteCourts(world);
       const a = pruneForeignRooms(world) + a0;

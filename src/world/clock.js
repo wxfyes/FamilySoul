@@ -26,6 +26,7 @@ import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
 import { runMigration, settleMigrants } from './migration.js';
 import { evictTrespassers } from './dwelling.js';
+import { roomForHour } from './room-life.js';
 import { pruneForeignRooms, buildPremises, buildCourts, settleItinerants } from './residence.js';
 import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
@@ -1952,6 +1953,22 @@ function sweepAway(world) {
 function advanceHour(world, events, nowMs) {
   world.clock.hour += 1;
   try { sweepAway(world); } catch { /* 忽略 */ }
+  // 每小时：宅中人的作息（按他住的院子与这间院子的用处走，房间没展开就先展开）
+  try {
+    const hourNow = Number(world.clock?.hour) || 0;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead || a.jailed || a.away) continue;
+      if (!a.home || !world.places?.[a.home]) continue;
+      if (!/宅|府|院/.test(String(world.places[a.home].name || ''))) continue;
+      const to = roomForHour(world, a, hourNow);
+      if (!to || to === a.location) continue;
+      const r = moveActor(world, a.id, to, 'world', '按作息走动');
+      if (r?.ok) a.activity = { text: '在自己宅里走动', at: hourNow, day: world.clock?.day || 1 };
+    }
+  } catch (err) {
+    console.warn('[RoomLife] 作息失败：', err.message);
+  }
+
   // 每小时：私宅巡检——不是这宅子的人，待久了或入夜就请出去
   try {
     evictTrespassers(world, events, nextEvent);

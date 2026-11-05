@@ -1,5 +1,6 @@
 ﻿import http from 'node:http';
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from './world/residence.js';
+import { describeRoom, roomForHour } from './world/room-life.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -1575,6 +1576,13 @@ const STARTED_AT = Date.now();
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         market: marketSnapshot(world),
         goods: goodsSnapshot(world),
+        room: (() => {
+          try {
+            const meId = actorId || 'husband';
+            const meNow = world.actors?.[meId] || world.actors?.husband;
+            return describeRoom(world, meNow?.location) || null;
+          } catch { return null; }
+        })(),
         bandits: Object.values(world.bandits || {}).map((b) => ({
           id: b.id, name: b.name, kind: b.kind, tier: b.tier,
           strength: Number(b.strength) || 0, leader: b.leader, city: b.homeCity,
@@ -1865,6 +1873,47 @@ const STARTED_AT = Date.now();
           console.log('[Admin] 家庭成员配置已在线更新并持久化到 config.json');
         }
         return sendJson(res, 200, { ok: true });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 手动跑一次院落作息（验收用）：POST /api/admin/room-tick
+    if (req.method === 'POST' && pathname === '/api/admin/room-tick') {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '令牌无效' });
+        const world = loadState(DATA_DIR);
+        const hourNow = Number(world.clock?.hour) || 0;
+        const moved = [];
+        for (const a of Object.values(world.actors || {})) {
+          if (!a || a.dead || a.jailed || a.away) continue;
+          if (!a.home || !world.places?.[a.home]) continue;
+          if (!/宅|府|院/.test(String(world.places[a.home].name || ''))) continue;
+          const to = roomForHour(world, a, hourNow);
+          if (!to || to === a.location) continue;
+          const r = moveActor(world, a.id, to, 'world', '按作息走动');
+          if (r?.ok) { moved.push(`${a.name}→${world.places?.[to]?.name || to}`); a.activity = { text: '在自己宅里走动', at: hourNow, day: world.clock?.day || 1 }; }
+        }
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, hour: hourNow, moved, places: Object.keys(world.places || {}).length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 院子里有什么：GET /api/world/room?place=xxx
+    if (req.method === 'GET' && matchRoute('/world/room')) {
+      try {
+        const world = loadState(DATA_DIR);
+        const member = resolveMember(req, url);
+        const actorId = member?.actor || 'husband';
+        const want = String(url.searchParams.get('place') || '').trim();
+        const me = world.actors?.[actorId] || world.actors?.husband;
+        const placeId = want || me?.location;
+        const info = describeRoom(world, placeId);
+        if (!info) return sendJson(res, 404, { ok: false, error: '没有这处地方' });
+        return sendJson(res, 200, { ok: true, room: info, here: placeId === me?.location });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
