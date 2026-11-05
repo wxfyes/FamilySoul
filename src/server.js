@@ -1130,11 +1130,19 @@ const STARTED_AT = Date.now();
     if (req.method === 'POST' && matchRoute('/world/go')) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
-        const target = String(body.place || '').trim();
+        let target = String(body.place || '').trim();
         if (!target) return sendJson(res, 400, { ok: false, error: '没说要哪儿' });
         const world = loadState(DATA_DIR);
         const member = resolveMember(req, url);
         const actorId = member?.actor || 'husband';
+        // 说的是人（去找王甯）：先换成他此刻所在的地方，再由门禁决定能不能进
+        {
+          const meName = String((world.actors?.[actorId] || world.actors?.husband)?.name || '');
+          const person = Object.values(world.actors || {}).find(
+            (a) => a && !a.dead && a.name && a.name !== meName && (a.name === target || target.includes(a.name)),
+          );
+          if (person && world.places?.[person.location]) target = person.location;
+        }
         const intent = {
           id: `ui_go_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           actor: actorId, verb: 'MOVE', target, companions: [],
