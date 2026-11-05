@@ -10,6 +10,8 @@
  * 不允：留在大门，由门房回一句实在话（谁不在、几时再来、递帖候着）。
  */
 
+import { gatekeeperOf } from './posts.js';
+
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -57,6 +59,10 @@ export function knock(world, visitorId, residenceId) {
   const home = world?.places?.[residenceId];
   if (!home || !home.residence) return { allowed: false, reason: '这不是私宅', place: null, owner: '', hall: null };
   const owner = String(home.owner || '');
+  const keeper = gatekeeperOf(world, home.id);
+  const keeperName = keeper?.name || '';
+  const gateId = home.rooms?.gate?.id || null;
+  const keeperAtGate = Boolean(keeper && gateId && keeper.location === gateId);
   const visitor = world.actors?.[visitorId];
   if (!owner) return { allowed: false, reason: '这宅子眼下没有主事的人', place: null, owner: '', hall: null };
   if (owner === visitorId) return { allowed: true, reason: '自己的宅子', place: home.id, owner, hall: null };
@@ -68,9 +74,9 @@ export function knock(world, visitorId, residenceId) {
   const ownerHere = String(world.actors?.[owner]?.location || '').includes(home.id)
     || (home.rooms && Object.values(home.rooms).some((r) => r?.id === world.actors?.[owner]?.location));
 
-  if (wanted > 0) return { allowed: false, reason: '门房看你面生，又听说衙门在拿人，只肯留你在门外候着', place: null, owner, hall: null };
-  if (night && !kin && trust < 60) return { allowed: false, reason: '天黑了，门房说主人歇下了，请明早再来', place: null, owner, hall: null };
-  if (!ownerHere && trust < 50) return { allowed: false, reason: '主人不在府里，门房不敢擅自放人进去', place: null, owner, hall: null };
+  if (wanted > 0) return { allowed: false, reason: `${keeperName || '门房'}看你面生，又听说衙门在拿人，只肯留你在门外候着`, place: null, owner, hall: null, keeper: keeperName };
+  if (night && !kin && trust < 60) return { allowed: false, reason: keeperAtGate ? `${keeperName}说天黑了、主人已歇下，请你明早再来` : '夜里没人应门，里头都歇下了，请明早再来', place: null, owner, hall: null, keeper: keeperName };
+  if (!ownerHere && trust < 50) return { allowed: false, reason: keeperAtGate ? `${keeperName}说主人不在府里，不敢擅自放人进去` : '门前无人，主人也不在府里', place: null, owner, hall: null, keeper: keeperName };
 
   // 放进去：中堂/正厅优先，其次正房，再其次大门内的门房
   const rooms = home.rooms || {};
@@ -80,9 +86,9 @@ export function knock(world, visitorId, residenceId) {
   const dayTime = hour >= 6 && hour < 21;
   const allowed = kin || trust >= 40 || (dayTime && ownerHere);
   if (!allowed) {
-    return { allowed: false, reason: '门房进去回了一声，主人说与你不相熟，改日再会', place: null, owner, hall: hallId };
+    return { allowed: false, reason: keeperAtGate ? `${keeperName}进去回了话，主人说与你不相熟，改日再会` : '主人说与你不相熟，改日再会', place: null, owner, hall: hallId, keeper: keeperName };
   }
-  return { allowed: true, reason: kin ? '自家人，门房忙让进中堂' : '递了帖，主人说请进', place: hallId || home.id, owner, hall: hallId };
+  return { allowed: true, reason: kin ? '自家人，门房忙让进中堂' : (keeperAtGate ? `${keeperName}递了帖，主人说请进` : '主人说请进'), place: hallId || home.id, owner, hall: hallId, keeper: keeperName };
 }
 
 /** 放行条：允入之后记一笔，出门即失效 */

@@ -11,6 +11,7 @@ import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
+import { ensureGatekeeper } from './posts.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -1016,7 +1017,13 @@ export function migrateOwnership(world) {
       // 住户按位份归位（正妻正房、二房东厢、丫鬟下房…）
       try {
         for (const [pid, pl] of Object.entries(world.places || {})) {
-          if (pl && pl.rooms) assignStaffQuarters(world, pid);
+          if (pl && pl.rooms) {
+            assignStaffQuarters(world, pid);
+            if (pl.residence) {
+              const g = ensureGatekeeper(world, pid);
+              if (g && !g.ok) console.log(`[Duty] ${pid} 没有门房：${g.reason}`);
+            }
+          }
         }
       } catch { /* 忽略 */ }
       const collapsed = collapseRoomPlaces(world);   // 房间收回账上，不再各占一个地点

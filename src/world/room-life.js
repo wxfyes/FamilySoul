@@ -8,6 +8,7 @@
  */
 
 import { materializeRoom } from './residence.js';
+import { gatePostPlace } from './posts.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -166,6 +167,11 @@ export function routineFor(world, actor) {
 export function roomForHour(world, actor, hour) {
   const routine = routineFor(world, actor);
   if (!routine.length) return null;
+  // 门房当值：白天守大门，夜里回下房
+  if (actor?.duty?.post === 'gate') {
+    const postPlace = gatePostPlace(world, actor);
+    if (postPlace) return postPlace;
+  }
   const slot = routine.filter((s) => num(s.at) <= num(hour)).pop() || routine[0];
   let pid = slot.place;
   // 目标还是"账上的院子"（没展开）→ 先展开
