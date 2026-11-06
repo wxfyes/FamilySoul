@@ -75,7 +75,16 @@ export function knock(world, visitorId, residenceId) {
     || (home.rooms && Object.values(home.rooms).some((r) => r?.id === world.actors?.[owner]?.location));
 
   if (wanted > 0) return { allowed: false, reason: `${keeperName || '门房'}看你面生，又听说衙门在拿人，只肯留你在门外候着`, place: null, owner, hall: null, keeper: keeperName };
-  if (night && !kin && trust < 60) return { allowed: false, reason: keeperAtGate ? `${keeperName}说天黑了、主人已歇下，请你明早再来` : '夜里没人应门，里头都歇下了，请明早再来', place: null, owner, hall: null, keeper: keeperName };
+  // 夜里也能通传：有看门的，披衣起来问一声；真有急事，主人让进就进
+  if (night && !kin && trust < 60) {
+    if (!keeper) return { allowed: false, reason: '夜里没人应门，里头都歇下了，请明早再来', place: null, owner, hall: null, keeper: '' };
+    if (!ownerHere) {
+      return { allowed: false, reason: `${keeperName}披衣起来应了门，说主人不在府里，有急事可留下话、明早再递`, place: null, owner, hall: null, keeper: keeperName };
+    }
+    const hallKeyN = ['hall', 'main', 'reception'].find((k) => home.rooms?.[k]);
+    const hallN = hallKeyN ? home.rooms[hallKeyN].id : null;
+    return { allowed: true, reason: `${keeperName}披衣起来通了传，主人听说有急事，让请进偏厅说话`, place: hallN || home.id, owner, hall: hallN, keeper: keeperName };
+  }
   if (!ownerHere && trust < 50) return { allowed: false, reason: keeperAtGate ? `${keeperName}说主人不在府里，不敢擅自放人进去` : '门前无人，主人也不在府里', place: null, owner, hall: null, keeper: keeperName };
 
   // 放进去：中堂/正厅优先，其次正房，再其次大门内的门房
