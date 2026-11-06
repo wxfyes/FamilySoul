@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 银两流水：钱一动，账上就有一笔。
  *
  * 以前银子是散落在各处直接加减（产业进账、月例、房钱、打点…），
@@ -50,4 +50,28 @@ export function earnSilver(world, amount, title, by = 'husband') {
 /** 最近几笔 */
 export function recentLedger(world, n = 8) {
   return (world.ledger || []).slice(-n).reverse();
+}
+
+
+/**
+ * 每日对账：昨日开盘银子 + 当日流水合计 = 今日子弹？不对就是账有问题
+ * @returns {{ok:boolean, diff:number, expected:number, actual:number}}
+ */
+export function reconcileMoney(world, day) {
+  const open = Number(world?.flags?.dayOpenSilver);
+  if (!Number.isFinite(open)) return { ok: true, diff: 0, expected: 0, actual: 0 };
+  const actual = Math.round((Number(world?.assets?.silver) || 0) * 100) / 100;
+  const sum = (Array.isArray(world?.ledger) ? world.ledger : [])
+    .filter((e) => e && Number(e.day) === Number(day))
+    .reduce((s, e) => s + (Number(e.delta) || 0), 0);
+  const expected = Math.round((open + sum) * 100) / 100;
+  const diff = Math.round((actual - expected) * 100) / 100;
+  const ok = Math.abs(diff) <= 0.05;
+  if (!ok) {
+    world.flags = world.flags || {};
+    world.flags.moneyAudit = { day: Number(day), open, sum: Math.round(sum * 100) / 100, expected, actual, diff, at: Date.now() };
+    console.warn(`[Money] 账不平：第${day}日 期初${open} + 流水${Math.round(sum * 100) / 100} = ${expected}，实际 ${actual}，差 ${diff}`);
+  }
+  world.flags.dayOpenSilver = actual;
+  return { ok, diff, expected, actual };
 }

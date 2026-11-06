@@ -3586,6 +3586,15 @@ export class PetService {
       // 军规：位移、同行与花销已完全由客户端交互系统掌控（/api/world/go、/api/world/confirm 等）
       // 聊天对话纯粹为沉浸式剧情推进，绝不在此暗自挪移人物物理位置或兜底扣除银两
 
+      // 台词里说了"付了/给了/赏了 X 两"，但这一轮引擎没收到任何回执：把事实摆出来
+      try {
+        const payTalk = /(付了|给了|赏了|交了|打点了)[^。！？\n]{0,10}?([0-9一二三四五六七八九十百]+)\s*两/.exec(String(say || ''));
+        if (payTalk && applied.length === 0) {
+          reply += `\n（这桩 ${payTalk[2]} 两的花费还没入账：要真付，说一声"记一笔"。）`;
+          console.log(`[Money] 台词提到花销但无回执：${payTalk[0]}`);
+        }
+      } catch { /* 忽略 */ }
+
       // 主模型没写回执 → 记账员在后台补记（不阻塞回复，否则容易拖到客户端超时）
       let changed = applied.length > 0;
       if (!changed) {

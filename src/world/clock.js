@@ -28,6 +28,7 @@ import { runMigration, settleMigrants } from './migration.js';
 import { evictTrespassers } from './dwelling.js';
 import { roomForHour } from './room-life.js';
 import { advanceWorldTick } from './tick.js';
+import { reconcileMoney } from './ledger.js';
 import { pruneForeignRooms, buildPremises, buildCourts, settleItinerants } from './residence.js';
 import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
@@ -1970,7 +1971,10 @@ function advanceHour(world, events, nowMs) {
   }
   if (world.clock.hour >= 24) {
     world.clock.hour = 0;
+    // 换日之前先对一次账：昨日开盘 + 昨日流水 应等于今日银子
+    try { reconcileMoney(world, Number(world.clock?.day) || 1); } catch { /* 忽略 */ }
     world.clock.day += 1;
+    try { world.flags = world.flags || {}; world.flags.dayOpenSilver = Math.round((Number(world.assets?.silver) || 0) * 100) / 100; } catch { /* 忽略 */ }
 
   // 世界日翻篇时自愈一次：账本坏了它自己修，不靠人管
     try {
