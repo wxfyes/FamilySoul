@@ -1747,6 +1747,12 @@ function runSchedules(world) {
     for (const slot of actor.schedule) {
       if (slot.at === world.clock.hour && slot.place) {
         if (actor.jailed) continue;
+        // 刚被主人请走的人，几个时辰内不许自己回来
+        if (actor.awayUntil) {
+          const d = actor.awayUntil;
+          if (Number(d.day) === (Number(world.clock?.day) || 1) && Number(d.hour) > (Number(world.clock?.hour) || 0)) continue;
+          delete actor.awayUntil;
+        }
         actor.activity = { text: String(slot.do || ''), at: world.clock.hour, day: world.clock.day };
         if (actor.location === slot.place) continue;
         // 正在私会的人不打断；被相公派出去的人（外派豁免期内）也不拉回来；在押服刑者严禁外出走动作息

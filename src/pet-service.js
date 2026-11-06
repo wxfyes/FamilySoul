@@ -1108,21 +1108,44 @@ export class PetService {
     try {
       const farewellSay = /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(String(sayText || '').trim())
         || /送客|你回吧|你走吧|退下吧|都散了吧/.test(String(sayText || '').trim());
-      if (farewellSay && !/\[\[depart:/.test(String(reply || ''))) {
+      if (farewellSay) {
         const wF = loadState(this.dataDir);
         const meF = wF.actors?.[this._viewerActorId || 'husband'] || wF.actors?.husband;
         const hereF = Object.values(wF.actors || {}).filter(
-          (a) => a && !a.dead && a.id !== meF?.id && a.location === meF?.location && !/^usr_/.test(String(a.id)),
+          (a) => a && !a.dead && a.id !== meF?.id && a.location === meF?.location
+            && !a.humanBound && !/^usr_/.test(String(a.id)),
         );
-        // 只让"该走的人"走：不是主人家的客/当值的人
-        const goers = hereF.filter((a) => !(a.household && meF?.id === 'husband'));
-        if (goers.length && goers.length <= 3) {
+        // 主人家自己不走；带"都/大伙"的就是清场
+        const goers0 = hereF.filter((a) => !(a.household && meF?.id === 'husband'));
+        const cap = /都|你们|大伙|诸位|全/.test(String(sayText || '')) ? 10 : 3;
+        const goers = goers0.slice(0, cap);
+        console.log(`[Departure] 送客判定：在场 ${hereF.length} 人，应走 ${goers.length} 人`);
+        if (goers.length) {
           const names = [];
           for (const a of goers) {
-            const back = a.quarters || a.home || 'street';
-            if (wF.places?.[back] && moveActor(wF, a.id, back, 'world', '告辞离场')) names.push(a.name);
+            // 有住处回住处；住在街上的人，给他安个家再让他回去（不让人凭空消失）
+            let back = a.quarters || a.home;
+            const backPlace = back ? wF.places?.[back] : null;
+            if (!back || !backPlace || backPlace.residence === undefined && !backPlace.name) {
+              try { back = ensureDwelling(wF, a.id, a.name, 'street'); } catch { back = null; }
+            }
+            if (!back || back === 'street') {
+              const prop = (wF.assets?.properties || []).find((x) => x && String(x.keeper || '') === String(a.id) && x.place);
+              back = prop?.place || null;
+            }
+            if (!back) back = 'street';
+            const mv = wF.places?.[back] ? moveActor(wF, a.id, back, 'world', '送客离场') : { ok: false };
+            if (mv?.ok) {
+              // 刚被请走的人，几个时辰内不会再自己溜回来
+              a.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
+              names.push(a.name);
+            } else console.log(`[Departure] ${a.name} 没走成：${mv?.error || '没有去处'}`);
           }
           if (names.length) {
+            try {
+              wF.flags = wF.flags || {};
+              wF.flags.stallQuietUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 3) % 24 };
+            } catch { /* 忽略 */ }
             saveState(this.dataDir, wF);
             reply = String(reply || '') + `\n（${names.join('、')}起身告辞，退了出去。）`;
             console.log(`[Departure] 相公送客，${names.join('、')} 真的走了`);

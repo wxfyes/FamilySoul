@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 街上摆摊的：自己会来、会走、会吆喝，不靠谁安排。
  *
  * 规矩：
@@ -60,6 +60,20 @@ export function ensureStalls(world, placeId = 'street') {
     return -closed;
   }
 
+  // 刚被主人请走的摊贩，别马上又支起来
+  for (const a of Object.values(world?.actors || {})) {
+    if (!a?.awayUntil) continue;
+    const d = a.awayUntil;
+    if (Number(d.day) === day && Number(d.hour) > hour) continue;
+    delete a.awayUntil;
+  }
+  // 刚清过场，摊子别立刻又冒出来
+  const quiet = world?.flags?.stallQuietUntil;
+  if (quiet && Number(quiet.day) === day) {
+    const qh = Number(quiet.hour) || 0;
+    if (qh > hour || qh < 6 && hour >= 6 && hour < qh) return 0;
+    delete world.flags.stallQuietUntil;
+  }
   const want = hour >= 7 && hour <= 11 ? 3 : 2;   // 早市热闹些
   const have = stallsOf(world, placeId);
   if (have.length >= want) {

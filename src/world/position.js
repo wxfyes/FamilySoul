@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 位置：全世界只有这里能改人的所在地。
  *
  * 为什么要有这一层：
@@ -33,6 +33,18 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   if (isHumanBound(world, actorId) && reason !== 'ui') {
     return { ok: false, error: '真人角色不接受世界移动' };
   }
+
+  // 刚被主人请走的人：几个时辰内不许自己回来（送客本人除外）
+  try {
+    const aw = a.awayUntil;
+    if (aw && !String(note || '').includes('送客')) {
+      const day = Number(world.clock?.day) || 1;
+      const hour = Number(world.clock?.hour) || 0;
+      const until = Number(aw.day) === day ? Number(aw.hour) : (Number(aw.day) > day ? 99 : hour);
+      if (until > hour) return { ok: false, error: '刚被请走，暂不回来' };
+      delete a.awayUntil;
+    }
+  } catch { /* 忽略 */ }
 
   // 在押犯人：服刑期间严禁常规走动与作息闲逛，只能在狱中或提审
   if (a.jailed && !/(jail|牢|大牢)/.test(placeId) && !String(note || '').startsWith('刑满') && reason !== 'admin') {
