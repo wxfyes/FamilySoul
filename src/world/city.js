@@ -171,6 +171,19 @@ export function ensureCityBase(world, cityName) {
     { title: '码头卸货', pay: 0.06, place: streetId },
   ];
 
+  // 商会：每城一个，会首由乡绅出任（行会里的事由他去张罗）
+  try {
+    world.guilds = world.guilds || {};
+    if (!world.guilds[city]) {
+      const chief = world.actors?.[`${slug}_notable_乡绅`];
+      world.guilds[city] = {
+        name: `${city}商会`, city,
+        head: chief?.id || null, headName: chief?.name || '',
+        dues: tier >= 3 ? 3 : 2, attitude: 'neutral',
+      };
+    }
+  } catch { /* 忽略 */ }
+
   world.flags.cityBase[city] = { at: Date.now(), streetId, marketId, innId, tier, people, jobs };
   console.log(`[City] ${city} 基底生成：街道/集市/客栈/米行 + ${people} 户人家`);
   __world = null;

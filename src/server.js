@@ -4354,6 +4354,27 @@ const STARTED_AT = Date.now();
   }
 
 
+  // 验收：立刻在某城生成一桩案子 POST /api/admin/case-now {city}
+  if (req.method === 'POST' && pathname === '/api/admin/case-now') {
+    try {
+      const body = await parseJsonBody(req, 8 * 1024);
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const city = String(body.city || '临江府');
+      const w = loadState(DATA_DIR);
+      w.flags = w.flags || {};
+      w.flags.pendingCase = { city, day: w.clock?.day || 1 };
+      saveState(DATA_DIR, w);
+      await globalThis.__worldGenerators?.generateCase?.();
+      const after = loadState(DATA_DIR);
+      const c = (after.cases || []).slice(-1)[0] || null;
+      return sendJson(res, 200, { ok: true, case: c });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
   return sendJson(res, 404, { ok: false, error: `未找到对应接口: ${pathname}` });
 });
 
@@ -4491,8 +4512,11 @@ server.listen(PORT, '0.0.0.0', () => {
       const w = peek(DATA_DIR);
       const pend = w.flags?.pendingCase;
       if (!pend || !pend.city) return;
+      const cityLabel = (nm) => { const seg = String(nm || '').split('·')[0]; return /府$|州$|县$/.test(seg) ? seg : '临江府'; };
       const pool = Object.values(w.actors || {})
         .filter((a) => a && !a.dead && !a.jailed && a.id !== 'husband' && !a.playerControlled)
+        // 案子只在这座城里发生：别把外城的人拉来顶案
+        .filter((a) => cityLabel(w.places?.[a.location]?.name) === String(pend.city || ''))
         .filter((a) => !/(知府|县令|知县|尚书|宰相|天子|巡抚|统领|正妻|如夫人|千金)/.test(String(a.role || '')))
         .slice(0, 40)
         .map((a) => `${a.name}（${a.role || '城中人'}）`);
