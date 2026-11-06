@@ -13,7 +13,7 @@ import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
-import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, streetOfCity } from './city.js';
+import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, ensureShopStaff, streetOfCity } from './city.js';
 import { ensureMatchmaker, dailyMarriages, maybeOfferAlliance } from './marriage.js';
 import { fallbackName } from './migration.js';
 import { ensureResidence } from './residence.js';
@@ -1178,7 +1178,100 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
 
-      // 一次性：婚姻字段收口（相公不挂单一配偶）+ 家仆只留本宅的 + 先起两股匪患
+      // 一次性：所有城的铺面配人（掌柜/跑堂/伙计/摊主）
+      try {
+        if (!world.flags?.shopStaffV1) {
+          let n = 0;
+          for (const cn of Object.keys(world.flags?.cityBase || {})) {
+            try { n += ensureShopStaff(world, cn); } catch { /* 忽略 */ }
+          }
+          world.flags = world.flags || {};
+          world.flags.shopStaffV1 = { at: Date.now(), n };
+          console.log(`[Shop] 全城铺面配人：${n} 名`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：客栈掌柜站到前店柜台      // 一次性：客栈掌柜站到前店柜台（不在后头房间里）
+      try {
+        if (!world.flags?.innFrontV1) {
+          let moved = 0;
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.dead) continue;
+            if (!/客栈掌柜|跑堂|伙计/.test(String(a.role || ''))) continue;
+            const pn = String(world.places?.[a.location]?.name || '');
+            if (!/客栈/.test(pn) || /柜台/.test(pn)) continue;
+            const front = Object.keys(world.places || {}).find((id) => String(world.places[id]?.name || '') === `${pn}·前店柜台`);
+            if (front) { a.location = front; moved += 1; }
+          }
+          world.flags = world.flags || {};
+          world.flags.innFrontV1 = { at: Date.now(), moved };
+          if (moved) console.log(`[Inn] 掌柜上前柜台：${moved} 人`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：临江的两家客栈并成一家      // 一次性：临江的两家客栈并成一家（老"临江客栈"为准）
+      try {
+        if (!world.flags?.innMergeV1) {
+          const legacyFront = Object.keys(world.places || {}).find((id) => world.places[id]?.name === '临江客栈·前店柜台');
+          const dupIds = Object.keys(world.places || {}).filter((id) => /^临江_inn/.test(id));
+          let moved = 0;
+          for (const id of dupIds) {
+            const pl = world.places[id];
+            const isFront = /前店|柜台/.test(String(pl?.name || ''));
+            const dest = isFront && legacyFront ? legacyFront : 'inn';
+            for (const a of Object.values(world.actors || {})) {
+              if (a && !a.dead && a.location === id) { a.location = dest; moved += 1; }
+            }
+            delete world.places[id];
+          }
+          if (world.flags?.cityBase?.['临江府']) world.flags.cityBase['临江府'].innId = 'inn';
+          world.flags = world.flags || {};
+          world.flags.innMergeV1 = { at: Date.now(), moved, removed: dupIds.length };
+          if (dupIds.length) console.log(`[Inn] 合并临江客栈：清 ${dupIds.length} 处，迁 ${moved} 人`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：每城客栈得有个掌柜      // 一次性：每城客栈得有个掌柜（不然开房没人应）+ 清掉"付3两"这类脏地点
+      try {
+        if (!world.flags?.innFixV1) {
+          let added = 0;
+          for (const [city, b] of Object.entries(world.flags?.cityBase || {})) {
+            const innId = b?.innId;
+            if (!innId || !world.places?.[innId]) continue;
+            const has = Object.values(world.actors || {}).some((a) => a && !a.dead && a.location === innId && /掌柜|伙计|跑堂/.test(String(a.role || '')));
+            if (has) continue;
+            const used = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
+            let nm = '';
+            for (let i = 0; i < 20; i += 1) {
+              const cand = ['钱', '孙', '李', '周', '吴', '郑', '王', '冯'][Math.floor(Math.random() * 8)] + ['掌柜', '掌柜', '二掌柜'][Math.floor(Math.random() * 3)];
+              if (!used.has(cand)) { nm = cand; break; }
+            }
+            if (!nm) continue;
+            const id = `${city.replace(/府$|县$|州$/g, '')}_innkeeper`;
+            world.actors[id] = {
+              id, name: nm, role: '客栈掌柜', title: '客栈掌柜', gender: 'male',
+              age: 38 + Math.floor(Math.random() * 12), home: innId, location: innId,
+              money: 12, relations: {}, origin: 'city_base',
+            };
+            added += 1;
+          }
+          let removed = 0;
+          for (const [pid, pl] of Object.entries(world.places || {})) {
+            if (!pl?.name || !/付[\d一二三四五六七八九十]+两/.test(String(pl.name))) continue;
+            const fallback = Array.isArray(pl.exits) && pl.exits.length ? pl.exits[0] : 'street';
+            for (const a of Object.values(world.actors || {})) {
+              if (a && !a.dead && a.location === pid) a.location = fallback;
+            }
+            delete world.places[pid];
+            removed += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.innFixV1 = { at: Date.now(), added, removed };
+          console.log(`[Inn] 补掌柜 ${added} 城；清脏地点 ${removed} 处`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：婚姻字段收口      // 一次性：婚姻字段收口（相公不挂单一配偶）+ 家仆只留本宅的 + 先起两股匪患
       try {
         if (!world.flags?.spouseHouseFixV1) {
           const h = world.actors?.husband;

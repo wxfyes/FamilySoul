@@ -1668,6 +1668,20 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       }
     } catch { /* 忽略 */ }
 
+    // 行当规矩与自家铺面的掌柜/伙计（给天道的事实）
+    try {
+      const wBz2 = loadState(this.dataDir);
+      const props2 = Array.isArray(wBz2.assets?.properties) ? wBz2.assets.properties.filter(Boolean) : [];
+      if (props2.length) {
+        contextHintEarly += '（【行当规矩】东家出本钱、定大方向；掌柜管经营、用人、账目；伙计跑堂听掌柜的。小铺子老板自己就是掌柜，不另请人。东家与掌柜是两回事，绝不许混为一谈。）\n';
+        const lines2 = props2.slice(0, 6).map((p) => {
+          const boss = Object.values(wBz2.actors || {}).find((a) => a && !a.dead && a.location === p.place && /掌柜/.test(String(a.role || '')));
+          return `${p.name}（东家：相公；掌柜：${boss?.name || '未请'}）`;
+        });
+        contextHintEarly += `（【名下铺面】${lines2.join('；')}）\n`;
+      }
+    } catch { /* 忽略 */ }
+
     // 府中兵事与存粮：家眷与管家自然知道家里有多少兵、多少粮（不必相公逐条交代）
     try {
       const wMil2 = loadState(this.dataDir);
@@ -4069,10 +4083,14 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       const wEnd = loadState(this.dataDir);
       const sayText = String(say || '');
       const curLoc = this._viewerActorId ? wEnd.actors?.[this._viewerActorId]?.location : wEnd.actors?.husband?.location;
+      // 只认全名或非通称尾名：别把“掌柜的呢”当成在喊某个姓张的掌柜
+      const GENERIC = ['掌柜', '东家', '夫人', '娘子', '小姐', '公子', '老爷', '婆婆', '婶子', '公公', '伙计', '老板', '客官', '大娘子'];
       const namedActors = Object.values(wEnd.actors || {}).filter((a) => {
         if (!a || a.dead || !a.name || a.id === this._viewerActorId) return false;
-        const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
-        return sayText.includes(a.name) || (short && sayText.includes(short));
+        if (sayText.includes(a.name)) return true;
+        const short = a.name.length > 2 ? a.name.slice(-2) : '';
+        if (!short || GENERIC.includes(short)) return false;
+        return sayText.includes(short);
       });
       const namedPresent = namedActors.filter((a) => a.location === curLoc);
       const namedAbsent = namedActors.filter((a) => a.location !== curLoc);

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 命名规则：什么样的词才算"地名"
  *
  * 以前是在各处 if 里堆黑名单（"上方""旁边"…），那是补丁：
@@ -18,6 +18,15 @@ const LOCATIVE_HEAD = /^[上下里外前后旁中边内左右]/;
 const PURE_LOCATIVE = /^(上方|下方|上面|下面|左边|右边|旁边|中间|里头|外头|前面|后面|里面|外面|上头|下头|这|那|这处|那处|此处|彼处)$/;
 const VERB_HEAD = /^[去来往到找说看走跑回进出入拿抬搬]/;
 const PLACE_SUFFIX = /(府|县|州|城|镇|村|街|巷|路|桥|坊|铺|店|楼|阁|轩|堂|园|院|房|屋|厅|馆|肆|栈|仓|码头|渡口|山|寺|庙|观|庵|亭|台|池|塘|庄|园|局|衙|门|坊|市|集|驿|馆)$/;
+
+export const GENERIC_ADDRESS = ['掌柜', '东家', '老板', '老板娘', '夫人', '娘子', '小姐', '公子', '老爷', '婆婆', '婶子', '公公', '伙计', '小二', '跑堂', '客官', '大娘子', '先生', '师父'];
+
+/** 这个词是通称还是人名（通称不当人名匹配） */
+export function isGenericAddress(word) {
+  const w = String(word || '').trim();
+  if (!w) return false;
+  return GENERIC_ADDRESS.includes(w);
+}
 
 export function isPlaceName(name) {
   const n = String(name || '').replace(/\s/g, '');
