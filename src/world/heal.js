@@ -1,4 +1,4 @@
-import { trimMemories } from './memory.js';
+﻿import { trimMemories } from './memory.js';
 ﻿import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
@@ -244,8 +244,14 @@ export function healWorld(world) {
         a.marital = 'concubine';
         fixes.push(`${a.name}名分校正为妾室`);
       }
+      // 少爷小姐才女：没成亲就是未婚，不能因为"住在府里"就算已婚
+      const isChild = /小姐|公子|才女|少爷|姑娘/.test(String(a.role || ''));
+      if (isChild && a.marital === 'married' && !a.spouse) {
+        a.marital = 'single';
+        fixes.push(`${a.name}名分校正为未婚`);
+      }
       if (!a.marital && Number(a.age) >= 18 && a.id !== 'husband') {
-        a.marital = a.household ? 'married' : inferMaritalStatus(a.name, a.role, a.age, a.gender);
+        a.marital = isChild ? 'single' : (a.spouse ? 'married' : (a.household ? 'married' : inferMaritalStatus(a.name, a.role, a.age, a.gender)));
       }
       if (Number(a.age) >= 50 && a.menses) {
         delete a.menses;

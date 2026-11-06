@@ -971,7 +971,8 @@ const STARTED_AT = Date.now();
         const myHome = world.actors?.[actorId]?.home || '';
         const labelOf = (nm) => {
           const seg = String(nm || '').split('·')[0];
-          return /府$|州$|县$/.test(seg) ? seg : '临江府';
+          if (/府$|州$|县$/.test(seg) && world.cities?.[seg]) return seg;
+          return '临江府';
         };
         const myCity = curPlace ? labelOf(curPlace.name) : '';
         const nearScore = ([id, pl]) => {

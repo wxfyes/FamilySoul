@@ -108,6 +108,9 @@ export function maritalTextOf(a, spouseName = '') {
   if (!a) return '—';
   if (a.id === 'husband') return '已婚 · 妻妾在侧';
   if (spouseName) return `已婚 · ${spouseName}`;
+  if (/小姐|公子|才女|少爷|姑娘/.test(String(a.role || '')) && !a.spouse) {
+    return a.gender === 'male' ? '未婚 · 尚未娶亲' : '未婚 · 待字闺中';
+  }
   const guessed = a.marital || inferMaritalStatus(a.name, a.role, a.age, a.gender);
   switch (guessed) {
     case 'married': return a.household ? '已婚 · 府内眷属' : '已婚';
