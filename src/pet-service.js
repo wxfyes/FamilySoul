@@ -1070,6 +1070,38 @@ export class PetService {
       }
     } catch (err) { console.warn('[Gate] 清人失败：', err.message); }
 
+    // 8.83 相公点名让谁去某处（"让紫嫣回家""叫小翠回房"）：真搬
+    try {
+      const mGo = /(?:让|叫|命|打发|请)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下)/.exec(String(sayText || ''));
+      if (mGo) {
+        const whoName = mGo[1];
+        const where = mGo[2];
+        const wG = loadState(this.dataDir);
+        const who = Object.values(wG.actors || {}).find((a) => a && !a.dead && a.name === whoName);
+        if (who) {
+          let dest = null;
+          if (/铺子/.test(where)) {
+            const prop = (wG.assets?.properties || []).find((x) => x && (String(x.keeper || '') === String(who.id) || String(x.owner || '') === String(who.id)) && x.place);
+            dest = prop?.place || null;
+          }
+          if (!dest) dest = who.quarters || who.home || null;
+          if (!dest || !wG.places?.[dest]) {
+            try { dest = ensureDwelling(wG, who.id, who.name, 'street'); } catch { dest = null; }
+          }
+          if (dest && wG.places?.[dest] && dest !== who.location) {
+            const mv = moveActor(wG, who.id, dest, 'world', '送客离场');
+            if (mv?.ok) {
+              saveState(this.dataDir, wG);
+              reply = `（${who.name}应了一声，起身往${wG.places[dest].name}去了。）\n` + String(reply || '');
+              console.log(`[Departure] 点名离场：${who.name} → ${wG.places[dest].name}`);
+            } else {
+              console.log(`[Departure] ${who.name} 没走成：${mv?.error}`);
+            }
+          }
+        }
+      }
+    } catch (err) { console.warn('[Departure] 点名离场失败：', err.message); }
+
     // 8.85 相公说"进你屋里/去你房间"：对方答应了就真的换场（她带你进她的私房）
     try {
       if (/(去|进|到)\s*你(的)?\s*(屋|房间|房里|闺房|卧室|内室)|带我(去|进|上)|进你屋/.test(String(sayText || ''))) {

@@ -167,6 +167,14 @@ export function routineFor(world, actor) {
 export function roomForHour(world, actor, hour) {
   const routine = routineFor(world, actor);
   if (!routine.length) return null;
+  // 主人家眷白天不锁死在屋里：只有夜里（21 时后）才回房，白天随她在府里走动
+  const isHousehold = Boolean(actor.household);
+  const hh = num(hour);
+  if (isHousehold && hh >= 8 && hh < 21) {
+    const home = world?.places?.[actor.home];
+    if (home && actor.location && String(world.places?.[actor.location]?.parent || '') === String(home.id)) return null;
+  }
+
   // 门房当值：白天守大门，夜里回下房
   if (actor?.duty?.post === 'gate') {
     const postPlace = gatePostPlace(world, actor);
