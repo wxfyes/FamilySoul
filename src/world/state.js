@@ -768,9 +768,14 @@ export function ensureCourt(world) {
     if (world.court.offices[post]) continue;
     const id = `off_${cityName}`;
     if (!world.actors[id]) {
+      const baseName = cityOfficialName(cityName);
+      const usedNames = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
+      let offName = baseName;
+      const sufO = ['', '二', '三', '四'];
+      for (let i = 0; i < sufO.length && usedNames.has(offName); i += 1) offName = baseName + sufO[i];
       world.actors[id] = {
         id,
-        name: cityOfficialName(cityName),
+        name: offName,
         role: `${cityName}知府`,
         gender: 'male',
         kind: 'official',
@@ -1058,6 +1063,84 @@ export function migrateOwnership(world) {
           ensureCityBase(world, cn);
         }
       } catch { /* 忽略 */ }
+      // 一次性：官场人物（off_/county_）重名，同样加辈字改正
+      try {
+        if (!world.flags?.nameDedupeV4) {
+          const keep = new Set();
+          const all = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.name);
+          all.sort((a, b) => (Number(a.createdDay) || 0) - (Number(b.createdDay) || 0));
+          const renamed = [];
+          for (const a of all) {
+            if (!keep.has(a.name)) { keep.add(a.name); continue; }
+            if (!/^off_|^county_/.test(String(a.id))) continue;
+            const base = a.name;
+            const suf = ['二', '三', '四', '五'];
+            let nm = base;
+            for (let i = 0; i < suf.length && keep.has(nm); i += 1) nm = base + suf[i];
+            if (keep.has(nm)) continue;
+            renamed.push(`${base}→${nm}`);
+            a.name = nm;
+            keep.add(nm);
+          }
+          world.flags = world.flags || {};
+          world.flags.nameDedupeV4 = { at: Date.now(), renamed: renamed.length };
+          if (renamed.length) console.log(`[Name] 官员重名改正 ${renamed.length} 人：${renamed.join('、')}`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：仍有重名（含撞名再撞名）——加辈字改正
+      try {
+        if (!world.flags?.nameDedupeV3) {
+          const keep = new Set();
+          const all = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.name);
+          all.sort((a, b) => (Number(a.createdDay) || 0) - (Number(b.createdDay) || 0));
+          const renamed = [];
+          for (const a of all) {
+            if (!keep.has(a.name)) { keep.add(a.name); continue; }
+            if (a.id === 'husband' || String(a.id).startsWith('usr_')) continue;
+            const base = a.name;
+            let n = 0;
+            let nm = base;
+            const suf = ['二', '三', '四', '五', '六', '七', '八', '九', '十'];
+            while (keep.has(nm) && n < suf.length) { nm = base + suf[n]; n += 1; }
+            if (keep.has(nm)) continue;
+            renamed.push(`${base}→${nm}`);
+            a.name = nm;
+            keep.add(nm);
+          }
+          world.flags = world.flags || {};
+          world.flags.nameDedupeV3 = { at: Date.now(), renamed: renamed.length };
+          if (renamed.length) console.log(`[Name] 残留重名改正 ${renamed.length} 人：${renamed.slice(0, 8).join('、')}`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：全服重名改正（同名只留一个，其余换世界姓名池里的名字，id 不动）
+      try {
+        if (!world.flags?.nameDedupeV2) {
+          const keep = new Set();
+          const all = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.name);
+          all.sort((a, b) => (Number(a.createdDay) || 0) - (Number(b.createdDay) || 0));
+          const renamed = [];
+          for (const a of all) {
+            if (!keep.has(a.name)) { keep.add(a.name); continue; }
+            if (a.id === 'husband' || String(a.id).startsWith('usr_')) continue;
+            let nm = fallbackName(world, a.gender === 'female' ? 'female' : 'male');
+            for (let i = 0; i < 8 && nm && keep.has(nm); i += 1) nm = fallbackName(world, a.gender === 'female' ? 'female' : 'male');
+            if (!nm) continue;
+            // 还是撞名就加辈字，保证真的不重
+            let suffix = 0;
+            const baseNm = nm;
+            while (keep.has(nm)) { suffix += 1; nm = baseNm + ['二', '三', '四', '五', '六', '七', '八', '九'][suffix - 1] || (baseNm + suffix); if (suffix > 9) break; }
+            renamed.push(`${a.name}→${nm}`);
+            a.name = nm;
+            keep.add(nm);
+          }
+          world.flags = world.flags || {};
+          world.flags.nameDedupeV2 = { at: Date.now(), renamed: renamed.length };
+          if (renamed.length) console.log(`[Name] 全服重名改正 ${renamed.length} 人：${renamed.slice(0, 8).join('、')}…`);
+        }
+      } catch { /* 忽略 */ }
+
       // 一次性：阶级人物被误标成"相公府里人"，清掉（他们有自己的府）
       try {
         if (!world.flags?.classHouseholdFixV1) {

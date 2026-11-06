@@ -1892,9 +1892,15 @@ const STARTED_AT = Date.now();
           const meL = actorId ? world.actors?.[actorId] : world.actors?.husband;
           const house = Object.values(world.actors || {}).filter(
             (a) => a && !a.dead && a.id !== 'husband'
-              // 只算真在相公府里的：同住一处，或是他的妻妾；别人的府不算
-              && (a.spouse === 'husband' || Boolean(meL?.home && a.home === meL.home)
-                || Boolean(a.household && meL?.home && a.home === meL.home)),
+              // 后院内容 = 妻妾与贴身丫鬟；护院家丁在"府内当差"，不算内眷
+              && (a.spouse === 'husband'
+                || (/妻|夫人|妾|姨娘|通房|丫鬟|婆子|嬷嬷|姑娘|小姐/.test(String(a.role || ''))
+                  && (() => {
+                    const pl = world.places?.[a.home];
+                    const nm = String(pl?.name || '');
+                    return Boolean(meL?.home && (a.home === meL.home || pl?.parent === meL.home
+                      || nm.startsWith('临江·王宅') || nm.startsWith('王宅')));
+                  })())),
           );
           return {
             age: Number(meL?.age) || null,
@@ -4432,6 +4438,37 @@ const STARTED_AT = Date.now();
       const offer = maybeOfferAlliance(world, String(member.actor || 'husband'), true);
       saveState(DATA_DIR, world);
       return sendJson(res, 200, { ok: Boolean(offer), offer: offer || null });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
+  // 验收/维护：全服重名改正 POST /api/admin/name-dedupe
+  if (req.method === 'POST' && pathname === '/api/admin/name-dedupe') {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      // 用活的世界对象（peek 缓存）改名，别改完文件、线上还是旧名
+      const world = peek(DATA_DIR);
+      const keep = new Set();
+      const all = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.name);
+      all.sort((a, b) => (Number(a.createdDay) || 0) - (Number(b.createdDay) || 0));
+      const renamed = [];
+      for (const a of all) {
+        if (!keep.has(a.name)) { keep.add(a.name); continue; }
+        if (a.id === 'husband' || String(a.id).startsWith('usr_')) continue;
+        const base = a.name;
+        const suf = ['二', '三', '四', '五', '六', '七', '八', '九', '十'];
+        let nm = base;
+        for (let i = 0; i < suf.length && keep.has(nm); i += 1) nm = base + suf[i];
+        if (keep.has(nm)) continue;
+        renamed.push(`${base}→${nm}`);
+        a.name = nm;
+        keep.add(nm);
+      }
+      saveState(DATA_DIR, world);
+      return sendJson(res, 200, { ok: true, renamed: renamed.length, sample: renamed.slice(0, 12) });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }

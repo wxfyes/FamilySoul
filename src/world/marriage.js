@@ -38,7 +38,13 @@ export function ensureMatchmaker(world, cityName) {
   const slug = city.replace(/府$|县$|州$/g, '');
   const id = `${slug}_matchmaker`;
   if (world.actors?.[id]) return world.actors[id];
-  const name = `${['王', '李', '张', '刘', '陈'][Math.floor(Math.random() * 5)]}媒婆`;
+  const usedNames = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
+  let name = '';
+  for (let i = 0; i < 20; i += 1) {
+    const cand = `${['王', '李', '张', '刘', '陈', '赵', '孙', '周'][Math.floor(Math.random() * 8)]}媒婆`;
+    if (!usedNames.has(cand)) { name = cand; break; }
+  }
+  if (!name) name = `${city}媒婆`;
   world.actors[id] = {
     id, name, role: '媒婆', title: '媒婆', gender: 'female',
     age: 45 + Math.floor(Math.random() * 15),
