@@ -952,7 +952,7 @@ const STARTED_AT = Date.now();
               // 公开营业场所（酒楼/茶坊/衙署/客栈）的院子也列出来，雅阁、天字阁才搜得到
               const par = world.places?.[pl.parent];
               const pub = par && (par.use === 'restaurant' || par.use === 'shop' || par.use === 'court'
-                || /酒楼|茶坊|茶栈|客栈|衙署|县衙|码头/.test(String(par.name || '')));
+                || /酒楼|酒肆|饭庄|茶坊|茶肆|茶楼|茶栈|客栈|衙署|县衙|码头|货栈|商行/.test(String(par.name || '')));
               return Boolean(pub);
             }
             return true;
@@ -969,7 +969,7 @@ const STARTED_AT = Date.now();
             if (!pl || !pl.rooms) continue;
             if (wantedParents.has(pid)) continue;
             const pub = pl.use === 'restaurant' || pl.use === 'shop' || pl.use === 'court'
-              || /酒楼|茶坊|茶栈|客栈|衙署|县衙|码头/.test(String(pl.name || ''));
+              || /酒楼|酒肆|饭庄|茶坊|茶肆|茶楼|茶栈|客栈|衙署|县衙|码头|货栈|商行/.test(String(pl.name || ''));
             if (pub) wantedParents.add(pid);
             if (wantedParents.size > 80) break;
           }
