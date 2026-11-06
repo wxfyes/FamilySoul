@@ -87,35 +87,22 @@ export class UserRegistry {
     const actorId = `usr_${Date.now().toString(36)}_${crypto.randomBytes(3).toString('hex')}`;
     const token = `usr_token_${crypto.randomBytes(16).toString('hex')}`;
 
-    // 身份与初入行当
-    const ROLE_MAP = {
-      scholar: '求学的生员',
-      merchant: '行脚小商客',
-      wanderer: '初来乍到的游侠',
-      farmer: '城郊农户',
-      artisan: '手艺匠人',
-      weaver: '绣坊绣娘',
-      servant: '大户仆役',
-      player: '戏班伶人',
-      medic: '游方郎中',
-      boatman: '运河船工',
-      guard: '镖行趟子手',
-      teacher: '私塾先生',
-      clerk: '县衙书办',
-      peddler: '走街货郎',
-      priest: '庵堂道姑',
-      hunter: '山中猎户',
-      cook: '酒楼厨娘',
-      singer: '茶坊唱曲',
-    };
-    const roleName = ROLE_MAP[originKind] || '初入临江的布衣';
+    // 身份只由"性别 + 年龄"推出来：几岁就是几岁的人，职业与命数留给他自己走
+    const ageWord = (() => {
+      const a = numAge;
+      if (a < 18) return safeGender === 'female' ? '少女' : '少年';
+      if (a < 25) return safeGender === 'female' ? '青年女子' : '青年男子';
+      if (a < 35) return safeGender === 'female' ? '妇人' : '男子';
+      if (a < 50) return safeGender === 'female' ? '中年妇人' : '中年男子';
+      return safeGender === 'female' ? '老妇' : '老者';
+    })();
+    const roleName = ageWord;
     const genderDesc = safeGender === 'female' ? '坤身女子' : '乾身男子';
 
-    // 一人一座小院：注册时就给他一处住处（不是所有人挤客栈）
+    // 开局给他一处自己的百姓小屋：不为剧情，只为"有地方落脚"
     const houseId = `house_${actorId}`;
     world.places = world.places || {};
     if (!world.places[houseId]) {
-      const surname = rawName.slice(0, 1);
       world.places[houseId] = {
         id: houseId,
         name: `${rawName}的小院`,
@@ -127,6 +114,12 @@ export class UserRegistry {
       };
       world.dynamicPlaces = world.dynamicPlaces || {};
       world.dynamicPlaces[houseId] = world.places[houseId];
+      try {
+        if (world.places.street) {
+          world.places.street.exits = Array.isArray(world.places.street.exits) ? world.places.street.exits : [];
+          if (!world.places.street.exits.includes(houseId)) world.places.street.exits.push(houseId);
+        }
+      } catch { /* 忽略 */ }
     }
 
     // 录入世界账本（直接住进自己的小院）
@@ -144,7 +137,7 @@ export class UserRegistry {
       marital: 'single',
       spouse: null,
       residence: { type: 'own', placeId: houseId },
-      money: 1.5, // 1.5两碎银起步盘缠（布衣起点，最多1.5两）
+      money: 2, // 二两碎银，够住几天客栈、吃几顿饭；再多就是替他写剧本了
       relations: {
         husband: { trust: 0, desire: 0, fear: 0, grievance: 0 },
       },
@@ -202,7 +195,7 @@ export class UserRegistry {
       name: rawName,
       gender: safeGender,
       age: numAge,
-      place: '临江客栈',
+      place: `${rawName}的小院`,
     };
   }
 }

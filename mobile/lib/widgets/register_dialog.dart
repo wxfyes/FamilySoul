@@ -20,8 +20,7 @@ class _RegisterDialogState extends State<RegisterDialog> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _ageController = TextEditingController(text: '20');
   String _gender = 'male';
-  String _originKind = 'scholar';
-  bool _submitting = false;
+    bool _submitting = false;
   String _errorMessage = '';
 
   Future<void> _submit() async {
@@ -65,7 +64,6 @@ class _RegisterDialogState extends State<RegisterDialog> {
       name: name,
       gender: _gender,
       age: age,
-      originKind: _originKind,
     );
 
     if (!mounted) return;
@@ -190,39 +188,6 @@ class _RegisterDialogState extends State<RegisterDialog> {
               ),
               const SizedBox(height: 12),
 
-              // 初入行当
-              DropdownButtonFormField<String>(
-                value: _originKind,
-                decoration: InputDecoration(
-                  labelText: '初入出身',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'scholar', child: Text('求学的生员')),
-                  DropdownMenuItem(value: 'merchant', child: Text('行脚小商客')),
-                  DropdownMenuItem(value: 'wanderer', child: Text('初来乍到的游侠')),
-                  DropdownMenuItem(value: 'farmer', child: Text('城郊农户')),
-                  DropdownMenuItem(value: 'artisan', child: Text('手艺匠人（木匠/铁匠）')),
-                  DropdownMenuItem(value: 'weaver', child: Text('绣坊绣娘')),
-                  DropdownMenuItem(value: 'cook', child: Text('酒楼厨娘')),
-                  DropdownMenuItem(value: 'singer', child: Text('茶坊唱曲')),
-                  DropdownMenuItem(value: 'player', child: Text('戏班伶人')),
-                  DropdownMenuItem(value: 'servant', child: Text('大户仆役')),
-                  DropdownMenuItem(value: 'peddler', child: Text('走街货郎')),
-                  DropdownMenuItem(value: 'boatman', child: Text('运河船工')),
-                  DropdownMenuItem(value: 'hunter', child: Text('山中猎户')),
-                  DropdownMenuItem(value: 'guard', child: Text('镖行趟子手')),
-                  DropdownMenuItem(value: 'medic', child: Text('游方郎中')),
-                  DropdownMenuItem(value: 'teacher', child: Text('私塾先生')),
-                  DropdownMenuItem(value: 'clerk', child: Text('县衙书办')),
-                  DropdownMenuItem(value: 'priest', child: Text('庵堂道姑')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _originKind = val);
-                },
-              ),
-              const SizedBox(height: 10),
 
               // 落脚说明
               Container(
@@ -233,7 +198,7 @@ class _RegisterDialogState extends State<RegisterDialog> {
                   border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
                 ),
                 child: const Text(
-                  '入世须知：初始携碎银二十两，落脚临江客栈大堂。\n王家产业与正房深闺乃相公私域，闲人莫入。',
+                  '入世须知：身上只有二两碎银，落脚临江客栈。\n住处、营生、人脉，都要自己在城里挣。\n王家产业与正房深闺乃相公私域，闲人莫入。',
                   style: TextStyle(fontSize: 11, color: Colors.grey, height: 1.35),
                 ),
               ),

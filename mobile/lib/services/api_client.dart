@@ -449,7 +449,6 @@ class SurfCoreApiClient {
     required String name,
     required String gender,
     required int age,
-    required String originKind,
   }) async {
     try {
       final res = await _dio.post(
@@ -458,7 +457,6 @@ class SurfCoreApiClient {
           'name': name,
           'gender': gender,
           'age': age,
-          'originKind': originKind,
         },
       );
       if (res.statusCode == 200 && res.data is Map) {
