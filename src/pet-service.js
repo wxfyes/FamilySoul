@@ -9,6 +9,7 @@ import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } 
 import { moveActor, isHumanBound } from './world/position.js';
 import { hireStaff } from './world/employment.js';
 import { spawnHouseholdStaff } from './world/warfare.js';
+import { proposeMarriage, isMarriageable } from './world/marriage.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -1077,6 +1078,25 @@ export class PetService {
         }
       }
     } catch (err) { console.warn('[Gate] 清人失败：', err.message); }
+
+    // 8.79 说亲：话里点名"娶/提亲/说亲/纳"某人，真去说媒
+    try {
+      const mMarry = /(?:娶|提亲|说亲|迎娶|纳)\s*([\u4e00-\u9fa5]{2,4})/.exec(String(sayText || ''));
+      if (mMarry) {
+        const wM = loadState(this.dataDir);
+        const meM = wM.actors?.[this._viewerActorId || 'husband'] || wM.actors?.husband;
+        const who = Object.values(wM.actors || {}).find((a) => a && a.name === mMarry[1]);
+        if (who) {
+          const r = proposeMarriage(wM, meM.id, who.id, 2);
+          if (r.ok) {
+            try { wM.assets.silver = Math.round(((Number(wM.assets.silver) || 0) - 2) * 100) / 100; } catch { /* 忽略 */ }
+            saveState(this.dataDir, wM);
+          }
+          reply += `\n${r.line}`;
+          console.log(`[Marriage] 说亲：${meM.name} → ${who.name}：${r.ok ? '成' : '未成'}`);
+        }
+      }
+    } catch (err) { console.warn('[Marriage] 说亲失败：', err.message); }
 
     // 8.80 营生三件事：摆摊 / 找差事 / 租铺（哪个城都能做，不分临江内外）
     try {
