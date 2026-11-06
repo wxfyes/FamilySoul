@@ -1,0 +1,1584 @@
+
+
+// ── 侧边栏与选项卡切换系统 ──────────────────────────────────────
+function switchTab(tabId) {
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.toggle('active', p.id === tabId);
+  });
+  try {
+    localStorage.setItem('fs_active_tab', tabId);
+    history.replaceState(null, null, '#' + tabId);
+  } catch(e) {}
+  // 若切换到行踪，触发一次行踪数据加载
+  if (tabId === 'tab-travel' && typeof window.__navLoad === 'function') {
+    window.__navLoad();
+  }
+  if (tabId === 'tab-perf') {
+    loadPerf();
+    if (!window.__perfTimer) window.__perfTimer = setInterval(() => {
+      const act = document.querySelector('.nav-tab.active');
+      if (act && act.getAttribute('data-tab') === 'tab-perf') loadPerf();
+    }, 30000);
+  }
+}
+
+async function loadPerf() {
+  const tk = token();
+  if (!tk) return;
+  try {
+    const [snap, hist] = await Promise.all([
+      fetch(`/api/admin/perf?token=${encodeURIComponent(tk)}`).then((r) => r.json()),
+      fetch(`/api/admin/perf/history?token=${encodeURIComponent(tk)}`).then((r) => r.json()),
+    ]);
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt('perfRss', `${snap.rssMB} MB`);
+    setTxt('perfHeap', `${snap.heapMB} MB`);
+    setTxt('perfState', `${snap.stateMB} MB`);
+    setTxt('perfCounts', `${snap.actors} / ${snap.places}`);
+    setTxt('perfWrites', `${snap.state?.writes ?? 0}`);
+    setTxt('perfChat', snap.chat?.avgMs ? `${snap.chat.avgMs} ms` : '—');
+    drawPerfChart(hist.points || []);
+  } catch (e) { console.warn('perf 加载失败', e); }
+}
+
+function drawPerfChart(points) {
+  const cv = document.getElementById('perfChart');
+  if (!cv || !cv.getContext) return;
+  const ctx = cv.getContext('2d');
+  const W = cv.width; const H = cv.height; const P = 36;
+  ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, W, H);
+  if (!points.length) {
+    ctx.fillStyle = '#64748b'; ctx.font = '16px sans-serif'; ctx.fillText('还没有采样点，等 30 秒再来', P, H / 2);
+    return;
+  }
+  const rss = points.map((p) => Number(p.rssMB) || 0);
+  const chat = points.map((p) => Number(p.chatMs) || 0);
+  const maxR = Math.max(60, ...rss); const maxC = Math.max(500, ...chat);
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = P + (i / 4) * (H - P * 2);
+    ctx.beginPath(); ctx.moveTo(P, y); ctx.lineTo(W - P, y); ctx.stroke();
+  }
+  const line = (arr, max, color) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+    arr.forEach((v, i) => {
+      const x = P + (i / Math.max(1, arr.length - 1)) * (W - P * 2);
+      const y = H - P - (v / max) * (H - P * 2);
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  };
+  line(rss, maxR, '#38bdf8');
+  line(chat, maxC, '#f87171');
+  ctx.fillStyle = '#94a3b8'; ctx.font = '12px sans-serif';
+  ctx.fillText(`内存峰值 ${maxR}MB`, P, 18);
+  ctx.fillText(`聊天峰值 ${maxC}ms`, P + 140, 18);
+}
+
+function initTabs() {
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabId = t.getAttribute('data-tab');
+      if (tabId) switchTab(tabId);
+      // 移动端点击后自动收起侧边栏
+      if (window.innerWidth <= 960) {
+        document.getElementById('sidebar')?.classList.remove('open');
+        document.getElementById('sidebarOverlay')?.classList.remove('open');
+      }
+    });
+  });
+
+  const hash = location.hash.replace('#', '');
+  const saved = localStorage.getItem('fs_active_tab');
+  const target = hash && document.getElementById(hash) ? hash : (saved && document.getElementById(saved) ? saved : 'tab-overview');
+  switchTab(target);
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebarOverlay');
+  if (sb) sb.classList.toggle('open');
+  if (ov) ov.classList.toggle('open');
+}
+
+// ── 人物列表即时搜索与过滤 ──────────────────────────────────────
+// ── 人物列表即时搜索与州府过滤 ──────────────────────────────────────
+let currentActorCity = 'all';
+let currentActorCategory = 'all';
+let currentActorSearch = '';
+
+function selectActorCity(city) {
+  currentActorCity = city || 'all';
+  // 更新 pills 激活样式
+  document.querySelectorAll('#cityPillsList .city-pill').forEach(el => {
+    const isAll = city === 'all' && el.textContent.includes('全部');
+    const isTarget = city !== 'all' && el.textContent.includes(city);
+    el.classList.toggle('active', isAll || isTarget);
+  });
+  const sel = document.getElementById('citySelectDropdown');
+  if (sel) {
+    if (city === 'all') sel.value = 'all';
+    else if ([...sel.options].some(o => o.value === city)) sel.value = city;
+  }
+  filterActors(currentActorSearch, currentActorCategory);
+}
+
+function filterActors(term = '', category = '') {
+  if (category) currentActorCategory = category;
+  if (typeof term === 'string') currentActorSearch = term;
+
+  const query = (currentActorSearch || '').trim().toLowerCase();
+  const rows = document.querySelectorAll('#actors tr');
+  let visibleCount = 0;
+
+  // 更新分类按钮高亮
+  const catBtns = {
+    'all': 'btn-filter-all',
+    'here': 'btn-filter-here',
+    'house': 'btn-filter-house',
+    'love': 'btn-filter-love',
+    'court': 'btn-filter-court'
+  };
+  Object.entries(catBtns).forEach(([catKey, btnId]) => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      if (currentActorCategory === catKey) {
+        btn.classList.add('btn-primary');
+      } else {
+        btn.classList.remove('btn-primary');
+      }
+    }
+  });
+
+  rows.forEach(tr => {
+    const text = (tr.textContent || '').toLowerCase();
+    const city = tr.getAttribute('data-city') || '临江府';
+
+    // 1. 城市匹配
+    const matchesCity = (currentActorCity === 'all' || city === currentActorCity);
+
+    // 2. 搜索词匹配
+    const matchesQuery = !query || text.includes(query);
+
+    // 3. 身份分类匹配
+    let matchesCat = true;
+    if (currentActorCategory === 'here') matchesCat = tr.querySelector('.tag.good') != null || text.includes('在场');
+    else if (currentActorCategory === 'house') matchesCat = text.includes('正妻') || text.includes('二房') || text.includes('通房') || text.includes('内宅') || text.includes('相公') || text.includes('丫鬟') || text.includes('书童');
+    else if (currentActorCategory === 'love') matchesCat = text.includes('相好') || text.includes('外室') || text.includes('有喜') || text.includes('有孕');
+    else if (currentActorCategory === 'court') matchesCat = text.includes('知府') || text.includes('知县') || text.includes('典吏') || text.includes('官府') || text.includes('衙门') || text.includes('尚书') || text.includes('统领');
+
+    const show = matchesCity && matchesQuery && matchesCat;
+    tr.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+
+  const pill = document.getElementById('actors-count-pill');
+  if (pill) {
+    pill.textContent = currentActorCity === 'all' ? `共 ${visibleCount} 人` : `${currentActorCity} (${visibleCount}人)`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initTabs();
+  const searchInput = document.getElementById('actorSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => filterActors(e.target.value));
+  }
+});
+
+// 智能判断人物所属州府/县城
+function cityOfActor(a, citiesList = []) {
+  if (a.city) return a.city;
+  const text = (a.place || '') + ' ' + (a.role || '') + ' ' + (a.name || '');
+  if (Array.isArray(citiesList)) {
+    for (const c of citiesList) {
+      if (text.includes(c)) return c;
+    }
+    for (const c of citiesList) {
+      const s = c.replace(/府|州|县/, '');
+      if (s.length >= 2 && text.includes(s)) return c;
+    }
+  }
+  return '临江府';
+}
+
+const _dummyProxy = new Proxy({}, {
+  get: (target, prop) => {
+    if (prop === 'classList') return { add(){}, remove(){}, toggle(){}, contains: () => false };
+    if (prop === 'style') return {};
+    if (prop === 'options') return [];
+    if (prop === 'value') return '';
+    if (prop === 'innerHTML' || prop === 'textContent') return '';
+    return () => {};
+  },
+  set: () => true
+});
+const $ = (id) => document.getElementById(id) || _dummyProxy;
+const fmt = (n) => new Intl.NumberFormat('zh-CN').format(Math.round(n));
+
+function saveToken(){
+  localStorage.setItem('fs_admin_token', $('token').value.trim());
+  load();
+}
+function token(){
+  const fromUrl = new URLSearchParams(location.search).get('token');
+  if (fromUrl) { localStorage.setItem('fs_admin_token', fromUrl); return fromUrl; }
+  return localStorage.getItem('fs_admin_token') || localStorage.getItem('surfcore_husband_token') || '';
+}
+function human(sec){
+  if (!sec) return '—';
+  const d = Math.floor(sec/86400), h = Math.floor(sec%86400/3600), m = Math.floor(sec%3600/60);
+  return (d? d+'天':'') + (h? h+'小时':'') + m + '分';
+}
+// 统一女眷名分位份推导
+function rankOf(a) {
+  const r = String(a?.role || '');
+  if (/正妻|大娘子|结发/.test(r)) return '正妻';
+  if (/如夫人|二房|侧室|妾/.test(r)) return '二房';
+  if (/通房|丫鬟|婢/.test(r)) return '通房';
+  return a?.household ? '府内' : '外室';
+}
+// 统一同榻亲密与名分礼制推导（彻底杜绝将正妻/侧室误标为相好）
+function getIntimacyLabel(a, im) {
+  if (!im) im = a?.intimacy || {};
+  if (im.ritual === 'unlocked') return '解禁 · 档' + (im.tone ?? 0);
+  const rank = rankOf(a);
+  const isOut = !a?.household;
+  if (im.consummated) {
+    if (rank === '正妻') return '琴瑟和鸣 · 结发正妻';
+    if (rank === '二房') return '雨意云情 · 如夫人';
+    if (rank === '通房') return '承欢侍寝 · 通房';
+    if (isOut) return '私定终身 · 相好';
+    return '温存燕好 · 府内';
+  }
+  if (rank === '正妻') return '相敬如宾 · 正房端庄';
+  if (rank === '二房') return '守分安道 · 端庄';
+  if (rank === '通房') return '贴身侍候 · 恪守本分';
+  return '端庄守礼';
+}
+// 与后端一致的态度阶梯（仅用于展示）
+function attitude(a){
+  if (!a.relations) return '—';
+  const r = a.relations || {}; const d = +r.desire||0, t = +r.trust||0, g = +r.grievance||0;
+  if (a.servant) {
+    if (g>=60) return '心里有气，但不敢违拗';
+    if (t>=60) return a.gender==='male' ? '忠心办事的伙计，最得力' : '贴心的丫头，最得力';
+    return a.gender==='male' ? '府里的伙计，听你差遣' : '府里的丫头，听你差遣';
+  }
+  if (a.gender==='male' && a.household) {
+    if (g>=60) return '心里有气，但不敢违拗';
+    if (t>=60) return '忠心办事的伙计，最得力';
+    return '府里的伙计，听你差遣';
+  }
+  if (a.gender==='male') {
+    if (g>=60) return '对你有敌意，见面就要生事';
+    if (g>=30) return '心里有疙瘩，面上还应酬';
+    if (t>=60) return '称兄道弟，未必真心';
+    return '点头之交，各怀算盘';
+  }
+  if (a.household) {
+    if (g>=60) return '心里有气，会闹一场、要哄';
+    if (d>=60) return '心里有你，主动迎合';
+    if (d>=30) return '愿意服侍，会撒撒娇';
+    return '虽有些倦，仍会应下';
+  }
+  if (g>=60) return '心里有怨，轻易不松口';
+  if (a.consummated) return d>=50 ? '已是相好，嘴上推拒身子应' : '已是相好，脸皮薄';
+  if (d>=70 && t>=55) return '心里已有你，半推半就';
+  if (d>=45) return '有点意动，要给由头';
+  if (t>=45) return '可信的人，但到此为止';
+  if (d<=20 && t<=30) return '只是相识，第一次必拒';
+  return '有意无意打量着';
+}
+
+async function load(){
+  const tk = token();
+  if (!tk) { $('summary').textContent = '请先在右上角填入令牌。'; return; }
+  if (!$('token').value) $('token').value = tk;
+  try {
+    const r = await fetch(`/api/admin/world?token=${encodeURIComponent(tk)}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const w = await r.json();
+    render(w);
+    $('h-updated').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+  } catch (e) {
+    $('h-updated').textContent = '读取失败：' + e.message;
+  }
+}
+
+function toggleMorningReport() {
+  const full = $('morning-full');
+  const btn = $('morning-btn');
+  if (!full || !btn) return;
+  const isHidden = full.style.display === 'none';
+  full.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? '收起' : '展开全文';
+}
+
+function render(w){
+  // ── 🌅 晨报横幅 ──────────────────────────────
+  const mr = w.morningReport || '';
+  if (mr && $('morning-banner')) {
+    $('morning-short').textContent = mr.length > 55 ? mr.slice(0, 53) + '…' : mr;
+    $('morning-full').textContent = mr;
+    $('morning-banner').style.display = 'block';
+  } else if ($('morning-banner')) {
+    $('morning-banner').style.display = 'none';
+  }
+
+  // ── 🏡 家宅卡：府内女眷（有名分）与外室（相好，不入府）分开 ----------
+  if ($('card-household')) {
+    const women = Object.values(w.actors || {}).filter(a => a && a.gender === 'female' && a.id !== 'husband');
+    const inHouse = women.filter(a => a.household);
+    const isPreg = (a) => Boolean(a.pregnancy && !a.pregnancy.born && (a.household || a.pregnancy.father === 'husband'));
+    const outHouse = women.filter(a => !a.household && (
+      Boolean(a.intimacy && a.intimacy.consummated) || isPreg(a)
+    ));
+    const pregCount = (arr) => arr.filter(isPreg).length;
+    const rankOf = (a) => {
+      const r = String(a.role || '');
+      if (/正妻|大娘子/.test(r)) return '正妻';
+      if (/如夫人|二房|侧室|妾/.test(r)) return '二房';
+      if (/通房|丫鬟|婢/.test(r)) return '通房';
+      return '府内';
+    };
+    const ord = { 正妻: 0, 二房: 1, 通房: 2, 府内: 3 };
+    inHouse.sort((x, y) => ord[rankOf(x)] - ord[rankOf(y)]);
+    const mainCnt = (k) => inHouse.filter(a => rankOf(a) === k).length;
+    const outPreg = pregCount(outHouse);
+
+    const inPreg = pregCount(inHouse);
+    if ($('badge-preg')) {
+      $('badge-preg').style.display = inPreg > 0 ? 'inline-block' : 'none';
+      $('badge-preg').textContent = inPreg > 0 ? (inPreg === 1 ? '有喜' : `${inPreg}有喜`) : '';
+    }
+
+    $('h-family-top').textContent =
+      `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+      + (inPreg ? `（${inPreg} 有孕）` : '');
+
+    const rowOf = (a, tag) => `<div class="row">
+        <span><b>${a.name}</b> <span class="tag" style="margin-left:4px">${tag}</span>${isPreg(a) ? `<span class="tag good" style="margin-left:4px">有喜 ${Number(a.pregnancy?.days) || 0} 天</span>` : ''}${a.onPeriod ? '<span class="tag" style="margin-left:4px">月事</span>' : ''}${a.fertile ? '<span class="tag good" style="margin-left:4px">易孕</span>' : ''}</span>
+        <span class="muted">${a.place || ''}</span>
+      </div>`;
+
+    let html = '';
+    if (inHouse.length) {
+      html += `<div class="muted" style="margin:4px 0 2px">府内</div>`;
+      html += inHouse.map(a => rowOf(a, rankOf(a))).join('');
+    }
+    if (outHouse.length) {
+      html += `<div class="muted" style="margin:8px 0 2px">外室 · 不入府（世人不知）</div>`;
+      html += outHouse.map(a => rowOf(a, '相好')).join('');
+    }
+    $('family-detail').innerHTML = html || '<div class="muted">府中尚无内眷</div>';
+
+    // ── 🏡 后院内宅专属 Tab 完整谱系表格渲染 ──────────────────
+    if ($('family-full-rows')) {
+      const allWomen = [...inHouse, ...outHouse];
+      $('f-house-summary').textContent =
+        `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+        + (inPreg ? `（${inPreg} 有孕）` : '');
+
+      $('family-full-rows').innerHTML = allWomen.map(a => {
+        const isOut = !a.household;
+        const rankTag = isOut ? '<span class="tag warn">外室 · 相好</span>' : `<span class="tag good">${rankOf(a)}</span>`;
+        const pregDays = Number(a.pregnancy?.days) || 0;
+        const pregMonth = Math.floor(pregDays / 30);
+        let pregHtml = `<span class="muted">${a.bodyText || '未孕'}</span>`;
+        if (isPreg(a)) {
+          pregHtml = `<span class="tag good" style="font-weight:600">🤱 有喜 ${pregDays} 天 (${pregMonth}个月)</span>`;
+        } else if (a.onPeriod) {
+          pregHtml = '<span class="tag warn">🩸 月事中</span>';
+        } else if (a.fertile) {
+          pregHtml = '<span class="tag good">🌸 易孕期</span>';
+        }
+
+        const r = a.relations || {};
+        const im = a.intimacy || {};
+        let intimacyText = getIntimacyLabel(a, im);
+
+        return `<tr style="cursor:pointer" onclick="openActor('${a.id}')">
+          <td><b>${a.name}</b> ${a.household ? '<span class="tag" style="margin-left:4px">府内</span>' : '<span class="tag muted" style="margin-left:4px">外室</span>'}</td>
+          <td>${rankTag} <span class="muted" style="margin-left:4px">${a.role || ''}</span></td>
+          <td class="muted">${a.place || '—'}</td>
+          <td>${pregHtml}</td>
+          <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + ' 两' : '—'}</td>
+          <td class="muted">${attitude({...a, household: a.household, consummated: im.consummated, relations: r})}</td>
+          <td><span class="tag">${intimacyText}</span></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:12px;">暂无内眷女眷数据</td></tr>';
+    }
+  }
+
+
+  // ── 💰 账目卡 ──────────────────────────────
+  // ── 🌟 今日天道动态焦点速报 ──────────────────────
+  if ($('card-today-focus')) {
+    const clk = w.clock || {};
+    const d = w.date || {};
+    const dateText = d ? `${d.month || ''}月${d.day || ''}日 ${d.lunar?.text || ''}` : '';
+    $('focus-clock-sub').textContent = `第 ${clk.day || 1} 世界日 · ${clk.shichen || ''} (${clk.hour || 0}时)`;
+
+    // 1. 粮草与市道
+    const grainPrice = w.grain?.price ? (Number(w.grain.price)/100).toFixed(2) : '0.60';
+    const cityGrains = Object.entries(w.cities || {}).filter(([, c]) => Number(c.grain) > 0);
+    const topCityGrain = cityGrains.sort((a,b) => Number(b[1].grain) - Number(a[1].grain))[0];
+    const wangjiaGrain = Number(w.factions?.wangjia?.grain) || 0;
+    $('foc-grain').innerHTML = `市面米价 <b>${grainPrice}</b> 两/石 · 王家随军粮 <b>${wangjiaGrain.toFixed(1)}</b> 石${topCityGrain ? ` · ${topCityGrain[0]}城仓储粮 <b>${topCityGrain[1].grain}</b> 石` : ''}`;
+
+    // 2. 灾荒与赈恤
+    const disasters = (w.recentEvents || []).filter(e => String(e.action || '').includes('disaster') || /旱|水|蝗|震|灾/.test(e.payload?.text || ''));
+    if (disasters.length > 0) {
+      const latestD = disasters[0];
+      $('foc-disaster').innerHTML = `<span class="bad">⚠️ ${latestD.place || ''}遭灾：${(latestD.payload?.text || '').slice(0, 32)}</span>`;
+    } else {
+      $('foc-disaster').innerHTML = `<span class="good">🌿 四海升平，各府县安居乐业，暂无大灾告急</span>`;
+    }
+
+    // 3. 兵戈行军与开拔
+    const allMarches = [];
+    Object.values(w.factions || {}).forEach(f => {
+      if (Array.isArray(f.marches)) {
+        f.marches.forEach(m => allMarches.push({ factionName: f.name || f.id, ...m }));
+      }
+    });
+    if (Array.isArray(w.marches)) {
+      w.marches.forEach(m => allMarches.push({ factionName: '行军', ...m }));
+    }
+    if (allMarches.length > 0) {
+      $('foc-march').innerHTML = allMarches.map(m =>
+        `<span class="warn">🚩 ${m.factionName}开拔：${m.from || '驻地'} → ${m.to} (${m.troops || m.count || 0}兵，第${m.arriveDay}日到)</span>`
+      ).join('；');
+    } else {
+      $('foc-march').innerHTML = `<span class="muted">天下偃武，各势力兵马在营驻守，暂无调动</span>`;
+    }
+
+    // 4. 今日待办与兵备
+    const todos = (w.pending || []).concat(w.promises || []);
+    if (todos.length > 0) {
+      $('foc-todo').innerHTML = `<span class="warn">⏳ 有 ${todos.length} 件要紧待办：${(todos[0].text || todos[0].title || '').slice(0, 28)}...</span>`;
+    } else {
+      $('foc-todo').innerHTML = `<span class="muted">相公今日优游自得，暂无催办要事</span>`;
+    }
+
+    // 5. 市井天下风闻
+    const rumors = Array.isArray(w.rumors) ? w.rumors : [];
+    if (rumors.length > 0) {
+      const lastR = rumors[rumors.length - 1];
+      $('foc-rumor').innerHTML = `💬 「${lastR.text || ''}」`;
+    } else {
+      $('foc-rumor').innerHTML = `<span class="muted">临江茶肆客商对坐，细品春茶，市井恬淡</span>`;
+    }
+  }
+
+  // ── 💰 银两与百业卡升级 ──────────────────────────────
+  if ($('card-accounts')) {
+    const silver = Number(w.assets?.silver ?? 0);
+    const allProps = (w.assets?.properties || []).filter(p => (Number(p.incomePerDay) || 0) > 0 || p.keeperName);
+    const husbandProps = allProps.filter(p => p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper) || p.owner === 'wangjia');
+    const otherProps = allProps.filter(p => !(p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper) || p.owner === 'wangjia'));
+    const income = husbandProps.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0);
+    $('a-acc-top').textContent = `现存 ${silver.toFixed(1)} 两 · 日入 +${income.toFixed(1)} 两`;
+
+    let accHtml = '';
+    // 汇总产业粮栈攒粮
+    let totalGrainStock = 0;
+    accHtml += husbandProps.map(p => {
+      const keeper = p.keeperName ? ` <span class="muted">(${p.keeperName}打理)</span>` : '';
+      const stock = Number(p.grainStock) || 0;
+      if (stock > 0) totalGrainStock += stock;
+      const stockBadge = stock > 0 ? ` <span class="tag good">存粮 ${stock.toFixed(0)}石</span>` : '';
+      return `<div class="row">
+        <span><b>${p.name}</b>${keeper}${stockBadge}</span>
+        <span class="num good">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
+      </div>`;
+    }).join('');
+
+    if (totalGrainStock > 0) {
+      accHtml += `<div class="row"><span>🌾 产业粮栈可用军粮</span><span class="num good">${totalGrainStock.toFixed(1)} 石 (随时可拨归军用)</span></div>`;
+    }
+
+    if (otherProps.length > 0) {
+      accHtml += `<div class="muted" style="margin:8px 0 2px;font-size:12px;">内眷私房名下产业（独立核算·不入公账）</div>`;
+      accHtml += otherProps.map(p => {
+        const ownerId = p.owner || p.keeper;
+        const ownerName = p.ownerName || p.keeperName || (w.actors?.[ownerId]?.name) || '眷属';
+        const privatePurse = Number(w.wallets?.[ownerId] ?? 0);
+        return `<div class="row">
+          <span>${p.name} <span class="muted">(${ownerName}私产 · 私房银 ${privatePurse.toFixed(1)}两)</span></span>
+          <span class="num" style="color:#a78bfa;">+${(Number(p.incomePerDay) || 0).toFixed(1)} 两/日</span>
+        </div>`;
+      }).join('');
+    }
+    const debts = w.assets?.debts || 0;
+    accHtml += `<div class="row"><span>借贷债务</span><span class="${debts > 0 ? 'bad' : 'muted'}">${debts > 0 ? debts + ' 两' : '无外债'}</span></div>`;
+    $('acc-detail').innerHTML = accHtml;
+  }
+
+  // ── 🏛️ 朝堂与国库大账升级 ──────────────────────────────
+  if ($('card-court-core')) {
+    const tr = w.court?.treasury || {};
+    const bal = Number(tr.balance ?? tr.silver ?? 1200000);
+    const lastIn = Number(tr.lastIncome ?? 8691);
+    const lastOut = Number(tr.lastExpense ?? 9300);
+    const net = lastIn - lastOut;
+    const netCls = net >= 0 ? 'good' : 'bad';
+    const netSign = net >= 0 ? '+' : '';
+
+    $('c-court-top').innerHTML = `国库 <b>${(bal / 10000).toFixed(1)}</b>万两 · 日净 <span class="${netCls}">${netSign}${net.toFixed(0)}两</span>`;
+
+    let courtHtml = '';
+    courtHtml += `<div class="row"><span>国库真体现银</span><span class="num good">${fmt(bal)} 两</span></div>`;
+    courtHtml += `<div class="row"><span>昨日总进项 / 总支出</span><span class="muted">+${fmt(lastIn)} 两 / -${fmt(lastOut)} 两</span></div>`;
+    courtHtml += `<div class="row"><span>四大进项构成</span><span class="muted">城税 + 商税 + 关税 + 秋粮折银</span></div>`;
+    courtHtml += `<div class="row"><span>三大刚性支出</span><span class="muted">百官俸禄 + 防务边饷 + 黄运河工</span></div>`;
+
+    // 势力外交速览
+    const facs = Object.values(w.factions || {});
+    if (facs.length > 0) {
+      courtHtml += `<div class="muted" style="margin:8px 0 2px;font-size:12px;">天下主要派系对相公态度</div>`;
+      courtHtml += facs.filter(f => f.id !== 'wangjia').map(f => {
+        const rel = Number(f.relation ?? f.relations?.wangjia ?? 0);
+        const relTag = rel >= 30 ? `<span class="tag good">结盟友好(${rel})</span>` : rel <= -20 ? `<span class="tag bad">势同水火(${rel})</span>` : `<span class="tag">各守门户(${rel})</span>`;
+        return `<div class="row"><span>${f.name || f.id}</span><span>${relTag} 据城 ${f.cities?.length || 0}座</span></div>`;
+      }).join('');
+    }
+    $('court-detail').innerHTML = courtHtml;
+  }
+
+  // ── ⚔️ 王家兵权与势力沙盘升级 ──────────────────────────────
+  if ($('card-military-core')) {
+    const wf = w.factions?.wangjia || {};
+    const totalWangTroops = Number(wf.troops) || Object.values(wf.stationed || {}).reduce((a,b)=>a+(Number(b)||0), 0);
+    const morale = Number(wf.morale ?? 60);
+    const grain = Number(wf.grain) || 0;
+
+    $('m-military-top').textContent = `王家私兵 ${totalWangTroops} 人 · 士气 ${morale}`;
+
+    let milHtml = '';
+    milHtml += `<div class="row"><span>随军粮草储备</span><span class="num good">${grain.toFixed(1)} 石</span></div>`;
+
+    // 驻扎分布
+    const stationed = Object.entries(wf.stationed || {});
+    if (stationed.length > 0) {
+      milHtml += `<div class="row"><span>驻防重镇分布</span><span class="muted">${stationed.map(([c, n]) => `<b>${c}</b>: ${n}人`).join('，')}</span></div>`;
+    } else {
+      milHtml += `<div class="row"><span>驻防重镇分布</span><span class="muted">暂未分驻各地城池</span></div>`;
+    }
+
+    // 在途开拔
+    const marches = Array.isArray(wf.marches) ? wf.marches : [];
+    if (marches.length > 0) {
+      milHtml += `<div class="row"><span>在途行军开拔</span><span class="warn">${marches.map(m => `自${m.from}往${m.to} ${m.troops}兵 (第${m.arriveDay}日抵)`).join('；')}</span></div>`;
+    } else {
+      milHtml += `<div class="row"><span>在途行军开拔</span><span class="muted">各营守御，无调动</span></div>`;
+    }
+
+    // 兵力战略态势
+    milHtml += `<div class="row"><span>王家战略方针</span><span class="tag good">${wf.stance === 'expand' ? '伺机扩张' : '保境安民·守成'}</span></div>`;
+    $('military-detail').innerHTML = milHtml;
+  }
+  const d = w.date;
+  const dateText = d ? (d.month + '月' + d.day + '日' + (d.lunar ? '（农历' + d.lunar.text + '）' : '') + ' ') : '';
+  $('h-clock').textContent = `${dateText}${w.clock.hour}时（${w.clock.shichen||''}）· 第${w.clock.day}日`;
+  $('h-epoch').textContent = w.epoch === 'modern' ? '现代' : '古代';
+  const audit = w.audit || [];
+  $('h-audit').textContent = audit.length ? audit.length + ' 个问题' : '正常';
+  $('h-audit').className = 'pill';
+
+  const rt = w.runtime || {};
+  $('r-uptime').textContent = human(rt.uptimeSec);
+  $('r-rss').textContent = rt.rssMB ? rt.rssMB + ' MB' : '—';
+  $('r-node').textContent = rt.node ? `${rt.node} / ${rt.pid} / ${rt.port}` : '—';
+  const rate = Number(w.receiptRate ?? 0); // 后端已经是百分数（0~100）
+  $('r-receipt').textContent = Math.round(rate) + '%';
+  $('r-receipt').className = rate >= 60 ? 'good' : rate >= 35 ? 'warn' : 'bad';
+  $('r-health').textContent = w.health || '—';
+
+  const c = w.cost || {};
+  $('c-rounds').textContent = fmt(c.rounds || 0);
+  $('c-avg').textContent = c.rounds ? fmt(c.promptTokens / c.rounds) + ' tokens' : '—';
+  $('c-hit').textContent = (c.cacheHitRate ?? 0) + '%';
+  const miss = c.cacheMissTokens||0, hit = c.cacheHitTokens||0, out = c.completionTokens||0;
+  const yuan = miss/1e6*2 + hit/1e6*0.2 + out/1e6*8;
+  $('c-cost').textContent = '¥' + yuan.toFixed(2);
+  $('c-note').textContent = c.note || `按 DeepSeek 官方价估算（未命中¥2/M 命中¥0.2/M 输出¥8/M）；累计输入 ${fmt(c.promptTokens||0)} tokens`;
+
+  $('a-silver').textContent = (w.assets?.silver ?? 0) + ' 两';
+  const props = w.assets?.properties || [];
+  const income = props.reduce((s,p)=>s+(+p.incomePerDay||0),0);
+  $('a-income').textContent = income.toFixed(2) + ' 两/日';
+  $('a-props').innerHTML = props.map(p => {
+    const bits = [];
+    if (p.staff) bits.push(p.staff + ' 个人手');
+    const extra = bits.length ? ` <span class="muted">（${bits.join('，')}）</span>` : '';
+    return `<div class="row"><span>${p.name}${extra}</span><span>${(+p.incomePerDay||0).toFixed(2)} 两 · ${p.status||''}</span></div>`;
+  }).join('') || '<div class="muted">无产业</div>';
+
+  // 清空面板：填充下拉
+  const sel = $('resetWho');
+  if (sel && sel.options.length === 0) {
+    (w.actors || []).filter(a => a.id !== 'husband').forEach(a => {
+      const o = document.createElement('option');
+      o.value = a.id; o.textContent = a.name;
+      sel.appendChild(o);
+    });
+  }
+
+  // 真人上线状态
+  const members = w.members || [];
+  $('humans').innerHTML = members.map(m => {
+    const dot = m.online
+      ? '<span class="good">● 在线</span>'
+      : (m.lastSeenSec != null ? `<span class="muted">离线 ${m.lastSeenSec < 3600 ? Math.round(m.lastSeenSec/60)+'分前' : Math.round(m.lastSeenSec/3600)+'小时前'}</span>` : '<span class="muted">从未登录</span>');
+    const role = m.actorName ? `扮演 ${m.actorName}` : '（独立陪伴，不进世界）';
+    return `<div class="row"><span><b>${m.title}</b> <span class="muted">${role}</span></span><span>${dot}</span></div>`;
+  }).join('') || '<div class="muted">没有配置成员</div>';
+
+  const ledgerHtml = audit.length
+    ? audit.map(x=>`<div class="row"><span class="bad">✗</span><span>${x}</span></div>`).join('')
+    : '<div class="good">✓ 账本无异常（越界、失效、堆积、重名均未发现）</div>';
+  const ownIss = w.ownAudit || [];
+  const ownHtml = ownIss.length
+    ? ownIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 所有东西都有主（或明确公有）</div>';
+  const memIss = w.memAudit || [];
+  const repIss = w.replyAudit || [];
+  const memHtml = memIss.length
+    ? memIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 记忆与账本一致</div>';
+  const repHtml = repIss.length
+    ? repIss.map(x => `<div class="row"><span class="${x.level === 'bad' ? 'bad' : 'warn'}">${x.level === 'bad' ? '✗' : '⚠'}</span><span>${x.text}</span></div>`).join('')
+    : '<div class="good">✓ 最近台词与账本一致</div>';
+  $('audit-box').innerHTML = ledgerHtml
+    + '<div class="muted" style="margin:8px 0 4px">归属自检</div>' + ownHtml
+    + '<div class="muted" style="margin:8px 0 4px">记忆自检</div>' + memHtml
+    + '<div class="muted" style="margin:8px 0 4px">台词自检</div>' + repHtml;
+
+  try { whoSearch(); } catch (e) {}
+
+  // ── 成员绑定 ──────────────────────────────
+  try {
+    const members = w.members || [];
+    const actorOpts = (w.actors || []).filter(a => a.id !== 'husband')
+      .map(a => `<option value="${a.id}">${a.name}（${a.role || ''}）</option>`).join('');
+    const seenKeys = new Set();
+    const uniq = members.filter((m) => { if (seenKeys.has(m.key)) return false; seenKeys.add(m.key); return true; });
+    const boundList = uniq.filter((m) => m.actor);
+    const shownList = window.__bindExpand ? uniq : boundList;
+    $('bind').innerHTML = shownList.map(m => {
+      const cur = m.actor || '';
+      const tag = cur ? '' : '<span class="muted">未绑定</span>';
+      return `<tr>
+        <td class="bind-title"><b>${m.title}</b> ${tag}</td>
+        <td class="muted" style="font-size:11px">${(m.token || '').slice(0, 12)}…</td>
+        <td><select id="bind-${m.key}" class="bind-select"><option value="">（解除绑定）</option>${actorOpts}</select></td>
+        <td><button onclick="doBind('${m.key}')">保存</button></td>
+      </tr>`;
+    }).join('') + (uniq.length > boundList.length
+      ? `<tr><td colspan="4" style="text-align:center;padding:8px"><a href="javascript:void(0)" onclick="window.__bindExpand=!window.__bindExpand;load();" style="color:#7fb4ff">${window.__bindExpand ? '收起' : '展开全部（共 ' + uniq.length + ' 个账号）'}</a></td></tr>`
+      : '');
+    members.forEach(m => { const sel = $('bind-' + m.key); if (sel && m.actor) sel.value = m.actor; });
+  } catch (e) { $('bind').innerHTML = '<div class="muted">渲染失败</div>'; }
+
+  // ── 朝中 ──────────────────────────────
+  const court = w.court || {};
+  const offsAll = Object.entries(court.offices || {});
+  const central = offsAll.filter(([k]) => !k.startsWith('city:'));
+  const local = offsAll.filter(([k]) => k.startsWith('city:'));
+
+  const cardHtmlOf = (o, isCentral = false, sub = '') => {
+    const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
+    let nameHtml = '';
+    let tagsHtml = '';
+    if (!o.holder) {
+      nameHtml = '<span class="bad" style="font-size:13px">职位空缺</span>';
+    } else if (!actor) {
+      nameHtml = `<span class="muted" style="font-size:13px">${o.holder}（未入世）</span>`;
+    } else {
+      const r = actor.relations || {};
+      const t = Number(r.trust) || 0;
+      const g = Number(r.grievance) || 0;
+      const d = Number(r.desire) || 0;
+      nameHtml = `<span class="off-name" onclick="openActor('${actor.id}')">${actor.name}</span>`;
+      tagsHtml = `<div class="off-tags">
+        <span class="tag ${t>=60?'good':t>=30?'':'muted'}">信${t}</span>
+        <span class="tag ${d>=50?'warn':'muted'}">欲${d}</span>
+        ${g>0 ? `<span class="tag bad">怨${g}</span>` : ''}
+      </div>`;
+    }
+    return `<div class="off-card">
+      <div class="off-card-top">
+        <span class="off-post ${isCentral ? 'central' : ''}">${o.title}</span>
+        <span class="muted" style="font-size:11px">${isCentral ? '正二品至从一品' : '正四品知府'}</span>
+      </div>
+      <div class="off-who">
+        ${nameHtml}
+        ${tagsHtml}
+      </div>
+      ${sub ? `<div class="off-sub-box">${sub}</div>` : ''}
+    </div>`;
+  };
+
+  const mnd = court.mandate || {};
+  const decCount = (court.decisions || []).length;
+  const mandateTxt = mnd.quality === 'benevolent_deceived' ? '仁君 · 被蒙蔽' : '当今天子';
+  if ($('court-mandate')) {
+    $('court-mandate').innerHTML = mnd.quality
+      ? `<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:6px;padding:8px 10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="color:#fde047;font-weight:600">👑 ${mandateTxt}</span>
+            <span class="tag ${mnd.wrath ? 'bad' : 'good'}">${mnd.wrath ? '天罚已降' : '天命安定'}</span>
+          </div>
+          <div class="muted" style="font-size:12px;line-height:1.6">${mnd.note || '海内初平，四方归心。'} ${decCount ? ' · <span class="bad">有要案待决</span>' : ''}</div>
+        </div>`
+      : '<div class="muted">天命清明</div>';
+  }
+
+  if ($('court-central')) {
+    $('court-central').innerHTML = central.length
+      ? central.map(([, o]) => cardHtmlOf(o, true)).join('')
+      : '<div class="muted">中枢官职未立</div>';
+  }
+
+  if ($('court-local')) {
+    if ($('court-local-count')) $('court-local-count').textContent = `（共 ${local.length} 府）`;
+    $('court-local').innerHTML = local.length
+      ? local.map(([k, o]) => {
+          const cityName = String(k).replace(/^city:/, '');
+          const county = (w.actors || []).find(a => String(a.role || '') === `${cityName}知县`);
+          let sub = '';
+          if (county) {
+            const cr = county.relations || {};
+            sub = `<span>└ 辖下知县：<b>${county.name}</b></span><span class="muted">信${Number(cr.trust)||0} 欲${Number(cr.desire)||0}</span>`;
+          }
+          return cardHtmlOf(o, false, sub);
+        }).join('')
+      : '<div class="muted">地方未设知府</div>';
+  }
+
+  // 兜底赋值
+  if ($('court')) $('court').innerHTML = 'ok';
+
+  // ── 山川 ──────────────────────────────
+  const ter = w.terrain || [];
+  const terKind = { river: '江河水道', canal: '运河', mountain: '山脉', pass: '关隘', lake: '湖泽' };
+  const terHtml = ter.map((t) =>
+    `<span class="chip" title="${(t.cities || []).join('、')}"><b>${t.name}</b>&nbsp;<span class="muted">${terKind[t.kind] || t.kind}</span></span>`
+  ).join('');
+  $('terrain').innerHTML = ter.length
+    ? `<div class="geo-chips" style="display:flex">${terHtml}</div><div class="muted" style="margin-top:6px">关隘加守备 30%，山脉加 15%；沿江沿运富庶 +10%。鼠标悬停看经过哪些城。</div>`
+    : '<div class="muted">还没有山川</div>';
+
+  // ── 天下 ──────────────────────────────
+  const powers = w.powers || {};
+  const cities = w.cities || {};
+  const byRegion = {};
+  Object.entries(cities).forEach(([name, c]) => {
+    const r = c.region || "未分道";
+    (byRegion[r] = byRegion[r] || []).push([name, c]);
+  });
+  const REGION_ORDER = ["京畿道","河南道","山东道","河东道","河北道","关内道","陇右道","辽东道","淮北道","淮南道","江南道","闽浙道","江西道","荆湖道","剑南道","云贵道","岭南道"];
+  const regionHtml = Object.keys(byRegion).sort((a, b) => {
+    const ia = REGION_ORDER.indexOf(a);
+    const ib = REGION_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  }).map((r) => {
+    const list = byRegion[r];
+    const mineCount = list.filter(([, c]) => c.owner === "wangjia").length;
+    const avgUnrest = Math.round(list.reduce((s, [, c]) => s + (Number(c.unrest) || 0), 0) / list.length);
+    const head = `<div class="geo-head" onclick="this.parentElement.classList.toggle(\x27open\x27)">` +
+      `<b>${r}</b><span class="muted">${list.length} 城</span>` +
+      (mineCount ? `<span class="chip mine">你的 ${mineCount}</span>` : "") +
+      `<span class="muted">民心 ${avgUnrest}</span><span class="geo-arrow">▸</span></div>`;
+    const chips = list.map(([name, c]) => {
+      const mine = c.owner === "wangjia";
+      const goods = (c.goods || []).join("/");
+      const tip = `${c.region || ""}｜守备${c.defense}｜${goods || "无特产"}｜物价${c.price ?? 100}｜税${c.tax ?? 10}%｜民心${c.unrest}`;
+      return `<span class="chip${mine ? " mine" : ""}" title="${tip}" style="cursor:pointer" onclick="openCity('${name}')">${name}</span>`;
+    }).join("");
+    return `<div class="geo-region">${head}<div class="geo-chips">${chips}</div></div>`;
+  }).join("");
+  $("cities").innerHTML = `<div class="geo-grid">${regionHtml}</div>` || "";
+
+  // ── 兵力与天下四大势力沙盘 ──────────────────────────────
+  const mil = w.military || {};
+  const wf = w.factions?.wangjia || {};
+  const courtF = w.factions?.court || {};
+  const canalF = w.factions?.canal || {};
+
+  if ($('m-guards')) {
+    $('m-guards').textContent = mil.guards ?? 0;
+    $('m-militia').textContent = mil.militia ?? 0;
+    $('m-army').textContent = wf.troops ?? mil.army ?? 0;
+    $('m-qm').textContent = `士气 ${wf.morale ?? 60} · 随军粮 ${wf.grain ?? 0}石`;
+    $('m-sup').textContent = wf.grain ?? 0;
+    $('m-standing').textContent = wf.stance === 'expand' ? '伺机开拔' : '守土保境';
+    $('m-rep').textContent = `城池 ${wf.cities?.length || 0}座`;
+    $('m-pressure').textContent = `朝廷关系 ${courtF.relations?.wangjia ?? 0}`;
+  }
+
+  // 天下势力卡片全量展示
+  if ($('realm')) {
+    const facs = Object.values(w.factions || {});
+    let realmHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">';
+    facs.forEach(f => {
+      const isPlayer = f.id === 'wangjia';
+      const fCls = f.id === 'court' ? 'tag-faction-court' : f.id === 'wangjia' ? 'tag-faction-wangjia' : f.id === 'canal' ? 'tag-faction-canal' : 'tag-faction-warlord';
+      realmHtml += `<div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px 10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <b style="font-size:13px;" class="${fCls}">${f.name || f.id}</b>
+          <span class="tag">${isPlayer ? '相公掌控' : f.kind || '势力'}</span>
+        </div>
+        <div class="row"><span>总兵力 / 粮草</span><span class="num"><b>${f.troops || 0}</b> 兵 · <b>${f.grain || 0}</b> 石</span></div>
+        <div class="row"><span>士气 / 野心</span><span class="muted">${f.morale || 50} / ${f.ambition || 30}</span></div>
+        <div class="row"><span>所占府县城池</span><span class="good">${f.cities?.length || 0} 座城</span></div>
+      </div>`;
+    });
+    realmHtml += '</div>';
+    $('realm').innerHTML = realmHtml;
+  }
+
+  // ── 产业表 ──────────────────────────────
+  const propList = w.assets?.properties || [];
+  $('props').innerHTML = propList.length ? propList.map(p =>
+    `<tr>
+      <td><b>${p.name}</b></td>
+      <td class="muted">${p.ownerName || ""}</td>
+      <td class="muted">${p.city || "临江府"}</td>
+      <td class="muted">${p.placeName || ""}</td>
+      <td class="muted">${p.keeperName || "—"}</td>
+      <td class="muted">${p.staff ? p.staff + " 人" : "—"}</td>
+      <td class="num">${(+p.incomePerDay||0).toFixed(2)} 两</td>
+      <td class="muted">${p.status || ""}</td>
+      <td class="muted">${p.openedDay ? "第" + p.openedDay + "日" : "—"}</td>
+    </tr>`).join('') : '<tr><td colspan="10" class="muted">还没有产业</td></tr>';
+
+  // ── 各自的主线 ──────────────────────────────
+  const arcs = w.arcs || {};
+  const arcNames = {};
+  (w.actors || []).forEach(a => { arcNames[a.id] = a.name; });
+  const arcRows = Object.entries(arcs).map(([id, a]) => {
+    const last = (a.log || []).slice(-1)[0];
+    const stage = Number(a.stage) || 0;
+    const tail = a.done
+      ? `<span class="good">已了结：${a.outcome || ''}</span>`
+      : (a.atEdge
+        ? '<span class="warn">最后关头 · 3 天内不动就被世界定夺</span>'
+        : `<span class="muted">${last ? '第' + last.day + '日：' + String(last.text).slice(0, 28) : '（未推进）'}</span>`);
+    return `<div class="row"><span><b>${arcNames[id] || id}</b> · ${a.title || ''} <span class="muted">阶段 ${stage + 1}</span></span>${tail}</div>`;
+  });
+  $('arcs').innerHTML = arcRows.length ? arcRows.join('') : '<div class="muted">暂无主线</div>';
+
+  // ── 待办：约定 / 承诺 / 暗涌 ──────────────────────
+  const nowH = (w.clock.day||1)*24 + (w.clock.hour||0);
+  const rows = [];
+  const pad = (n)=>String(n).padStart(2,'0');
+  const when = (day, hour) => {
+    const diff = (day*24 + hour) - nowH;
+    if (diff < 0) return `<span class="bad">已过 ${Math.abs(diff)} 小时</span>`;
+    if (diff === 0) return `<span class="warn">就在此刻</span>`;
+    if (diff < 24) return `<span class="warn">还有 ${diff} 小时</span>`;
+    return `<span class="muted">还有 ${Math.round(diff/24)} 天</span>`;
+  };
+  (w.appointments||[]).forEach(a => rows.push({
+    t: a.day*24 + a.hour,
+    kind: '约定', cls: a.day*24+a.hour < nowH ? 'bad' : 'warn',
+    title: `${a.name}${a.place?` · ${a.place}`:''}`,
+    detail: a.text || '', extra: (a.every? `每${a.every}天`:''),
+    when: when(a.day, a.hour),
+  }));
+  // 承诺 / 暗涌只有「哪一天」，没有「几点」——按天显示，别算成半夜 23 点
+  const dayText = (due) => {
+    const d = Number(due) - Number(w.clock.day);
+    if (d < 0) return `<span class="bad">已逾期 ${Math.abs(d)} 天</span>`;
+    if (d === 0) return `<span class="warn">今天到期</span>`;
+    if (d === 1) return `<span class="warn">明天到期</span>`;
+    return `<span class="muted">还有 ${d} 天</span>`;
+  };
+  (w.promises||[]).forEach(p => rows.push({
+    t: Number(p.due)*24,
+    kind: '承诺', cls: Number(p.due) < w.clock.day ? 'bad' : 'warn',
+    title: String(p.text||''), detail: '', raw: String(p.text||''), kindKey: 'promise',
+    extra: (() => {
+      const about = Array.isArray(p.about) ? p.about : [];
+      const names = about.map((id) => ((w.actors||[]).find(a => a.id === id)?.name || id)).filter(Boolean);
+      if (names.length) return '关于 ' + names.join('、');
+      const hit = (w.actors||[]).find(a => a.id !== 'husband' && a.name && String(p.text||'').includes(a.name));
+      return hit ? '关于 ' + hit.name : '';
+    })(),
+    when: dayText(p.due),
+  }));
+  (w.pending||[]).forEach(e => rows.push({
+    t: Number(e.due||99)*24,
+    kind: '暗涌', cls: 'bad',
+    title: String(e.desc||''), detail: '', extra: '',
+    when: dayText(e.due || 99),
+  }));
+  rows.sort((a,b)=>a.t-b.t);
+  $('todo').innerHTML = rows.length ? rows.map(r => `
+    <div class="row">
+      <span><span class="tag ${r.cls}">${r.kind}</span> <b>${r.title}</b> ${r.detail?`<span class="muted">${r.detail}</span>`:''} ${r.extra?`<span class="muted">（${r.extra}）</span>`:''}</span>
+      <span>${r.when}${(r.kind==='承诺'||r.kind==='暗涌')?` <span class="todo-del" data-kind="${r.kind==='暗涌'?'pending':'promise'}" data-text="${String(r.title||'').replace(/"/g,'&quot;')}">✕</span>`:''}</span>
+    </div>`).join('') : '<div class="muted">眼下没有约定、承诺或暗涌。</div>';
+
+  window.__lastWorld = w;
+  try { renderDecrees(w.court); renderNpcArcs(w.npcArcs); renderTreasury(w.court); renderWorldExtras(w); renderBondMap(w); renderLedger(w); renderTrends(w); renderDiag(w); renderTimeline(w); } catch (e) {}
+  const officialIds = new Set(w.officeHolders || []);
+  // 官员一律只进「朝中」卡，不进人物表（按 id 与身份双重判定）
+  const citiesList = Object.keys(w.cities || {});
+  const actorsList = (w.actors || []).slice();
+
+  // 统计每个城市人数并填充药丸与下拉框
+  const cityCounts = {};
+  actorsList.forEach(a => {
+    const c = cityOfActor(a, citiesList);
+    cityCounts[c] = (cityCounts[c] || 0) + 1;
+  });
+
+  // 更新城市药丸条
+  const topCities = ['临江府', '京城', '苏州府', '杭州府', '扬州府', '松江府', '成都府', '广州府'];
+  let pillsHtml = `<span class="city-pill ${currentActorCity === 'all' ? 'active' : ''}" onclick="selectActorCity('all')">全部 (${actorsList.length})</span>`;
+  topCities.forEach(c => {
+    const cnt = cityCounts[c] || 0;
+    if (cnt > 0) {
+      const isAct = currentActorCity === c ? 'active' : '';
+      pillsHtml += `<span class="city-pill ${isAct}" onclick="selectActorCity('${c}')">${c} (${cnt})</span>`;
+    }
+  });
+  const pillsBox = document.getElementById('cityPillsList');
+  if (pillsBox) pillsBox.innerHTML = pillsHtml;
+
+  // 更新下拉选单
+  const selDrop = document.getElementById('citySelectDropdown');
+  if (selDrop) {
+    let selHtml = '<option value="all">更多天下州府...</option>';
+    Object.keys(cityCounts).sort((a,b) => cityCounts[b] - cityCounts[a]).forEach(c => {
+      selHtml += `<option value="${c}" ${currentActorCity === c ? 'selected' : ''}>${c} (${cityCounts[c]}人)</option>`;
+    });
+    selDrop.innerHTML = selHtml;
+  }
+
+  // 排序：相公 -> 府内内眷 -> 官员/高好感 -> 其他
+  actorsList.sort((a, b) => {
+    const rank = (x) => {
+      if (x.id === 'husband') return 0;
+      if (x.household) return 1;
+      const t = Number(x.relations?.trust) || 0;
+      const cons = x.intimacy && x.intimacy.consummated;
+      if (cons || t >= 50) return 2;
+      return 3;
+    };
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    const ta = Number(a.relations?.trust) || 0, tb = Number(b.relations?.trust) || 0;
+    if (tb !== ta) return tb - ta;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+  });
+
+  // 渲染所有人物，打上 data-city 标记
+  $('actors').innerHTML = actorsList.map(a => {
+    const c = cityOfActor(a, citiesList);
+    const r = a.relations || {}, im = a.intimacy || {};
+
+    // 相公本人
+    if (a.id === 'husband') {
+      const _silver = Number(w.assets?.silver ?? 0);
+      const _income = (w.assets?.properties || []).reduce((x, y) => x + (Number(y.incomePerDay) || 0), 0);
+      const _troops = Number(w.factions?.wangjia?.troops) || 0;
+      return `<tr style="cursor:pointer" data-city="${c}" onclick="openActor('${a.id}')">
+        <td><b>${a.name}</b> <span class="tag good">主角</span></td>
+        <td><span class="tag good">📍 ${c}</span></td>
+        <td class="muted">${a.role || '临江王家掌舵人'}</td>
+        <td class="muted">${maritalText(a)}</td>
+        <td class="muted">${a.place || '临江·王宅·正房'}</td>
+        <td class="num">${_silver.toFixed(0)} <span class="muted">府库银</span></td>
+        <td class="num muted" colspan="3" style="text-align:left">日入 +${_income.toFixed(1)} 两 · 私兵 ${_troops} 人</td>
+        <td class="muted">现居：${a.place || '正房'}</td>
+        <td><span class="tag">—</span></td>
+      </tr>`;
+    }
+
+    const bar = (v, cls = '') => `<div class="bar"><i class="${cls}" style="width:${Math.max(0,Math.min(100,v))}%"></i></div>`;
+    let intimacy = '—';
+    if (a.gender === 'female') {
+      if (a.pregnancy && !a.pregnancy.born) {
+        intimacy = '有孕 · ' + Math.floor((a.pregnancy.days || 0) / 30) + '个月';
+      } else if (a.onPeriod) {
+        intimacy = '月事中';
+      } else if (im.ritual === 'unlocked') {
+        intimacy = '解禁·档' + (im.tone ?? 0);
+      } else if (im.consummated) {
+        const rank = rankOf(a);
+        if (rank === '正妻') intimacy = '琴瑟和鸣';
+        else if (rank === '二房') intimacy = '雨意云情';
+        else if (rank === '通房') intimacy = '承欢侍寝';
+        else intimacy = '红颜相好';
+      } else {
+        intimacy = a.household ? '端庄' : '守礼';
+      }
+    }
+
+    return `<tr style="cursor:pointer" data-city="${c}" onclick="openActor('${a.id}')">
+      <td><b>${a.name}</b></td>
+      <td><span class="tag">📍 ${c}</span></td>
+      <td class="muted">${a.role || '市井百姓'}</td>
+      <td class="muted">${maritalText(a)}</td>
+      <td class="muted">${a.place || '—'}</td>
+      <td class="num">${typeof a.money === 'number' ? a.money.toFixed(1) + (a.debt ? ' <span class="bad">欠'+a.debt+'</span>' : '') : '—'}</td>
+      <td class="num">${r.trust ?? '—'} ${bar(r.trust || 0, 'trust')}</td>
+      <td class="num">${r.desire ?? '—'} ${bar(r.desire || 0, 'desire')}</td>
+      <td class="num">${r.grievance ?? 0} ${bar(r.grievance || 0, 'grievance')}</td>
+      <td>${attitude({...a, household: a.household, consummated: im.consummated, relations: r})}</td>
+      <td><span class="tag">${intimacy}</span></td>
+    </tr>`;
+  }).join('');
+
+  // 触发当前城市过滤生效
+  filterActors(currentActorSearch, currentActorCategory);
+
+  $('summary').textContent = w.summary || '—';
+
+  const cls = (w.clues || []).slice().reverse();
+  $('clues').innerHTML = cls.length ? cls.map(c =>
+    `<div class="row clue-row"><span class="clue-text">${String(c.text || '').replace(/</g,'&lt;')}</span><span class="muted clue-meta">第${c.day}日${c.source ? ' · ' + c.source : ''}</span></div>`
+  ).join('') : '<div class="muted">还没有线索</div>';
+
+  const qs = (w.quotes || []).slice(-10).reverse();
+  $('quotes').innerHTML = qs.length ? qs.map(q =>
+    `<div class="row"><span><b>${q.name}</b>：${String(q.text).replace(/</g,'&lt;')}</span><span class="muted">第${q.day}日${q.hour}时</span></div>`
+  ).join('') : '<div class="muted">还没有真人登录说过话。她登录后，这里会显示她亲口说的原文。</div>';
+
+  const evs = (w.recentEvents||[]).slice(-8).reverse();
+  $('events').innerHTML = evs.map(e=>{
+    const p = e.payload||{};
+    const txt = p.text||p.desc||p.goal||p.name||'';
+    return `<div class="ev"><b>第${e.day}日${e.hour}时</b> [${e.action}] ${txt}</div>`;
+  }).join('') || '<div class="muted">暂无</div>';
+}
+
+function foldRegion(el, r) {
+  const parent = el.parentElement;
+  Array.from(parent.children).forEach((e) => {
+    if (e !== el && e.dataset && e.dataset.r === r) {
+      e.style.display = e.style.display === 'none' ? '' : 'none';
+    }
+  });
+}
+
+async function renderNpcArcs(list) {
+  const el = $('npcarcs');
+  if (!el) return;
+  const rows = (list || []).slice(0, 8);
+  el.innerHTML = rows.length
+    ? rows.map((x) => `<div class="row"><span><b>${x.name}</b></span><span class="muted" style="max-width:70%;text-align:right">${x.text}</span></div>`).join('')
+    : '暂时还没有动静（每 3 天各人自有一桩事）';
+}
+
+function openProp(name) {
+  const w = window.__lastWorld || {};
+  const p = (w.assets?.properties || []).find((x) => x && x.name === name);
+  if (!p) return;
+  const wage = (Number(p.staff) || 0) * 0.12;
+  const net = (Number(p.incomePerDay) || 0) - wage;
+  $('amName').textContent = `产业：${p.name}`;
+  $('amBody').innerHTML = `
+    <div>东家：${p.owner === 'husband' ? '王甯' : (p.owner || '—')}　掌柜：${p.keeper === 'husband' ? '王甯' : (p.keeper || '—')}</div>
+    <div>日入：${Number(p.incomePerDay || 0).toFixed(2)} 两　人手：${p.staff || 0} 人　工钱：${wage.toFixed(2)} 两/日</div>
+    <div>净入：<b>${net.toFixed(2)} 两/日</b>　月约：<b>${(net * 30).toFixed(1)} 两</b></div>
+    <div>状态：${p.status || '—'}　城市：${p.city || '—'}</div>`;
+  $('actorModal').style.display = 'block';
+}
+
+function openCity(name) {
+  const w = window.__lastWorld || {};
+  const c = (w.cities || {})[name];
+  if (!c) return;
+  const mine = c.owner === 'wangjia';
+  const gar = (w.garrisons || {})[name] || 0;
+  const props = (w.assets?.properties || []).filter((p) => p && (p.city === name || String(p.name || '').includes(name)));
+  const propHtml = props.length
+    ? props.map((p) => `${p.name}（日入 ${Number(p.incomePerDay || 0).toFixed(2)}·${p.staff || 0}人）`).join('<br>')
+    : '这城还没你的产业';
+  $('amName').textContent = `${name}　${c.region || ''}`;
+  $('amBody').innerHTML = `
+    <div>归属：${mine ? '<b style="color:#7BD88F">你的</b>' : c.owner === 'court' ? '朝廷' : (c.owner || '不明')}</div>
+    <div>民心不安：<b>${c.unrest ?? 0}</b>　税率：<b>${c.tax ?? 10}%</b>　物价：<b>${c.price ?? 100}</b></div>
+    <div>守备：${c.defense ?? 0}　驻军：${gar}　财富：${Number(c.wealth || 0).toFixed(1)}</div>
+    <div>特产：${(c.goods || []).join('、') || '无'}</div>
+    <div style="margin-top:6px"><b>这里的产业</b><br>${propHtml}</div>
+    <div style="margin-top:8px;color:#888;font-size:12px">民心 ≥85 会民变；税越高民心掉得越快；驻军能挡流寇与官军</div>`;
+  $('actorModal').style.display = 'block';
+}
+
+async function openActor(id) {
+  const tk = token();
+  if (!tk || !id) return;
+  try {
+    const r = await fetch(`/api/admin/actor/detail?token=${encodeURIComponent(tk)}&id=${encodeURIComponent(id)}`);
+    const j = await r.json();
+    if (!j.ok) return;
+    const a = j.actor || {};
+    $('amName').textContent = `${a.name}　${a.role || ''}`;
+    const rel = a.rel || {};
+    const bonds = (j.bonds || []).map((b) => `${b.name}（${b.type}·${b.score > 0 ? '亲' : '疏'}）`).join('　') || '—';
+    const cases = (j.cases || []).map((c) => `${c.role}·${c.claim}（${c.status}${c.reason ? '·' + c.reason : ''}）`).join('<br>') || '无案底';
+    const props = (j.props || []).map((p) => `${p.name}（${p.role}·日入${Number(p.income).toFixed(2)}·${p.staff}人）`).join('<br>') || '—';
+    const knows = (j.knows || []).join('<br>') || '—';
+    const arc = j.arc ? (j.arc.lastStep || (j.arc.log && j.arc.log.length ? j.arc.log[j.arc.log.length - 1].text : '') || '') : '';
+    $('amBody').innerHTML = `
+      <div>${a.origin === 'spawned' ? '天道衍生' : '预设'}　${a.gender === 'male' ? '男' : '女'}${a.age ? '　' + a.age + '岁' : ''}　在「${a.place || '不知去向'}」${a.activity ? '，' + a.activity : ''}</div>
+      ${a.dead ? '<div style="color:#e05a5a">已故</div>' : ''}
+      ${a.jailed ? `<div style="color:#e0a05a">在押（第${a.jailed.untilDay}日出狱）</div>` : ''}
+      ${rel && rel.trust != null ? `<div>对相公：信任 ${rel.trust}　欲望 ${rel.desire || 0}　怨怼 ${rel.grievance || 0}</div>` : ''}
+      <div>身上：${a.money == null ? '—' : Number(a.money).toFixed(2) + ' 两'}${a.debt ? '　<span style="color:#e07070">欠 ' + a.debt + ' 两</span>' : ''}${a.rank ? '　功名：' + a.rank : ''}${a.study ? '　学识：' + a.study : ''}</div>
+      ${a.gender === 'female' ? `<div>身子：${a.pregnant ? '有孕 ' + (a.pregnantDays || 0) + ' 天' : ''}${a.onPeriod ? '　月事中' : (a.cycleDay != null ? '　周期第 ' + a.cycleDay + ' 天' : '')}${a.fertile ? '　<span style="color:#7fc98a">易孕</span>' : ''}</div>` : ''}
+      <div style="margin-top:6px"><b>关系</b><br>${bonds}</div>
+      ${a.goals && a.goals.length ? `<div style="margin-top:6px"><b>想做的事</b><br>${a.goals.join('；')}</div>` : ''}
+      ${a.secret ? `<div style="margin-top:6px"><b>秘密</b><br>${a.secret}</div>` : ''}
+      ${arc ? `<div style="margin-top:6px"><b>眼下</b><br>${arc}</div>` : ''}
+      <div style="margin-top:6px"><b>案底</b><br>${cases}</div>
+      <div style="margin-top:6px"><b>产业</b><br>${props}</div>
+      <div style="margin-top:6px"><b>听过的风评</b><br>${knows}</div>`;
+    $('actorModal').style.display = 'block';
+  } catch (e) { /* 忽略 */ }
+}
+function closeActor() { $('actorModal').style.display = 'none'; }
+
+function sparkline(vals, color, label) {
+  if (!vals.length) return `<div class="muted">${label}：还没有数据</div>`;
+  const w = 260, h = 46, max = Math.max(1, ...vals), min = Math.min(...vals);
+  const span = Math.max(1, max - min);
+  const pts = vals.map((v, i) => `${(i / Math.max(1, vals.length - 1)) * w},${h - ((v - min) / span) * (h - 6) - 3}`).join(' ');
+  return `<div style="margin-bottom:6px"><span class="muted" style="font-size:11px">${label} ${vals[vals.length - 1]}</span>`
+    + `<svg width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/></svg></div>`;
+}
+function renderTrends(w) {
+  const el = $('trend');
+  if (!el) return;
+  const h = w.history || [];
+  el.innerHTML = sparkline(h.map((x) => x.unrest), '#e05a5a', '民心不安')
+    + sparkline(h.map((x) => x.price), '#d8c48a', '物价')
+    + sparkline(h.map((x) => x.treasury), '#7BD88F', '国库')
+    + `<div class="muted" style="font-size:11px">趋势向上＝在变坏（民心/物价）</div>`;
+}
+function renderDiag(w) {
+  const el = $('diag');
+  if (!el) return;
+  const rows = [];
+  const day = w.clock?.day || 1, hour = w.clock?.hour || 0;
+  if (!(w.cases || []).length) rows.push(`没有案子：民间案子每天卯时（6点）才可能出，现在第${day}日${hour}时`);
+  if (!(w.rumors || []).length) rows.push('没有风评：判了案、出了大事才会生风评');
+  const unrest = (w.cities ? Object.values(w.cities) : []).reduce((a, c) => a + (Number(c.unrest) || 0), 0) / Math.max(1, Object.keys(w.cities || {}).length);
+  rows.push(`平均民心不安 ${Math.round(unrest)}（≥85 才会民变）`);
+  if (!(w.npcArcs || []).length) rows.push('NPC 命运还没生成：每个心跳补 5 个');
+  el.innerHTML = rows.map((r) => `<div class="row"><span>${r}</span></div>`).join('');
+}
+function renderTimeline(w) {
+  const el = $('timeline');
+  if (!el) return;
+  const evs = (w.recentEvents || []).slice(-40);
+  if (!evs.length) { el.innerHTML = '还没有大事'; return; }
+  const byDay = {};
+  evs.forEach((e) => { const d = e.day || (w.clock?.day || 1); (byDay[d] = byDay[d] || []).push(e.text || e.payload?.text || e.action); });
+  el.innerHTML = Object.keys(byDay).sort((a, b) => b - a).slice(0, 6).map((d) =>
+    `<div style="margin-bottom:6px"><b>第${d}日</b><div style="margin-left:10px">${byDay[d].slice(-6).map((t) => `· ${t}`).join('<br>')}</div></div>`
+  ).join('');
+}
+
+function renderBondMap(w) {
+  const el = $('bondmap');
+  if (!el) return;
+  const edges = w.bondEdges || [];
+  if (!edges.length) { el.innerHTML = '<div class="muted">还没有关系</div>'; return; }
+  const names = Array.from(new Set(edges.flatMap((e) => [e.a, e.b]))).slice(0, 24);
+  const n = names.length;
+  const R = 220, cx = 300, cy = 230;
+  const pos = {};
+  names.forEach((nm, i) => {
+    const ang = (Math.PI * 2 * i) / n - Math.PI / 2;
+    pos[nm] = [cx + R * Math.cos(ang), cy + R * Math.sin(ang)];
+  });
+  const lines = edges.filter((e) => pos[e.a] && pos[e.b]).map((e) => {
+    const [x1, y1] = pos[e.a];
+    const [x2, y2] = pos[e.b];
+    const color = e.score >= 25 ? '#7BD88F' : e.score <= -10 ? '#e05a5a' : '#4a5568';
+    const wd = Math.min(4, 1 + Math.abs(e.score) / 25);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${wd}" opacity="0.65"><title>${e.a}—${e.b} ${e.type}(${e.score})</title></line>`;
+  }).join('');
+  const dots = names.map((nm) => {
+    const [x, y] = pos[nm];
+    return `<circle cx="${x}" cy="${y}" r="5" fill="#7fb4ff"><title>${nm}</title></circle>`
+      + `<text x="${x}" y="${y - 9}" font-size="11" fill="#cfd6e4" text-anchor="middle">${nm}</text>`;
+  }).join('');
+  const legend = '<div class="muted" style="font-size:11px;margin-top:4px">绿＝亲近　红＝不对付　灰＝一般　（鼠标悬停看类型与分值）</div>';
+  el.innerHTML = `<svg width="600" height="470" viewBox="0 0 600 470">${lines}${dots}</svg>${legend}`;
+}
+
+function renderWorldExtras(w) {
+  const rum = $('rumors');
+  if (rum) {
+    const list = (w.rumors || []).slice(-6).reverse();
+    rum.innerHTML = list.length
+      ? list.map((r) => `<div class="row"><span>${r.tone < 0 ? '🔻' : r.tone > 0 ? '🔺' : '·'} ${r.text}</span><span class="muted">${r.reach}人知</span></div>`).join('')
+      : '街上还平静';
+  }
+  const cs = $('cases');
+  if (cs) {
+    const list = (w.cases || []).slice(-6).reverse();
+    const st = { filed: '待审', summoned: '已传唤', hearing: '开审中', judged: '已判' };
+    cs.innerHTML = list.length
+      ? list.map((c) => `<div class="row"><span>${c.who} 告 ${c.against}·${c.claim}</span><span class="muted">${st[c.status] || c.status}${c.verdict ? '·' + (c.verdict === 'guilty' ? '有罪' : '无罪') : ''}</span></div>`).join('')
+      : '衙门清闲';
+  }
+  const rm = $('realm');
+  if (rm) {
+    const g = (w.guilds || []).map((x) => `${x.name}·${x.head}(${x.attitude === 'hostile' ? '敌视' : x.attitude === 'friendly' ? '亲近' : '一般'})`).join('　');
+    const f = (w.foreign || []).map((x) => `${x.name}(${Math.round(x.relation)})`).join('　');
+    const gs = Object.entries(w.garrisons || {}).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`).join('　');
+    rm.innerHTML = `<div class="row"><span>行会</span><span class="muted" style="text-align:right;max-width:75%">${g || '—'}</span></div>`
+      + `<div class="row"><span>邻国</span><span class="muted" style="text-align:right;max-width:75%">${f || '—'}</span></div>`
+      + `<div class="row"><span>驻军</span><span class="muted">${gs || '—'}</span></div>`
+      + (w.envoy ? `<div class="row"><span>使节</span><span class="muted">${w.envoy.name} 求${w.envoy.demand}</span></div>` : '')
+      + (w.imperialArmy ? `<div class="row"><span>官军</span><span class="muted" style="color:#e05a5a">${w.imperialArmy.count}人 → ${w.imperialArmy.target}（第${w.imperialArmy.arriveDay}日到）</span></div>` : '');
+  }
+}
+
+
+function renderLedger(w) {
+  const el = $('ledger');
+  if (!el) return;
+  const rows = (w.ledger || []).filter(Boolean);
+  if (!rows.length) { el.innerHTML = '<div class="muted" style="font-size:12px">还没有银两流水</div>'; return; }
+  el.innerHTML = '<div class="muted" style="font-size:12px;margin-bottom:4px">最近流水</div>' + rows.map((r) => {
+    const sign = Number(r.delta) > 0 ? '+' : '';
+    const color = Number(r.delta) > 0 ? '#4ade80' : '#f87171';
+    return `<div class="row" style="font-size:12.5px"><span>第${r.day}日${r.hour}时 ${r.title}</span><span style="color:${color}">${sign}${r.delta} 两</span></div>`;
+  }).join('');
+}
+
+
+// 婚配：优先看结构化字段，其次按"有无配偶/是否府内"推，绝不猜
+function maritalText(a) {
+  if (!a) return '—';
+  if (a.maritalText) return a.maritalText;      // 后端按世情算好的中文
+  if (a.id === 'husband') return '已婚 · 妻妾在侧';
+  if (a.spouseName) return `已婚 · ${a.spouseName}`;
+  if (a.household) return '已婚 · 王府内眷';
+  return a.marital === 'single' ? '未婚 · 待字闺中' : '—';
+}
+
+function renderTreasury(court) {
+  const el = $('treasury');
+  if (!el) return;
+  const t = court?.treasury || {};
+  const silver = Number(t.silver) || 0;
+  const grain = Number(t.grain) || 0;
+  const inc = Number(t.lastIncome) || 0;
+  const exp = Number(t.lastExpense) || 0;
+  const diff = inc - exp;
+  el.innerHTML = `
+    <div class="row"><span>国库现存金银</span><b class="big" style="color:var(--accent-gold);">${silver.toFixed(1)} 两</b></div>
+    <div class="row"><span>天下粮仓储备</span><b class="big" style="color:var(--accent-green);">${grain} 石</b></div>
+    <div class="row" style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.06);padding-top:4px;">
+      <span>国库日流水结余</span>
+      <span class="${diff >= 0 ? 'good' : 'bad'}" style="font-weight:600">${diff >= 0 ? '+' : ''}${diff.toFixed(1)} 两/日 <span class="muted" style="font-weight:400;margin-left:4px">(收 ${inc.toFixed(1)} / 支 ${exp.toFixed(1)})</span></span>
+    </div>`;
+}
+
+function renderDecrees(court) {
+  const el = $('decrees');
+  if (!el) return;
+  const ds = (court?.decisions || []).slice(-3).reverse();
+  el.innerHTML = ds.length
+    ? `<div style="font-size:12.5px;color:#d8c48a;line-height:1.6">` +
+      ds.map((d) => `<div style="margin-bottom:3px">📜 <b>第${d.day}日圣谕</b>：<span>「${d.text}」</span></div>`).join('') +
+      `</div>`
+    : '<div class="muted">最近旨意：暂无颁布</div>';
+}
+
+async function whoSearch() {
+  const tk = token();
+  const q = ($('whoQ')?.value || '').trim();
+  if (!tk) return;
+  try {
+    const r = await fetch(`/api/who?token=${encodeURIComponent(tk)}&q=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    const rows = j.rows || [];
+    $('who').innerHTML = rows.length
+      ? rows.map((x) => `<div class="row"><span>${x.here ? '📍 ' : ''}<b>${x.name}</b> <span class="muted">${x.role}</span></span><span class="muted">${x.place}</span></div>`).join('')
+      : '<div class="muted">没找到</div>';
+  } catch (e) { $('who').innerHTML = '<div class="muted">查询失败</div>'; }
+}
+
+async function todoRemove(kind, el) {
+  const tk = token();
+  const text = el?.dataset?.text || '';
+  if (!tk || !text) return;
+  if (!confirm('删除这条待办？')) return;
+  try {
+    const r = await fetch(`/api/admin/todo/remove?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, text }),
+    });
+    const j = await r.json();
+    if (j.ok) load(); else alert('删除失败：' + (j.error || ''));
+  } catch (e) { alert('删除失败：' + e.message); }
+}
+
+// 待办删除：点 ✕ 先把整条标红，再确认；确认后调接口
+document.addEventListener('click', async (ev) => {
+  const el = ev.target.closest && ev.target.closest('.todo-del');
+  if (!el) return;
+  ev.stopPropagation();
+  const row = el.closest('.row');
+  if (!row) return;
+  if (!row.classList.contains('todo-armed')) {
+    document.querySelectorAll('.row.todo-armed').forEach((x) => x.classList.remove('todo-armed'));
+    row.classList.add('todo-armed');
+    el.textContent = '点一次确认';
+    setTimeout(() => { if (row.classList.contains('todo-armed')) { row.classList.remove('todo-armed'); el.textContent = '✕'; } }, 4000);
+    return;
+  }
+  const tk = token();
+  const text = el.dataset.text || '';
+  const kind = el.dataset.kind || 'promise';
+  try {
+    const r = await fetch(`/api/admin/todo/remove?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, text }),
+    });
+    const j = await r.json();
+    if (j.ok) load(); else alert('删除失败：' + (j.error || ''));
+  } catch (e) { alert('删除失败：' + e.message); }
+});
+
+async function doBind(memberKey) {
+  const tk = token();
+  const sel = $('bind-' + memberKey);
+  if (!tk || !sel) return;
+  const actor = sel.value;
+  try {
+    const r = await fetch(`/api/admin/bind?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member: memberKey, actor }),
+    });
+    const j = await r.json();
+    alert(j.ok ? '已绑定' : ('失败：' + (j.error || '')));
+    load();
+  } catch (e) {
+    alert('失败：' + e.message);
+  }
+}
+
+async function doRename() {
+  const tk = token();
+  const id = $('resetWho').value;
+  const oldName = $('resetWho').selectedOptions[0]?.textContent || '';
+  const to = ($('renameTo').value || '').trim();
+  const msg = $('renameMsg');
+  if (!tk) { msg.textContent = '先保存令牌'; return; }
+  if (!id || !to) { msg.textContent = '先选人物并填新名字'; return; }
+  if (!confirm(`把「${oldName}」改名为「${to}」？记忆、约定、事件、成员标题都会跟着改。`)) return;
+  msg.textContent = '改中…';
+  try {
+    const r = await fetch(`/api/admin/actor/rename?token=${encodeURIComponent(tk)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name: to }),
+    });
+    const j = await r.json();
+    msg.textContent = j.ok ? `✓ ${j.from} → ${j.to}` : ('✗ ' + (j.error || '失败'));
+    $('renameTo').value = '';
+    load();
+  } catch (e) {
+    msg.textContent = '✗ ' + e.message;
+  }
+}
+
+async function doReset() {
+  const tk = token();
+  const id = $('resetWho').value;
+  const name = $('resetWho').selectedOptions[0]?.textContent || '';
+  const typed = ($('resetConfirm').value || '').trim();
+  const msg = $('resetMsg');
+  if (!tk) { msg.textContent = '先保存令牌'; return; }
+  if (!id) { msg.textContent = '先选一个人物'; return; }
+  if (typed !== name) { msg.textContent = '确认名字不一致，未执行'; return; }
+  if (!confirm(`确定要清空「${name}」吗？此操作不可撤销。`)) return;
+  msg.textContent = '执行中…';
+  const done = [];
+  try {
+    if ($('rsHistory').checked) {
+      const r = await fetch(`/api/admin/history/clear?token=${encodeURIComponent(tk)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ member: id }),
+      });
+      const j = await r.json();
+      done.push('聊天历史 -' + (j.cleared ?? 0) + ' 条');
+    }
+    if ($('rsWorld').checked || $('rsMem').checked) {
+      const r = await fetch(`/api/admin/actor/reset?token=${encodeURIComponent(tk)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, relations: $('rsWorld').checked, clearPregnancy: $('rsWorld').checked, clearMemories: $('rsMem').checked, deep: $('rsDeep').checked }),
+      });
+      const j = await r.json();
+      done.push('世界线：' + (j.done || []).join('、'));
+    }
+    msg.textContent = '✓ ' + done.join('；');
+    $('resetConfirm').value = '';
+    load();
+  } catch (e) {
+    msg.textContent = '✗ ' + e.message;
+  }
+}
+
+$('token').value = token();
+load();
+setInterval(load, 30000);
+
+// ── 卡片折叠：默认收起"不常看"的卡，点标题展开 ─────────────────
+(function initCardCollapse() {
+  const DEFAULT_CLOSED = [
+    '朝中', '天下（行会', '势力与兵力', '天下（城池', '山川', '基础设施', '产业表',
+    '人物', '天机', '她们亲口说过的话', '最近事件', '趋势', '盘点',
+    '系统诊断', '成员绑定', '真人', '家底', '清空记忆',
+  ];
+  const KEY = 'fs-dash-collapsed';
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+
+  function apply() {
+    document.querySelectorAll('main section.card').forEach(sec => {
+      if (sec.id === 'morning-banner') return;
+      const h2 = sec.querySelector('h2');
+      if (!h2) return;
+      const title = (h2.textContent || '').trim();
+
+      // 把 h2 之外的内容包进 body（只做一次）
+      let body = sec.querySelector(':scope > .card-body');
+      if (!body) {
+        body = document.createElement('div');
+        body.className = 'card-body';
+        [...sec.childNodes].forEach(n => { if (n !== h2) body.appendChild(n); });
+        sec.appendChild(body);
+      }
+
+      // 点击标题折叠/展开
+      if (!h2.dataset.bound) {
+        h2.dataset.bound = '1';
+        h2.style.cursor = 'pointer';
+        h2.title = '点击折叠 / 展开';
+        h2.addEventListener('click', () => {
+          const collapsed = sec.classList.toggle('collapsed');
+          saved[title] = collapsed;
+          try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+        });
+      }
+
+      // 初值：用户手动设过就按用户的，否则按默认表
+      if (!(title in saved)) {
+        const shouldClose = DEFAULT_CLOSED.some(k => title.includes(k));
+        saved[title] = shouldClose;
+      }
+      sec.classList.toggle('collapsed', Boolean(saved[title]));
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apply);
+  } else {
+    apply();
+  }
+  window.__applyCardCollapse = apply;
+})();
+
+
+
+// ── 出门 / 找人 / 赴约（走同一条管道，不碰聊天与 tick） ─────────────
+async function navLoad() {
+  const t = token ? token() : '';
+  if (!t) return;
+  try {
+    const r = await fetch(`/api/world/menu?token=${encodeURIComponent(t)}`);
+    const d = await r.json();
+    if (!d.ok) return;
+    window.__nav = d;
+    navRender(d);
+  } catch (e) {}
+}
+
+function navRender(d) {
+  const where = $('nav-where');
+  if (where) where.textContent = `你此刻在【${d.where?.name || '?'}】　（第${d.clock?.day}日 ${d.clock?.hour}时）`;
+  const box = $('nav-body');
+  if (!box) return;
+
+  const placeBtn = (p) => `<button class="nav-btn" data-go="${String(p.name).replace(/"/g, '&quot;')}">${p.name}${p.names?.length ? ' · ' + p.names.join('、') : ''}</button>`;
+  const pplBtn = (p) => {
+    const tag = p.here ? '<span class="tag good">在场</span>' : '<span class="tag">' + (p.place || '?') + '</span>';
+    const act = p.here
+      ? '<span class="muted" style="font-size:11px">就在跟前</span>'
+      : `<button class="nav-btn sm" data-come="${p.id}">叫她来</button>`;
+    return `<div class="nav-row"><span><b>${p.name}</b> <span class="muted">${p.role || ''}</span> ${tag}</span><span>${act}</span></div>`;
+  };
+  const todoBtn = (x) => `<div class="nav-row"><span><span class="tag">${x.kind}</span> ${x.when}${x.who ? ' ' + x.who : ''} ${x.text || ''}</span>
+      <span>${x.kind === '约定' ? `<button class="nav-btn sm" data-apt="${x.id}">赴约</button>` : ''}
+      <button class="nav-btn sm ghost" data-drop="${x.id}">取消</button></span></div>`;
+
+  const byGroup = (g) => (d.people || []).filter((p) => p.group === g);
+  box.innerHTML = `
+    <div class="nav-cols">
+      <div>
+        <div class="nav-title">去哪儿</div>
+        <div class="nav-chips">${(d.places || []).map(placeBtn).join('') || '<span class="muted">附近没人</span>'}</div>
+        <div class="nav-title" style="margin-top:8px">我的产业</div>
+        <div class="nav-chips">${(d.homes || []).map((h) => `<button class="nav-btn" data-go="${String(h.name).replace(/"/g, '&quot;')}">${h.name}</button>`).join('') || '<span class="muted">无</span>'}</div>
+      </div>
+      <div>
+        <div class="nav-title">找人</div>
+        ${['府内', '相好', '其他人'].map((g) => {
+          const list = byGroup(g).slice(0, g === '其他人' ? 6 : 12);
+          if (!list.length) return '';
+          return `<div class="muted" style="margin:6px 0 2px">${g}</div>` + list.map(pplBtn).join('');
+        }).join('')}
+      </div>
+      <div>
+        <div class="nav-title">待办</div>
+        ${(d.todos || []).length ? d.todos.map(todoBtn).join('') : '<div class="muted">没有约定与承诺</div>'}
+      </div>
+    </div>`;
+
+  box.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', async () => {
+    await navPost('/api/world/go', { place: b.getAttribute('data-go') });
+  }));
+  box.querySelectorAll('[data-come]').forEach((b) => b.addEventListener('click', async () => {
+    await navPost('/api/world/summon', { id: b.getAttribute('data-come') });
+  }));
+  box.querySelectorAll('[data-apt]').forEach((b) => b.addEventListener('click', async () => {
+    await navPost('/api/world/todo', { id: b.getAttribute('data-apt'), action: 'go' });
+  }));
+  box.querySelectorAll('[data-drop]').forEach((b) => b.addEventListener('click', async () => {
+    await navPost('/api/world/todo', { id: b.getAttribute('data-drop'), action: 'drop' });
+  }));
+}
+
+async function navPost(path, payload) {
+  const t = token ? token() : '';
+  try {
+    await fetch(`${path}?token=${encodeURIComponent(t)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+  } catch (e) {}
+  if (typeof refresh === 'function') refresh();
+  navLoad();
+}
+
+document.addEventListener('DOMContentLoaded', () => { setTimeout(navLoad, 600); });
+window.__navLoad = navLoad;
+
+
