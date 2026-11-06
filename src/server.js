@@ -1065,7 +1065,10 @@ const STARTED_AT = Date.now();
 
         // 可找的人：府内 / 相好 / 其他
         const rel = (a) => a.relations?.husband || {};
-        const isIntimate = (a) => (a.intimacy && a.intimacy.consummated) || Number(rel(a).trust) >= 60;
+        // 相好 = 真有过肌肤之亲（或明写了相好关系）；光"信任高、合作多"只是常来往
+        const isIntimate = (a) => Boolean(a.intimacy?.consummated)
+          || String(a.bondsWithHusband || '') === '相好'
+          || Number(a.relations?.husband?.intimate) === 1;
         const isHusbandViewer = actorId === 'husband';
         // 分组按"看的人"来定：三种视角，绝不混用
         const isWifeOfHusband = Boolean(me?.spouse === 'husband' || me?.household);

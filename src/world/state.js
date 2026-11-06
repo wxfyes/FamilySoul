@@ -1058,6 +1058,23 @@ export function migrateOwnership(world) {
           ensureCityBase(world, cn);
         }
       } catch { /* 忽略 */ }
+      // 一次性：清掉"成过事却没记日子"的误标（真成事会留 lastAt）
+      try {
+        if (!world.flags?.intimacyCleanV1) {
+          const bad = [];
+          for (const a of Object.values(world.actors || {})) {
+            if (!a?.intimacy?.consummated) continue;
+            if (Number(a.intimacy.lastAt || 0) > 0) continue;
+            a.intimacy.consummated = false;
+            a.intimacy.level = 0;
+            bad.push(a.name);
+          }
+          world.flags = world.flags || {};
+          world.flags.intimacyCleanV1 = { at: Date.now(), cleared: bad };
+          if (bad.length) console.log(`[Intimacy] 清理误标：${bad.join('、')}`);
+        }
+      } catch { /* 忽略 */ }
+
       // 老城补配套：差事表 + 乡绅/衙役 + 媒婆
       try {
         for (const cn of Object.keys(world.flags?.cityBase || {})) ensureMatchmaker(world, cn);
