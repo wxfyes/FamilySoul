@@ -2,34 +2,38 @@ import io
 p = 'src/server.js'
 s = io.open(p, encoding='utf-8-sig').read()
 
-# ① 开场过门人：给自家住处 + 作息 + 性别推断，绝不占玩家私宅
-old = """            world.actors[nid] = {
-              id: nid, name: whoName, role: whoRole, gender: 'unknown',
-              home: a.location, location: a.location, money: 0, relations: {}, schedule: [],
-              origin: 'dm_opening', createdDay: world.clock?.day || 1,
-            };"""
-new = """            // 过门人：有自己的家、有作息；绝不把玩家的私宅当自己家
-            const isHomeOfPlayer = Boolean(world.places?.[a.location]?.residence);
-            world.actors[nid] = {
-              id: nid, name: whoName, role: whoRole,
-              gender: inferGenderFromIdentity(whoName, whoRole, 'male'),
-              age: inferAgeFromIdentity(whoName, whoRole, '', nid),
-              money: round2(0.3 + Math.random() * 2),
-              relations: {},
-              origin: 'dm_opening', createdDay: world.clock?.day || 1,
-            };
-            const nearId = isHomeOfPlayer ? 'street' : (world.places?.[a.location] && !world.places[a.location].residence ? a.location : 'street');
-            const ownHome = ensureDwelling(world, nid, whoName, nearId);
-            world.actors[nid].home = ownHome;
-            world.actors[nid].location = nearId === 'street' ? ownHome : nearId;
-            world.actors[nid].schedule = defaultSchedule(whoRole, nearId, ownHome);"""
+# ① 过门人就在玩家眼前（不是被挪去街上）
+old = """            const nearId = isHomeOfPlayer ? 'street' : (world.places?.[a.location] && !world.places[a.loc"""
+new = """            const nearId = String(a.location || 'street');"""
 if old in s:
     s = s.replace(old, new, 1)
-    print('① 过门人有自己家与作息')
+    print('① 过门人就在玩家所在地')
 
-# ② 引入 helper
-if 'dwelling.js' not in s:
-    anchor = "import { visiblePropertiesOf } from './world/employment.js';"
-    s = s.replace(anchor, anchor + "\nimport { ensureDwelling, defaultSchedule } from './world/dwelling.js';", 1)
-    print('② 引入 dwelling')
+# ② 拆段存历史：旁白一段、每个人一段
+old2 = """        const speakerMatch0 = cleanText.match(/【([^】]{1,8})】：/);
+        msgs.push({
+          role: 'assistant',
+          text: cleanText,
+          speaker: speakerMatch0 ? speakerMatch0[1] : (spawnedName || '旁白'),
+          at: Date.now(),
+        });"""
+new2 = """        // 按【说话人】拆开存：旁白归旁白，人物归人物，客户端才会分成两个气泡
+        const parts = cleanText.split(/(?=【[^】\\n]{1,12}】)/).map((x) => x.trim()).filter(Boolean);
+        for (const part of parts) {
+          const m0 = /^【([^】\\n]{1,12})】/.exec(part);
+          msgs.push({
+            role: 'assistant',
+            text: part,
+            speaker: m0 ? m0[1] : '旁白',
+            at: Date.now(),
+          });
+        }"""
+if old2 in s:
+    s = s.replace(old2, new2, 1)
+    print('② 开场拆段存历史')
+
+# ③ 返回洗净的正文
+s = s.replace("      return sendJson(res, 200, { ok: true, text });",
+              "      return sendJson(res, 200, { ok: true, text: cleanText });", 1)
+print('③ 返回 cleanText')
 io.open(p, 'w', encoding='utf-8-sig').write(s)

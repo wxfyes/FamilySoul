@@ -612,7 +612,7 @@ const STARTED_AT = Date.now();
           return sendJson(res, 200, { ok: false, error: '未知动作' });
         }
         saveState(DATA_DIR, world);
-        return sendJson(res, 200, { ok: true, text });
+        return sendJson(res, 200, { ok: true, text: cleanText });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
@@ -705,7 +705,7 @@ const STARTED_AT = Date.now();
               relations: {},
               origin: 'dm_opening', createdDay: world.clock?.day || 1,
             };
-            const nearId = isHomeOfPlayer ? 'street' : (world.places?.[a.location] && !world.places[a.location].residence ? a.location : 'street');
+            const nearId = String(a.location || 'street');
             const ownHome = ensureDwelling(world, nid, whoName, nearId);
             world.actors[nid].home = ownHome;
             world.actors[nid].location = nearId === 'street' ? ownHome : nearId;
@@ -716,6 +716,21 @@ const STARTED_AT = Date.now();
         }
       } catch { /* 忽略 */ }
 
+      // 天道没写"过门人"：就从街上叫一个真邻居过来串门（不凭空造人）
+      if (!spawnedName) {
+        try {
+          const neighbors = Object.values(world.actors || {}).filter((x) => x && !x.dead
+            && !x.household && !String(x.id).startsWith('usr_') && x.id !== actorId
+            && (x.home === a.home || /街|巷|坊|院/.test(String(world.places?.[x.location]?.name || ''))));
+          if (neighbors.length) {
+            const pick = neighbors[Math.floor(Math.random() * Math.min(neighbors.length, 8))];
+            moveActor(world, pick.id, a.location, 'world', '邻人过门');
+            spawnedName = pick.name;
+            console.log(`[Opening] 天道没立人，叫了街坊 ${pick.name} 过来`);
+          }
+        } catch { /* 忽略 */ }
+      }
+
       // 先清洗正文（去掉机器标记），再落历史，免得标记被存下来反复显示
       const cleanText = String(text).replace(/\[\[[^\]]+\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
 
@@ -725,18 +740,22 @@ const STARTED_AT = Date.now();
       try {
         const h = petService.readHistory(actorId) || {};
         const msgs = Array.isArray(h.messages) ? h.messages : [];
-        const speakerMatch0 = cleanText.match(/【([^】]{1,8})】：/);
-        msgs.push({
-          role: 'assistant',
-          text: cleanText,
-          speaker: speakerMatch0 ? speakerMatch0[1] : (spawnedName || '旁白'),
-          at: Date.now(),
-        });
+        // 按【说话人】拆开存：旁白归旁白，人物归人物，客户端才会分成两个气泡
+        const parts = cleanText.split(/(?=【[^】\n]{1,12}】)/).map((x) => x.trim()).filter(Boolean);
+        for (const part of parts) {
+          const m0 = /^【([^】\n]{1,12})】/.exec(part);
+          msgs.push({
+            role: 'assistant',
+            text: part,
+            speaker: m0 ? m0[1] : '旁白',
+            at: Date.now(),
+          });
+        }
         petService.saveHistory(actorId, { ...h, messages: msgs });
       } catch { /* 忽略 */ }
 
       console.log(`[Opening] ${a.name} 落地第一幕已生成（${text.length} 字）`);
-      return sendJson(res, 200, { ok: true, text });
+      return sendJson(res, 200, { ok: true, text: cleanText });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }
