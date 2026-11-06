@@ -14,7 +14,7 @@ import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
 import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, streetOfCity } from './city.js';
-import { ensureMatchmaker, dailyMarriages } from './marriage.js';
+import { ensureMatchmaker, dailyMarriages, maybeOfferAlliance } from './marriage.js';
 import { ensureResidence } from './residence.js';
 import { fallbackName } from './migration.js';
 import { refreshTitles } from './occupation.js';
@@ -1081,6 +1081,7 @@ export function migrateOwnership(world) {
       } catch { /* 忽略 */ }
       try { for (const cn of Object.keys(world.flags?.cityBase || {})) ensureCityClasses(world, cn); } catch { /* 忽略 */ }
       try { dailyMarriages(world); } catch { /* 忽略 */ }
+      try { maybeOfferAlliance(world); } catch { /* 忽略 */ }
       // 老城补配套：差事表 + 乡绅/衙役
       try {
         for (const cn of Object.keys(world.flags?.cityBase || {})) ensureCityExtras(world, cn);

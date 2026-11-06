@@ -293,7 +293,7 @@ export function ensureCityClasses(world, cityName) {
     const hid = `${slug}_estate_${idx}`;
     if (!world.places[hid]) {
       world.places[hid] = {
-        id: hid, name: `${surname}府`, exits: [b.streetId], residence: true, dynamic: true, createdDay: day,
+        id: hid, name: `${city}·${surname}府`, exits: [b.streetId], residence: true, dynamic: true, createdDay: day,
       };
       ensureResidence(world, hid, { grade: tier >= 3 ? 7 : 3 });
     }

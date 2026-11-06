@@ -17,6 +17,7 @@ import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, should
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { beginStateBatch, endStateBatch } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
+import { maybeOfferAlliance } from './world/marriage.js';
 import { advanceWorldTick } from './world/tick.js';
 import { ensureCityBase, streetOfCity, cityOfPlace } from './world/city.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
@@ -4408,6 +4409,24 @@ const STARTED_AT = Date.now();
       saveState(DATA_DIR, world);
       const list = (world.assets?.properties || []).map((p) => ({ name: p.name, status: p.status, income: p.incomePerDay }));
       return sendJson(res, 200, { ok: true, count: n, list });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
+  // 验收：立刻让大户来提亲 POST /api/admin/alliance-now
+  if (req.method === 'POST' && pathname === '/api/admin/alliance-now') {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const world = loadState(DATA_DIR);
+      world.flags = world.flags || {};
+      world.flags.allianceCheckedDay = 0;
+      world.flags.allianceOffer = null;
+      const offer = maybeOfferAlliance(world, String(member.actor || 'husband'), true);
+      saveState(DATA_DIR, world);
+      return sendJson(res, 200, { ok: Boolean(offer), offer: offer || null });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }

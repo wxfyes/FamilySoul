@@ -9,7 +9,7 @@ import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } 
 import { moveActor, isHumanBound } from './world/position.js';
 import { hireStaff } from './world/employment.js';
 import { spawnHouseholdStaff } from './world/warfare.js';
-import { proposeMarriage, isMarriageable } from './world/marriage.js';
+import { proposeMarriage, isMarriageable, acceptAlliance, declineAlliance } from './world/marriage.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -1150,6 +1150,23 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    // 8.787 大户提亲：答应或回绝
+    try {
+      const wA = loadState(this.dataDir);
+      const offer = wA.flags?.allianceOffer;
+      if (offer && offer.status === 'pending') {
+        if (/应了这门亲|答应(这门)?亲事|允了这门亲|就娶她/.test(String(sayText || ''))) {
+          const r = acceptAlliance(wA, this._viewerActorId || 'husband');
+          saveState(this.dataDir, wA);
+          reply += `\n${r.line}`;
+        } else if (/回绝|婉拒|不允|这门亲算了/.test(String(sayText || ''))) {
+          const r = declineAlliance(wA);
+          saveState(this.dataDir, wA);
+          reply += `\n${r.line}`;
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 8.79 说亲：话里点名"娶/提亲/说亲/纳"某人，真去说媒
     try {
       const mMarry = /(?:娶|提亲|说亲|迎娶|纳)\s*([\u4e00-\u9fa5]{2,4})/.exec(String(sayText || ''));
@@ -1634,6 +1651,15 @@ export class PetService {
         if (vendors.length) {
           contextHintEarly += `（【街边摊子】${vendors.map((v) => `${v.name}卖${v.stall.word}（约${Number(v.stall.price).toFixed(2)}两）`).join('；')}。要买就照这些摊子写，别编出没有的摊。）\n`;
         }
+      }
+    } catch { /* 忽略 */ }
+
+    // 有人来提亲：把这件事摆给天道，让它自然提起
+    try {
+      const wOf = loadState(this.dataDir);
+      const of2 = wOf.flags?.allianceOffer;
+      if (of2 && of2.status === 'pending') {
+        contextHintEarly += `（【提亲】${of2.familyName}托媒婆来提亲，欲将${of2.girlName}许给相公做侧室。相公若点头，婚事便成；若无意，说一句回绝就是。）\n`;
       }
     } catch { /* 忽略 */ }
 
