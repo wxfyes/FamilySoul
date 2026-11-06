@@ -41,7 +41,6 @@ export function makeGoal(world, actor) {
       { kind: 'home', text: '在中堂理事，看看这几日的中人回话', place: home?.rooms?.hall?.id || null },
       { kind: 'home', text: '去账房核一核本月的进出', place: home?.rooms?.account?.id || null },
       { kind: 'home', text: '去后花园走走，透口气', place: home?.rooms?.garden?.id || null },
-      { kind: 'market', text: '上街买些时新果子与针线', place: 'street' },
       { kind: 'shrine', text: '去祠堂上炷香，替家里求个平安', place: home?.rooms?.shrine?.id || null },
     ];
     const pick = pool[Math.floor(Math.random() * pool.length)];
