@@ -16,6 +16,7 @@ import { getPlaceDisplayName } from './gate.js';
 import { addToParty, removeFromParty, onMemberSelfAction } from './party.js';
 import { materializeRoom } from './residence.js';
 import { hasPass } from './visit.js';
+import { isInnerRoom, homeOf, belongsTo, invitedToday } from './privacy.js';
 
 const MAX_APPLIED_CACHE = 300;
 
@@ -161,6 +162,21 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
           }
         }
       }
+
+      // 后宅门第：别人的正房/厢房/后院，外人止步（本家、当日请帖除外）
+      try {
+        const destRoom = world.places?.[finalTargetId];
+        if (destRoom && isInnerRoom(destRoom)) {
+          const home = homeOf(world, destRoom);
+          if (home && !belongsTo(world, actor, home) && !invitedToday(world, actor, home)) {
+            const fallback = home.rooms?.hall?.id || home.rooms?.gate?.id || home.id;
+            if (fallback && fallback !== finalTargetId) {
+              console.log(`[Gate] ${actor.name} 进不了${home.name || home.id}后宅，改到${world.places?.[fallback]?.name || fallback}`);
+              finalTargetId = fallback;
+            }
+          }
+        }
+      } catch { /* 忽略 */ }
 
       // 门禁：别人的私宅，外人不许直接进正房内院——先到大门/门房
       try {

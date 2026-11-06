@@ -1030,6 +1030,46 @@ export class PetService {
       console.warn('[Pay] 处理失败：', err.message);
     }
 
+    // 8.7 相公说"请进/叫她进来"：门口的人这才算被叫进来（当日请帖）
+    try {
+      if (/请进|进来吧|叫她进来|叫他进来|让她进来|让他进来|领进来|带进来/.test(String(sayText || ''))) {
+        const wI = loadState(this.dataDir);
+        const meI = wI.actors?.[this._viewerActorId || 'husband'] || wI.actors?.husband;
+        const myPlace = wI.places?.[meI?.location];
+        const home = myPlace ? (homeOf(wI, myPlace) || wI.places?.husband_room) : wI.places?.husband_room;
+        if (home) {
+          const gateId = home.rooms?.gate?.id;
+          const guests = Object.values(wI.actors || {}).filter(
+            (a) => a && !a.dead && a.id !== meI?.id && a.location === gateId,
+          );
+          if (guests.length) {
+            const names = [];
+            for (const g of guests.slice(0, 3)) {
+              giveInvite(wI, g.id, home.id);
+              if (meI?.location) moveActor(wI, g.id, meI.location, 'world', '主人请进');
+              names.push(g.name);
+            }
+            saveState(this.dataDir, wI);
+            reply = String(reply || '') + `\n（门房让开，${names.join('、')} 被请了进来。）`;
+            console.log(`[Gate] 相公请进：${names.join('、')}`);
+          }
+        }
+      }
+    } catch (err) { console.warn('[Gate] 请进失败：', err.message); }
+
+    // 8.8 相公说"清人/都出去/外人出去"：后宅当场清场（不靠谁去传话）
+    try {
+      if (/清人|清场|都出去|外人出去|打发出去|赶出去|闲杂人等都|不许闲人/.test(String(sayText || ''))) {
+        const wE = loadState(this.dataDir);
+        const n = evictOutsiders(wE);
+        if (n > 0) {
+          saveState(this.dataDir, wE);
+          reply = String(reply || '') + `\n（府里把 ${n} 个闲杂人请了出去，后宅清静了。）`;
+          console.log(`[Gate] 相公下令清人，清出 ${n} 人`);
+        }
+      }
+    } catch (err) { console.warn('[Gate] 清人失败：', err.message); }
+
     // 8.9 相公明确说"你走吧/退下/送客"：不靠天道自觉写标签，引擎直接让人离场
     try {
       const farewellSay = /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(String(sayText || '').trim())
