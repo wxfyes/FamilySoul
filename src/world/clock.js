@@ -27,6 +27,7 @@ import { runAging } from './aging.js';
 import { runMigration, settleMigrants } from './migration.js';
 import { evictTrespassers } from './dwelling.js';
 import { roomForHour } from './room-life.js';
+import { advanceWorldTick } from './tick.js';
 import { pruneForeignRooms, buildPremises, buildCourts, settleItinerants } from './residence.js';
 import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
@@ -1945,6 +1946,14 @@ function advanceHour(world, events, nowMs) {
     }
   } catch (err) {
     console.warn('[RoomLife] 作息失败：', err.message);
+  }
+
+  // 每小时：世界自己往前推一格（米价、民心、债），只动事实不动台词
+  try {
+    const tick = advanceWorldTick(world, world.clock.hour);
+    if (tick && tick.note && tick.note !== '无事') console.log(`[Tick] ${world.clock.day}日${world.clock.hour}时：${tick.note}`);
+  } catch (err) {
+    console.warn('[Tick] 推进失败：', err.message);
   }
 
   // 每小时：私宅巡检——不是这宅子的人，待久了或入夜就请出去
