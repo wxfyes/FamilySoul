@@ -84,15 +84,23 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     final d = _menu;
     final where = (d?['where'] is Map) ? (d!['where'] as Map)['name']?.toString() ?? '' : '';
     final clock = (d?['clock'] is Map) ? d!['clock'] as Map : const {};
-    return SafeArea(
+    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final screenH = MediaQuery.of(context).size.height;
+    final sheetH = ((screenH - kb) * 0.80).clamp(240.0, screenH);
+    return Padding(
+      padding: EdgeInsets.only(bottom: kb),
+      child: SafeArea(
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.62,
+        height: sheetH,
         padding: const EdgeInsets.only(top: 10),
         decoration: const BoxDecoration(
           color: Color(0xFF11131A),
           borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
         ),
-        child: Column(
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: Column(
           children: [
             Container(
               width: 40,
@@ -117,6 +125,11 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                     icon: const Icon(Icons.refresh_rounded, size: 18),
                     onPressed: _load,
                     tooltip: '刷新',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () => Navigator.pop(context),
+                    tooltip: '关闭',
                   ),
                 ],
               ),
@@ -165,6 +178,8 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
             ),
           ],
         ),
+        ),
+      ),
       ),
     );
   }

@@ -65,6 +65,18 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // 键盘弹出/收起后，若本来就在底部，自动贴到最新一条
+    _inputFocus.addListener(() {
+      if (_inputFocus.hasFocus) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Future<void>.delayed(const Duration(milliseconds: 260), () {
+            if (mounted && _isNearBottom(threshold: 260)) _scrollToBottom(force: true);
+          });
+        });
+      }
+    });
+
+    super.initState();
     _refreshPlace();
     _locTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refreshPlace());
     if (Platform.isAndroid) {
@@ -1039,6 +1051,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       context: context,
                       isScrollControlled: true,
                       backgroundColor: Colors.transparent,
+                  isDismissible: false,
                       builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
                     ).then((_) => _refreshPlace());
                   },
@@ -1391,6 +1404,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       context: context,
                       isScrollControlled: true,
                       backgroundColor: Colors.transparent,
+                  isDismissible: false,
                       builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
                     ).then((_) => _refreshPlace());
                   },
