@@ -720,7 +720,7 @@ const STARTED_AT = Date.now();
       if (!spawnedName) {
         try {
           const neighbors = Object.values(world.actors || {}).filter((x) => x && !x.dead
-            && !x.household && !String(x.id).startsWith('usr_') && x.id !== actorId
+            && !x.humanBound && !x.household && !String(x.id).startsWith('usr_') && x.id !== actorId
             && (x.home === a.home || /街|巷|坊|院/.test(String(world.places?.[x.location]?.name || ''))));
           if (neighbors.length) {
             const pick = neighbors[Math.floor(Math.random() * Math.min(neighbors.length, 8))];
