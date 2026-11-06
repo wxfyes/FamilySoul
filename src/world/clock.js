@@ -1666,6 +1666,13 @@ function dailyIncomeOf(world, prop) {
   // 收益率封顶：单日不超过本金 12%，不出现离谱通胀
   rate = Math.max(0.01, Math.min(0.12, rate));
 
+  // 夜市加成：这几天多进项
+  try {
+    if (prop.nightBoost && (Number(world.clock?.day) || 1) <= Number(prop.nightBoost.untilDay)) {
+      rate *= 1 + (Number(prop.nightBoost.rate) || 0.3);
+    }
+  } catch { /* 忽略 */ }
+
   let gain = Math.round(capital * rate * 100) / 100;
   // 一间开着的铺子，日入至少能覆盖"一天的租钱 + 伙计饭钱"
   const rentYearly = Number(prop.rentYearly || prop.rentAnnual || 0);

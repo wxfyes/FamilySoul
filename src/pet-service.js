@@ -11,6 +11,8 @@ import { hireStaff } from './world/employment.js';
 import { spawnHouseholdStaff } from './world/warfare.js';
 import { proposeMarriage, isMarriageable, acceptAlliance, declineAlliance } from './world/marriage.js';
 import { buyRice, addRice, sellRice, gamble, bribeOfficials, ensureDen, stockOf, ricePrice } from './world/goods.js';
+import { startTradeRun, startNightMarket, drainBizNotices } from './world/business.js';
+import { applyChatActions } from './world/chat-actions.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -343,7 +345,8 @@ export class PetService {
     lines.push('- 【按需开口，严禁全员排队报幕】：同场有多人在时，每轮通常只需 1~2 人自然开口回应即可！谁有心事、谁被相公问到、谁专司此职，谁才说话；绝不许三个人像合唱团一样一人一句轮流排队发言！');
     lines.push('- 【姐妹自然互聊，相公从旁品赏】：在场妻妾不仅能直接对相公说，更可以彼此温存商议（如大娘子婉儿问芸娘柜台茶事、芸娘细声向姐姐回禀、两人互相谦让分忧），呈现真实江南大户人家的生动烟火气；');
     lines.push('- 【丫鬟侍女恪守规矩，绝不抢戏】：小翠专司端茶倒水、添炭掌灯，在旁垂手静听伺候；除非相公或大娘子明确向她吩咐差事（如“小翠去沏茶”），小翠绝不可在主子正经商议时句句强行插嘴表态！');
-    lines.push('- 【离场要写标签】：真有人起身走了（回房、出府、去码头、去酒楼、告辞），在末尾写 [[depart:谁|去哪儿]]；引擎会真的把他挪过去，并从在场名单里划掉。只是嘴上说"这就去"不算走，别乱写。');
+    lines.push('- 【说话人只能是场上的人】：绝不出现"客卿""府中""系统""数据库"这类旁白式说话人；不在场的人不许开口，也不许替世界报账。');
+lines.push('- 【离场要写标签】：真有人起身走了（回房、出府、去码头、去酒楼、告辞），在末尾写 [[depart:谁|去哪儿]]；引擎会真的把他挪过去，并从在场名单里划掉。只是嘴上说"这就去"不算走，别乱写。');
     lines.push('- 【物理派人传话真实法则】：若派了小翠、阿吉出门去传话或办差，下人领命行礼退下即可；【绝对严禁】让远在别处的人（如酒楼掌柜、外头伙计）在同一轮里瞬间在内宅现身开口！必须等真正到场或小厮通报后才可登场。');
     lines.push('- 【呼名必应与主次分明】：相公明确问谁，谁首位作答；未被问及的在场眷属，若无重要补充，不必勉强凑话，在旁温茶静听即可。');
 
@@ -1033,7 +1036,7 @@ export class PetService {
                 wPay.ledger = Array.isArray(wPay.ledger) ? wPay.ledger : [];
                 wPay.ledger.push({ day: wPay.clock?.day || 1, hour: wPay.clock?.hour || 0, delta: -price, title: String(title2 || '花销').slice(0, 24), by: mePay?.id || 'husband', balance: wPay.assets.silver });
                 saveState(dataDir, wPay);
-                reply += `\n（已付 ${price.toFixed(2)} 两：${String(title2 || '花销').slice(0, 12)}。余 ${wPay.assets.silver.toFixed(2)} 两。）`;
+                reply += `\n【提示】已付 ${price.toFixed(2)} 两：${String(title2 || '花销').slice(0, 12)}。余 ${wPay.assets.silver.toFixed(2)} 两。`;
                 console.log(`[Pay] 即付 ${price} 两：${title2}`);
               } else {
                 reply += `\n（要 ${price.toFixed(2)} 两，手头只有 ${silverNow.toFixed(2)} 两，这桩先记着。）`;
@@ -1164,54 +1167,6 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
-    // 8.7855 货与赌：买米/卖米/赌一把/打点官府（中文数字也认）
-    try {
-      const sayG = String(sayText || '');
-      const wG = loadState(this.dataDir);
-      const meG = wG.actors?.[this._viewerActorId || 'husband'] || wG.actors?.husband;
-      const cityG = (() => { const seg = String(wG.places?.[meG?.location]?.name || '').split('\u00b7')[0]; return /\u5e9c$|\u5dde$|\u53bf$/.test(seg) ? seg : '\u4e34\u6c5f\u5e9c'; })();
-      const cnNumOf = (raw) => {
-        const t = String(raw || '').trim();
-        if (/^\d+(\.\d+)?$/.test(t)) return Number(t);
-        const d = { \u96f6: 0, \u4e00: 1, \u4e8c: 2, \u4e24: 2, \u4e09: 3, \u56db: 4, \u4e94: 5, \u516d: 6, \u4e03: 7, \u516b: 8, \u4e5d: 9 };
-        let total = 0; let cur = 0;
-        for (const ch of t) {
-          if (d[ch] != null) cur = d[ch];
-          else if (ch === '\u5341') { total += (cur || 1) * 10; cur = 0; }
-          else if (ch === '\u767e') { total += (cur || 1) * 100; cur = 0; }
-          else if (ch === '\u5343') { total += (cur || 1) * 1000; cur = 0; }
-        }
-        return total + cur;
-      };
-      const mBuy = /\u4e70\s*([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343]+)\s*([\u6597\u77f3])/.exec(sayG);
-      if (mBuy) {
-        const qty = cnNumOf(mBuy[1]) * (mBuy[2] === '\u77f3' ? 10 : 1);
-        const paidAlready = /\u5df2\u4ed8/.test(String(reply || ''));
-        const r = paidAlready ? addRice(wG, meG.id, qty) : buyRice(wG, meG.id, qty);
-        saveState(this.dataDir, wG);
-        reply += `\n${r.line}`;
-      }
-      const mSell = /\u5356\s*([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+)/.exec(sayG);
-      if (mSell && stockOf(wG, meG.id) > 0) {
-        const r = sellRice(wG, meG.id, cnNumOf(mSell[1]));
-        saveState(this.dataDir, wG);
-        reply += `\n${r.line}`;
-      }
-      const mGamble = /\u8d4c\s*(\u4e00\u628a)?\s*([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e.]+)\s*\u4e24/.exec(sayG);
-      if (mGamble) {
-        ensureDen(wG, cityG);
-        const r = gamble(wG, meG.id, cnNumOf(mGamble[2]));
-        saveState(this.dataDir, wG);
-        reply += `\n${r.line}`;
-      }
-      if (/\u6253\u70b9(\u5b98\u5e9c|\u8862\u95e8)/.test(sayG)) {
-        const mB = /([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+)\s*\u4e24/.exec(sayG);
-        const r = bribeOfficials(wG, meG.id, mB ? cnNumOf(mB[1]) : 10);
-        saveState(this.dataDir, wG);
-        reply += `\n${r.line}`;
-      }
-    } catch (err) { console.warn('[Goods] \u5904\u7406\u5931\u8d25\uff1a', err.message); }
-
     // 8.786 旧报价作废：这一轮先说新话，上一张单子就不算数了
     try {
       const wQ = loadState(this.dataDir);
@@ -1230,11 +1185,11 @@ export class PetService {
         if (/应了这门亲|答应(这门)?亲事|允了这门亲|就娶她/.test(String(sayText || ''))) {
           const r = acceptAlliance(wA, this._viewerActorId || 'husband');
           saveState(this.dataDir, wA);
-          reply += `\n${r.line}`;
+          reply += `\n【提示】${String(r.line || '').replace(/^（/, '').replace(/）$/, '')}`;
         } else if (/回绝|婉拒|不允|这门亲算了/.test(String(sayText || ''))) {
           const r = declineAlliance(wA);
           saveState(this.dataDir, wA);
-          reply += `\n${r.line}`;
+          reply += `\n【提示】${String(r.line || '').replace(/^（/, '').replace(/）$/, '')}`;
         }
       }
     } catch { /* 忽略 */ }
@@ -1252,7 +1207,7 @@ export class PetService {
             try { wM.assets.silver = Math.round(((Number(wM.assets.silver) || 0) - 2) * 100) / 100; } catch { /* 忽略 */ }
             saveState(this.dataDir, wM);
           }
-          reply += `\n${r.line}`;
+          reply += `\n【提示】${String(r.line || '').replace(/^（/, '').replace(/）$/, '')}`;
           console.log(`[Marriage] 说亲：${meM.name} → ${who.name}：${r.ok ? '成' : '未成'}`);
         }
       }
@@ -1359,32 +1314,11 @@ export class PetService {
         }
         if (names.length) {
           saveState(this.dataDir, wS2);
-          reply = `（${names.length} 名护院应声列到跟前：${names.join('、')}。）\n` + String(reply || '');
+          reply = `【提示】${names.length} 名护院应声列到跟前：${names.join('、')}\n` + String(reply || '');
           console.log(`[Staff] 集合 ${names.length} 人：${names.join('、')}`);
         }
       }
     } catch (err) { console.warn('[Staff] 集合失败：', err.message); }
-
-    // 8.82 话里点到谁 + 让他走：不管有没有"让/叫"，只要点了名又说了走，就真让他走
-    try {
-      if (/回去|回家|回房|回屋|回铺子|走吧|退下|去吧|散了吧/.test(String(sayText || ''))) {
-        const wN = loadState(this.dataDir);
-        const meN = wN.actors?.[this._viewerActorId || 'husband'] || wN.actors?.husband;
-        const named = Object.values(wN.actors || {}).filter((a) => a && !a.dead && a.name
-          && String(sayText).includes(a.name) && a.id !== meN?.id && !String(a.id).startsWith('usr_'));
-        for (const who of named.slice(0, 3)) {
-          let dest = who.quarters || who.home;
-          if (!dest || !wN.places?.[dest] || dest === who.location) dest = 'street';
-          if (!wN.places?.[dest] || dest === who.location) continue;
-          const mv = moveActor(wN, who.id, dest, 'world', '送客离场');
-          if (mv?.ok) {
-            saveState(this.dataDir, wN);
-            reply = `（${who.name}应了一声，往${wN.places[dest].name}去了。）\n` + String(reply || '');
-            console.log(`[Departure] 点名走人：${who.name} → ${wN.places[dest].name}`);
-          }
-        }
-      }
-    } catch { /* 忽略 */ }
 
     // 8.83 相公点名让谁去某处（"让紫嫣回家""叫小翠回房"）：真搬
     try {
@@ -1421,6 +1355,29 @@ export class PetService {
         }
       }
     } catch (err) { console.warn('[Departure] 点名离场失败：', err.message); }
+
+    // 8.835 让某人去某处：按地点名真的挪过去（引擎解析地点，不靠模型）
+    try {
+      const mSend = /(?:让|叫|命|打发|请)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(?:去|到|往|回)\s*([\u4e00-\u9fa5]{2,8}?)(?:去|了|罢|吧|。|！|!|$)/.exec(String(sayText || ''));
+      if (mSend) {
+        const wSd = loadState(this.dataDir);
+        const meSd = wSd.actors?.[this._viewerActorId || 'husband'] || wSd.actors?.husband;
+        const whoSd = Object.values(wSd.actors || {}).find((a) => a && !a.dead && a.name === mSend[1]);
+        if (whoSd) {
+          const destSd = resolvePlaceTarget(wSd, mSend[2], { nearId: meSd?.location, actor: whoSd });
+          if (destSd && wSd.places?.[destSd]) {
+            const mvSd = moveActor(wSd, whoSd.id, destSd, 'world', '听命往某处');
+            if (mvSd?.ok) {
+              saveState(this.dataDir, wSd);
+              reply += `\n【提示】${whoSd.name}去了${wSd.places[destSd].name}。`;
+              console.log(`[Departure] 听命：${whoSd.name} → ${wSd.places[destSd].name}`);
+            } else {
+              reply += `\n【提示】${whoSd.name}去不了那里：${mvSd?.error || '路不通'}。`;
+            }
+          }
+        }
+      }
+    } catch (err) { console.warn('[Departure] 听命去某处失败：', err.message); }
 
     // 8.85 相公说"进你屋里/去你房间"：对方答应了就真的换场（她带你进她的私房）
     try {
@@ -1459,7 +1416,15 @@ export class PetService {
     // 8.9 相公明确说"你走吧/退下/送客"：不靠天道自觉写标签，引擎直接让人离场
     try {
       const farewellSay = /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(String(sayText || '').trim())
-        || /送客|你回吧|你走吧|退下吧|都散了吧/.test(String(sayText || '').trim());
+        || /送客|你回吧|你走吧|退下吧|都散了吧/.test(String(sayText || '').trim())
+        || /让.{0,10}(走|回去|回房|退下|出去|散了)/.test(String(sayText || ''))
+        || /叫他们.{0,4}(走|回去|出去)|都回(房|屋|去)|散了吧|退下/.test(String(sayText || ''))
+        || /(?:回|进)(?:房|屋)(?:间|去|里)?|回去歇着|各自回/.test(String(sayText || ''))
+        || /^\s*出去吧?[。！!~…\s]*$/.test(String(sayText || '').trim())
+        || /([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(?:出去|退下|退出去|走吧|回房)/.test(String(sayText || '').trim())
+        || /都[^。]{0,4}(出去|退下|散了|退出去|回去)/.test(String(sayText || '').trim())
+        || (/留下/.test(String(sayText || '')) && /都|出去|散/.test(String(sayText || '')));
+      console.log(`[Departure] 判定 say="${String(sayText || '').slice(0, 24)}" farewell=${farewellSay}`);
       if (farewellSay) {
         const wF = loadState(this.dataDir);
         const meF = wF.actors?.[this._viewerActorId || 'husband'] || wF.actors?.husband;
@@ -1468,7 +1433,30 @@ export class PetService {
             && !a.humanBound && !/^usr_/.test(String(a.id)),
         );
         // 主人家自己不走；带"都/大伙"的就是清场
-        const goers0 = hereF.filter((a) => !(a.household && meF?.id === 'husband'));
+        // 话里点了名的：不管在不在跟前，都回自己的住处；没点名才清场
+        const saidNow = String(sayText || '');
+        const namedAll = Object.values(wF.actors || {}).filter((a) => {
+          if (!a || a.dead || !a.name || a.id === meF?.id) return false;
+          if (saidNow.includes(a.name)) return true;
+          const short = a.name.length > 2 ? a.name.slice(-2) : '';
+          return Boolean(short && saidNow.includes(short) && /回|退|走/.test(saidNow));
+        });
+        // "都出去，婉儿留下"：留下点名的，其余清场
+        const saidNow2 = String(sayText || '');
+        const keepRaw = /留下\s*([\u4e00-\u9fa5]{2,4})|([\u4e00-\u9fa5]{2,4})\s*留下/.exec(saidNow2);
+        const keepName = keepRaw ? String(keepRaw[1] || keepRaw[2] || '').trim() : '';
+        const keepActor = keepName
+          ? Object.values(wF.actors || {}).find((a) => a && a.name && (a.name === keepName || a.name.endsWith(keepName)))
+          : null;
+        let goers0;
+        if (keepActor && /都|出去|退下|散了|回去/.test(saidNow2)) {
+          goers0 = hereF.filter((a) => a.id !== keepActor.id)
+            .concat(namedAll.filter((a) => a.id !== keepActor.id && a.location !== meF?.location));
+        } else if (namedAll.length) {
+          goers0 = namedAll;
+        } else {
+          goers0 = hereF.slice();
+        }
         const cap = /都|你们|大伙|诸位|全/.test(String(sayText || '')) ? 10 : 3;
         const goers = goers0.slice(0, cap);
         console.log(`[Departure] 送客判定：在场 ${hereF.length} 人，应走 ${goers.length} 人`);
@@ -1476,7 +1464,7 @@ export class PetService {
           const names = [];
           for (const a of goers) {
             // 有住处回住处；住在街上的人，给他安个家再让他回去（不让人凭空消失）
-            let back = a.quarters || a.home;
+            let back = a.home || a.quarters;   // 回房优先回自己的住处，不是当差的门房
             const backPlace = back ? wF.places?.[back] : null;
             if (!back || !backPlace || backPlace.residence === undefined && !backPlace.name) {
               try { back = ensureDwelling(wF, a.id, a.name, 'street'); } catch { back = null; }
@@ -1499,12 +1487,18 @@ export class PetService {
               wF.flags.stallQuietUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 3) % 24 };
             } catch { /* 忽略 */ }
             saveState(this.dataDir, wF);
-            reply = String(reply || '') + `\n（${names.join('、')}起身告辞，退了出去。）`;
+            reply = String(reply || '') + `\n【提示】${names.join('、')}起身告辞，退了出去。`;
             console.log(`[Departure] 相公送客，${names.join('、')} 真的走了`);
           }
         }
       }
     } catch (err) { console.warn('[Departure] 送客处理失败：', err.message); }
+
+    // 8.96 模型自己写的"起身告辞/退了出去"旁白：删掉，离场事实只由引擎那一行说
+    try {
+      // 括号里凡是"谁走了/退了出去"的叙述，一律删；离场事实只由引擎追加
+      reply = String(reply || '').replace(/[（(][^（）()]{0,80}(起身告辞|退了出去|退了出去。|告退出去|都退下了|退出去了)[^（）()]{0,40}[）)]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    } catch { /* 忽略 */ }
 
     // 9. NPC 告辞离场：先照 [[depart:谁|去哪]] 把真位移走完，再清标签
     try {
@@ -1724,6 +1718,36 @@ export class PetService {
           contextHintEarly += `（【街边摊子】${vendors.map((v) => `${v.name}卖${v.stall.word}（约${Number(v.stall.price).toFixed(2)}两）`).join('；')}。要买就照这些摊子写，别编出没有的摊。）\n`;
         }
       }
+    } catch { /* 忽略 */ }
+
+    // 相公明令侍寝：引擎把在场妻妾标成"今夜解禁"，不必暗号
+    try {
+      if (/(服侍|侍寝|要你|陪我睡|开始|继续|上来|宽衣|脱了)/.test(String(say || ''))) {
+        const wT = loadState(this.dataDir);
+        const meT = wT.actors?.[this._viewerActorId || 'husband'] || wT.actors?.husband;
+        const dayT = Number(wT.clock?.day) || 1;
+        const marked = [];
+        for (const a of Object.values(wT.actors || {})) {
+          if (!a || a.dead || a.location !== meT?.location) continue;
+          if (!/正妻|如夫人|二房|侧室|妾|通房/.test(String(a.role || ''))) continue;
+          a.intimacy = a.intimacy || { level: 0, tone: 0, lastAt: 0, ritual: 'solemn' };
+          a.intimacy.ritual = 'unlocked';
+          a.intimacy.tone = 3;
+          a.intimacy.consentedDay = dayT;
+          a.intimacy.lastAt = dayT;
+          marked.push(a.name);
+        }
+        if (marked.length) {
+          saveState(this.dataDir, wT);
+          contextHintEarly += `（【今夜已准】${marked.join('、')}已得相公明令，今夜解禁，可放开服侍，不必再问、不必再请示。）\n`;
+          console.log(`[Intimacy] 明令解禁：${marked.join('、')}`);
+        }
+      }
+    } catch (err) { console.warn('[Intimacy] 解禁失败：', err.message); }
+
+    // 房事规矩（给天道的事实，不是台词）
+    try {
+      contextHintEarly += '（【房里规矩】相公没开口时，妻妾不得主动求欢（正妻可低声问一句要不要服侍）。相公一旦明说"服侍/侍寝/要你/开始/继续/宽衣"，就是明令：不必暗号、不得推脱、不得打岔劝睡，该怎么做就怎么做，写到位；应了的妻妾今夜可放开服侍，天亮归位。）\n';
     } catch { /* 忽略 */ }
 
     // 有人来提亲：把这件事摆给天道，让它自然提起
@@ -3452,7 +3476,7 @@ export class PetService {
         const denies = /(哪家的姑娘|不认识|没听说过|不认得|从哪儿听来|这是谁)/;
         if (asked && denies.test(String(reply))) {
           console.log(`[Scene] ${asked.name}被当成外人，已改正`);
-          reply = `【府中】：${asked.name}是${asked.role || '府里人'}，就住在这宅子里。`;
+          reply = `（${asked.name}是${asked.role || '府里人'}，就住在这宅子里。）`;
         }
       }
     } catch { /* 忽略 */ }
@@ -3767,12 +3791,8 @@ export class PetService {
         if (isIntimate) {
           fallbackReply = '【正妻·婉儿】：“相公既然下令……小翠，快把门窗掩实了，过来同姐姐们一起伺候相公……妾身这就服侍相公宽衣……”\n【侧妾·芸娘】：“妾身全听相公与大娘子的，相公……让妾身替您褪下外袍……”\n【通房丫鬟·小翠】：“是……大娘子，奴婢这就把房门拴上……相公，奴婢也服侍相公上榻……”';
         } else {
-          const fallbacks = [
-            '【正妻·婉儿】：“相公，妾身在呢。方才正盘着店里的账，相公吩咐便是，妾身听着呢。”',
-            '【正妻·婉儿】：“相公莫烦心，外间有些琐事，妾身已让阿吉去料理了。相公有何交代的，妾身一直在身边。”',
-            '【正妻·婉儿】：“相公今日辛苦了。妾身一直候在身旁，相公说什么，妾身都记在心里的。”'
-          ];
-          fallbackReply = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+          // 不再念写死的台词：出了故障就如实说一句，不替角色编话
+          fallbackReply = '（屋里静了一息，没有人应声。）';
         }
       } else {
         fallbackReply = '【贴心管家】：“夫人请吩咐，我一直都在为您候着。”';
@@ -3870,6 +3890,16 @@ export class PetService {
 
     const __t1 = Date.now();
     reply = this.processNarrativeTags(reply, say);
+    // 世界动作走单一入口：执行完把【提示】拼回最终回复
+    try {
+      const wAct = loadState(this.dataDir);
+      const ns = applyChatActions({ world: wAct, viewerId: this._viewerActorId || 'husband', sayText: say });
+      if (ns && ns.length) {
+        saveState(this.dataDir, wAct);
+        reply += '\n' + ns.map((t) => `【提示】${t}`).join('\n');
+        console.log(`[Actions] ${ns.length} 条提示已并入回复`);
+      }
+    } catch (err) { console.warn('[Actions] 执行失败：', err.message); }
     console.log(`[stage] 叙事标签处理 ${Date.now() - __t1}ms`);
 
     // 给每个发言人补身份前缀（帮工/掌柜/正妻/丫鬟…），由账上 role 推，不写死
@@ -4296,7 +4326,10 @@ export class PetService {
         return saidS.includes(a.name) || (short && saidS.includes(short));
       });
       const segs = String(reply || '').split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
-      const speech = segs.filter((x) => /^【[^】]+】/.test(x) && !/(就站在|四下冷清|你到了)/.test(x));
+      // 【提示】不是人说话，不能算进"几个人抢话"，更不能被只留第一个说话人时丢掉
+      const speech = segs.filter((x) => /^【[^】]+】/.test(x)
+        && !/^【提示】/.test(x)
+        && !/(就站在|四下冷清|你到了)/.test(x));
       const isBed = Boolean(history?.inBedSession);
       const isHouseholdScene = speech.length > 0 && speech.every((seg) => /(婉儿|芸娘|小翠|二娘子|大娘子)/.test(seg));
 
@@ -4368,6 +4401,7 @@ export class PetService {
       }
     } catch { /* 忽略 */ }
 
+    try { console.log(`[DbgTip] reply 内含提示 ${(String(reply || '').match(/【提示】/g) || []).length} 条`); } catch { /* 忽略 */ }
     // 最后一道：所有后处理改的是 reply，这里同步回 assistantMsg
     try {
       if (assistantMsg && typeof reply === 'string' && reply !== assistantMsg.text) {

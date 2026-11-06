@@ -12,6 +12,7 @@
 
 import { refreshTitles } from './occupation.js';
 import { dailyGambleRaid } from './goods.js';
+import { settleTradeRuns, settleNightMarket } from './business.js';
 import { ensureStalls } from './stalls.js';
 import { refreshGoals, pursueGoals } from './goals.js';
 
@@ -115,6 +116,8 @@ export function advanceWorldTick(world, hour) {
   } catch { /* 忽略 */ }
 
   try { dailyGambleRaid(world); } catch { /* 忽略 */ }
+  try { settleTradeRuns(world); } catch { /* 忽略 */ }
+  try { settleNightMarket(world); } catch { /* 忽略 */ }
 
   // ── ③.7 差事工钱：跨日发饷（外城也一样）──
   try {

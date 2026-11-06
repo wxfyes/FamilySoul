@@ -689,7 +689,16 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
     if (!actor) continue;
 
     const from = actor.location;
-    const dest = resolvePlaceTarget(world, hint, { nearId: from, actor });
+    let dest = resolvePlaceTarget(world, hint, { nearId: from, actor });
+    // 家眷离场只认自己的住处：不许被一句"去长街"支到街上
+    const isKin = String(actor.spouse || '') === 'husband' || /正妻|如夫人|二房|侧室|妾|通房|丫鬟|婆子|嬷嬷/.test(String(actor.role || ''));
+    if (isKin) {
+      const home = actor.home && world.places?.[actor.home] ? actor.home : null;
+      if (home && dest !== home) {
+        console.log(`[Departure] ${actor.name} 是内眷，目的地改回住处`);
+        dest = home;
+      }
+    }
     if (!dest || dest === from) continue;
 
     const moved = moveActor(world, actor.id, dest, 'world', `离场：${hint.slice(0, 10)}`);

@@ -3,6 +3,7 @@ import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from 
 import { describeRoom, roomForHour } from './world/room-life.js';
 import { knock, grantPass, residenceOf } from './world/visit.js';
 import fs from 'node:fs';
+import dns from 'node:dns';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -4125,6 +4126,11 @@ const STARTED_AT = Date.now();
         for (const seg of segs) {
           const m = seg.match(/^【([^】\n]{1,12})】/);
           if (!m) { kept.push(seg); continue; }
+          // 旁白式说话人（客卿·府中/系统/数据库…）不是人，整段剔掉
+          if (/客卿|府中|系统|数据库|天机局/.test(m[1]) && !Object.values(wOut.actors || {}).some((a) => a && a.name && m[1].includes(a.name))) {
+            dropped.push(m[1]);
+            continue;
+          }
           const spk = m[1].trim();
           // 服务端出口铁律：只在当前地点的人能开口（本人除外）
           const baseName = spk.includes('·') ? spk.split('·').pop().trim() : spk;
@@ -4149,6 +4155,15 @@ const STARTED_AT = Date.now();
         // 全被剔掉：把话留下、把人名去掉，改成旁白，绝不给他挂错名
         if (!merged && dropped.length) merged = dropped.join(' ').replace(/^[：:]+/, '').trim();
         if (merged && merged !== txt) result.reply.text = merged;
+        // 给客户端留的接口：把【提示】单独抽出来，App 可渲染成系统提示样式
+        try {
+          const tipLines = String(result.reply?.text || '').split('\n')
+            .filter((ln) => /^【提示】/.test(ln.trim()))
+            .map((ln) => ln.replace(/^【提示】/, '').trim())
+            .filter(Boolean);
+          result.reply.notices = tipLines;
+          result.reply.noticeSpeaker = '提示';
+        } catch { /* 忽略 */ }
       } catch (e) { /* 忽略 */ }
 
       // 送客：在最后（所有写盘之后）统一结算一次，保证不被后写的旧快照覆盖
@@ -4619,6 +4634,8 @@ const STARTED_AT = Date.now();
 
   return sendJson(res, 404, { ok: false, error: `未找到对应接口: ${pathname}` });
 });
+
+try { dns.setServers(['223.5.5.5', '119.29.29.29']); console.log('[DNS] 使用公共 DNS 解析'); } catch (e) { console.warn('[DNS] 设置失败', e.message); }
 
 console.log('BUILD_TAG_20261106B');
 

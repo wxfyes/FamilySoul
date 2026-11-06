@@ -1166,6 +1166,36 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
 
+      // 天亮归位：只解禁当夜，第二天自动回端庄
+      try {
+        const dayNow = Number(world.clock?.day) || 1;
+        for (const a of Object.values(world.actors || {})) {
+          if (!a?.intimacy?.consentedDay) continue;
+          if (Number(a.intimacy.consentedDay) === dayNow) continue;
+          a.intimacy.ritual = 'solemn';
+          a.intimacy.tone = 0;
+          delete a.intimacy.consentedDay;
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：户主关系落到人身上（谁家的人，归哪个户主管）
+      try {
+        if (!world.flags?.householdOwnerV1) {
+          let n = 0;
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.dead) continue;
+            const kin = String(a.spouse || '') === 'husband' || /正妻|如夫人|二房|侧室|妾|通房|丫鬟|婆子|嬷嬷|家丁|护院|管事|管家/.test(String(a.role || ''));
+            if (!kin) continue;
+            if (a.householdOwner) continue;
+            a.householdOwner = 'husband';
+            n += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.householdOwnerV1 = { at: Date.now(), n };
+          if (n) console.log(`[House] 户主关系落籍：${n} 人归相公府`);
+        }
+      } catch { /* 忽略 */ }
+
       // 一次性：东家本钱（启动资金），只发一次，进流水
       try {
         if (!world.flags?.startupGrantV1 && world.assets) {
@@ -2356,7 +2386,10 @@ export function loadState(dataDir) {
       }
       S.parses += 1;
       const t0 = Date.now();
-      __turn.world = structuredClone(JSON.parse(fs.readFileSync(__file, 'utf8')));
+      const parsed = JSON.parse(fs.readFileSync(__file, 'utf8'));
+      // 关键：回合里解析出来的这份，也要成为全局唯一的那一份
+      __stateCache = { key: __key, mtime: __st.mtimeMs, size: __st.size, world: parsed };
+      __turn.world = __stateCache.world;
       S.parseMs += Date.now() - t0;
       __turn.dataDir = dataDir;
       return __turn.world;
