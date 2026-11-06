@@ -12,7 +12,7 @@ import { LlmClient } from './llm-client.js';
 import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
-import { startWorldClock, peek, buildMorningReport } from './world/clock.js';
+import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes } from './world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { beginStateBatch, endStateBatch } from './world/state.js';
@@ -4381,6 +4381,32 @@ const STARTED_AT = Date.now();
       const after = loadState(DATA_DIR);
       const c = (after.cases || []).slice(-1)[0] || null;
       return sendJson(res, 200, { ok: true, case: c });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
+  // 验收：立即重算产业日入 POST /api/admin/shop-refresh
+  if (req.method === 'POST' && pathname === '/api/admin/shop-refresh') {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const world = loadState(DATA_DIR);
+      try { refreshPropertyIncomes(world); } catch { /* 忽略 */ }
+      // 开着的铺子按"一年挣出十倍租钱"的下限兜底（与日结同一规则）
+      for (const p of (world.assets?.properties || [])) {
+        const open = ['已开张', '正常营业'].includes(String(p.status || ''));
+        if (!open) { p.incomePerDay = 0; continue; }
+        const isShop = /铺|店|号|栈|坊/.test(String(p.name || '')) && !/酒楼|茶坊|茶栈|货栈/.test(String(p.name || ''));
+        const rentYearly = Number(p.rentYearly || p.rentAnnual || 0);
+        const floor = isShop ? (rentYearly > 0 ? rentYearly / 365 * 10 : 1.5) : 0.15;
+        if ((Number(p.incomePerDay) || 0) < floor) p.incomePerDay = Math.round(floor * 100) / 100;
+      }
+      const n = (world.assets?.properties || []).length;
+      saveState(DATA_DIR, world);
+      const list = (world.assets?.properties || []).map((p) => ({ name: p.name, status: p.status, income: p.incomePerDay }));
+      return sendJson(res, 200, { ok: true, count: n, list });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }

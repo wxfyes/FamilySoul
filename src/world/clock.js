@@ -1596,6 +1596,8 @@ function onNewDay(world, events) {
     }
   }
 
+let __dailyIncomeFn = null;
+
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜本事（有涨有落，不写死）*/
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜信任 × 开张天数声誉积累 × 人手规模经济 × 随机大单机缘（有倍增、有跌宕、拟真古代商业）*/
 function dailyIncomeOf(world, prop) {
@@ -1666,8 +1668,13 @@ function dailyIncomeOf(world, prop) {
 
   let gain = Math.round(capital * rate * 100) / 100;
   // 一间开着的铺子，日入至少能覆盖"一天的租钱 + 伙计饭钱"
+  const rentYearly = Number(prop.rentYearly || prop.rentAnnual || 0);
   const rentMonthly = Number(prop.rent || prop.monthlyRent || 0);
-  const floor = Math.max(0.15, rentMonthly / 30 * 1.2, staffCount * 0.05);
+  // 小店：一年要挣出十倍租钱才有人干（50 两租 → 日入约 1.5 两）
+  const shopFloor = /铺|店|号|栈|坊/.test(String(prop.name || '')) && !/酒楼|茶坊|茶栈|货栈/.test(String(prop.name || ''))
+    ? (rentYearly > 0 ? rentYearly / 365 * 10 : 1.5)
+    : 0.15;
+  const floor = Math.max(shopFloor, rentMonthly / 30 * 1.2, staffCount * 0.05);
   if (gain < floor) gain = Math.round(floor * 100) / 100;
 
   // ── 利润再投资：赚的钱有一部分滚回本金，生意越长越大 ──
@@ -1678,6 +1685,7 @@ function dailyIncomeOf(world, prop) {
   prop.baseIncome = Number(prop.baseIncome) || gain;        // 仅作历史参考，不再参与计算
   return gain;
 }
+__dailyIncomeFn = dailyIncomeOf;
 
   // 各人的产业各人收：有掌柜归掌柜，没掌柜才进公账
   world.wallets = world.wallets && typeof world.wallets === "object" ? world.wallets : {};
@@ -2211,7 +2219,9 @@ export function startWorldClock(dataDir, opts = {}) {
 /** 重算所有产业的当日进项（开业、换日、验收时用） */
 export function refreshPropertyIncomes(world) {
   for (const p of (world?.assets?.properties || [])) {
-    try { dailyIncomeOf(world, p); } catch { /* 忽略 */ }
+    try {
+      if (__dailyIncomeFn) __dailyIncomeFn(world, p);
+    } catch (e) { console.log('[ShopDbg]', p.name, e.message); }
   }
   return (world?.assets?.properties || []).length;
 }
