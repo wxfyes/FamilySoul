@@ -173,9 +173,12 @@ export function ensureResidence(world, rootId, { scale = 0, ownerId = null } = {
   };
 
   // 已有院子：等第够就只把门路与房名理顺
-  if (hasLayout(root) && num(root.grade) >= grade) {
+  const specLen = (LAYOUTS[grade] || LAYOUTS[3]).length;
+  const haveRooms = Object.keys(root.rooms || {}).length;
+  // 房间账残缺（被清过）也要按等第补齐，不能因为"有个门"就算有院子
+  if (hasLayout(root) && num(root.grade) >= grade && haveRooms >= specLen) {
     relink();
-    return { built: false, rooms: Object.keys(root.rooms).length, grade: num(root.grade) };
+    return { built: false, rooms: haveRooms, grade: num(root.grade) };
   }
   const spec = LAYOUTS[grade] || LAYOUTS[3];
   const baseName = houseName;

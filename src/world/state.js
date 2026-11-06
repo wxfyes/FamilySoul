@@ -13,6 +13,7 @@ import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
+import { ensureResidence } from './residence.js';
 import { refreshTitles } from './occupation.js';
 import { ensureStalls } from './stalls.js';
 import { ensureFame } from './reputation.js';
@@ -1031,6 +1032,17 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
       const evicted = evictOutsiders(world);          // 混进后宅的外人，请出去
+      // 宅子的房间账被清空过（只剩门）：按等第把院子补回来，否则人会"无处可去"
+      try {
+        for (const [pid, pl] of Object.entries(world.places || {})) {
+          if (!pl || !pl.residence) continue;
+          const n = Object.keys(pl.rooms || {}).length;
+          if (n >= 5) continue;
+          ensureResidence(world, pid, { grade: Number(pl.grade) || 7, ownerId: pl.owner || null });
+          console.log(`[Spaces] 补齐宅院房间账：${pl.name || pid}（原 ${n} 间）`);
+        }
+      } catch { /* 忽略 */ }
+
       // 房间分级补正（老存档）：按这间房"是干什么用的"重定门第，前堂可待客，其余止步
       try {
         const gradeOf = (use) => {
