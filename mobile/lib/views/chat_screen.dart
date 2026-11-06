@@ -1087,7 +1087,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 if (line != null) {
                                   messenger.showSnackBar(SnackBar(
                                     content: Text(line),
-                                    duration: const Duration(milliseconds: 1800),
+                                    duration: const Duration(seconds: 4),
                                     behavior: SnackBarBehavior.floating,
                                   ));
                                 }

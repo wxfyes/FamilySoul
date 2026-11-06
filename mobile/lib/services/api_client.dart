@@ -396,12 +396,17 @@ class SurfCoreApiClient {
   }
 
   /// 现代 AI 助手问答（物理级解耦）
-  Future<String?> askAssistant(String text, {bool newSession = false}) async {
+  Future<String?> askAssistant(String text, {bool newSession = false, String? imageBase64, String? mimeType}) async {
     try {
       final res = await _dio.post(
         '/assistant/chat',
         queryParameters: {'token': config.token.trim()},
-        data: {'text': text, 'newSession': newSession},
+        data: {
+          'text': text,
+          'newSession': newSession,
+          if (imageBase64 != null) 'imageBase64': imageBase64,
+          if (mimeType != null) 'mimeType': mimeType,
+        },
       );
       if (res.statusCode == 200 && res.data is Map) {
         return res.data['reply']?.toString() ?? '';

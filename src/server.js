@@ -748,8 +748,17 @@ const STARTED_AT = Date.now();
       const member = resolveMember(req, url);
       if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效或尚未立牒入世' });
       const memberKey = member.memberKey;
-      const body = await parseJsonBody(req, 64 * 1024);
-      const replyObj = await assistantService.chat(memberKey, body.text, { newSession: Boolean(body.newSession) });
+      const body = await parseJsonBody(req, 6 * 1024 * 1024);
+      let asked = String(body.text || '');
+      // 带了图：先让视觉看一遍，再把"看到的"交给助手，图不落盘
+      if (body.imageBase64) {
+        try {
+          const seen = await visionService.analyzeVisualFrame({ imageBase64: String(body.imageBase64), mimeType: String(body.mimeType || 'image/jpeg') });
+          const desc = String(seen?.description || seen?.text || seen?.visualFact || '').trim();
+          if (desc) asked = `${asked}\n（我刚看过一张图：${desc}）`;
+        } catch (err) { console.log('[Assistant] 看图失败：', err.message); }
+      }
+      const replyObj = await assistantService.chat(memberKey, asked, { newSession: Boolean(body.newSession) });
       return sendJson(res, 200, replyObj);
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
@@ -1158,6 +1167,21 @@ const STARTED_AT = Date.now();
         // 没令牌就是外人：绝不允许"空令牌默认当相公"（否则任何人都能把王甯挪走）
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
         const actorId = member.actor || 'husband';
+        // 说"回家/回府"：回自己的正房，不是大门
+        if (/回家|回府|回宅|回房|回屋/.test(target)) {
+          const meH = world.actors?.[actorId];
+          const homeId = meH?.home || 'husband_room';
+          const homeP = world.places?.[homeId];
+          const mainId = homeP?.rooms?.main?.id;
+          if (mainId) {
+            try {
+              const { materializeRoom } = await import('./world/residence.js');
+              target = materializeRoom(world, homeId, 'main') || homeId;
+            } catch { target = mainId; }
+          } else {
+            target = homeId;
+          }
+        }
         // 说的是人（去找王甯）：先换成他此刻所在的地方，再由门禁决定能不能进
         {
           const meName = String((world.actors?.[actorId] || world.actors?.husband)?.name || '');

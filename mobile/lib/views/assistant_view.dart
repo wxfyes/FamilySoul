@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter/services.dart';
 import '../services/api_client.dart';
 
@@ -53,15 +56,66 @@ class _AssistantViewState extends State<AssistantView> {
   }
 
   void _scrollToBottom() {
+    void go() {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
+      go();
+      // 列表还没量完时再补一次，保证切回来就在最新一条
+      Future<void>.delayed(const Duration(milliseconds: 220), go);
+      Future<void>.delayed(const Duration(milliseconds: 520), go);
     });
+  }
+
+  bool _listening = false;
+  final SpeechToText _speech = SpeechToText();
+  String? _imageBase64;
+  String? _imageMime;
+
+  Future<void> _toggleMic() async {
+    try {
+      if (_listening) {
+        await _speech.stop();
+        setState(() => _listening = false);
+        return;
+      }
+      final ok = await _speech.initialize();
+      if (!ok) return;
+      setState(() => _listening = true);
+      await _speech.listen(
+        listenOptions: SpeechListenOptions(localeId: 'zh_CN'),
+        onResult: (r) {
+          if (r.recognizedWords.isNotEmpty) {
+            _inputController.text = r.recognizedWords;
+            _inputController.selection = TextSelection.fromPosition(TextPosition(offset: _inputController.text.length));
+          }
+        },
+      );
+    } catch (_) {
+      if (mounted) setState(() => _listening = false);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 82);
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _imageBase64 = base64Encode(bytes);
+        _imageMime = 'image/jpeg';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('已选好一张图，发出去我看看'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {}
   }
 
   Future<void> _sendMessage() async {
@@ -75,7 +129,7 @@ class _AssistantViewState extends State<AssistantView> {
     });
     _scrollToBottom();
 
-    final reply = await widget.apiClient.askAssistant(text);
+    final reply = await widget.apiClient.askAssistant(text, imageBase64: _imageBase64, mimeType: _imageMime);
     if (!mounted) return;
 
     setState(() {
@@ -309,7 +363,17 @@ class _AssistantViewState extends State<AssistantView> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: '按住说话',
+                  icon: Icon(_listening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                      color: _listening ? const Color(0xFFEF4444) : Colors.grey),
+                  onPressed: _toggleMic,
+                ),
+                IconButton(
+                  tooltip: '发一张图给助手看',
+                  icon: const Icon(Icons.add_photo_alternate_outlined, color: Colors.grey),
+                  onPressed: _pickImage,
+                ),
                 IconButton(
                   icon: const Icon(Icons.send_rounded, color: Color(0xFF3B82F6)),
                   onPressed: _sendMessage,

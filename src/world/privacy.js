@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 内宅门第：后宅（正房/厢房/后院/祠堂）不是谁都能进的。
  *
  * 规矩：
@@ -37,6 +37,8 @@ export function homeOf(world, place) {
 /** 这人是这府的人吗（家人或府里的下人） */
 export function belongsTo(world, actor, home) {
   if (!actor || !home) return false;
+  // 宅子的主人当然是本家（否则自己的正房反而进不去）
+  if (home.owner && String(home.owner) === String(actor.id)) return true;
   if (String(actor.home || '') === String(home.id)) return true;
   if (actor.household && String(home.owner || '') === 'husband') return true;
   const duty = actor.duty;
