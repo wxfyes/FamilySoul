@@ -22,6 +22,7 @@ import { ensurePresence } from './world/scene.js';
 import { applySummon, applyNpcDeparture } from './world/summon.js';
 import { auditReply } from './world/audit.js';
 import { buildMemberCard } from './world/member-card.js';
+import { refreshPropertyIncomes } from './world/clock.js';
 import { placeFacts } from './world/state.js';
 import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
@@ -1131,6 +1132,23 @@ export class PetService {
         if (touched.size) console.log(`[Relation] 这轮与 ${[...touched].map((id) => wR.actors[id]?.name).join('、')} 相处，交情略增`);
       }
     } catch (err) { console.warn('[Relation] 涨交情失败：', err.message); }
+
+    // 8.785 开业：名下筹备中的铺子，相公一句话就开张
+    try {
+      if (/开业|开张|开门做生意|挂匾/.test(String(sayText || ''))) {
+        const wO = loadState(this.dataDir);
+        const meO = wO.actors?.[this._viewerActorId || 'husband'] || wO.actors?.husband;
+        const mine = (wO.assets?.properties || []).filter((p) => p && (String(p.owner || '') === String(meO?.id) || String(p.keeper || '') === String(meO?.id)));
+        const closed = mine.filter((p) => !['已开张', '正常营业'].includes(String(p.status || '')));
+        for (const p of closed) { p.status = '已开张'; p.openedDay = wO.clock?.day || 1; }
+        try { refreshPropertyIncomes(wO); } catch { /* 忽略 */ }
+        saveState(this.dataDir, wO);
+        if (closed.length) {
+          reply += `\n（${closed.map((p) => p.name).join('、')} 今日开张了。）`;
+          console.log(`[Shop] 相公令下开张：${closed.map((p) => p.name).join('、')}`);
+        }
+      }
+    } catch { /* 忽略 */ }
 
     // 8.79 说亲：话里点名"娶/提亲/说亲/纳"某人，真去说媒
     try {

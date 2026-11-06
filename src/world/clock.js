@@ -1599,6 +1599,20 @@ function onNewDay(world, events) {
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜本事（有涨有落，不写死）*/
 /** 产业当日进项：底数 × 行情 × 民心 × 季节 × 掌柜信任 × 开张天数声誉积累 × 人手规模经济 × 随机大单机缘（有倍增、有跌宕、拟真古代商业）*/
 function dailyIncomeOf(world, prop) {
+  // 筹备中的铺子：给两天装修期，到期自动开张（不靠谁去点）
+  try {
+    const day0 = Number(world.clock?.day) || 1;
+    const st = String(prop.status || '');
+    if (st === '筹备中' || st === '筹建中' || st === '未开张') {
+      const since = Number(prop.openedDay ?? prop.createdDay ?? day0);
+      if (day0 - since >= 2) {
+        prop.status = '已开张';
+        prop.openedDay = day0;
+        console.log(`[Shop] ${prop.name} 装修期满，自动开张`);
+      }
+    }
+  } catch { /* 忽略 */ }
+
   // 只有真正开门做生意的才进账：自住府邸、筹建中、歇业一律不进项
   const EARNING_STATUS = ['正常营业', '已开张'];
   if (!EARNING_STATUS.includes(String(prop.status || ''))) {
@@ -1650,7 +1664,11 @@ function dailyIncomeOf(world, prop) {
   // 收益率封顶：单日不超过本金 12%，不出现离谱通胀
   rate = Math.max(0.01, Math.min(0.12, rate));
 
-  const gain = Math.round(capital * rate * 100) / 100;
+  let gain = Math.round(capital * rate * 100) / 100;
+  // 一间开着的铺子，日入至少能覆盖"一天的租钱 + 伙计饭钱"
+  const rentMonthly = Number(prop.rent || prop.monthlyRent || 0);
+  const floor = Math.max(0.15, rentMonthly / 30 * 1.2, staffCount * 0.05);
+  if (gain < floor) gain = Math.round(floor * 100) / 100;
 
   // ── 利润再投资：赚的钱有一部分滚回本金，生意越长越大 ──
   const reinvest = prop.status === '已开张' || prop.status === '正常营业' ? 0.25 : 0;
@@ -2187,4 +2205,13 @@ export function startWorldClock(dataDir, opts = {}) {
     `[World] 世界时钟已启动：${Math.round(msPerWorldHour / 1000)} 秒 = 1 世界小时，心跳 ${Math.round(intervalMs / 60000)} 分钟`,
   );
   return () => clearInterval(timer);
+}
+
+
+/** 重算所有产业的当日进项（开业、换日、验收时用） */
+export function refreshPropertyIncomes(world) {
+  for (const p of (world?.assets?.properties || [])) {
+    try { dailyIncomeOf(world, p); } catch { /* 忽略 */ }
+  }
+  return (world?.assets?.properties || []).length;
 }
