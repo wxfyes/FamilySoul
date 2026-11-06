@@ -4036,6 +4036,8 @@ const STARTED_AT = Date.now();
           kept.push(seg);
         }
         let merged = kept.join('').trim();
+        // 末尾残缺括号 / 孤立左括号，一律清掉（观感）
+        merged = merged.replace(/[（(]\s*$/g, '').replace(/\n{3,}/g, '\n\n').trim();
         // 引擎标签绝不能漏到戏里给相公看（[[spawn:柳婶|…]] 这类）
         merged = merged.replace(/\[\[[^\]\n]{1,60}\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
         // 全被剔掉：把话留下、把人名去掉，改成旁白，绝不给他挂错名
