@@ -1891,7 +1891,10 @@ const STARTED_AT = Date.now();
         life: (() => {
           const meL = actorId ? world.actors?.[actorId] : world.actors?.husband;
           const house = Object.values(world.actors || {}).filter(
-            (a) => a && !a.dead && a.id !== 'husband' && (a.household || (meL?.home && a.home === meL.home)),
+            (a) => a && !a.dead && a.id !== 'husband'
+              // 只算真在相公府里的：同住一处，或是他的妻妾；别人的府不算
+              && (a.spouse === 'husband' || Boolean(meL?.home && a.home === meL.home)
+                || Boolean(a.household && meL?.home && a.home === meL.home)),
           );
           return {
             age: Number(meL?.age) || null,

@@ -315,7 +315,7 @@ export function ensureCityClasses(world, cityName) {
       world.actors[aid] = {
         id: aid, name: given(m.gender), role: m.role, title: m.role, gender: m.gender,
         age: m.age, home: hid, location: hid, money: Math.round(m.money * 100) / 100,
-        household: true, relations: {}, origin: 'city_class', createdDay: day,
+        relations: {}, origin: 'city_class', createdDay: day,
         spouse: null,
       };
       made += 1;

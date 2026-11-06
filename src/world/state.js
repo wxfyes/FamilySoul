@@ -1058,6 +1058,22 @@ export function migrateOwnership(world) {
           ensureCityBase(world, cn);
         }
       } catch { /* 忽略 */ }
+      // 一次性：阶级人物被误标成"相公府里人"，清掉（他们有自己的府）
+      try {
+        if (!world.flags?.classHouseholdFixV1) {
+          let n = 0;
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.origin !== 'city_class') continue;
+            if (!a.household) continue;
+            delete a.household;
+            n += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.classHouseholdFixV1 = { at: Date.now(), cleared: n };
+          if (n) console.log(`[Class] 清掉误标府内人：${n} 人`);
+        }
+      } catch { /* 忽略 */ }
+
       // 一次性：阶级生成时重名的，改成唯一姓名（按 id 保留先后）
       try {
         if (!world.flags?.nameDedupeV1) {
