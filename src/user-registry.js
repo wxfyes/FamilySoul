@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadState, saveState, worldDate } from './world/state.js';
@@ -92,6 +92,21 @@ export class UserRegistry {
       scholar: '求学的生员',
       merchant: '行脚小商客',
       wanderer: '初来乍到的游侠',
+      farmer: '城郊农户',
+      artisan: '手艺匠人',
+      weaver: '绣坊绣娘',
+      servant: '大户仆役',
+      player: '戏班伶人',
+      medic: '游方郎中',
+      boatman: '运河船工',
+      guard: '镖行趟子手',
+      teacher: '私塾先生',
+      clerk: '县衙书办',
+      peddler: '走街货郎',
+      priest: '庵堂道姑',
+      hunter: '山中猎户',
+      cook: '酒楼厨娘',
+      singer: '茶坊唱曲',
     };
     const roleName = ROLE_MAP[originKind] || '初入临江的布衣';
     const genderDesc = safeGender === 'female' ? '坤身女子' : '乾身男子';

@@ -457,6 +457,8 @@ const STARTED_AT = Date.now();
   // 0. 公开自主建档入世接口 POST /api/register
   if (req.method === 'POST' && matchRoute('/register')) {
     try {
+      // 留个痕：谁在什么时候来注册（排查"客户端没发出去"还是"服务端拒了"）
+      console.log(`[Register] 收到注册请求：ua=${String(req.headers?.['user-agent'] || '').slice(0, 60)} token=${url.searchParams.get('token') ? '有' : '无'}`);
       const body = await parseJsonBody(req, 16 * 1024);
       const resData = userRegistry.register(body);
       if (!resData.ok) {
