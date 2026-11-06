@@ -4111,6 +4111,13 @@ const STARTED_AT = Date.now();
         }
       } catch (errK) { console.log('[Knock] 叩门异常：', errK.message); }
 
+      // 出口最后一道观感清理：残缺括号、空的差事回执行
+      try {
+        let txt = String(result.reply?.text || '');
+        txt = txt.split('\n').filter((ln) => !/^\s*[^\n]{0,40}·\s*限\d+日）?\s*$/.test(ln)).join('\n');
+        txt = txt.replace(/[（(]\s*$/g, '').replace(/\n{3,}/g, '\n\n').trim();
+        if (txt) result.reply.text = txt;
+      } catch { /* 忽略 */ }
       console.log(`[ExitProbe] 出口到达 text=${String(body.text||'').slice(0,20)} actor=${currentMember.actor}`);
       // 送客（真出口，所有写盘之后）：把在场该走的人送到他们自己的住处
       try {
