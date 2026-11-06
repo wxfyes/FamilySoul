@@ -14,6 +14,7 @@ import { canReach } from './geography.js';
 import { marchSpeedFactor, gearCostFactor } from './season.js';
 import { grainPrice } from './prices.js';
 import { ensureGatekeeper } from './posts.js';
+import { fallbackName } from './migration.js';
 import { priceOf } from './pricing.js';
 
 const num = (v) => {
@@ -104,16 +105,19 @@ export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) 
 export function spawnHouseholdStaff(world, count, kind = 'guard', homeId = 'husband_room') {
   const home = world.places?.[homeId];
   if (!home) return 0;
-  const SURNAME = ['周', '吴', '郑', '王', '李', '陈', '张', '刘', '赵', '孙'];
-  const GIVEN = ['阿福', '阿顺', '阿贵', '阿全', '阿安', '阿平', '阿庆', '阿寿', '阿泰', '阿和', '阿义', '阿勇'];
   const want = Math.max(0, Math.min(24, Number(count) || 0));
   let made = 0;
   for (let i = 0; i < want; i++) {
-    const used = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
-    let name = '';
-    for (let t = 0; t < 30; t++) {
-      const cand = SURNAME[Math.floor(Math.random() * SURNAME.length)] + GIVEN[Math.floor(Math.random() * GIVEN.length)];
-      if (!used.has(cand)) { name = cand; break; }
+    // 用世界统一的姓名池（和城里其他人一个来源），不再自己拍脑袋起名
+    let name = fallbackName(world, 'male') || '';
+    if (!name) {
+      const used = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
+      const SURNAME = ['周', '吴', '郑', '王', '李', '陈', '张', '刘', '赵', '孙'];
+      const GIVEN = ['阿福', '阿顺', '阿贵', '阿全', '阿安', '阿平', '阿庆', '阿寿', '阿泰', '阿和'];
+      for (let t = 0; t < 30; t++) {
+        const cand = SURNAME[Math.floor(Math.random() * SURNAME.length)] + GIVEN[Math.floor(Math.random() * GIVEN.length)];
+        if (!used.has(cand)) { name = cand; break; }
+      }
     }
     if (!name) continue;
     const id = `staff_${Date.now()}_${Math.floor(Math.random() * 10000)}_${i}`;
