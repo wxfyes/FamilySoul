@@ -15,7 +15,7 @@ import { PetService } from './pet-service.js';
 import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes } from './world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
-import { beginStateBatch, endStateBatch } from './world/state.js';
+import { beginStateBatch, endStateBatch, runInStateTurn } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { maybeOfferAlliance } from './world/marriage.js';
 import { advanceWorldTick } from './world/tick.js';
@@ -4071,13 +4071,13 @@ const STARTED_AT = Date.now();
       // 不再用整轮批量写：批量快照会在收尾时把聊天里发生的真实变更（送客/进门/门第）覆盖掉
       let result;
       try {
-        result = await petService.chat({
+        result = await runInStateTurn(() => petService.chat({
           text: body.text,
           modality: body.modality || 'text',
           profileKey: currentMember.memberKey,
           roleName: currentMember.role,
           actorId: currentMember.actor || null,
-        });
+        }));
       } finally {
         /* 单次写入口 saveState 已经落盘 */
       }
@@ -4489,6 +4489,34 @@ const STARTED_AT = Date.now();
       }
       saveState(DATA_DIR, world);
       return sendJson(res, 200, { ok: true, renamed: renamed.length, sample: renamed.slice(0, 12) });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
+  // 体检：状态读写、内存、耗时 GET /api/admin/perf
+  if (req.method === 'GET' && pathname === '/api/admin/perf') {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const world = peek(DATA_DIR);
+      const st = globalThis.__stateStats || {};
+      let stateBytes = 0;
+      try { stateBytes = fs.statSync(path.join(DATA_DIR, 'world', 'state.json')).size; } catch { /* 忽略 */ }
+      const mem = process.memoryUsage();
+      return sendJson(res, 200, {
+        ok: true,
+        rssMB: Math.round(mem.rss / 1048576),
+        heapMB: Math.round(mem.heapUsed / 1048576),
+        uptimeSec: Math.round(process.uptime()),
+        stateMB: Math.round(stateBytes / 1048576 * 100) / 100,
+        actors: Object.keys(world.actors || {}).length,
+        places: Object.keys(world.places || {}).length,
+        events: Array.isArray(world.events) ? world.events.length : 0,
+        state: st,
+        chat: globalThis.__chatStats || null,
+      });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }

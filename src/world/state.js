@@ -25,6 +25,7 @@ import { moveActor } from './position.js';
 import { syncMoney } from './money.js';
 import { syncNames } from './identity.js';
 import fs from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { lunarFromTable } from './lunar-table.js';
 import path from 'node:path';
 import { migrateMemories } from './memory.js';
@@ -2294,9 +2295,63 @@ export function migrateOwnership(world) {
   return world;
 }
 
+globalThis.__stateStats = globalThis.__stateStats || { loads: 0, hits: 0, parses: 0, saves: 0, writes: 0, parseMs: 0, writeMs: 0, last: [] };
 let __stateCache = { key: '', mtime: 0, size: 0, world: null };
 
+const __turnAls = new AsyncLocalStorage();
+
+/**
+ * 一轮业务（一次聊天）内：只解析一次世界账，只写一次盘。
+ * 中途所有 loadState 都拿到同一份；所有 saveState 只记脏，不落盘。
+ */
+export async function runInStateTurn(fn) {
+  const store = { world: null, dataDir: null, dirty: false };
+  return __turnAls.run(store, async () => {
+    try {
+      return await fn();
+    } finally {
+      try {
+        if (store.dirty && store.world && store.dataDir) {
+          __stateBatch = null;
+          store.flushing = true;
+          saveState(store.dataDir, store.world);
+          store.flushing = false;
+          store.dirty = false;
+        }
+      } catch (err) {
+        console.warn('[State] 回合落盘失败：', err.message);
+      }
+    }
+  });
+}
+
 export function loadState(dataDir) {
+  const S = globalThis.__stateStats;
+  S.loads += 1;
+  const __turn = __turnAls.getStore();
+  if (__turn) {
+    if (__turn.world) return __turn.world;
+    const __file = statePath(dataDir);
+    try {
+      const __st = fs.statSync(__file);
+      const __key = path.resolve(__file);
+      if (__stateCache.world && __stateCache.key === __key && __stateCache.mtime === __st.mtimeMs && __stateCache.size === __st.size) {
+        S.hits += 1;
+        __turn.world = __stateCache.world;
+        __turn.dataDir = dataDir;
+        return __turn.world;
+      }
+      S.parses += 1;
+      const t0 = Date.now();
+      __turn.world = structuredClone(JSON.parse(fs.readFileSync(__file, 'utf8')));
+      S.parseMs += Date.now() - t0;
+      __turn.dataDir = dataDir;
+      return __turn.world;
+    } catch {
+      __turn.world = null;
+      return null;
+    }
+  }
   const file = statePath(dataDir);
   let __w = null;
   try {
@@ -2305,10 +2360,14 @@ export function loadState(dataDir) {
     if (__stateCache.world && __stateCache.key === key
       && __stateCache.mtime === st.mtimeMs && __stateCache.size === st.size) {
       // 文件没变：直接给一份克隆，连迁移都不用再跑
+      S.hits += 1;
       return __stateCache.world;
     } else {
       __w = __loadStateInner(dataDir);
-      __stateCache = { key, mtime: st.mtimeMs, size: st.size, world: structuredClone(__w) };
+      S.parses += 1;
+    const t0 = Date.now();
+    __stateCache = { key, mtime: st.mtimeMs, size: st.size, world: structuredClone(__w) };
+    S.parseMs += Date.now() - t0;
     }
   } catch {
     __w = __loadStateInner(dataDir);
@@ -2531,6 +2590,17 @@ export function endStateBatch(dataDir) {
 }
 
 export function saveState(dataDir, world) {
+  const __turn = __turnAls.getStore();
+  if (__turn && !__turn.flushing) {
+    __turn.world = world;
+    __turn.dataDir = dataDir;
+    __turn.dirty = true;
+    globalThis.__stateStats.saves += 1;
+    return;
+  }
+  const S = globalThis.__stateStats;
+  S.saves += 1;
+  const __t0 = Date.now();
   // 批量模式下只记住最后一次，不真的写盘（一轮聊天能少写十几次 1MB）
   if (__stateBatch) {
     __stateBatch.world = world;
@@ -2544,6 +2614,7 @@ export function saveState(dataDir, world) {
   fs.mkdirSync(worldDir(dataDir), { recursive: true });
   const tmp = `${file}.tmp`;
   // 不再 pretty-print：省一半体积与序列化时间（线上存档已 1MB+）
+  S.writes += 1;
   fs.writeFileSync(tmp, JSON.stringify(world), 'utf8');
   fs.renameSync(tmp, file);
 
