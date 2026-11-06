@@ -13,6 +13,8 @@ import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
+import { refreshTitles } from './occupation.js';
+import { ensureStalls } from './stalls.js';
 import { ensureFame } from './reputation.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
@@ -1029,6 +1031,8 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
       const evicted = evictOutsiders(world);          // 混进后宅的外人，请出去
+      try { refreshTitles(world); } catch { /* 忽略 */ }   // 身份跟着营生变
+      try { ensureStalls(world, 'street'); } catch { /* 忽略 */ }  // 街上的摊子按点来去
       const collapsed = collapseRoomPlaces(world);   // 房间收回账上，不再各占一个地点
       const a0 = pruneRemoteCourts(world);
       const a = pruneForeignRooms(world) + a0;

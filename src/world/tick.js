@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 世界自己往前走：每个时辰推一格，不写一句台词。
  *
  * 这一层只改事实（价格、民心、粮、债），不碰对话、不碰戏。
@@ -9,6 +9,9 @@
  *   ② 每一格都要能追：谁变了、为什么变，进 events；
  *   ③ 不许制造"无事发生"的假推进——没变化就不写。
  */
+
+import { refreshTitles } from './occupation.js';
+import { ensureStalls } from './stalls.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -100,6 +103,17 @@ export function advanceWorldTick(world, hour) {
         l.owed = round2(num(l.owed || principal) + interest);
       }
     }
+  } catch { /* 忽略 */ }
+
+  // ── ④ 身份标签随日子变 + 街头摊子按点来去 ──
+  try {
+    const t = refreshTitles(world);
+    if (t) note += `${note ? '；' : ''}${t} 人换了身份`;
+  } catch { /* 忽略 */ }
+  try {
+    const st = ensureStalls(world, 'street');
+    if (st > 0) note += `${note ? '；' : ''}街上多了 ${st} 个摊`;
+    else if (st < 0) note += `${note ? '；' : ''}${-st} 个摊收了`;
   } catch { /* 忽略 */ }
 
   return { grain: grainMoved, cities: citiesMoved, note: note || '无事' };
