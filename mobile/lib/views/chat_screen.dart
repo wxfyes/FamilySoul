@@ -712,6 +712,15 @@ class _ChatScreenState extends State<ChatScreen> {
           setState(() {
             _activeDomainIndex = index;
           });
+          // 切回世界：不管之前滚到哪，都回到最新一条
+          if (index == 0) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _scrollToBottom(force: true);
+              Future<void>.delayed(const Duration(milliseconds: 180), () {
+                if (mounted) _scrollToBottom(force: true);
+              });
+            });
+          }
         }
       },
       child: AnimatedContainer(

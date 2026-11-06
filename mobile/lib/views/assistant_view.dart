@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -279,7 +280,24 @@ class _AssistantViewState extends State<AssistantView> {
                             const SizedBox(width: 8),
                           ],
                           Flexible(
-                            child: GestureDetector(
+                            child: Column(
+                              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                if (!isUser)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 2, bottom: 4),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.22 : 0.10),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.35)),
+                                      ),
+                                      child: const Text('天机助手',
+                                          style: TextStyle(fontSize: 10.5, color: Color(0xFF60A5FA))),
+                                    ),
+                                  ),
+                                GestureDetector(
                               onLongPress: () {
                                 Clipboard.setData(ClipboardData(text: msg.text));
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -318,6 +336,13 @@ class _AssistantViewState extends State<AssistantView> {
                                   ),
                                 ),
                               ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  DateFormat('HH:mm').format(msg.at),
+                                  style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.28)),
+                                ),
+                              ],
                             ),
                           ),
                           if (isUser) ...[
