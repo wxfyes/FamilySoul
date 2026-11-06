@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 每个人今天想做什么：不是剧本，是他自己的打算。
  *
  * 规矩：
@@ -6,6 +6,9 @@
  *   ② 目标会被推进、会成、会败、会改主意；
  *   ③ 引擎只给"他想做什么"，怎么说、做不做，交给天道与他自己的处境。
  */
+
+import { materializeRoom } from './residence.js';
+import { moveActor } from './position.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -71,7 +74,7 @@ export function refreshGoals(world) {
   let n = 0;
   for (const a of Object.values(world?.actors || {})) {
     if (!a || a.dead || a.jailed) continue;
-    if (String(a.id).startsWith('usr_')) continue;      // 真人的事由玩家自己定
+    if (String(a.id).startsWith('usr_') || a.id === 'husband' || a.humanBound) continue;   // 真人的事由玩家自己定
     const g = makeGoal(world, a);
     if (g) { a.goal = { ...g, sinceDay: day }; n += 1; }
     else delete a.goal;
@@ -91,8 +94,25 @@ export function pursueGoals(world) {
     if (!a || a.dead || a.jailed || !a.goal) continue;
     if (a.awayUntil) continue;
     const g = a.goal;
+    // 目标地点没展开/没写，就按他的身份给一处该去的地方
+    if (!g.place) {
+      const home = world.places?.[a.home];
+      if (a.household && home?.rooms?.hall) g.place = home.rooms.hall.id;
+      else if (a.household && home?.rooms?.garden) g.place = home.rooms.garden.id;
+      else g.place = a.location || 'street';
+    }
+    if (g.place && String(g.place).includes('__') && !world.places?.[g.place]) {
+      const [pid, key] = String(g.place).split('__');
+      const made = materializeRoom(world, pid, key);
+      g.place = (made && world.places?.[made]) ? made : null;
+    }
+    if (!g.place || !world.places?.[g.place]) {
+      const home = world.places?.[a.home];
+      g.place = home?.rooms?.hall?.id || home?.rooms?.garden?.id || 'street';
+    }
     if (g.place && g.place !== a.location && hour <= num(g.due)) {
       const mv = moveActor(world, a.id, g.place, 'world', '办自己的事');
+      if (!mv?.ok) console.log(`[Goal] ${a.name} 没走成：${mv?.error || '未知'}（去${g.place}）`);
       if (mv?.ok) { a.activity = { text: g.text, at: hour, day: num(world.clock?.day) || 1 }; n += 1; }
     }
     // 到期：成或不成，都记下来

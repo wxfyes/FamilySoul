@@ -31,7 +31,9 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
 
   // 真人登着的角色：只有他自己点界面才动
   // 真人角色不能被别人随意搬；但主人当面送客（note 带"送客"）是明确的离场指令
-  if (isHumanBound(world, actorId) && reason !== 'ui' && !/送客/.test(String(note || ''))) {
+  // 自己的打算、自己的走动、主人当面送客——都算"自己走"，真人绑定也放行
+  const selfMove = /办自己的事|自己走动|送客|通禀允入/.test(String(note || ''));
+  if (isHumanBound(world, actorId) && reason !== 'ui' && !selfMove) {
     return { ok: false, error: '真人角色不接受世界移动' };
   }
 

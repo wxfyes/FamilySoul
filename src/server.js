@@ -17,6 +17,8 @@ import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, should
 import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { beginStateBatch, endStateBatch } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
+import { advanceWorldTick } from './world/tick.js';
+import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
 import { ensureRealms } from './world/realm.js';
@@ -4246,6 +4248,32 @@ const STARTED_AT = Date.now();
         .slice(0, 12)
         .map((a) => ({ name: a.name, doing: a.goal.text, due: a.goal.due }));
       return sendJson(res, 200, { ok: true, day, log, goals });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+
+  // 手动推一格世界（验收用）：POST /api/admin/tick-run
+  if (req.method === 'POST' && pathname === '/api/admin/tick-run') {
+    try {
+      const body = await parseJsonBody(req, 8 * 1024);
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const world = loadState(DATA_DIR);
+      world.flags = world.flags || {};
+      delete world.flags.lastTick;
+      if (body && body.regen) { world.flags.goalDay = 0; for (const a of Object.values(world.actors || {})) if (a) delete a.goal; }
+      let goalsInfo = null;
+      let tick;
+      try {
+        const fresh = refreshGoals(world);
+        const moved = pursueGoals(world);
+        goalsInfo = { fresh, moved };
+      } catch (e) { goalsInfo = { error: e.message }; }
+      tick = advanceWorldTick(world, Number(world.clock?.hour) || 0);
+      saveState(DATA_DIR, world);
+      return sendJson(res, 200, { ok: true, tick, goalsInfo, day: world.clock?.day, hour: world.clock?.hour });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }
