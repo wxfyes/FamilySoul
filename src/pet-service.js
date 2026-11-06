@@ -1111,6 +1111,9 @@ export class PetService {
         const today = Number(wR.clock?.day) || 1;
         if (Number(a.lastTalkDay) !== today) { a.lastTalkDay = today; a.talkToday = 0; }
         if (Number(a.talkToday || 0) >= 5) continue;
+        // 初次打交道：先有"一面之缘"的底子，再涨这一分
+        if (mine.trust == null) mine.trust = 5;
+        if (mine.desire == null) mine.desire = 0;
         mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 1) * 10) / 10);
         a.talkToday = Number(a.talkToday || 0) + 1;
         changed = true;

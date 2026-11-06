@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 暗号与亲密状态机 —— 契约，不是提示词
  *
  * 铁律：**只有引擎能切换状态**，模型输出不得影响状态。
@@ -10,9 +10,15 @@ import { loadState, saveState, appendEvents, nextEvent } from './state.js';
 import { sceneAudience } from './scene.js';
 import { evaluateBedIntent, resolveBedPartner } from './bedchamber.js';
 
+/**
+ * 暗号只有一组：12345。
+ * 第一次对出 → 解禁；解禁状态下再对一次 → 事毕归位。
+ * 不再用任何"床笫词表"去猜——猜出来的都是误触。
+ */
 export function detectRitual(text) {
-  const res = evaluateBedIntent(text);
-  return { unlock: res.inBed, finish: res.shouldEnd };
+  const has = String(text || '').includes('12345');
+  if (!has) return { unlock: false, finish: false };
+  return { unlock: true, finish: false };
 }
 
 export function resolveRitualActor(world, roleName, memberKey = 'husband') {
@@ -56,6 +62,11 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
   if (!actorId || !world.actors?.[actorId]) return null;
 
   const myPlace = world.actors?.[memberKey]?.location || world.actors?.husband?.location;
+  // 暗号只对"跟前的人"生效：人不在跟前，一律不结算
+  if (world.actors?.[actorId]?.location !== myPlace) {
+    console.warn(`[Ritual] ${world.actors?.[actorId]?.name || actorId} 不在跟前，暗号不作数`);
+    return null;
+  }
   // 遵循军规第八条：物理挪移全由客户端交互控制，暗号欢好就地在当前榻上展开，绝不在聊天中偷听瞬移
   const audience = myPlace ? sceneAudience(world, myPlace, memberKey) : { isPublic: false, otherHumans: [] };
   if (hit.unlock && audience.isPublic) {
@@ -73,6 +84,14 @@ export function prepareRitual(dataDir, { text, roleName, memberKey = 'husband' }
 
   const target = world.actors[actorId];
   target.intimacy = target.intimacy || { level: 0, tone: 0, lastAt: 0, ritual: 'solemn' };
+
+  // 已经解禁的人，再对一次 12345 就是"事毕"
+  if (hit.unlock && target.intimacy.ritual === 'unlocked') {
+    target.intimacy.ritual = 'solemn';
+    target.intimacy.tone = target.intimacy.level >= 2 ? 1 : 0;
+    saveState(dataDir, world);
+    return { unlock: false, finish: true, actorId, tone: target.intimacy.tone, ritual: 'solemn' };
+  }
 
   if (hit.unlock) {
     target.intimacy.ritual = 'unlocked';

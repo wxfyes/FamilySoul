@@ -1141,6 +1141,56 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
 
+      // 一次性：阶级人物被挪进王宅/住错府的，按 id 归回本家府邸
+      try {
+        if (!world.flags?.classHomeFixV1) {
+          const moved = [];
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.origin !== 'city_class') continue;
+            if (a.spouse === 'husband') continue;
+            const m = String(a.id).match(/^(.+?)_(gentry|servant)_(\d+)_/);
+            if (!m) continue;
+            const estateId = `${m[1]}_estate_${m[3]}`;
+            if (!world.places?.[estateId]) continue;
+            if (a.home === estateId && a.location === estateId) continue;
+            moved.push(`${a.name}:${world.places?.[a.location]?.name || a.location}→${world.places?.[estateId]?.name || estateId}`);
+            a.home = estateId;
+            a.location = estateId;
+          }
+          // 内眷被挪到别处的，归回王宅正房
+          const consorts = Object.values(world.actors || {}).filter((a) => a && !a.dead
+            && /正妻|如夫人|二房|通房/.test(String(a.role || '')) && world.places?.husband_room);
+          for (const a of consorts) {
+            if (a.home === 'husband_room' && a.location === 'husband_room') continue;
+            moved.push(`${a.name}→正房`);
+            a.home = 'husband_room';
+            a.location = 'husband_room';
+          }
+          world.flags = world.flags || {};
+          world.flags.classHomeFixV1 = { at: Date.now(), moved };
+          if (moved.length) console.log(`[Space] 归位 ${moved.length} 人：${moved.slice(0, 6).join('、')}`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：城里阶级人物被暗号误结算成"相好"的，归零
+      try {
+        if (!world.flags?.classIntimacyFixV1) {
+          const cleared = [];
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.origin !== 'city_class') continue;
+            if (!a.intimacy?.consummated) continue;
+            if (a.spouse === 'husband') continue;
+            a.intimacy.consummated = false;
+            a.intimacy.level = 0;
+            a.intimacy.lastAt = 0;
+            cleared.push(a.name);
+          }
+          world.flags = world.flags || {};
+          world.flags.classIntimacyFixV1 = { at: Date.now(), cleared };
+          if (cleared.length) console.log(`[Intimacy] 清理阶级误标：${cleared.join('、')}`);
+        }
+      } catch { /* 忽略 */ }
+
       // 一次性：阶级人物被误标成"相公府里人"，清掉（他们有自己的府）
       try {
         if (!world.flags?.classHouseholdFixV1) {
