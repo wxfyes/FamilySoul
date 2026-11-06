@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 聊天里的“世界动作”：买米、赌、走货、叫人、遣人、去某处。
  *
  * 单一入口：聊天流程调用一次，返回要告诉玩家的【提示】。
@@ -153,12 +153,42 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
+  // 叫护院家丁（当差的）：从宅里各处提到议事厅
+  if (/(护院|家丁|当差|当值|门房)/.test(say) && /(叫|来|进来|传|提|人呢)/.test(say)) {
+    const hall = hallOf(world);
+    const hereName = String(world.places?.[me.location]?.name || '');
+    const estate = hereName.includes('·') ? hereName.split('·').slice(0, 2).join('·') : '';
+    // 只提当值的这一班：最多 8 人，其余照旧守各处
+    const candidates = Object.values(world.actors || {}).filter((a) => {
+      if (!a || a.dead || a.id === me.id) return false;
+      if (!isOuterStaff(a)) return false;
+      if (a.location === hall) return false;
+      const pn = String(world.places?.[a.location]?.name || '');
+      const hn = String(world.places?.[a.home]?.name || '');
+      return pn.startsWith(estate) || hn.startsWith(estate);
+    }).slice(0, 8);
+    const names = [];
+    for (const a of candidates) {
+      const mv = hall ? moveActor(world, a.id, hall, 'world', '厅上候令') : { ok: false };
+      if (mv?.ok) names.push(a.name);
+    }
+    notices.push(names.length
+      ? `${names.join('、')}共 ${names.length} 人到了议事厅候令（其余照旧守各处）。`
+      : '（宅里此刻没有当差的护院家丁。）');
+  }
+
   // 叫人来（单人 / 都来）
-  const callAll = /(都|你们|大伙|全)[^。]{0,8}(来|过来|到.{0,4}(我|这)|回来)/.test(say);
+  const staffWords = /护院|家丁|当差|当值|门房/.test(say);
+  const callAll = !staffWords && /(都|你们|大伙|全)[^。]{0,8}(来|过来|到.{0,4}(我|这)|回来)/.test(say);
   const mCall = /(?:让|叫|请|唤)\s*([\u4e00-\u9fa5]{2,4})\s*(?:来|到|过来|上前)/.exec(say);
   if (callAll || mCall) {
+    const hereName0 = String(world.places?.[me.location]?.name || '');
+    const estate0 = hereName0.includes('·') ? hereName0.split('·').slice(0, 2).join('·') : '';
+    const isMyKin = (a) => (String(a.spouse || '') === 'husband' && /正妻|如夫人|二房|侧室|妾|通房|丫鬟/.test(String(a.role || '')))
+      || (estate0 && String(world.places?.[a.home]?.name || '').startsWith(estate0)
+        && /正妻|如夫人|二房|侧室|妾|通房|丫鬟/.test(String(a.role || '')));
     const targets = callAll
-      ? Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && isKin(a))
+      ? Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && isMyKin(a)).slice(0, 8)
       : [findByName(world, mCall?.[1])].filter(Boolean);
     const names = [];
     for (const a of targets) {

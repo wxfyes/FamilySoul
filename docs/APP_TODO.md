@@ -62,3 +62,23 @@
 
 - 服务端热更新：解包后必须 `kill $(cat server.pid)` 再 `./start.sh`（`self-update` 有时不换进程）。
 - App 包：安卓 `flutter build apk --release`，iOS 走 GitHub Actions。
+
+## 九、军中兵马分列
+
+**服务端状态：已就绪（等 App 渲染）**
+
+`GET /api/me` → `military` 里新增：
+
+```json
+{
+  "troops": 22,          // 账上私兵总数
+  "kinds": { "guard": 6, "retainer": 14 },
+  "houseGuards": 87,     // 府里"家丁"真人数量
+  "retainers": 60        // 府里"护院"真人数量
+}
+```
+
+App 面板建议分三行列：
+- 家丁：houseGuards
+- 护院：retainers
+- 私兵：troops（kinds 作细分）
