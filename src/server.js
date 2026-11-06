@@ -2102,6 +2102,24 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 世界日报：今天世界自己发生了什么（米价、民心、摊子、谁有了打算）
+    if (req.method === 'GET' && matchRoute('/world/daily-report')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const world = loadState(DATA_DIR);
+        const day = Number(world.clock?.day) || 1;
+        const log = (world.flags?.tickLog || []).filter((x) => x && Number(x.day) === day).slice(-24);
+        const goals = Object.values(world.actors || {})
+          .filter((a) => a && !a.dead && a.goal && !String(a.id).startsWith('usr_'))
+          .slice(0, 12)
+          .map((a) => ({ name: a.name, doing: a.goal.text, 到: a.goal.due }));
+        return sendJson(res, 200, { ok: true, day, log, goals });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 院子里有什么：GET /api/world/room?place=xxx
     if (req.method === 'GET' && matchRoute('/world/room')) {
       try {
@@ -4214,6 +4232,25 @@ const STARTED_AT = Date.now();
       return sendJson(res, 500, { ok: false, error: err.message });
     }
   }
+
+  // 世界日报：今天世界自己发生了什么
+  if (req.method === 'GET' && matchRoute('/world/daily-report')) {
+    try {
+      const member = resolveMember(req, url);
+      if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+      const world = loadState(DATA_DIR);
+      const day = Number(world.clock?.day) || 1;
+      const log = (world.flags?.tickLog || []).filter((x) => x && Number(x.day) === day).slice(-24);
+      const goals = Object.values(world.actors || {})
+        .filter((a) => a && !a.dead && a.goal && !String(a.id).startsWith('usr_'))
+        .slice(0, 12)
+        .map((a) => ({ name: a.name, doing: a.goal.text, due: a.goal.due }));
+      return sendJson(res, 200, { ok: true, day, log, goals });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
 
   return sendJson(res, 404, { ok: false, error: `未找到对应接口: ${pathname}` });
 });

@@ -12,6 +12,7 @@
 
 import { refreshTitles } from './occupation.js';
 import { ensureStalls } from './stalls.js';
+import { refreshGoals, pursueGoals } from './goals.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -128,6 +129,13 @@ export function advanceWorldTick(world, hour) {
     }
   } catch { /* 忽略 */ }
 
+  // ── ③.6 每人自己的打算：一天一遍，逐时辰推进 ──
+  try {
+    const fresh = refreshGoals(world);
+    const moved2 = pursueGoals(world);
+    if (fresh || moved2) note += `${note ? '；' : ''}${fresh} 人有了打算，${moved2} 人动了身`;
+  } catch { /* 忽略 */ }
+
   // ── ④ 身份标签随日子变 + 街头摊子按点来去 ──
   try {
     const t = refreshTitles(world);
@@ -137,6 +145,15 @@ export function advanceWorldTick(world, hour) {
     const st = ensureStalls(world, 'street');
     if (st > 0) note += `${note ? '；' : ''}街上多了 ${st} 个摊`;
     else if (st < 0) note += `${note ? '；' : ''}${-st} 个摊收了`;
+  } catch { /* 忽略 */ }
+
+  // 记进当日流水，供"世界日报"读
+  try {
+    world.flags.tickLog = Array.isArray(world.flags.tickLog) ? world.flags.tickLog : [];
+    if (note) {
+      world.flags.tickLog.push({ day, hour: h, note, at: Date.now() });
+      if (world.flags.tickLog.length > 48) world.flags.tickLog = world.flags.tickLog.slice(-48);
+    }
   } catch { /* 忽略 */ }
 
   return { grain: grainMoved, cities: citiesMoved, note: note || '无事' };

@@ -167,6 +167,9 @@ export function routineFor(world, actor) {
 export function roomForHour(world, actor, hour) {
   const routine = routineFor(world, actor);
   if (!routine.length) return null;
+  // 活人不按钟点搬：作息只作参考，去哪由她自己的打算决定
+  if (actor.household) return null;
+
   // 主人家眷白天不锁死在屋里：只有夜里（21 时后）才回房，白天随她在府里走动
   const isHousehold = Boolean(actor.household);
   const hh = num(hour);

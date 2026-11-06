@@ -1070,6 +1070,27 @@ export class PetService {
       }
     } catch (err) { console.warn('[Gate] 清人失败：', err.message); }
 
+    // 8.82 话里点到谁 + 让他走：不管有没有"让/叫"，只要点了名又说了走，就真让他走
+    try {
+      if (/回去|回家|回房|回屋|回铺子|走吧|退下|去吧|散了吧/.test(String(sayText || ''))) {
+        const wN = loadState(this.dataDir);
+        const meN = wN.actors?.[this._viewerActorId || 'husband'] || wN.actors?.husband;
+        const named = Object.values(wN.actors || {}).filter((a) => a && !a.dead && a.name
+          && String(sayText).includes(a.name) && a.id !== meN?.id && !String(a.id).startsWith('usr_'));
+        for (const who of named.slice(0, 3)) {
+          let dest = who.quarters || who.home;
+          if (!dest || !wN.places?.[dest] || dest === who.location) dest = 'street';
+          if (!wN.places?.[dest] || dest === who.location) continue;
+          const mv = moveActor(wN, who.id, dest, 'world', '送客离场');
+          if (mv?.ok) {
+            saveState(this.dataDir, wN);
+            reply = `（${who.name}应了一声，往${wN.places[dest].name}去了。）\n` + String(reply || '');
+            console.log(`[Departure] 点名走人：${who.name} → ${wN.places[dest].name}`);
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
+
     // 8.83 相公点名让谁去某处（"让紫嫣回家""叫小翠回房"）：真搬
     try {
       const mGo = /(?:让|叫|命|打发|请)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下)/.exec(String(sayText || ''));
@@ -1084,6 +1105,10 @@ export class PetService {
             const prop = (wG.assets?.properties || []).find((x) => x && (String(x.keeper || '') === String(who.id) || String(x.owner || '') === String(who.id)) && x.place);
             dest = prop?.place || null;
           }
+          // 目的地跟现在同一处院落（只是同一栋楼里换个房间），那不算"走"
+          const curRoot = String(wG.places?.[who.location]?.parent || who.location);
+          const destRoot = dest ? String(wG.places?.[dest]?.parent || dest) : '';
+          if (dest && (dest === who.location || destRoot === curRoot)) dest = null;
           if (!dest) dest = who.quarters || who.home || null;
           if (!dest || !wG.places?.[dest]) {
             try { dest = ensureDwelling(wG, who.id, who.name, 'street'); } catch { dest = null; }
