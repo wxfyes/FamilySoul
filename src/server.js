@@ -1660,7 +1660,14 @@ const STARTED_AT = Date.now();
           };
         })(),
         here: hereNames,
-        pendingAction: world.pendingAction || null,
+        // 待付款只给当事人看：别人的账单不能弹到新人头上
+        pendingAction: (() => {
+          const p = world.pendingAction;
+          if (!p) return null;
+          const meId = String(actorId || 'husband');
+          const owner = String(p.by || 'husband');
+          return owner === meId ? p : null;
+        })(),
         tasks: (world.tasks || []).filter((t) => t && t.status === 'doing').map((t) => ({
           id: t.id, who: t.name, what: t.what,
           dueDay: t.dueDay, last: (t.log || []).slice(-1)[0]?.text || '',

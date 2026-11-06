@@ -14,6 +14,7 @@ import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
 import { ensureResidence } from './residence.js';
+import { fallbackName } from './migration.js';
 import { refreshTitles } from './occupation.js';
 import { ensureStalls } from './stalls.js';
 import { ensureFame } from './reputation.js';
@@ -1040,6 +1041,27 @@ export function migrateOwnership(world) {
           if (n >= 5) continue;
           ensureResidence(world, pid, { grade: Number(pl.grade) || 7, ownerId: pl.owner || null });
           console.log(`[Spaces] 补齐宅院房间账：${pl.name || pid}（原 ${n} 间）`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：把早年自拟名单生成的护院/家丁，改成世界姓名池里的名字（id 不变）
+      try {
+        if (!world.flags?.staffRenameV1) {
+          let renamed = 0;
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.dead) continue;
+            if (!/护院|家丁/.test(String(a.role || ''))) continue;
+            if (!String(a.id || '').startsWith('staff_')) continue;
+            if (!/阿[福顺贵全安平庆寿泰和义勇]/.test(String(a.name || ''))) continue;
+            const nm = fallbackName(world, 'male');
+            if (!nm) continue;
+            console.log(`[Staff] 改名：${a.name} → ${nm}`);
+            a.name = nm;
+            renamed += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.staffRenameV1 = { at: Date.now(), renamed };
+          console.log(`[Staff] 护院改名完成：${renamed} 人`);
         }
       } catch { /* 忽略 */ }
 
