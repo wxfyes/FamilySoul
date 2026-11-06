@@ -1132,6 +1132,12 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (!name) continue;
         const badName = /^(几|多|若干|一些|这个|那个|某|一两|两三|好几个|数个)|几个|多少|若干|随便|随便开|开个/.test(name);
         const shopSuffix = /铺|号|栈|坊|楼|店|行|庄|堂|馆|局|肆|轩|斋/.test(name);
+        // 入账资格：产业名必须是铺号（客房、量词、账单一律不收）
+        if (!isBusinessName(name)) {
+          applied.push(`忽略产业：「${name}」不像铺号`);
+          console.log(`[Property] 拒绝造产业：${name}（不像铺号）`);
+          continue;
+        }
         if (badName || !shopSuffix || name.length < 2 || name.length > 12) {
           applied.push(`忽略产业：「${name}」不像铺号`);
           console.log(`[Property] 拒绝造产业：${name}（不是铺号）`);

@@ -7,17 +7,23 @@
  *   { day, hour, delta, title, by, balance }
  */
 
+import { moneyCategory, JUNK_PLACE } from './ledger-rules.js';
+
 const MAX = 300;
 
 export function appendLedger(world, { delta = 0, title = '', by = 'husband' } = {}) {
   const amount = Math.round(Number(delta) * 100) / 100;
   if (!amount) return null;
+  // 入账资格：标题不能是"付3两"这类话，且必须能归入白名单类别
+  let cleanTitle = String(title || (amount > 0 ? '进账' : '花销')).slice(0, 24);
+  if (JUNK_PLACE.test(cleanTitle)) cleanTitle = amount > 0 ? '进账' : '开销';
   world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
   const entry = {
     day: world.clock?.day || 1,
     hour: world.clock?.hour || 0,
     delta: amount,
-    title: String(title || (amount > 0 ? '进账' : '花销')).slice(0, 24),
+    title: cleanTitle,
+    category: moneyCategory(cleanTitle, amount),
     by,
     balance: Math.round((Number(world.assets?.silver) || 0) * 100) / 100,
   };

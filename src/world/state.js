@@ -1178,7 +1178,19 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
 
-      // 一次性：所有城的铺面配人（掌柜/跑堂/伙计/摊主）
+      // 一次性：清掉被误立成产业的客房/上房
+      try {
+        if (!world.flags?.roomPropFixV1) {
+          const before = (world.assets?.properties || []).length;
+          world.assets.properties = (world.assets.properties || []).filter((p) => !(p && /上房|客房|房间|厢房|卧房|雅间/.test(String(p.name || ''))));
+          const removed = before - world.assets.properties.length;
+          world.flags = world.flags || {};
+          world.flags.roomPropFixV1 = { at: Date.now(), removed };
+          if (removed) console.log(`[Property] 清掉误立的客房产业：${removed} 处`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：所有城的铺面配人      // 一次性：所有城的铺面配人（掌柜/跑堂/伙计/摊主）
       try {
         if (!world.flags?.shopStaffV1) {
           let n = 0;
