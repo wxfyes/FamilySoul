@@ -1,3 +1,4 @@
+import { addMemory } from './memory.js';
 /**
  * 个人主线 —— 每个真人角色都有自己的难关，不围着相公转
  *
@@ -126,14 +127,7 @@ export function ensureArcs(world) {
       try {
         const hasCause = (world.memories || []).some((m) => /于子归.*(借|名号|债)/.test(String(m?.text || '')));
         if (!hasCause && id === 'liuwenxia') {
-          world.memories = Array.isArray(world.memories) ? world.memories : [];
-          world.memories.push({
-            text: '于子归拿于家酒肆的名号向钱通海借了一笔银子，工地上赔了，债却记在铺子头上',
-            day: world.clock?.day || 1,
-            at: Date.now(),
-            about: ['liuwenxia', 'yujie'],
-            visible: 'private',
-          });
+          addMemory(world, { text: '于子归拿于家酒肆的名号向钱通海借了一笔银子，工地上赔了，债却记在铺子头上', about: ['liuwenxia', 'yujie'], visible: 'private' });
           world.clues = Array.isArray(world.clues) ? world.clues : [];
           if (!world.clues.some((c) => /于子归.*借/.test(String(c?.text || '')))) {
             world.clues.push({

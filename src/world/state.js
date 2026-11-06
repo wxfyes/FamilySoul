@@ -20,6 +20,7 @@ import { syncNames } from './identity.js';
 import fs from 'node:fs';
 import { lunarFromTable } from './lunar-table.js';
 import path from 'node:path';
+import { migrateMemories } from './memory.js';
 
 export const STATE_VERSION = 1;
 
@@ -1479,6 +1480,7 @@ export function migrateOwnership(world) {
       seen.add(t);
       return true;
     });
+    migrateMemories(world);
   } catch { /* 忽略 */ }
   let fixedGhosts = 0;
   // 强力清除所有 clinic / workshop 等英文幽灵地名，全员位置自愈归位（60 秒一次，别每读档都刷）

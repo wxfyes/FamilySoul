@@ -9,6 +9,7 @@
  * 铁律：只报告，不擅自改世界。要改必须人来点头。
  */
 import { moveActor } from './position.js';
+import { MEMORY_CAP } from './memory.js';
 
 
 function walkNumbers(obj, pathStr, out, depth = 0) {
@@ -54,7 +55,7 @@ export function auditWorld(world) {
   };
   cap(world.pending, 8, '暗涌');
   cap(world.proactive, 8, '推送');
-  cap(world.memories, 120, '记忆');
+  cap(world.memories, MEMORY_CAP, '记忆');
   cap(world.clues, 60, '线索');
   cap(world.appointments, 20, '约定');
 

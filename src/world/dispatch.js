@@ -16,6 +16,7 @@ import { queueProactive } from './clock.js';
 import { propagateMood, easeBonds } from './bonds.js';
 import { moveActor } from './position.js';
 import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
+import { addMemory } from './memory.js';
 
 
 function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
@@ -557,14 +558,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           if (!world.milestones.includes(mText)) {
             world.milestones.push(mText);
           }
-          world.memories = Array.isArray(world.memories) ? world.memories : [];
-          world.memories.push({
-            text: `相公与大娘子婉儿商定，正式迎纳${actor.name}为${rank}，进门奉茶`,
-            day: world.clock?.day || 1,
-            at: Date.now(),
-            about: [whoId, 'waner'],
-            visible: 'public',
-          });
+          addMemory(world, { text: `相公与大娘子婉儿商定，正式迎纳${actor.name}为${rank}，进门奉茶`, about: [whoId, 'waner', 'husband'], visible: 'public' });
           applied.push(`大婚迎纳:${actor.name} 为【${rank}】`);
           console.log(`[Marriage] 喜报！${actor.name} 正式进门册封为【${rank}】！`);
         }
@@ -589,17 +583,12 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         // 长期记忆：一句话，永久保存，不受 14 条对话窗口限制
         const text = String(args.text || '').trim();
         if (!text) continue;
-        world.memories = Array.isArray(world.memories) ? world.memories : [];
-        const dup = world.memories.some((m) => m && m.text && m.text.slice(0, 12) === text.slice(0, 12));
-        if (dup) continue;
-        world.memories.push({
-          text: String(args.text || '').slice(0, 120),
-          day: world.clock.day,
-          at: Date.now(),
+        const rec = addMemory(world, {
+          text,
           about: String(args.about || args.who || '').split(/[,，、]/).map((x) => x.trim()).filter(Boolean),
           visible: String(args.visible || 'private'),
         });
-        if (world.memories.length > 120) world.memories = world.memories.slice(-120);
+        if (!rec) continue;
         applied.push(`记忆:${text.slice(0, 14)}`);
       } else if (kind === 'ally') {
         // 结盟：合兵打仗
@@ -651,8 +640,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
           about: [toId],
           loan: { from: fromId, to: toId, amount },
         });
-        world.memories = Array.isArray(world.memories) ? world.memories : [];
-        world.memories.push({ text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两，${world.actors[toId]?.name || '她'}欠着`, day: world.clock.day, at: Date.now(), about: [toId], visible: 'private' });
+        addMemory(world, { text: `${world.actors[fromId]?.name || '相公'}借给${world.actors[toId]?.name || '她'}${amount}两，${world.actors[toId]?.name || '她'}欠着`, about: [toId, fromId], visible: 'private' });
         applied.push(`借款:${amount}两 已到账（${world.actors[toId]?.name || toId}）`);
       } else if (kind === 'repay') {
         // 还钱：钱回到出借人手里，承诺作废
@@ -714,14 +702,7 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         target.forgiven = true;
         const debtor = target.loan.to;
         const creditor = target.loan.from;
-        world.memories = Array.isArray(world.memories) ? world.memories : [];
-        world.memories.push({
-          text: `${world.actors?.[creditor]?.name || creditor}免了${world.actors?.[debtor]?.name || debtor}${target.loan.amount}两的债`,
-          day: world.clock.day,
-          at: Date.now(),
-          about: [debtor, creditor].filter(Boolean),
-          visible: 'private',
-        });
+        addMemory(world, { text: `${world.actors?.[creditor]?.name || creditor}免了${world.actors?.[debtor]?.name || debtor}${target.loan.amount}两的债`, about: [debtor, creditor].filter(Boolean), visible: 'private' });
         const rel = world.actors?.[debtor]?.relations?.husband;
         if (rel && typeof rel.trust === 'number') rel.trust = Math.min(100, rel.trust + 5);
         applied.push(`免债:${target.loan.amount}两 已勾销`);

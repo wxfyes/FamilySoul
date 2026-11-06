@@ -31,6 +31,7 @@ import { buildProxyPrompt, wrapProxyLine } from './world/proxy-actor.js';
 import { parseIntent, VERBS } from './world/intent.js';
 import { checkGate } from './world/gate.js';
 import { applyAction } from './world/apply.js';
+import { addMemory, recallMemories } from './world/memory.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -1477,8 +1478,7 @@ export class PetService {
                 const chance = inWindow ? 0.8 : 0.25;
                 if (Math.random() < chance) {
                   who.pregnancy = { days: 0, father: 'husband', sinceDay: wr.clock?.day || 1, born: false };
-                  wr.memories = Array.isArray(wr.memories) ? wr.memories : [];
-                  wr.memories.push({ text: `${who.name}有了身孕`, day: wr.clock?.day || 1, at: Date.now(), about: [who.id, 'husband'], visible: 'private' });
+                  addMemory(wr, { text: `${who.name}有了身孕`, about: [who.id, 'husband'], visible: 'private' });
                   console.log(`[Ritual] ${who.name}有喜了（${age}岁）`);
                 } else {
                   console.log(`[Ritual] ${who.name}这次没中`);
@@ -1590,20 +1590,17 @@ export class PetService {
 
     // 旧事约束：账本没有，就别编（只给约束，不替它写台词）
     try {
-      const askPastH = /(还记得|记不记得|记得吗|以前|上次|那回|从前|当年|旧事)/.test(String(say || ''));
+      const askPastH = /(还记得|记不记得|记得吗|以前|上次|那回|那天|那一晚|前天|昨天|从前|当年|旧事|契纸|地契|钱通海|钱四海|三十五两|35两|2026|做梦|老公)/.test(String(say || ''));
       if (askPastH) {
         const wPH = loadState(this.dataDir);
         const mePH = this._viewerActorId ? wPH.actors?.[this._viewerActorId] : wPH.actors?.husband;
         const herePH = Object.values(wPH.actors || {}).filter((a) => a && !a.dead && a.location === mePH?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
         const namesPH = herePH.map((a) => a.name);
         const idsPH = herePH.map((a) => a.id);
-        const poolPH = (wPH.memories || []).filter((m) => {
-          const t = String(m?.text || '');
-          const about = Array.isArray(m?.about) ? m.about : [];
-          return about.some((id) => idsPH.includes(id)) || namesPH.some((n) => t.includes(n));
-        });
+        const poolPH = recallMemories(wPH, idsPH, { limit: 15, query: say });
+        void namesPH;
         if (poolPH.length) {
-          contextHint += `（【账本·旧事】${poolPH.slice(-4).map((m) => m.text).join('；')}\n`;
+          contextHint += `（【账本·旧事】${poolPH.join('；')}\n`;
           contextHint += '——她要问这些，就照这条说；账本里没有的，只说记不得。）\n';
         } else {
           contextHint += '（【账本·旧事】关于这件事，账本里什么都没有。你只能说自己记不得/没这回事，绝不许编细节，也不要编她的身世或往事。）\n';
@@ -1705,17 +1702,7 @@ export class PetService {
         const bondLines = describeBonds(wHere, hereIds);
         // 旧事：写进账本的永久记忆（亲密、承诺、翻脸）——别让它们随时间消失
         try {
-          const myId2 = this._viewerActorId;
-          const olds = (wHere.memories || [])
-            .filter((m) => {
-              if (!m || !m.text) return false;
-              const about = Array.isArray(m.about) ? m.about : [];
-              if (m.visible === 'public') return true;
-              if (about.includes(myId2) || about.includes('husband')) return true;
-              return /(紫嫣|文霞)/.test(String(m.text)) && String(m.text).includes(String(meA?.name || '紫嫣'));
-            })
-            .slice(-8)
-            .map((m) => String(m.text));
+          const olds = recallMemories(wHere, hereIds, { limit: 12 });
           if (olds.length) {
             bits.push(`你记得的旧事：${olds.join('；')}（提起来要照这些说，别说不记得）`);
             console.log(`[Memory] 旧事 ${olds.length} 条进上下文：${olds[0].slice(0, 24)}`);
@@ -2564,20 +2551,8 @@ export class PetService {
           try {
             const herName = mePost?.name || '';
             const myId = this._viewerActorId;
-            const hisMem = (wPost.memories || [])
-              .filter((m) => {
-                const text = String(m?.text || '');
-                const about = Array.isArray(m?.about) ? m.about : [];
-                if (m?.visible === 'public') return true;
-                if (about.includes(myId) || about.includes('husband') || about.includes('紫嫣') || about.includes('刘文霞')) return true;
-                // 老记忆没有主人：提到她、或提到相公的，都算他们之间的事
-                if (about.length === 0) {
-                  return /(紫嫣|文霞|相公|雅阁|相好)/.test(text);
-                }
-                return false;
-              })
-              .map((m) => String(m?.text || ''))
-              .slice(-12);
+            const hisMem = recallMemories(wPost, [myId], { limit: 12 });
+            void herName;
             const recentLines = [...(this.readHistory(profileKey).messages || [])]
               .slice(-4)
               .map((m) => `${m.role === 'user' ? (herName || '她') : ''}${String(m.text || '').slice(0, 60)}`)
@@ -2771,10 +2746,7 @@ export class PetService {
               console.log(`[Proxy] 主回复已含「${npc.name}」，跳过代演（省一次模型调用）`);
               continue;
             }
-            const npcMem = (wPost.memories || [])
-              .filter((m) => String(m?.text || '').includes(npc.name))
-              .map((m) => String(m.text))
-              .slice(-6);
+            const npcMem = recallMemories(wPost, [npc.id], { limit: 8 });
             const npcFacts = (wPost.promises || [])
               .filter((pr) => !pr.done && String(pr.text || '').includes(npc.name))
               .map((pr) => `他曾应下：${pr.text}`)
@@ -3582,7 +3554,7 @@ export class PetService {
           const pN = buildProxyPrompt({
             actor: target,
             hearer: husN,
-            memories: (wN.memories || []).filter((m) => String(m?.text || '').includes(target.name)).map((m) => String(m.text)).slice(-4),
+            memories: recallMemories(wN, [target.id], { limit: 4 }),
             facts: (wN.npcArcs?.[target.id]?.lastStep ? [`你眼下的事：${wN.npcArcs[target.id].lastStep}`] : []),
             hearerName: husN?.name || '相公',
             hearerPlace: String(wN.places?.[husN?.location]?.name || ''),
@@ -3686,7 +3658,7 @@ export class PetService {
           const pL = buildProxyPrompt({
             actor: pickL,
             hearer: meL,
-            memories: (wL.memories || []).filter((m) => String(m?.text || '').includes(pickL.name)).map((m) => String(m.text)).slice(-3),
+            memories: recallMemories(wL, [pickL.id], { limit: 3 }),
             facts: wL.npcArcs?.[pickL.id]?.lastStep ? [`你眼下的事：${wL.npcArcs[pickL.id].lastStep}`] : [],
             hearerName: meL?.name || '相公',
             hearerPlace: String(wL.places?.[meL?.location]?.name || ''),
@@ -3715,12 +3687,7 @@ export class PetService {
         const hereR = Object.values(wR.actors || {}).filter((a) => a && !a.dead && a.location === meR?.location && a.id !== 'husband' && a.id !== this._viewerActorId);
         const namesR = hereR.map((a) => a.name);
         const idsR = hereR.map((a) => a.id);
-        const poolR = (wR.memories || []).filter((m) => {
-          const t = String(m?.text || '');
-          const about = Array.isArray(m?.about) ? m.about : [];
-          // 只认"关于她本人"的记忆；公开传闻不算她知道的事
-          return about.some((id) => idsR.includes(id)) || namesR.some((n) => t.includes(n));
-        });
+        const poolR = recallMemories(wR, idsR, { limit: 12 });
         console.log(`[Memory] 旧事检查 ask=${askP2} fab=${looksFabricated} pool=${poolR.length} speakers=${namesR.join('、')}`);
         if (poolR.length === 0) {
           const speaker = (String(reply || '').match(/^【([^】\n]{1,12})】/) || [])[1] || (hereR[0]?.name || '她');
@@ -3790,7 +3757,7 @@ export class PetService {
           const pM = buildProxyPrompt({
             actor: who,
             hearer: meM,
-            memories: (wM.memories || []).filter((m) => String(m?.text || '').includes(who.name)).map((m) => String(m.text)).slice(-3),
+            memories: recallMemories(wM, [who.id], { limit: 3 }),
             facts: wM.npcArcs?.[who.id]?.lastStep ? [`你眼下的事：${wM.npcArcs[who.id].lastStep}`] : [],
             hearerName: meM?.name || '相公',
             hearerPlace: String(wM.places?.[meM?.location]?.name || ''),

@@ -6,6 +6,7 @@ import { loadState, worldDate, placeFacts, readRecentEvents, seasonCN, shichenOf
 import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
+import { recallMemories } from './memory.js';
 
 function money(assets) {
   const parts = [];
@@ -171,9 +172,9 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       if (myAppts.length) {
         lines.push(`【你应下的事】${myAppts.map((a) => `第${a.day}日${a.hour}时 在${world.places?.[a.place]?.name || '老地方'}${a.text ? `（${a.text}）` : ''}`).join('；')}`);
       }
-      // 只有与她有关的旧事
-      const myMem = (world.memories || []).filter((m) => m && String(m.text || '').includes(meV.name));
-      if (myMem.length) lines.push(`【你记得的事】${myMem.slice(-6).map((m) => String(m.text).slice(0, 34)).join('；')}`);
+      // 只有与她有关的旧事（统一走 recallMemories，完整保留不截断）
+      const myMem = recallMemories(world, [viewer], { limit: 15 });
+      if (myMem.length) lines.push(`【你记得的旧事（铁证事实，绝不可忘）】${myMem.join('；')}`);
       // 她认得的人：至少有相公/东家这一层关系，别装作不认识
       try {
                 if (viewer === 'liuwenxia') {
@@ -561,11 +562,16 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       /* 忽略 */
     }
 
-    // 长期记忆：不受 14 条对话窗口限制，一直跟着她
+    // 长期记忆：按当前在场人物精准召回与他们的过往旧事（不受 5 条截断与 36 字截断限制）
     try {
-      const mems = Array.isArray(world.memories) ? world.memories.slice(-5) : [];
+      const husLoc = world.actors?.husband?.location;
+      const presentIds = Object.values(world.actors || {})
+        .filter((a) => a && !a.dead && a.id !== 'husband' && a.location === husLoc)
+        .map((a) => a.id);
+      const targetIds = presentIds.length > 0 ? presentIds : ['husband'];
+      const mems = recallMemories(world, targetIds, { limit: 16 });
       if (mems.length > 0) {
-        lines.push(`【旧事】${mems.map((m) => String(m.text || '').slice(0, 36)).join('；')}`);
+        lines.push(`【你与在场之人的过往旧事（铁定事实，对话时必须牢记，绝不可说不记得或前后矛盾）】${mems.join('；')}`);
       }
     } catch {
       /* 忽略 */

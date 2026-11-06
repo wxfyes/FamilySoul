@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadState, saveState, worldDate } from './world/state.js';
 import { isPlaceName } from './world/naming.js';
+import { addMemory } from './world/memory.js';
 
 /**
  * 玩家用户注册与入世管理（安全隔离于 config.json 之外）
@@ -141,14 +142,12 @@ export class UserRegistry {
     };
 
     // 给天道主脑注入初见事实记忆，让 NPC 认识这位新面孔
-    world.memories = Array.isArray(world.memories) ? world.memories : [];
-    world.memories.push({
+    addMemory(world, {
       id: `mem_${Date.now().toString(36)}`,
-      day: world.clock?.day || 1,
       text: `新面孔入城：【${rawName}】（${genderDesc}，春秋${numAge}，${roleName}），初到临江府，落脚在自家小院。`,
-      about: [actorId, 'inn'],
+      about: [actorId],
       visible: 'public',
-      createdAt: Date.now(),
+      kind: 'notice',
     });
 
     saveState(this.dataDir, world);

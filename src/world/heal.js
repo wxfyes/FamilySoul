@@ -1,3 +1,4 @@
+import { trimMemories } from './memory.js';
 ﻿import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
@@ -111,7 +112,8 @@ export function healWorld(world) {
   };
   trim('pending', 8, '暗涌');
   trim('proactive', 8, '推送');
-  trim('memories', 120, '记忆');
+  const memDropped = trimMemories(world);
+  if (memDropped > 0) fixes.push(`记忆按留存规则清理 ${memDropped} 条（先清公告）`);
   trim('clues', 60, '线索');
   trim('appointments', 20, '约定');
 

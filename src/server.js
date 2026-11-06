@@ -50,6 +50,7 @@ import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
 import { canalFrozen } from './world/season.js';
 import { AssistantService } from './assistant-service.js';
 import { UserRegistry } from './user-registry.js';
+import { addMemory } from './world/memory.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -946,7 +947,14 @@ const STARTED_AT = Date.now();
         const places = Object.entries(world.places || {})
           .filter(([id, pl]) => {
             if (id === curId || !pl || !pl.name || pl.private) return false;
-            if (pl.parent) return pl.parent === myHome || pl.parent === curId;
+            if (pl.parent) {
+              if (pl.parent === myHome || pl.parent === curId) return true;
+              // 公开营业场所（酒楼/茶坊/衙署/客栈）的院子也列出来，雅阁、天字阁才搜得到
+              const par = world.places?.[pl.parent];
+              const pub = par && (par.use === 'restaurant' || par.use === 'shop' || par.use === 'court'
+                || /酒楼|茶坊|茶栈|客栈|衙署|县衙|码头/.test(String(par.name || '')));
+              return Boolean(pub);
+            }
             return true;
           })
           .map(([id, pl]) => ({ id, name: pl.name, names: occupied[id] || [], count: (occupied[id] || []).length, near: nearScore([id, pl]) }))
@@ -956,6 +964,16 @@ const STARTED_AT = Date.now();
         // 院子平时只记在父地点的账上（不占地点表）；列菜单时按 id 补进来，人真去了才展开
         try {
           const wantedParents = new Set([myHome, curId].filter(Boolean));
+          // 公开营业的场所（酒楼/茶坊/茶栈/客栈/衙署），不论在哪个城，院子都进菜单，雅阁才搜得到
+          for (const [pid, pl] of Object.entries(world.places || {})) {
+            if (!pl || !pl.rooms) continue;
+            if (wantedParents.has(pid)) continue;
+            const pub = pl.use === 'restaurant' || pl.use === 'shop' || pl.use === 'court'
+              || /酒楼|茶坊|茶栈|客栈|衙署|县衙|码头/.test(String(pl.name || ''));
+            if (pub) wantedParents.add(pid);
+            if (wantedParents.size > 80) break;
+          }
+          let addedRooms = 0;
           for (const pid of wantedParents) {
             const parent = world.places?.[pid];
             if (!parent?.rooms) continue;
@@ -973,8 +991,10 @@ const STARTED_AT = Date.now();
               });
             }
             places.sort((x, y) => (x.near - y.near) || (y.count - x.count) || x.name.localeCompare(y.name, 'zh'));
+            if (addedRooms === 0 || true) addedRooms += Object.keys(parent.rooms).length;
           }
-        } catch { /* 忽略 */ }
+          console.log(`[Menu] 补入院子：父地点 ${wantedParents.size} 处，菜单 ${places.length} 条`);
+        } catch (e) { console.log('[Menu] 补院子失败：', e.message); }
 
         // 常来往：关系网里处得来的人（不是仇家），加进"找人"的第一组
         const friendIds = new Set();
@@ -3196,16 +3216,10 @@ const STARTED_AT = Date.now();
         const body = await parseJsonBody(req, 1024 * 1024);
         const items = Array.isArray(body.items) ? body.items : [{ text: body.text }];
         const world = peek(DATA_DIR);
-        world.memories = Array.isArray(world.memories) ? world.memories : [];
         let added = 0;
         for (const it of items) {
-          const text = String(it?.text || '').trim();
-          if (!text) continue;
-          if (world.memories.some((m) => m && m.text && m.text.slice(0, 12) === text.slice(0, 12))) continue;
-          world.memories.push({ text: text.slice(0, 100), day: Number(it.day) || world.clock.day, at: Date.now() });
-          added += 1;
+          if (addMemory(world, { text: it?.text, day: it?.day, about: it?.about || [], visible: it?.visible || 'private' })) added += 1;
         }
-        if (world.memories.length > 120) world.memories = world.memories.slice(-120);
         saveState(DATA_DIR, world);
         console.log(`[Memory] 已写入 ${added} 条长期记忆，共 ${world.memories.length} 条`);
         return sendJson(res, 200, { ok: true, added, total: world.memories.length });

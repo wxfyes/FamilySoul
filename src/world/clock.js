@@ -32,6 +32,7 @@ import { maybeSpawnBandits, runBanditEcosystem } from './bandits.js';
 import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
+import { addMemory } from './memory.js';
 
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -174,34 +175,14 @@ function advancePregnancies(world, events) {
           isPublic: true,
         }),
       );
-      world.memories = Array.isArray(world.memories) ? world.memories : [];
       if (isWangHousehold) {
-        world.memories.push({
-          text: `第${world.clock.day}日，${a.name}为王家诞下${boy ? '一子' : '一女'}，取名${babyName}，入王家族谱`,
-          day: world.clock.day,
-          at: Date.now(),
-          about: [a.id, 'husband', id],
-          visible: 'public',
-        });
+        addMemory(world, { text: `第${world.clock.day}日，${a.name}为王家诞下${boy ? '一子' : '一女'}，取名${babyName}，入王家族谱`, about: [a.id, 'husband', id], visible: 'public' });
       } else {
         // 社会明面：归夫家
-        world.memories.push({
-          text: `第${world.clock.day}日，${a.name}为${socialFatherName}诞下${boy ? '一子' : '一女'}，取名${babyName}，随夫姓归于家`,
-          day: world.clock.day,
-          at: Date.now(),
-          about: [a.id, socialFather, id],
-          visible: 'public',
-        });
+        addMemory(world, { text: `第${world.clock.day}日，${a.name}为${socialFatherName}诞下${boy ? '一子' : '一女'}，取名${babyName}，随夫姓归于家`, about: [a.id, socialFather, id], visible: 'public' });
         // 天道暗面：相公血脉
-        world.memories.push({
-          text: `第${world.clock.day}日，${a.name}所诞${babyName}（归${socialFatherName}名下），实为相公暗中骨血`,
-          day: world.clock.day,
-          at: Date.now(),
-          about: [a.id, 'husband', id],
-          visible: 'private',
-        });
+        addMemory(world, { text: `第${world.clock.day}日，${a.name}所诞${babyName}（归${socialFatherName}名下），实为相公暗中骨血`, about: [a.id, 'husband', id], visible: 'private' });
       }
-      if (world.memories.length > 120) world.memories = world.memories.slice(-120);
       console.log(`[World] ${a.name}临盆，孩子入世：${babyName}（${boy ? '子' : '女'}，社会父亲:${socialFatherName}，暗父:相公）`);
     }
   }
@@ -371,8 +352,7 @@ function runLifecycle(world, events, queuePush) {
       relations: { husband: { trust: 40, desire: 0, fear: 0, grievance: 0 } },
       schedule: [],
     };
-    world.memories = Array.isArray(world.memories) ? world.memories : [];
-    world.memories.push({ text: `${a.name}生了${isBoy ? '个儿子' : '个女儿'}`, day, at: Date.now(), about: [a.id, 'husband'], visible: 'private' });
+    addMemory(world, { text: `${a.name}生了${isBoy ? '个儿子' : '个女儿'}`, day, about: [a.id, 'husband'], visible: 'private' });
     events.push(nextEvent(world, { action: 'birth', actor: a.id, place: a.location, payload: { text: `${a.name}添了${isBoy ? '个儿子' : '个女儿'}` }, isPublic: true }));
     queuePush?.({ to: 'husband', reason: 'birth', facts: { 生子: a.name }, fallback: `${a.name}生了，母子平安。`, force: true });
   }
@@ -389,8 +369,7 @@ function runLifecycle(world, events, queuePush) {
     a.deadDay = day;
     a.pendingDeath = true;
     events.push(nextEvent(world, { action: 'death', actor: a.id, place: a.location, payload: { text: `${a.name}病故` }, isPublic: true }));
-    world.memories = Array.isArray(world.memories) ? world.memories : [];
-    world.memories.push({ text: `${a.name}病故了`, day, at: Date.now(), about: [a.id, 'husband'], visible: 'private' });
+    addMemory(world, { text: `${a.name}病故了`, day, about: [a.id, 'husband'], visible: 'private' });
     queuePush?.({ to: 'husband', reason: 'death', facts: { 丧: a.name }, fallback: `${a.name}去了。`, force: true });
   }
 
@@ -661,8 +640,7 @@ function runLoanDues(world, events, queuePush) {
     }
     if (day - Number(pr.overdueDay) >= 3 && !pr.failed) {
       pr.failed = true;
-      world.memories = Array.isArray(world.memories) ? world.memories : [];
-      world.memories.push({ text: `${name}赖了一笔账没还`, day, at: Date.now(), about: [borrower], visible: 'private' });
+      addMemory(world, { text: `${name}赖了一笔账没还`, day, about: [borrower], visible: 'private' });
       events.push(nextEvent(world, { action: 'loan_default', actor: borrower, place: null, payload: { text: `${name}赖账` }, isPublic: false }));
       queuePush?.({ to: borrower, reason: 'loan', facts: { 借款: '已赖账' }, fallback: `那笔银子到底没还上，街面上开始有人说了。`, force: true });
     }
@@ -2001,9 +1979,7 @@ function advanceHour(world, events, nowMs) {
       for (const actorId of Object.keys(world.arcs || {})) {
         const res = resolveArc(world, actorId);
         if (!res) continue;
-        world.memories = Array.isArray(world.memories) ? world.memories : [];
-        world.memories.push({ text: res.memory, day: world.clock.day, at: Date.now() });
-        if (world.memories.length > 120) world.memories = world.memories.slice(-120);
+        addMemory(world, { text: res.memory, about: [actorId] });
         events.push(
           nextEvent(world, {
             action: 'arc_resolved',
