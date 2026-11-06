@@ -96,7 +96,8 @@ export class UserRegistry {
       if (a < 50) return safeGender === 'female' ? '中年妇人' : '中年男子';
       return safeGender === 'female' ? '老妇' : '老者';
     })();
-    const roleName = ageWord;
+    // 新入世的人：一律是普通百姓（布衣），年岁只作描述，不给身份头衔
+    const roleName = '布衣';
     const genderDesc = safeGender === 'female' ? '坤身女子' : '乾身男子';
 
     // 开局给他一处自己的百姓小屋：不为剧情，只为"有地方落脚"
@@ -129,6 +130,7 @@ export class UserRegistry {
       gender: safeGender,
       age: numAge,
       role: roleName,
+      ageWord,
       label: '新客',
       playerControlled: true,
       humanBound: true,
