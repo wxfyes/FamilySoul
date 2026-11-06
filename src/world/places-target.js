@@ -12,7 +12,7 @@
  */
 
 import { materializeRoom } from './residence.js';
-import { streetOfCity } from './city.js';
+import { streetOfCity, cityOfPlace } from './city.js';
 
 const SEMANTICS = [
   { key: '地窖', test: /酒窖|地窖|窖/ },
@@ -38,8 +38,16 @@ function placeList(world) {
 }
 
 /** 候选排序：离他近的、不是别人私宅的优先 */
+let __myCity = '';
 function score(p, nearId, actor, hint = '') {
   let s = 0;
+  const labelOf = (nm) => {
+    const seg = String(nm || '').split('·')[0];
+    return /府$|州$|县$/.test(seg) ? seg : '临江府';
+  };
+  const pc = labelOf(p.name);
+  if (__myCity && pc !== __myCity) s -= 8;   // 别把人送到别的城
+  if (__myCity && pc === __myCity) s += 4;
   if (hint && p.name && String(p.name).includes(hint)) s += 6;
   // 别把"衙门"认成"县衙前茶摊"这类带茶/摊/铺的边角地点
   if (/茶|摊|铺|店|集/.test(String(p.name || '')) && !/茶|摊|铺|店|集/.test(hint)) s -= 5;
@@ -59,6 +67,10 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
   const places = placeList(world);
   if (!places.length) return null;
   const text = String(hint || '');
+  __myCity = nearId ? (() => {
+    const seg = String(world?.places?.[nearId]?.name || '').split('·')[0];
+    return /府$|州$|县$/.test(seg) ? seg : '临江府';
+  })() : '';
 
   // 说的是"哪座城"：先到那座城的主街（跨城靠这个认）
   try {

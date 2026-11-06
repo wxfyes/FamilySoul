@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { loadState, saveState, worldDate } from './world/state.js';
 import { isPlaceName } from './world/naming.js';
 import { addMemory } from './world/memory.js';
+import { ensureCityBase, streetOfCity } from './world/city.js';
 
 /**
  * 玩家用户注册与入世管理（安全隔离于 config.json 之外）
@@ -100,14 +101,25 @@ export class UserRegistry {
     const roleName = '布衣';
     const genderDesc = safeGender === 'female' ? '坤身女子' : '乾身男子';
 
+    // 随机落在一座城：先把这座城的基底铺出来（街市/客栈/铺面/住户）
+    let cityName = '';
+    try {
+      const cities = Object.keys(world.cities || {}).filter((c) => !/京城|洛阳|汴梁/.test(c) || Math.random() < 0.3);
+      const pool = cities.length ? cities : Object.keys(world.cities || {});
+      cityName = pool[Math.floor(Math.random() * pool.length)] || '';
+      if (cityName) ensureCityBase(world, cityName);
+    } catch { /* 忽略 */ }
+    const slug = String(cityName || '临江').replace(/府$|县$|州$/g, '');
+    const streetId = (cityName && streetOfCity(world, cityName)) || 'street';
+
     // 开局给他一处自己的百姓小屋：不为剧情，只为"有地方落脚"
-    const houseId = `house_${actorId}`;
+    const houseId = `${slug}_house_${actorId}`;
     world.places = world.places || {};
     if (!world.places[houseId]) {
       world.places[houseId] = {
         id: houseId,
-        name: `${rawName}的小院`,
-        exits: ['street'],
+        name: `${cityName || '临江府'}·${rawName}的小院`,
+        exits: [streetId],
         owner: actorId,
         residence: true,
         dynamic: true,
@@ -116,9 +128,10 @@ export class UserRegistry {
       world.dynamicPlaces = world.dynamicPlaces || {};
       world.dynamicPlaces[houseId] = world.places[houseId];
       try {
-        if (world.places.street) {
-          world.places.street.exits = Array.isArray(world.places.street.exits) ? world.places.street.exits : [];
-          if (!world.places.street.exits.includes(houseId)) world.places.street.exits.push(houseId);
+        const st = world.places[streetId];
+        if (st) {
+          st.exits = Array.isArray(st.exits) ? st.exits : [];
+          if (!st.exits.includes(houseId)) st.exits.push(houseId);
         }
       } catch { /* 忽略 */ }
     }
@@ -145,9 +158,9 @@ export class UserRegistry {
       },
       intimacy: { level: 1, tone: 0, lastAt: 0 },
       schedule: [
-        { at: 8, do: '在客栈大堂用早茶', place: 'inn' },
-        { at: 12, do: '在前街漫步采风', place: 'street' },
-        { at: 20, do: '回客栈大堂歇息', place: 'inn' },
+        { at: 8, do: '在街上走一走', place: streetId },
+        { at: 12, do: '在城里找活计', place: streetId },
+        { at: 20, do: '回自己的小院歇息', place: houseId },
       ],
     };
 
@@ -197,7 +210,7 @@ export class UserRegistry {
       name: rawName,
       gender: safeGender,
       age: numAge,
-      place: `${rawName}的小院`,
+      place: world.places?.[houseId]?.name || `${cityName}·${rawName}的小院`,
     };
   }
 }

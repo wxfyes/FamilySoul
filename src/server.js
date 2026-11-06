@@ -18,7 +18,7 @@ import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { beginStateBatch, endStateBatch } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { advanceWorldTick } from './world/tick.js';
-import { ensureCityBase, streetOfCity } from './world/city.js';
+import { ensureCityBase, streetOfCity, cityOfPlace } from './world/city.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -969,6 +969,11 @@ const STARTED_AT = Date.now();
         // 先给"眼前这片"排前面：同宅的院子 → 同城 → 有人的 → 其它
         const curPlace = world.places?.[curId] || {};
         const myHome = world.actors?.[actorId]?.home || '';
+        const labelOf = (nm) => {
+          const seg = String(nm || '').split('·')[0];
+          return /府$|州$|县$/.test(seg) ? seg : '临江府';
+        };
+        const myCity = curPlace ? labelOf(curPlace.name) : '';
         const nearScore = ([id, pl]) => {
           if (id === myHome) return 0;
           if (pl.parent && (pl.parent === curId || pl.parent === myHome)) return 1;
@@ -980,6 +985,8 @@ const STARTED_AT = Date.now();
         const places = Object.entries(world.places || {})
           .filter(([id, pl]) => {
             if (id === curId || !pl || !pl.name || pl.private) return false;
+            // 只列本城的地方：成都的人不该看见临江的铺子
+            if (myCity && labelOf(pl.name) !== myCity) return false;
             // 私房一律不列（结构性 access 之外再兜一层，防老数据的漏网）
             if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩|雅阁|天字阁/.test(String(pl.name || ''))) return false;
             if (pl.parent) {
@@ -1023,6 +1030,12 @@ const STARTED_AT = Date.now();
               if (places.some((x) => x.id === rec.id)) continue;
               // 虚拟补进来的院子也要过私房这一关：后厨、库房、雅间、上房，一律不列
               const fullName = `${houseName}·${rec.name}`;
+              // 虚拟补进来的院子也要与本城一致（别把临江的衙署房间列到外城）
+              if (myCity) {
+                const seg0 = String(parent.name || '').split('·')[0];
+                const pCity = /府$|州$|县$/.test(seg0) ? seg0 : '临江府';
+                if (pCity !== myCity) continue;
+              }
               if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩|雅阁|天字阁/.test(fullName)) continue;
               const acc = String(rec.access || '');
               if (acc && !['public_outer', 'guest_main', 'guest_outer', 'public_shop'].includes(acc)) continue;
@@ -1225,6 +1238,22 @@ const STARTED_AT = Date.now();
             let sid = streetOfCity(world, cn);
             if (!sid) { ensureCityBase(world, cn); sid = streetOfCity(world, cn); }
             if (sid) { target = sid; break; }
+          }
+        } catch { /* 忽略 */ }
+
+        // 说的是本城某个地方（集市/客栈/米行…）：先在本城找，不要跑到临江去
+        try {
+          const labelOf2 = (nm) => {
+            const seg = String(nm || '').split('·')[0];
+            return /府$|州$|县$/.test(seg) ? seg : '临江府';
+          };
+          const meNow0 = world.actors?.[actorId] || world.actors?.husband;
+          const myCity2 = labelOf2(world.places?.[meNow0?.location]?.name);
+          const alreadyCity = /府|州|县/.test(String(target));
+          if (!alreadyCity) {
+            const hit = Object.entries(world.places || {}).find(([, pl]) => pl && pl.name
+              && labelOf2(pl.name) === myCity2 && String(pl.name).split('·').slice(1).join('·').includes(target));
+            if (hit) target = hit[0];
           }
         } catch { /* 忽略 */ }
 

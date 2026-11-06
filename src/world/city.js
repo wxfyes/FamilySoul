@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 城市基底：一座城要先有"能活的地方"，人去了才不是流放。
  *
  * 规矩：
@@ -57,7 +57,8 @@ export function ensureCityBase(world, cityName) {
   const tier = rich >= 60 ? 3 : (rich >= 35 ? 2 : 1);   // 富庶度决定铺面多少
 
   // ── 地方 ──
-  const streetId = `${slug}_street`;
+  // 临江府的老地方就是 street，别再造一条"临江府·主街"
+  const streetId = city === '临江府' && world.places?.street ? 'street' : `${slug}_street`;
   const marketId = `${slug}_market`;
   const innId = `${slug}_inn`;
   const riceId = `${slug}_rice`;
@@ -147,7 +148,12 @@ export function ensureCityBase(world, cityName) {
 /** 全部城都铺一遍（已铺的跳过） */
 export function ensureAllCityBases(world) {
   let n = 0;
+  const cities = Object.entries(world.cities || {})
+    .sort((a, b) => (Number(b[1]?.wealth) || 0) - (Number(a[1]?.wealth) || 0))
+    .map(([k]) => k);
+  const keep = new Set(['临江府', ...cities.slice(0, 12)]);
   for (const city of Object.keys(world.cities || {})) {
+    if (!keep.has(city)) continue;
     try {
       const r = ensureCityBase(world, city);
       if (r.ok && !r.cached) n += 1;
@@ -160,4 +166,17 @@ export function ensureAllCityBases(world) {
 export function streetOfCity(world, cityName) {
   const b = world?.flags?.cityBase?.[String(cityName || '').trim()];
   return b?.streetId && world.places?.[b.streetId] ? b.streetId : null;
+}
+
+
+/** 这处地方属于哪座城（按名字前缀认；老临江地点没有前缀，算临江府） */
+export function cityOfPlace(world, placeId) {
+  const name = String(world?.places?.[placeId]?.name || '');
+  const cities = Object.keys(world?.cities || {}).sort((a, b) => b.length - a.length);
+  for (const c of cities) {
+    const base = c.replace(/府$|县$|州$/g, '');
+    if (name.startsWith(`${c}·`) || name.startsWith(`${base}·`) || name.startsWith(c)) return c;
+  }
+  if (/临江/.test(name)) return '临江府';
+  return '';
 }
