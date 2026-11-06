@@ -1183,7 +1183,7 @@ export class PetService {
         }
         return total + cur;
       };
-      const mBuy = /\u4e70\s*([\d\u4e00\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343]+)\s*([\u6597\u77f3])/.exec(sayG);
+      const mBuy = /\u4e70\s*([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343]+)\s*([\u6597\u77f3])/.exec(sayG);
       if (mBuy) {
         const qty = cnNumOf(mBuy[1]) * (mBuy[2] === '\u77f3' ? 10 : 1);
         const paidAlready = /\u5df2\u4ed8/.test(String(reply || ''));
@@ -1191,13 +1191,13 @@ export class PetService {
         saveState(this.dataDir, wG);
         reply += `\n${r.line}`;
       }
-      const mSell = /\u5356\s*([\d\u4e00\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+)/.exec(sayG);
+      const mSell = /\u5356\s*([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+)/.exec(sayG);
       if (mSell && stockOf(wG, meG.id) > 0) {
         const r = sellRice(wG, meG.id, cnNumOf(mSell[1]));
         saveState(this.dataDir, wG);
         reply += `\n${r.line}`;
       }
-      const mGamble = /\u8d4c\s*(\u4e00\u628a)?\s*([\d\u4e00\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e.]+)\s*\u4e24/.exec(sayG);
+      const mGamble = /\u8d4c\s*(\u4e00\u628a)?\s*([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e.]+)\s*\u4e24/.exec(sayG);
       if (mGamble) {
         ensureDen(wG, cityG);
         const r = gamble(wG, meG.id, cnNumOf(mGamble[2]));
@@ -1205,7 +1205,7 @@ export class PetService {
         reply += `\n${r.line}`;
       }
       if (/\u6253\u70b9(\u5b98\u5e9c|\u8862\u95e8)/.test(sayG)) {
-        const mB = /([\d\u4e00\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+)\s*\u4e24/.exec(sayG);
+        const mB = /([\d\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341]+)\s*\u4e24/.exec(sayG);
         const r = bribeOfficials(wG, meG.id, mB ? cnNumOf(mB[1]) : 10);
         saveState(this.dataDir, wG);
         reply += `\n${r.line}`;
