@@ -15,8 +15,8 @@ import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
 import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, streetOfCity } from './city.js';
 import { ensureMatchmaker, dailyMarriages, maybeOfferAlliance } from './marriage.js';
-import { ensureResidence } from './residence.js';
 import { fallbackName } from './migration.js';
+import { ensureResidence } from './residence.js';
 import { refreshTitles } from './occupation.js';
 import { ensureStalls } from './stalls.js';
 import { ensureFame } from './reputation.js';
@@ -1058,6 +1058,27 @@ export function migrateOwnership(world) {
           ensureCityBase(world, cn);
         }
       } catch { /* 忽略 */ }
+      // 一次性：阶级生成时重名的，改成唯一姓名（按 id 保留先后）
+      try {
+        if (!world.flags?.nameDedupeV1) {
+          const seen = new Set();
+          const renamed = [];
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.dead || !a.name) continue;
+            if (!seen.has(a.name)) { seen.add(a.name); continue; }
+            if (!a.id || !/gentry|tycoon|poetess|local|notable|matchmaker|servant/.test(String(a.id))) continue;
+            const nm = fallbackName(world, a.gender === 'female' ? 'female' : 'male');
+            if (!nm || seen.has(nm)) continue;
+            renamed.push(`${a.name}→${nm}`);
+            a.name = nm;
+            seen.add(nm);
+          }
+          world.flags = world.flags || {};
+          world.flags.nameDedupeV1 = { at: Date.now(), renamed: renamed.length };
+          if (renamed.length) console.log(`[Name] 重名改正 ${renamed.length} 人：${renamed.slice(0, 6).join('、')}…`);
+        }
+      } catch { /* 忽略 */ }
+
       // 一次性：清掉"成过事却没记日子"的误标（真成事会留 lastAt）
       try {
         if (!world.flags?.intimacyCleanV1) {

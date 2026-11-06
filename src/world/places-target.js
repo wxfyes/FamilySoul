@@ -76,7 +76,9 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
   try {
     for (const cn of Object.keys(world?.cities || {})) {
       const base = cn.replace(/府$|县$|州$/g, '');
-      if (!text.includes(base) && !text.includes(cn)) continue;
+      const t3 = text.trim();
+      const bare = t3 === cn || t3 === base || (!t3.includes('·') && t3.includes(cn));
+      if (!bare) continue;
       const sid = streetOfCity(world, cn);
       if (sid) return sid;
     }

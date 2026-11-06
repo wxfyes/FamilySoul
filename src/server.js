@@ -1239,7 +1239,9 @@ const STARTED_AT = Date.now();
         try {
           for (const cn of Object.keys(world.cities || {})) {
             const base = cn.replace(/府$|县$|州$/g, '');
-            if (!target.includes(base) && !target.includes(cn)) continue;
+            const t2 = String(target).trim();
+            const isBareCity = t2 === cn || t2 === base || (!t2.includes('·') && t2.includes(cn));
+            if (!isBareCity) continue;
             let sid = streetOfCity(world, cn);
             if (!sid) { ensureCityBase(world, cn); sid = streetOfCity(world, cn); }
             if (sid) { target = sid; break; }
