@@ -11,6 +11,7 @@
  */
 
 import { refreshTitles } from './occupation.js';
+import { dailyGambleRaid } from './goods.js';
 import { ensureStalls } from './stalls.js';
 import { refreshGoals, pursueGoals } from './goals.js';
 
@@ -112,6 +113,8 @@ export function advanceWorldTick(world, hour) {
     const moved2 = pursueGoals(world);
     if (fresh || moved2) note += `${note ? '；' : ''}${fresh} 人有了打算，${moved2} 人动了身`;
   } catch { /* 忽略 */ }
+
+  try { dailyGambleRaid(world); } catch { /* 忽略 */ }
 
   // ── ③.7 差事工钱：跨日发饷（外城也一样）──
   try {
