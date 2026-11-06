@@ -113,6 +113,21 @@ export function advanceWorldTick(world, hour) {
     if (fresh || moved2) note += `${note ? '；' : ''}${fresh} 人有了打算，${moved2} 人动了身`;
   } catch { /* 忽略 */ }
 
+  // ── ③.7 差事工钱：跨日发饷（外城也一样）──
+  try {
+    if (h === 6) {   // 每天卯时发前一日的工钱
+      for (const a of Object.values(world?.actors || {})) {
+        if (!a || a.dead || !a.job) continue;
+        const pay = Number(a.job.pay) || 0;
+        if (pay <= 0) continue;
+        if (String(a.id) === 'husband') world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + pay) * 100) / 100;
+        else a.money = Math.round(((Number(a.money) || 0) + pay) * 100) / 100;
+        a.job.lastPaidDay = day;
+        console.log(`[Job] 发工钱：${a.name} +${pay.toFixed(2)} 两（${a.job.title}）`);
+      }
+    }
+  } catch { /* 忽略 */ }
+
   // ── ④ 身份标签随日子变 + 街头摊子按点来去 ──
   try {
     const t = refreshTitles(world);

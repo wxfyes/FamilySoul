@@ -13,7 +13,7 @@ import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
-import { ensureCityBase, ensureAllCityBases, streetOfCity } from './city.js';
+import { ensureCityBase, ensureAllCityBases, ensureCityExtras, streetOfCity } from './city.js';
 import { ensureResidence } from './residence.js';
 import { fallbackName } from './migration.js';
 import { refreshTitles } from './occupation.js';
@@ -1056,6 +1056,10 @@ export function migrateOwnership(world) {
           if (!world.cities?.[cn]) continue;
           ensureCityBase(world, cn);
         }
+      } catch { /* 忽略 */ }
+      // 老城补配套：差事表 + 乡绅/衙役
+      try {
+        for (const cn of Object.keys(world.flags?.cityBase || {})) ensureCityExtras(world, cn);
       } catch { /* 忽略 */ }
       const evicted = evictOutsiders(world);          // 混进后宅的外人，请出去
       // 宅子的房间账被清空过（只剩门）：按等第把院子补回来，否则人会"无处可去"

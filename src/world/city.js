@@ -139,7 +139,39 @@ export function ensureCityBase(world, cityName) {
     people += 1;
   }
 
-  world.flags.cityBase[city] = { at: Date.now(), streetId, marketId, innId, tier, people };
+  // ── 大户与官府：一城至少一个乡绅、一个衙役，外城才有"能主事的人" ──
+  const notables = [
+    { role: '乡绅', place: marketId, money: 60 },
+    { role: '衙役', place: yamenId, money: 3 },
+  ];
+  for (const n of notables) {
+    const nm = fallbackName(world, 'male');
+    if (!nm) continue;
+    const nid = `${slug}_notable_${n.role}`;
+    if (world.actors[nid]) continue;
+    const hid = `${slug}_house_${n.role}`;
+    if (!world.places[hid]) {
+      world.places[hid] = { id: hid, name: `${nm}宅`, exits: [streetId], residence: true, dynamic: true, createdDay: num(world.clock?.day) || 1 };
+      ensureResidence(world, hid, { grade: n.role === '乡绅' ? 3 : 1 });
+    }
+    world.actors[nid] = {
+      id: nid, name: nm, role: n.role, title: n.role, gender: 'male',
+      age: 40 + Math.floor(Math.random() * 15),
+      home: hid, location: n.place, money: n.money, relations: {},
+      origin: 'city_base', createdDay: num(world.clock?.day) || 1,
+    };
+    people += 1;
+  }
+
+  // ── 本地差事：给外城一个能挣饭吃的入口 ──
+  const jobs = [
+    { title: '米行帮工', pay: 0.05, place: riceId },
+    { title: '客栈跑堂', pay: 0.05, place: innId },
+    { title: '更夫', pay: 0.04, place: streetId },
+    { title: '码头卸货', pay: 0.06, place: streetId },
+  ];
+
+  world.flags.cityBase[city] = { at: Date.now(), streetId, marketId, innId, tier, people, jobs };
   console.log(`[City] ${city} 基底生成：街道/集市/客栈/米行 + ${people} 户人家`);
   __world = null;
   return { ok: true, places: street.exits.length, people, city, tier };
@@ -179,4 +211,44 @@ export function cityOfPlace(world, placeId) {
   }
   if (/临江/.test(name)) return '临江府';
   return '';
+}
+
+
+/** 老城补配套：差事表 + 乡绅/衙役（幂等） */
+export function ensureCityExtras(world, cityName) {
+  const city = String(cityName || '');
+  const b = world?.flags?.cityBase?.[city];
+  if (!b) return 0;
+  __world = world;
+  let n = 0;
+  if (!Array.isArray(b.jobs)) {
+    b.jobs = [
+      { title: '米行帮工', pay: 0.05, place: b.streetId },
+      { title: '客栈跑堂', pay: 0.05, place: b.innId },
+      { title: '更夫', pay: 0.04, place: b.streetId },
+      { title: '码头卸货', pay: 0.06, place: b.streetId },
+    ];
+    n += 1;
+  }
+  const slug = city.replace(/府$|县$|州$/g, '');
+  for (const role of ['乡绅', '衙役']) {
+    const nid = `${slug}_notable_${role}`;
+    if (world.actors?.[nid]) continue;
+    const nm = fallbackName(world, 'male');
+    if (!nm) continue;
+    const hid = `${slug}_house_${role}`;
+    if (!world.places[hid]) {
+      world.places[hid] = { id: hid, name: `${nm}宅`, exits: [b.streetId], residence: true, dynamic: true };
+      ensureResidence(world, hid, { grade: role === '乡绅' ? 3 : 1 });
+    }
+    world.actors[nid] = {
+      id: nid, name: nm, role, title: role, gender: 'male',
+      age: 42 + Math.floor(Math.random() * 12), home: hid,
+      location: role === '衙役' ? (b.yamenId || b.streetId) : b.marketId,
+      money: role === '乡绅' ? 60 : 3, relations: {}, origin: 'city_base',
+    };
+    n += 1;
+  }
+  __world = null;
+  return n;
 }
