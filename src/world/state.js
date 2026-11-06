@@ -1031,6 +1031,35 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
       const evicted = evictOutsiders(world);          // 混进后宅的外人，请出去
+      // 房间分级补正（老存档）：按这间房"是干什么用的"重定门第，前堂可待客，其余止步
+      try {
+        const gradeOf = (use) => {
+          const u = String(use || '');
+          if (u === 'shop_floor' || u === 'hall' || u === 'gate' || u === 'yard') return 'public_shop';
+          if (u === 'bedroom') return 'family_inner';
+          if (u === 'kitchen' || u === 'store' || u === 'workshop') return 'staff_only';
+          return 'staff_only';
+        };
+        const junk = [];
+        for (const [pid, pl] of Object.entries(world.places || {})) {
+          if (!pl) continue;
+          // 房间的房间（父地点本身也是房间）——是早先误建的，清掉
+          const par = pl.parent ? world.places?.[pl.parent] : null;
+          if (par && par.parent) { junk.push(pid); continue; }
+          if (pl.rooms) {
+            for (const rec of Object.values(pl.rooms)) {
+              if (!rec) continue;
+              rec.access = gradeOf(rec.use);
+              const rp = world.places?.[rec.id];
+              if (rp) { rp.access = rec.access; rp.use = rec.use; }
+            }
+          } else if (pl.parent && !pl.residence) {
+            pl.access = gradeOf(pl.use);
+          }
+        }
+        for (const j of junk) { delete world.places[j]; }
+        if (junk.length) console.log(`[Spaces] 清掉 ${junk.length} 处"房间里的房间"`);
+      } catch { /* 忽略 */ }
       try { refreshTitles(world); } catch { /* 忽略 */ }   // 身份跟着营生变
       try { ensureStalls(world, 'street'); } catch { /* 忽略 */ }  // 街上的摊子按点来去
       const collapsed = collapseRoomPlaces(world);   // 房间收回账上，不再各占一个地点

@@ -977,7 +977,13 @@ const STARTED_AT = Date.now();
         const places = Object.entries(world.places || {})
           .filter(([id, pl]) => {
             if (id === curId || !pl || !pl.name || pl.private) return false;
+            // 私房一律不列（结构性 access 之外再兜一层，防老数据的漏网）
+            if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩|雅阁|天字阁/.test(String(pl.name || ''))) return false;
             if (pl.parent) {
+              // 只列公开的地方：前堂、门厅、院子；后厨库房雅间卧房一律不列
+              const pubAccess = pl.access === 'public_outer' || pl.access === 'guest_main' || pl.access === 'guest_outer' || pl.access === 'public_shop';
+              const pubUse = pl.use === 'shop_floor' || pl.use === 'hall' || pl.use === 'gate' || pl.use === 'yard';
+              if (!(pubAccess && pubUse)) return false;
               if (pl.parent === myHome || pl.parent === curId) return true;
               // 公开营业场所（酒楼/茶坊/衙署/客栈）的院子也列出来，雅阁、天字阁才搜得到
               const par = world.places?.[pl.parent];
@@ -1012,6 +1018,11 @@ const STARTED_AT = Date.now();
               if (!rec || !rec.id) continue;
               if (world.places[rec.id]) continue;   // 已展开的已经在列表里
               if (places.some((x) => x.id === rec.id)) continue;
+              // 虚拟补进来的院子也要过私房这一关：后厨、库房、雅间、上房，一律不列
+              const fullName = `${houseName}·${rec.name}`;
+              if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩|雅阁|天字阁/.test(fullName)) continue;
+              const acc = String(rec.access || '');
+              if (acc && !['public_outer', 'guest_main', 'guest_outer', 'public_shop'].includes(acc)) continue;
               places.push({
                 id: rec.id,
                 name: `${houseName}·${rec.name}`,

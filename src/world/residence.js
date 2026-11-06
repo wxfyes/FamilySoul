@@ -529,7 +529,12 @@ export function buildPremises(world) {
     for (const room of spec) {
       const rid = `${pid}__${room.key}`;
       if (!p.rooms[room.key]) built += 1;
-      p.rooms[room.key] = { id: rid, name: room.name, use: room.use, floor: room.floor, access: 'shop_floor' };
+      // 前堂/雅阁可待客，后厨、库房、后坊、酒窖是当差的地方，外人止步
+      const publicUse = room.use === 'shop_floor' || room.use === 'hall';
+      p.rooms[room.key] = {
+        id: rid, name: room.name, use: room.use, floor: room.floor,
+        access: publicUse ? 'public_shop' : 'staff_only',
+      };
     }
     // 收尾：按模板把名字与楼层纠正（老存档里可能叫"灶房""院门"）
     for (const room of spec) {

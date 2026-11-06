@@ -17,7 +17,7 @@ const num = (v) => {
 /** 这间房是不是后宅（外人止步） */
 export function isInnerRoom(place) {
   const access = String(place?.access || '');
-  return access.startsWith('family') || access === 'servant_utility';
+  return access.startsWith('family') || access === 'servant_utility' || access === 'staff_only' || access === 'guest_room';
 }
 
 /** 这间房归哪座宅子（父地点链） */
