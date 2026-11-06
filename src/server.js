@@ -18,6 +18,7 @@ import { readRecentEvents, shichenOf, saveState } from './world/state.js';
 import { beginStateBatch, endStateBatch } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { advanceWorldTick } from './world/tick.js';
+import { ensureCityBase, streetOfCity } from './world/city.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -1216,6 +1217,17 @@ const STARTED_AT = Date.now();
             target = homeId;
           }
         }
+        // 说的是哪座城：先到那座城的主街（没有基底就现铺一座）
+        try {
+          for (const cn of Object.keys(world.cities || {})) {
+            const base = cn.replace(/府$|县$|州$/g, '');
+            if (!target.includes(base) && !target.includes(cn)) continue;
+            let sid = streetOfCity(world, cn);
+            if (!sid) { ensureCityBase(world, cn); sid = streetOfCity(world, cn); }
+            if (sid) { target = sid; break; }
+          }
+        } catch { /* 忽略 */ }
+
         // 说的是人（去找王甯）：先换成他此刻所在的地方，再由门禁决定能不能进
         {
           const meName = String((world.actors?.[actorId] || world.actors?.husband)?.name || '');

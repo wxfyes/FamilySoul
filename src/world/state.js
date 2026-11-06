@@ -13,6 +13,7 @@ import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
+import { ensureCityBase, streetOfCity } from './city.js';
 import { ensureResidence } from './residence.js';
 import { fallbackName } from './migration.js';
 import { refreshTitles } from './occupation.js';
@@ -1030,6 +1031,20 @@ export function migrateOwnership(world) {
               if (g && !g.ok) console.log(`[Duty] ${pid} 没有门房：${g.reason}`);
             }
           }
+        }
+      } catch { /* 忽略 */ }
+      // 城市基底：有人在外城，就先把那座城铺出来（幽州试点）
+      try {
+        const cityNeeded = new Set();
+        for (const a of Object.values(world.actors || {})) {
+          if (!a || a.dead) continue;
+          const pn = String(world.places?.[a.location]?.name || '');
+          const m = pn.match(/^([\u4e00-\u9fa5]{2,3}?)(府|州|县)/);
+          if (m) cityNeeded.add(m[1] + m[2]);
+        }
+        for (const cn of cityNeeded) {
+          if (!world.cities?.[cn]) continue;
+          ensureCityBase(world, cn);
         }
       } catch { /* 忽略 */ }
       const evicted = evictOutsiders(world);          // 混进后宅的外人，请出去

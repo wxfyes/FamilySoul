@@ -12,6 +12,7 @@
  */
 
 import { materializeRoom } from './residence.js';
+import { streetOfCity } from './city.js';
 
 const SEMANTICS = [
   { key: '地窖', test: /酒窖|地窖|窖/ },
@@ -58,6 +59,16 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
   const places = placeList(world);
   if (!places.length) return null;
   const text = String(hint || '');
+
+  // 说的是"哪座城"：先到那座城的主街（跨城靠这个认）
+  try {
+    for (const cn of Object.keys(world?.cities || {})) {
+      const base = cn.replace(/府$|县$|州$/g, '');
+      if (!text.includes(base) && !text.includes(cn)) continue;
+      const sid = streetOfCity(world, cn);
+      if (sid) return sid;
+    }
+  } catch { /* 忽略 */ }
 
   // 说的是"人"（去找王甯）：先落到他现在所在的地方，再由门禁决定能不能进
   try {
