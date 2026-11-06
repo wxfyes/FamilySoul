@@ -1337,6 +1337,20 @@ const STARTED_AT = Date.now();
           .slice(0, 5)
           .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
         const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
+        // 随行的护院/家丁跟着主人走
+        try {
+          const wEsc = loadState(DATA_DIR);
+          const meEsc = wEsc.actors?.[actorId];
+          if (meEsc?.location) {
+            let moved = 0;
+            for (const g of Object.values(wEsc.actors || {})) {
+              if (!g || g.dead || g.following !== actorId) continue;
+              const mv = moveActor(wEsc, g.id, meEsc.location, 'world', '随主出行');
+              if (mv?.ok) moved += 1;
+            }
+            if (moved) saveState(DATA_DIR, wEsc);
+          }
+        } catch { /* 忽略 */ }
         return sendJson(res, 200, { ok: true, applied: Boolean(res2.applied), place: placeName2, line });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
@@ -1988,7 +2002,7 @@ const STARTED_AT = Date.now();
           kinds: f.kinds || {},
           retainers: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '护院') n += 1; } return n; })(),
           houseGuards: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '家丁') n += 1; } return n; })(),
-          troops: Number(f.troops) || 0,
+          troops: Number(f.troops) || Number(f.army) || 0,
           supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
       });

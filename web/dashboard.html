@@ -1810,9 +1810,15 @@ function render(w){
     const morale = Number(wf.morale ?? 60);
     const grain = Number(wf.grain) || 0;
 
-    $('m-military-top').textContent = `王家私兵 ${totalWangTroops} 人 · 士气 ${morale}`;
+    const actorsList = Array.isArray(w.actors) ? w.actors : [];
+    const houseGuardN = actorsList.filter((a) => a && a.role === '家丁').length;
+    const retainerN = actorsList.filter((a) => a && a.role === '护院').length;
+    $('m-military-top').textContent = `私兵 ${totalWangTroops} 人 · 士气 ${morale}（家丁 ${houseGuardN} · 护院 ${retainerN}）`;
 
     let milHtml = '';
+    milHtml += `<div class="row"><span>家丁</span><span class="num">${houseGuardN} 人</span></div>`;
+    milHtml += `<div class="row"><span>护院</span><span class="num">${retainerN} 人</span></div>`;
+    milHtml += `<div class="row"><span>私兵（账上兵额）</span><span class="num">${totalWangTroops} 人</span></div>`;
     milHtml += `<div class="row"><span>随军粮草储备</span><span class="num good">${grain.toFixed(1)} 石</span></div>`;
 
     // 驻扎分布

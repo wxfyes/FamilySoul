@@ -52,7 +52,8 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   // 刚被主人请走的人：几个时辰内不许自己回来（送客本人除外）
   try {
     const aw = a.awayUntil;
-    if (aw && !String(note || '').includes('送客')) {
+    const summonBypass = /叫到跟前|厅上候令|听命往某处|都到议事厅/.test(String(note || ''));
+    if (aw && !String(note || '').includes('送客') && !summonBypass) {
       const day = Number(world.clock?.day) || 1;
       const hour = Number(world.clock?.hour) || 0;
       const until = Number(aw.day) === day ? Number(aw.hour) : (Number(aw.day) > day ? 99 : hour);
