@@ -1087,12 +1087,12 @@ export class PetService {
         const troops = Number(wS2.factions?.wangjia?.troops) || 0;
         let staff = Object.values(wS2.actors || {}).filter((a) => a && !a.dead && /家丁|护院/.test(String(a.role || a.title || '')));
         // 账上有 10 个护院，人却只有 2 个：按兵力补齐（最多补 12）
-        if (staff.length < Math.min(troops, 12)) {
-          const madeN = spawnHouseholdStaff(wS2, Math.min(troops, 12) - staff.length, 'retainer');
+        if (staff.length < Math.min(troops, 24)) {
+          const madeN = spawnHouseholdStaff(wS2, Math.min(troops, 24) - staff.length, 'retainer');
           if (madeN) { saveState(this.dataDir, wS2); staff = Object.values(wS2.actors || {}).filter((a) => a && !a.dead && /家丁|护院/.test(String(a.role || a.title || ''))); }
         }
         const names = [];
-        for (const g of staff.slice(0, 12)) {
+        for (const g of staff.slice(0, 24)) {
           if (!meS?.location) break;
           const mv = moveActor(wS2, g.id, meS.location, 'world', '听令集合');
           if (mv?.ok || g.location === meS.location) names.push(g.name);

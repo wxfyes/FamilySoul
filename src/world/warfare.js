@@ -106,7 +106,7 @@ export function spawnHouseholdStaff(world, count, kind = 'guard', homeId = 'husb
   if (!home) return 0;
   const SURNAME = ['周', '吴', '郑', '王', '李', '陈', '张', '刘', '赵', '孙'];
   const GIVEN = ['阿福', '阿顺', '阿贵', '阿全', '阿安', '阿平', '阿庆', '阿寿', '阿泰', '阿和', '阿义', '阿勇'];
-  const want = Math.max(0, Math.min(12, Number(count) || 0));
+  const want = Math.max(0, Math.min(24, Number(count) || 0));
   let made = 0;
   for (let i = 0; i < want; i++) {
     const used = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
