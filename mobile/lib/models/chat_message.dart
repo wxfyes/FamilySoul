@@ -50,7 +50,18 @@ class ChatMessage {
       }
     }
     if (speaker != null && speaker!.trim().isNotEmpty) {
-      return speaker!.trim();
+      final s = speaker!.trim();
+      if (RegExp(r'^(an|usr_.*|ancient.*|system|ai|unknown)$', caseSensitive: false).hasMatch(s)) {
+        if (text.contains('酒肆') || text.contains('续酒') || text.contains('紫嫣')) {
+          return '酒肆伙计';
+        }
+        return '伴侣';
+      }
+      return s;
+    }
+    // 正文内容兜底推导说话人（防止历史无【】标签的主动消息丢失身份）
+    if (text.contains('续酒') || text.contains('旧账纸') || (text.contains('酒肆') && text.contains('紫嫣'))) {
+      return '酒肆伙计';
     }
     return null;
   }
@@ -119,12 +130,12 @@ class ChatMessage {
   String? get inferredPlace {
     if (place != null && place!.isNotEmpty) return place;
     final spk = effectiveSpeaker ?? '';
-    if (spk.contains('紫嫣')) return '于家酒肆';
-    if (spk.contains('静儿')) return '县衙';
-    if (spk.contains('采云')) return '翟家货栈';
-    if (spk.contains('孙进')) return '临江客栈';
-    if (spk.contains('鲁青')) return '城南窑厂';
-    if (spk.contains('芸娘')) return '临江茶坊';
+    if (spk.contains('紫嫣') || spk.contains('酒肆') || text.contains('酒肆') || text.contains('续酒')) return '于家酒肆';
+    if (spk.contains('静儿') || spk.contains('县衙') || text.contains('县衙')) return '县衙';
+    if (spk.contains('采云') || spk.contains('货栈') || text.contains('货栈')) return '翟家货栈';
+    if (spk.contains('孙进') || spk.contains('客栈') || text.contains('客栈')) return '临江客栈';
+    if (spk.contains('鲁青') || spk.contains('窑厂') || text.contains('窑厂')) return '城南窑厂';
+    if (spk.contains('芸娘') || spk.contains('茶坊') || text.contains('茶坊')) return '临江茶坊';
     return null;
   }
 

@@ -785,6 +785,19 @@ class MessageBubble extends StatelessWidget {
     String targetName,
     bool isDark,
   ) {
+    final isMale = targetName.contains('孙进') ||
+        targetName.contains('鲁青') ||
+        targetName.contains('何顺') ||
+        targetName.contains('杨振华') ||
+        targetName.contains('掌柜') ||
+        targetName.contains('工头') ||
+        targetName.contains('捕快') ||
+        targetName.contains('知府') ||
+        targetName.contains('老汉');
+    final actionLabel = (targetName.contains('伙计') || targetName.contains('小厮') || targetName.contains('小二'))
+        ? '动身前往「$targetPlace」'
+        : '动身前往「$targetPlace」${isMale ? '找他' : '找她'}';
+
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: Material(
@@ -822,7 +835,7 @@ class MessageBubble extends StatelessWidget {
                 const Icon(Icons.directions_walk_rounded, size: 14, color: Color(0xFF8B5CF6)),
                 const SizedBox(width: 4),
                 Text(
-                  '动身前往「$targetPlace」找她',
+                  actionLabel,
                   style: const TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
@@ -878,7 +891,12 @@ class _SpeakerMeta {
       );
     }
 
-    final s = rawSpeaker.trim();
+    var s = rawSpeaker.trim();
+
+    // 彻底清洗英文代码代号、孤立拼音与非人类字符
+    if (RegExp(r'^(an|usr_.*|ancient.*|system|ai|unknown)$', caseSensitive: false).hasMatch(s)) {
+      s = '酒肆伙计';
+    }
 
     // 1. 沈婉儿（正妻 · 牡丹朱砂）
     // 6.5 服务端给了身份前缀（如「帮工·鲁青」）：按身份做标题，不再一律叫"客卿"

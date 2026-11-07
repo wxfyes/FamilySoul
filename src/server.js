@@ -4112,19 +4112,32 @@ const STARTED_AT = Date.now();
             cursor: now,
             events: due.map((item, i) => {
               const textSpk = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
-              const spk = (textSpk ? textSpk[1].trim() : item.speaker) || '';
+              let spk = (textSpk ? textSpk[1].trim() : item.speaker) || '';
+              // 彻底杜绝拼音变量、系统代号或裸露英文污染（如 an, usr_, ancient, system）
+              if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown)$/i.test(spk)) {
+                if (/酒肆|续酒|旧账纸|紫嫣/.test(String(item.text || ''))) spk = '酒肆伙计';
+                else if (/客栈|住处|打探|孙进/.test(String(item.text || ''))) spk = '客栈掌柜·孙进';
+                else if (/货栈|水路|茶价|采云/.test(String(item.text || ''))) spk = '货栈总管·采云';
+                else if (/县衙|茶税|公文|静儿/.test(String(item.text || ''))) spk = '县衙书吏·静儿';
+                else if (/窑厂|砖瓦|鲁青/.test(String(item.text || ''))) spk = '窑厂工头·鲁青';
+                else spk = '传信小厮';
+              }
+              let finalText = String(item.text || '').trim();
+              if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk) {
+                finalText = `【${spk}】：${finalText}`;
+              }
               let place = item.place || null;
               if (!place) {
-                if (/紫嫣/.test(spk || item.text)) place = '于家酒肆';
-                else if (/静儿/.test(spk || item.text)) place = '县衙';
-                else if (/采云/.test(spk || item.text)) place = '翟家货栈';
-                else if (/孙进/.test(spk || item.text)) place = '临江客栈';
-                else if (/鲁青/.test(spk || item.text)) place = '城南窑厂';
-                else if (/芸娘/.test(spk || item.text)) place = '临江茶坊';
+                if (/紫嫣|酒肆/.test(spk || finalText)) place = '于家酒肆';
+                else if (/静儿|县衙/.test(spk || finalText)) place = '县衙';
+                else if (/采云|货栈/.test(spk || finalText)) place = '翟家货栈';
+                else if (/孙进|客栈/.test(spk || finalText)) place = '临江客栈';
+                else if (/鲁青|窑厂/.test(spk || finalText)) place = '城南窑厂';
+                else if (/芸娘|茶坊/.test(spk || finalText)) place = '临江茶坊';
               }
               return {
                 type: item.type || 'proactive',
-                text: item.text,
+                text: finalText,
                 speaker: spk || null,
                 place,
                 isLetter: true,

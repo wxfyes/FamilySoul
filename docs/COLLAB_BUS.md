@@ -12,16 +12,13 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 16:21",
-  "active_task": "彻底消除隔空喊话违和感（差人递信+一键动身转场）与客户端白天模式定位栏高对比度修复",
-  "priority": "PROACTIVE_LETTER_AND_DAYLIGHT_THEME_DEPLOYED",
+  "last_updated": "2026-11-07 16:51",
+  "active_task": "彻底根治男性角色按钮显示找她、抹除裸露英文代号an与补齐酒肆递信药丸",
+  "priority": "FIX_GENDER_ACTION_AND_STRIP_AN_DIRT",
   "changed_files": [
     "mobile/lib/models/chat_message.dart",
-    "mobile/lib/providers/chat_provider.dart",
-    "mobile/lib/views/chat_screen.dart",
     "mobile/lib/widgets/message_bubble.dart",
     "src/server.js",
-    "src/pet-service.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
