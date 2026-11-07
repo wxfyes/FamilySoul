@@ -2002,7 +2002,7 @@ const STARTED_AT = Date.now();
         items: itemsOf(world, actorId || 'husband').map((it) => ({ id: it.id, name: it.name, kind: it.kind })),
         military: troops > 0 ? { guards: f.guards || 0, militia: f.militia || 0, army: f.army || 0,
           // 家丁 / 护院 / 私兵 分列（账上兵额 + 府里真人）
-          kinds: f.kinds || {},
+          kinds: (f.kinds && Object.keys(f.kinds).length) ? f.kinds : {},   // 空则由下面真人数据反推
           retainers: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '护院') n += 1; } return n; })(),
           houseGuards: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '家丁') n += 1; } return n; })(),
           troops: Number(f.troops) || Number(f.army) || 0,
