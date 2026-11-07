@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 聊天里的“世界动作”：买米、赌、走货、叫人、遣人、去某处。
  *
  * 单一入口：聊天流程调用一次，返回要告诉玩家的【提示】。
@@ -11,6 +11,7 @@ import { startTradeRun, startNightMarket, drainBizNotices } from './business.js'
 import { ensureItems, itemsOf, findItem, giveItem } from './items.js';
 import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
+import { detachmentStrength } from './factions.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -351,8 +352,13 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     if (!bt || strength <= 0) {
       notices.push(`（${city}眼下没有成股的匪患。）`);
     } else {
-      const power = followers.length * 4 + Math.min(10, troops * 0.3) + (Number(world.factions?.wangjia?.morale) || 60) / 20;
-      const win = Math.random() < power / (power + strength + 1);
+      // 与界面"出兵"同一把尺：按势力战力折算，随行护院另算
+      const fw = world.factions?.wangjia;
+      const total = Object.values(fw?.stationed || {}).reduce((s2, x) => s2 + (Number(x) || 0), 0);
+      const send = Math.min(total, Math.max(1, Number(troops) || total));
+      const power = detachmentStrength(world, fw, send) + followers.length * 3;
+      const foe = strength * (bt.tier >= 3 ? 1.3 : bt.tier === 2 ? 1.1 : 1);
+      const win = power * (0.85 + Math.random() * 0.4) > foe;
       if (win) {
         bt.strength = Math.max(0, Math.round(strength * (0.2 + Math.random() * 0.3)));
         const loot = Math.round((2 + Math.random() * 8) * 100) / 100;

@@ -2013,6 +2013,33 @@ export function migrateOwnership(world) {
 
   // 势力：朝廷、王家，以及将来天道推演出来的枭雄
   try { ensureFactions(world); } catch (e) { console.warn('[Faction] 势力初始化失败：', e.message); }
+
+  // 一次性：王家兵账对齐（兵在账上、才派得出）+ 训练度归位 + 清掉"全员新兵"标记
+  try {
+    if (!world.flags?.wangjiaArmyFixV1 && world.factions?.wangjia) {
+      const f = world.factions.wangjia;
+      const mil = world.military || {};
+      const kinds = f.kinds || {};
+      // 只算"能拉出去打的兵"：营兵（army）与兵种账；护院/家丁守宅，不随军出征
+      const want = Math.max(
+        Number(mil.army || 0) + Number(mil.militia || 0),
+        Number(kinds.guard || 0) + Number(kinds.retainer || 0) + Number(kinds.army || 0),
+        Number(f.troops || 0),
+      );
+      const stationSum = Object.values(f.stationed || {}).reduce((s, x) => s + (Number(x) || 0), 0);
+      if (want > stationSum) {
+        f.stationed = f.stationed || {};
+        const city = f.stationed['临江府'] !== undefined ? '临江府' : (Object.keys(f.stationed)[0] || '临江府');
+        f.stationed[city] = Math.round((Number(f.stationed[city]) || 0) + (want - stationSum));
+        console.log(`[Army] 兵账对齐：${stationSum} → ${want} 人（补回阵亡/漏记 ${want - stationSum}）`);
+      }
+      f.troops = Object.values(f.stationed || {}).reduce((s, x) => s + (Number(x) || 0), 0);
+      if (Number(mil.quality || 0) < 40) mil.quality = 50;
+      f.fresh = 0;
+      f.freshUntilDay = 0;
+      world.flags.wangjiaArmyFixV1 = { at: Date.now(), troops: f.troops, quality: mil.quality };
+    }
+  } catch (e) { console.warn('[Army] 兵账对齐失败：', e.message); }
   try { ensureMarket(world); } catch { /* 忽略 */ }
   try { ensureFame(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }
@@ -2618,18 +2645,29 @@ export function migrateOwnership(world) {
   }
   const yun = world.actors?.yunnia;
   if (yun) {
-    if (!yun.home || yun.home === 'tea_house' || yun.home === 'yamen') yun.home = 'wang_mansion_east';
+    yun.home = 'wang_mansion_west';
+    yun.quarters = 'wang_mansion_west';
     const yunPName = String(world.places?.[yun.location]?.name || '');
     if (!yun.location || !world.places[yun.location] || /(客栈.*大宅|七进大宅)/.test(yunPName)) {
-      try { moveActor(world, 'yunnia', hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_east', 'world', '乔迁'); } catch { /* 忽略 */ }
+      try { moveActor(world, 'yunnia', 'wang_mansion_west', 'world', '乔迁'); } catch { /* 忽略 */ }
+    }
+  }
+  const cuiWn = world.actors?.['临江_gentry_1_小姐'] || Object.values(world.actors || {}).find((a) => a && a.name === '崔婉宁');
+  if (cuiWn) {
+    cuiWn.home = 'wang_mansion_east';
+    cuiWn.quarters = 'wang_mansion_east';
+    const cuiPName = String(world.places?.[cuiWn.location]?.name || '');
+    if (!cuiWn.location || !world.places[cuiWn.location] || /(客栈.*大宅|七进大宅)/.test(cuiPName)) {
+      try { moveActor(world, cuiWn.id, 'wang_mansion_east', 'world', '归房'); } catch { /* 忽略 */ }
     }
   }
   const cui = world.actors?.xiaocui;
   if (cui) {
-    if (!cui.home || cui.home === 'tea_house' || cui.home === 'yamen') cui.home = 'wang_mansion_west';
+    if (!cui.home || cui.home === 'tea_house' || cui.home === 'yamen') cui.home = 'husband_room';
+    cui.quarters = 'husband_room__servant';
     const cuiPName = String(world.places?.[cui.location]?.name || '');
     if (!cui.location || !world.places[cui.location] || /(客栈.*大宅|七进大宅)/.test(cuiPName)) {
-      try { moveActor(world, 'xiaocui', hus?.location === 'husband_room' ? 'husband_room' : 'wang_mansion_west', 'world', '乔迁'); } catch { /* 忽略 */ }
+      try { moveActor(world, 'xiaocui', 'husband_room', 'world', '乔迁'); } catch { /* 忽略 */ }
     }
   }
 

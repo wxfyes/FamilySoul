@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 势力：谁手里有兵、有粮、有城。
  *
  * 世界不止一个主人。朝廷是势力，王家是势力，将来天道推演出来的枭雄也是势力。
@@ -143,6 +143,17 @@ export function factionStrength(world, f) {
   const horse = Math.min(num(g.horse), troops) / Math.max(1, troops);
   const gear = 0.7 + wpn * 0.3 + arm * 0.25 + horse * 0.35;
   return Math.round(effective * (0.6 + morale / 100) * (quality / 50) * gear);
+}
+
+/**
+ * 派出 send 人时的战力：按势力总战力折算（剿匪、出征、聊天里的"打匪"共用这一把尺）
+ * 人数、士气、训练、装备都在 factionStrength 里算过了，这里只按派出比例切。
+ */
+export function detachmentStrength(world, f, send) {
+  if (!f) return 0;
+  const total = Math.max(1, Object.values(f.stationed || {}).reduce((s, x) => s + num(x), 0));
+  const use = Math.max(0, Math.min(num(send), total));
+  return Math.round(factionStrength(world, f) * (use / total) * 100) / 100;
 }
 
 /** 把王家势力回写进 world.military（兼容旧显示） */

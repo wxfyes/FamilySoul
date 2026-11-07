@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 全国匪患：不是围着相公刷怪，是各地天灾民怨自己长出来的。
  *
  * 全部本地计算（0 token）：
@@ -8,7 +8,7 @@
  *   ④ 相公可派护院剿匪：缴获、民心、名声、功名
  */
 
-import { factionOf, factionStrength } from './factions.js';
+import { factionOf, detachmentStrength, syncWangjiaToMilitary } from './factions.js';
 import { changeCityOwner, troopsAt, setWarEventSink } from './warfare.js';
 import { addFame } from './reputation.js';
 
@@ -173,7 +173,7 @@ export function quellBandits(world, banditId, troops, fromCity) {
   const send = Math.min(Math.round(num(troops)), here);
   if (send < 1) return { ok: false, error: '你在这座城没有兵' };
 
-  const power = factionStrength(world, f) * (send / Math.max(1, Object.values(f.stationed || {}).reduce((x, y) => x + num(y), 0)));
+  const power = detachmentStrength(world, f, send);
   const foe = num(b.strength) * (b.tier >= 3 ? 1.3 : b.tier === 2 ? 1.1 : 1);
   const win = power * (0.85 + Math.random() * 0.4) > foe;
 
@@ -182,6 +182,7 @@ export function quellBandits(world, banditId, troops, fromCity) {
   const left = Math.max(0, here - loss);
   f.stationed[city] = left;
   f.troops = Object.values(f.stationed).reduce((x, y) => x + num(y), 0);
+  try { syncWangjiaToMilitary(world); } catch { /* 忽略 */ }
 
   if (!win) {
     return { ok: true, win: false, error: null, text: `攻${b.name}不利，折兵 ${loss} 人` };
