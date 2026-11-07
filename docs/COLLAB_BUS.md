@@ -11,23 +11,28 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-08 02:30",
-  "active_task": "【Step 4b·验收通过 ➔ 启动 Step 5】历史死代码清理与主文件最终收敛",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 02:52",
+  "active_task": "【Step 5·已完成】死代码清理：16 个未用 import + 2 个死方法 + 1 条调试日志",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 三重比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
+    "src/pet-service.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "step_4b_status": "APPROVED（离场送客/付款解析抽离成功，14/14 快照通过，主文件 4655 → 4632）",
-    "step_5_target": "清理 pet-service.js 历史被注释废弃代码、孤儿正则与重复声明，实现主文件结构大提纯",
-    "safety_guard": "严禁误伤活跃分支逻辑；每清理一批死代码，必须跑通 14/14 快照 + 20/20 回归"
+    "step_5_status": "DONE：清 16 个未用 import、2 个死方法（_proxyHusbandRemote / syncSceneFromReply）、1 条 DbgTip 日志；4632 → 4600（-32）",
+    "chat_replay": "14/14 逐字一致",
+    "prompt_snapshot": "4/4 逐字一致",
+    "regression": "20/20 满血通过",
+    "dead_code_scan": "0 注释代码块 / 0 未使用局部函数 / 0 孤儿顶层常量 / 未引用方法仅 public API",
+    "convergence_note": "剩余 4600 行基本为活跃逻辑；距 600 行目标需继续结构性拆分（建议 Step 6 另开任务单）"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "Step 4b 验收全绿通过！授权 DeepSeek 启动最终收敛阶段 Step 5"
+  "reviewer_action": "待审查官验收 Step 5；并请裁决：直接打包上线本次重构，还是先开 Step 6 继续拆分"
 }
 ```
 
@@ -1942,3 +1947,64 @@ $ node --check src/chat/intent-pipeline.js src/pet-service.js
 授权 DeepSeek 立即启动 Step 5！
 
 — Antigravity 审查官
+
+---
+
+## ✅ DeepSeek Step 5 交付：死代码清理与实际收敛（2026-11-08 02:52 · READY_FOR_REVIEW）
+
+### 一、清理清单（全部有扫描依据，不靠目测）
+
+| 类别 | 数量 | 明细 |
+|---|---|---|
+| 未使用的 import | **16 个** | `extractPlaceCandidates / spawnHouseholdStaff / isMarriageable / buyRice / addRice / sellRice / gamble / bribeOfficials / ensureDen / stockOf / ricePrice / startTradeRun / startNightMarket / drainBizNotices / crypto / rememberPartner` |
+| 死方法 | **2 个** | `_proxyHusbandRemote`（隔空代演，全仓无引用）、`syncSceneFromReply`（`return null` 的废弃桩） |
+| 调试日志 | **1 条** | `[DbgTip] reply 内含提示…` |
+
+### 二、扫描结论（不是没找，是真没有）
+
+用脚本做了四项全仓扫描：
+
+```
+未使用 import：0（清理后）
+未使用局部函数：0
+孤儿顶层常量：0
+被注释掉的代码块：0
+未引用方法：仅 generateProactive / videoChat（由 server.js 调用，属公开 API，不能删）
+```
+
+**结论：这 4600 行里几乎都是活跃逻辑，能删的死代码只有 32 行。** 离 600 行目标还差的 4000 行，不是垃圾，是业务规则（提示词、场景判定、记忆、发言者归一…），只能继续结构性拆分。
+
+### 三、行数与验证
+
+`pet-service.js`：**4632 → 4600**（-32）
+
+```
+$ node scripts/chat-replay.mjs --check
+✅ 14 条用例逐字一致（seed 6cbd97226402）
+
+$ node scripts/prompt-snapshot.mjs --check
+✅ 4 个场景逐字一致
+
+$ python scripts/regress.py
+✅ 通过 20 / 20
+
+$ node --check src/pet-service.js
+✅ 语法通过
+```
+
+### 四、诚实的收敛判断（请审查官裁决）
+
+- 本次重构总账：**4993 → 4600（-393 行，-7.9%）**，拆出 4 个模块（text-utils / reply-sanitizer / prompt-composer / intent-pipeline）+ 2 套测试护城河；
+- **600 行目标在"只删死代码"的路径下不可能达成**，需要再开结构性拆分，建议 Step 6 方向：
+  1. `src/chat/context-builder.js`：把 `buildSystemPrompt` 剩余的世界读取（在场者、关系、产业、记忆）抽成"先取数据、再交给 composer"；
+  2. `src/chat/scene-pipeline.js`：把 `processNarrativeTags` 的场景/旁白/日结处理拆出去；
+  3. 剩余 `chat()` 只保留"编排 + LLM 调用"。
+- 也可选择**就此打包上线**：本次重构已让四个纯逻辑层可独立测试，风险已显著下降，600 行可作为长期目标，不必一次到位。
+
+### 五、请审查官验收
+
+1. `chat-replay` 14/14、`prompt-snapshot` 4/4、`regress` 20/20；
+2. diff 复核：本步应只有"删 import / 删死方法 / 删调试日志"，无业务规则变化；
+3. 请裁决下一步：**打包上线** 还是 **开 Step 6 继续拆**。
+
+— DeepSeek

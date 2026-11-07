@@ -5,16 +5,12 @@ import { describeRoom } from './world/room-life.js';
 import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { sanePrice, priceHint } from './world/pricing.js';
-import { isPlaceName, extractPlaceCandidates, matchActor, getPlaceDisplayName } from './world/naming.js';
+import { isPlaceName, matchActor, getPlaceDisplayName } from './world/naming.js';
 import { moveActor, isHumanBound } from './world/position.js';
 import { hireStaff } from './world/employment.js';
-import { spawnHouseholdStaff } from './world/warfare.js';
-import { proposeMarriage, isMarriageable, acceptAlliance, declineAlliance } from './world/marriage.js';
-import { buyRice, addRice, sellRice, gamble, bribeOfficials, ensureDen, stockOf, ricePrice } from './world/goods.js';
-import { startTradeRun, startNightMarket, drainBizNotices } from './world/business.js';
+import { proposeMarriage, acceptAlliance, declineAlliance } from './world/marriage.js';
 import { applyChatActions } from './world/chat-actions.js';
 import path from 'node:path';
-import crypto from 'node:crypto';
 
 import { buildStateSummary } from './world/summarize.js';
 import { loadState, saveState , readRecentEvents } from './world/state.js';
@@ -29,7 +25,7 @@ import { refreshPropertyIncomes } from './world/clock.js';
 import { placeFacts } from './world/state.js';
 import { arcStepPrompt } from './world/arcs.js';
 import { normalizeMemberReply } from './world/member-reply.js';
-import { resolveTurnTarget, rememberPartner } from './world/turn-target.js';
+import { resolveTurnTarget } from './world/turn-target.js';
 import { describeBonds } from './world/bonds.js';
 import { rumorsKnownBy } from './world/rumors.js';
 import { recordHumanLine, memberKeyOfActor } from './world/co-presence.js';
@@ -4139,7 +4135,6 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       }
     } catch { /* 忽略 */ }
 
-    try { console.log(`[DbgTip] reply 内含提示 ${(String(reply || '').match(/【提示】/g) || []).length} 条`); } catch { /* 忽略 */ }
     // 出口：把本轮动作的【提示】并进最终正文（这里之后没人再改 reply）
     try {
       const tips = Array.isArray(this._turnNotices) ? this._turnNotices.splice(0, this._turnNotices.length) : [];
@@ -4170,24 +4165,6 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
    * 天道主动开口：根据当前世界状态现写一句话。
    * 引擎只负责「该她说话了」这个事实，措辞由天道裁定（不套模板、不写死台词）。
    */
-  // 隔空应一声：他人在别处，只答一句，不挪窝（不制造瞬移）
-  async _proxyHusbandRemote({ world, say, viewerId }) {
-    try {
-      if (!this.llmClient?.isReady?.()) return null;
-      const me = world.actors?.husband;
-      const her = world.actors?.[viewerId];
-      const where = world.places?.[me?.location]?.name || '';
-      const sys = '你在演王甯（茶商，说话简短，不客套）。只回他此刻会说的一两句话，不要旁白。';
-      const usr = [
-        `${her?.name || '她'}在${world.places?.[her?.location]?.name || '别处'}隔空问起你：${String(say || '').slice(0, 40)}`,
-        `你此刻在${where}。你答一句，别写你过去了。`,
-      ].join('\\n');
-      const out = await this.llmClient.complete({ system: sys, messages: [{ role: 'user', content: usr }], temperature: 0.7, maxTokens: 160 });
-      const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || '');
-      return String(text || '').trim().replace(/^【[^】]+】：/, '');
-    } catch { return null; }
-  }
-
   async generateProactive({ memberKey = 'husband', roleName = null, asName = null, reason = 'proactive', facts = {} } = {}) {
     try {
       if (!this.llmClient.isReady()) return null;
@@ -4259,15 +4236,6 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       console.warn('[Push] 主动生成失败：', err.message);
       return null;
     }
-  }
-
-  /**
-   * 硬对齐：天道常在开头写「【天道·运河码头大酒楼·后院账房】」这样的场景标记。
-   * 只要出现这个标记，就把相公与本轮开口的人一起挪过去——不依赖模型是否记得写回执。
-   */
-  syncSceneFromReply(text, { skipHusbandMove = false, selfId = 'husband' } = {}) {
-    // 军规：转场全由交互系统 (/api/world/go) 控制，绝不从回复场景文本中修改物理位置
-    return null;
   }
 
   /**
