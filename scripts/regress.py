@@ -46,6 +46,8 @@ w.assets.silver = 300;
 w.assets.properties = [{ id:'p1', name:'运河码头三层大酒楼', incomePerDay: 8, keeper:'husband', city:'临江府', staff: 3 }];
 saveState(dir, w);
 const mkLlm = (reply='【阿吉】：嗯。', proxy='') => ({ isReady: () => true, complete: async (a) => {
+  const p = JSON.stringify(a || '');
+  if (p.includes('府中人') || p.includes('明媒妻妾') || p.includes('府中')) console.log('[BONDS] 府中人');
   if (proxy && a.maxTokens >= 150 && a.maxTokens <= 300) return { text: proxy, usage: null };
   if (a.maxTokens <= 200) return { text: '[[world:none]]', usage: null };
   return { text: reply, usage: null };

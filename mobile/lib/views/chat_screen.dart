@@ -321,9 +321,15 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    try {
-      await _speech.stop();
-    } catch (_) {}
+    if (Platform.isAndroid) {
+      try {
+        await OfflineAsrService.instance.stopListening();
+      } catch (_) {}
+    } else {
+      try {
+        await _speech.stop();
+      } catch (_) {}
+    }
     if (mounted) {
       setState(() {
         _isHoldingRecord = false;
@@ -405,9 +411,18 @@ class _ChatScreenState extends State<ChatScreen> {
       _isSettling = true;
     });
 
-    try {
-      await _speech.stop();
-    } catch (_) {}
+    if (Platform.isAndroid) {
+      try {
+        final fin = await OfflineAsrService.instance.stopAndFinalize();
+        if (fin.isNotEmpty) {
+          _liveWords = fin;
+        }
+      } catch (_) {}
+    } else {
+      try {
+        await _speech.stop();
+      } catch (_) {}
+    }
 
     if (!mounted) {
       _isSettling = false;

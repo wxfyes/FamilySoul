@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/api_client.dart';
+import '../services/offline_asr_service.dart';
 
 class AssistantMessage {
   final String role;
@@ -29,11 +32,6 @@ class _AssistantViewState extends State<AssistantView> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
 
   Future<void> _loadHistory() async {
     final raw = await widget.apiClient.getAssistantHistory();
@@ -70,32 +68,261 @@ class _AssistantViewState extends State<AssistantView> {
     });
   }
 
-  bool _listening = false;
-  final SpeechToText _speech = SpeechToText();
+  bool _isVoiceMode = false;
+  bool _isHoldingRecord = false;
+  bool _isCanceling = false;
+  bool _isSettling = false;
+  String _liveWords = '';
+  DateTime? _voiceStartTime;
+  bool _speechAvailable = false;
+  final stt.SpeechToText _speech = stt.SpeechToText();
   String? _imageBase64;
   String? _imageMime;
 
-  Future<void> _toggleMic() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+    if (Platform.isAndroid) {
+      OfflineAsrService.instance.ensureInitialized();
+    } else {
+      _initSpeech();
+    }
+  }
+
+  Future<void> _initSpeech() async {
     try {
-      if (_listening) {
-        await _speech.stop();
-        setState(() => _listening = false);
-        return;
+      final available = await _speech.initialize(
+        onError: (val) => debugPrint('[AssistantSTT] Error: ${val.errorMsg}'),
+        onStatus: (val) => debugPrint('[AssistantSTT] Status: $val'),
+      );
+      if (mounted) {
+        setState(() {
+          _speechAvailable = available;
+        });
       }
-      final ok = await _speech.initialize();
-      if (!ok) return;
-      setState(() => _listening = true);
-      await _speech.listen(
-        listenOptions: SpeechListenOptions(localeId: 'zh_CN'),
-        onResult: (r) {
-          if (r.recognizedWords.isNotEmpty) {
-            _inputController.text = r.recognizedWords;
-            _inputController.selection = TextSelection.fromPosition(TextPosition(offset: _inputController.text.length));
+    } catch (e) {
+      debugPrint('[AssistantSTT] 初始化异常: $e');
+      _speechAvailable = false;
+    }
+  }
+
+  void _onVoiceStart() async {
+    if (_isHoldingRecord || _isSettling) return;
+
+    try {
+      final micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) {
+        final req = await Permission.microphone.request();
+        if (!req.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('需要麦克风录音权限才能说话，请在设置中允许'),
+                action: SnackBarAction(
+                  label: '去设置',
+                  onPressed: () => openAppSettings(),
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    // Android: APK 内置离线模型
+    if (Platform.isAndroid) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _isHoldingRecord = true;
+        _isSettling = false;
+        _isCanceling = false;
+        _liveWords = '';
+        _voiceStartTime = DateTime.now();
+      });
+
+      final started = await OfflineAsrService.instance.startListening(
+        continuous: false,
+        onResult: (text, _) {
+          if (!mounted) return;
+          if (_isHoldingRecord || _isSettling) {
+            setState(() {
+              _liveWords = text;
+            });
           }
         },
       );
-    } catch (_) {
-      if (mounted) setState(() => _listening = false);
+
+      if (!started && mounted) {
+        setState(() => _isHoldingRecord = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('内置离线语音引擎正在初始化中，请稍候再按...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // iOS: Apple Speech 原生
+    if (!_speechAvailable) {
+      await _initSpeech();
+    }
+    if (!_speechAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('语音服务未就绪，请在手机设置中检查是否授予麦克风与语音识别权限...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isHoldingRecord = true;
+      _isSettling = false;
+      _isCanceling = false;
+      _liveWords = '';
+      _voiceStartTime = DateTime.now();
+    });
+
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          if (!mounted) return;
+          if (_isHoldingRecord || _isSettling) {
+            setState(() {
+              _liveWords = result.recognizedWords;
+            });
+          }
+        },
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.confirmation,
+          cancelOnError: false,
+          partialResults: true,
+          autoPunctuation: true,
+          localeId: 'zh_CN',
+        ),
+      );
+    } catch (e) {
+      debugPrint('[AssistantSTT] 启动录音异常: $e');
+      if (mounted) {
+        setState(() {
+          _isHoldingRecord = false;
+          _isSettling = false;
+        });
+      }
+    }
+  }
+
+  void _onVoiceMove(Offset localPosition) {
+    if (!_isHoldingRecord) return;
+    final shouldCancel = localPosition.dy < -50;
+    if (shouldCancel != _isCanceling) {
+      HapticFeedback.selectionClick();
+      setState(() => _isCanceling = shouldCancel);
+    }
+  }
+
+  void _onVoiceCancel() async {
+    if (!_isHoldingRecord && !_isSettling) return;
+    if (Platform.isAndroid) {
+      try {
+        await OfflineAsrService.instance.stopListening();
+      } catch (_) {}
+    } else {
+      try {
+        await _speech.stop();
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() {
+        _isHoldingRecord = false;
+        _isCanceling = false;
+        _isSettling = false;
+      });
+    }
+  }
+
+  void _onVoiceEnd() async {
+    if (!_isHoldingRecord) return;
+
+    final wasCanceling = _isCanceling;
+    final duration = DateTime.now().difference(_voiceStartTime ?? DateTime.now());
+
+    HapticFeedback.lightImpact();
+
+    setState(() {
+      _isHoldingRecord = false;
+      _isCanceling = false;
+      _isSettling = true;
+    });
+
+    String recognizedText = _liveWords;
+    if (Platform.isAndroid) {
+      try {
+        final fin = await OfflineAsrService.instance.stopAndFinalize();
+        if (fin.isNotEmpty) {
+          recognizedText = fin;
+        }
+      } catch (_) {}
+    } else {
+      try {
+        await _speech.stop();
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 300));
+      recognizedText = _liveWords;
+    }
+
+    if (!mounted) {
+      _isSettling = false;
+      return;
+    }
+    _isSettling = false;
+
+    if (wasCanceling) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已取消发送'),
+          duration: Duration(milliseconds: 1000),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (duration.inMilliseconds < 500) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('说话时间太短'),
+          duration: Duration(milliseconds: 1000),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final textToSend = recognizedText.trim();
+    if (textToSend.isNotEmpty) {
+      _sendDirectMessage(textToSend);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('未听清，请按住重说一次哦～'),
+          duration: Duration(milliseconds: 1500),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -122,15 +349,25 @@ class _AssistantViewState extends State<AssistantView> {
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
     if (text.isEmpty || _isLoading) return;
-
     _inputController.clear();
+    await _sendDirectMessage(text);
+  }
+
+  Future<void> _sendDirectMessage(String text) async {
+    final clean = text.trim();
+    if (clean.isEmpty || _isLoading) return;
+
+    final imgBase64 = _imageBase64;
+    final imgMime = _imageMime;
     setState(() {
-      _messages.add(AssistantMessage(role: 'user', text: text, at: DateTime.now()));
+      _imageBase64 = null;
+      _imageMime = null;
+      _messages.add(AssistantMessage(role: 'user', text: clean, at: DateTime.now()));
       _isLoading = true;
     });
     _scrollToBottom();
 
-    final reply = await widget.apiClient.askAssistant(text, imageBase64: _imageBase64, mimeType: _imageMime);
+    final reply = await widget.apiClient.askAssistant(clean, imageBase64: imgBase64, mimeType: imgMime);
     if (!mounted) return;
 
     setState(() {
@@ -142,6 +379,84 @@ class _AssistantViewState extends State<AssistantView> {
       ));
     });
     _scrollToBottom();
+  }
+
+  /// 豆包风格高颜值录音悬浮窗
+  Widget _buildVoiceHoldingModal() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.35),
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 220,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            decoration: BoxDecoration(
+              color: _isCanceling ? const Color(0xFFEF4444) : Colors.white.withValues(alpha: 0.96),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isCanceling
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  ),
+                  child: Icon(
+                    _isCanceling ? Icons.delete_outline_rounded : Icons.mic_rounded,
+                    size: 38,
+                    color: _isCanceling ? Colors.white : const Color(0xFF3B82F6),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _isCanceling
+                      ? '松开手指，取消发送'
+                      : (_liveWords.isEmpty ? '正在倾听中...' : _liveWords),
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _isCanceling ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _isCanceling
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : Colors.grey.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _isCanceling ? '松开取消' : '松开发送，上滑取消',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isCanceling ? Colors.white : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _clearHistory() async {
@@ -177,9 +492,11 @@ class _AssistantViewState extends State<AssistantView> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Column(
+    return Stack(
       children: [
-        // 顶部小横条提示：现代智能助手定位
+        Column(
+          children: [
+            // 顶部小横条提示：现代智能助手定位
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
@@ -360,7 +677,7 @@ class _AssistantViewState extends State<AssistantView> {
                 ),
         ),
 
-        // 底部输入条：与世界同款胶囊（左相机 / 中输入 / 右语音 + 发送）
+        // 底部输入条：与世界同款一体化胶囊（左相机 / 中打字或按住说话 / 右模式切换+长按语音+发送）
         Container(
           padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
           decoration: BoxDecoration(
@@ -374,60 +691,154 @@ class _AssistantViewState extends State<AssistantView> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1C202B) : Colors.white,
                 borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.18)),
+                border: Border.all(
+                  color: (_isVoiceMode && _isHoldingRecord)
+                      ? const Color(0xFF3B82F6)
+                      : Colors.grey.withValues(alpha: 0.18),
+                ),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   IconButton(
                     tooltip: '发一张图给助手看',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: const Icon(Icons.camera_alt_outlined, size: 22, color: Color(0xFF94A3B8)),
+                    icon: Icon(
+                      _imageBase64 != null ? Icons.image_rounded : Icons.camera_alt_outlined,
+                      size: 22,
+                      color: _imageBase64 != null ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8),
+                    ),
                     onPressed: _pickImage,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
-                    child: TextField(
-                      controller: _inputController,
-                      maxLines: 4,
-                      minLines: 1,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
-                      style: TextStyle(fontSize: 15, color: isDark ? Colors.white : const Color(0xFF1E293B)),
-                      decoration: InputDecoration(
-                        hintText: '向天机助手提问任何事…',
-                        hintStyle: TextStyle(fontSize: 14.5, color: isDark ? Colors.white38 : Colors.grey.shade400),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-                      ),
-                    ),
+                    child: _isVoiceMode
+                        ? Listener(
+                            onPointerDown: (_) => _onVoiceStart(),
+                            onPointerMove: (e) => _onVoiceMove(e.localPosition),
+                            onPointerUp: (_) => _onVoiceEnd(),
+                            onPointerCancel: (_) => _onVoiceCancel(),
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              height: 40,
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    _isHoldingRecord ? Icons.mic : Icons.mic_none_rounded,
+                                    size: 19,
+                                    color: _isHoldingRecord
+                                        ? const Color(0xFF3B82F6)
+                                        : const Color(0xFF94A3B8),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _isHoldingRecord ? '松开 发送' : '按住 说话',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: _isHoldingRecord
+                                          ? const Color(0xFF3B82F6)
+                                          : (isDark ? Colors.white70 : const Color(0xFF1E293B)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : TextField(
+                            controller: _inputController,
+                            maxLines: 4,
+                            minLines: 1,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendMessage(),
+                            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                            style: TextStyle(fontSize: 15, color: isDark ? Colors.white : const Color(0xFF1E293B)),
+                            decoration: InputDecoration(
+                              hintText: '发消息或按住说话...',
+                              hintStyle: TextStyle(fontSize: 14.5, color: isDark ? Colors.white38 : Colors.grey.shade400),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                            ),
+                          ),
                   ),
-                  IconButton(
-                    tooltip: '按住说话',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: Icon(_listening ? Icons.mic_rounded : Icons.graphic_eq_rounded,
-                        size: 22, color: _listening ? const Color(0xFFEF4444) : const Color(0xFF94A3B8)),
-                    onPressed: _toggleMic,
-                  ),
-                  const SizedBox(width: 2),
+                  const SizedBox(width: 4),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _inputController,
                     builder: (ctx, v, _) {
-                      final has = v.text.trim().isNotEmpty;
-                      return GestureDetector(
-                        onTap: has ? _sendMessage : null,
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: has ? const Color(0xFF3B82F6) : (isDark ? const Color(0xFF2A2F3D) : const Color(0xFFE2E8F0)),
-                            shape: BoxShape.circle,
+                      final has = v.text.trim().isNotEmpty && !_isVoiceMode;
+                      if (has || _isLoading) {
+                        return GestureDetector(
+                          onTap: _isLoading ? null : _sendMessage,
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            margin: const EdgeInsets.only(right: 2),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF3B82F6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: _isLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.arrow_upward_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                           ),
-                          child: Icon(has ? Icons.arrow_upward_rounded : Icons.add_rounded,
-                              size: 20, color: has ? Colors.white : const Color(0xFF94A3B8)),
+                        );
+                      }
+
+                      // 空文字状态：声波/键盘切换按钮，且支持直接按住说话
+                      return Listener(
+                        onPointerDown: (_) {
+                          if (!_isVoiceMode) {
+                            _onVoiceStart();
+                          }
+                        },
+                        onPointerMove: (e) {
+                          if (!_isVoiceMode) {
+                            _onVoiceMove(e.localPosition);
+                          }
+                        },
+                        onPointerUp: (_) {
+                          if (!_isVoiceMode) {
+                            _onVoiceEnd();
+                          }
+                        },
+                        onPointerCancel: (_) {
+                          if (!_isVoiceMode) {
+                            _onVoiceCancel();
+                          }
+                        },
+                        child: IconButton(
+                          tooltip: _isVoiceMode ? '切换打字' : '按住说话或点击切换',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          icon: Icon(
+                            _isVoiceMode
+                                ? Icons.keyboard_outlined
+                                : (_isHoldingRecord ? Icons.mic_rounded : Icons.graphic_eq_rounded),
+                            size: 22,
+                            color: _isHoldingRecord
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFF94A3B8),
+                          ),
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _isVoiceMode = !_isVoiceMode;
+                            });
+                          },
                         ),
                       );
                     },
@@ -438,6 +849,9 @@ class _AssistantViewState extends State<AssistantView> {
           ),
         ),
       ],
-    );
+    ),
+    if (_isHoldingRecord) _buildVoiceHoldingModal(),
+  ],
+);
   }
 }
