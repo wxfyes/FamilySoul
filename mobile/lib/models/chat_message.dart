@@ -126,16 +126,25 @@ class ChatMessage {
     return url;
   }
 
-  /// 智能推导说话人常驻/所在地点（用于非同场时提供"动身前往"快捷操作）
+  /// 智能推导说话人常驻/所在地点（仅当明确为差人递信且服务端未带地点时做市井兜底，绝不把家人往外推）
   String? get inferredPlace {
     if (place != null && place!.isNotEmpty) return place;
+    // 普通对话绝不瞎猜异地！当面说话绝不是递信！
+    if (!isLetter) return null;
     final spk = effectiveSpeaker ?? '';
-    if (spk.contains('紫嫣') || spk.contains('酒肆') || text.contains('酒肆') || text.contains('续酒')) return '于家酒肆';
-    if (spk.contains('静儿') || spk.contains('县衙') || text.contains('县衙')) return '县衙';
-    if (spk.contains('采云') || spk.contains('货栈') || text.contains('货栈')) return '翟家货栈';
-    if (spk.contains('孙进') || spk.contains('客栈') || text.contains('客栈')) return '临江客栈';
-    if (spk.contains('鲁青') || spk.contains('窑厂') || text.contains('窑厂')) return '城南窑厂';
-    if (spk.contains('芸娘') || spk.contains('茶坊') || text.contains('茶坊')) return '临江茶坊';
+    // 府内女眷与家眷（芸娘、婉儿、小翠、婉宁），家在正房，绝不能推成外面商铺
+    if (spk.contains('芸娘') ||
+        spk.contains('婉儿') ||
+        spk.contains('小翠') ||
+        spk.contains('婉宁') ||
+        spk.contains('护院')) {
+      return null;
+    }
+    if (spk.contains('紫嫣') || spk.contains('酒肆')) return '于家酒肆';
+    if (spk.contains('静儿') || spk.contains('县衙')) return '县衙';
+    if (spk.contains('采云') || spk.contains('货栈')) return '翟家货栈';
+    if (spk.contains('孙进') || spk.contains('客栈')) return '临江客栈';
+    if (spk.contains('鲁青') || spk.contains('窑厂')) return '城南窑厂';
     return null;
   }
 

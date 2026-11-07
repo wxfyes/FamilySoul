@@ -36,24 +36,47 @@ class MessageBubble extends StatelessWidget {
     final currentPlace = chatProvider.currentPlace;
     final hereNames = chatProvider.hereNames;
 
-    // 严谨判定是否面对面同场（在场名单有此人，或推导地点与相公当前地点一致）：
-    final isPresentHere = hereNames.isNotEmpty &&
-        hereNames.any((h) => h.isNotEmpty && (speakerName.contains(h) || h.contains(speakerName)));
+    // 提取人名核心名（去除头衔前缀如"正妻·"、"侧妾·"与单字姓氏如"林"、"沈"、"崔"）：
+    String extractCoreName(String raw) {
+      if (raw.isEmpty) return '';
+      var s = raw.trim();
+      if (s.contains('·')) s = s.split('·').last.trim();
+      s = s.replaceAll(RegExp(r'^(正妻|侧室|侧妾|妾身|如夫人|夫人|老板娘|掌柜|伙计|丫鬟|捕快|知府|工头)'), '').trim();
+      if (s.length >= 3) {
+        return s.substring(1); // "林芸娘" -> "芸娘", "沈婉儿" -> "婉儿", "崔婉宁" -> "婉宁"
+      }
+      return s;
+    }
+
+    final spkCore = extractCoreName(speakerName);
+
+    // 严谨判定是否面对面同场（在场名单有此人，或核心名完全重合，或地点一致）：
+    final isPresentHere = hereNames.isNotEmpty && hereNames.any((h) {
+      final hTrim = h.trim();
+      if (hTrim.isEmpty) return false;
+      final hCore = extractCoreName(hTrim);
+      return speakerName.contains(hTrim) ||
+          hTrim.contains(speakerName) ||
+          (spkCore.isNotEmpty && (hTrim.contains(spkCore) || hCore == spkCore));
+    });
+
     final isSamePlace = currentPlace.isNotEmpty &&
         message.inferredPlace != null &&
         (currentPlace.contains(message.inferredPlace!) || message.inferredPlace!.contains(currentPlace));
 
-    // 只有在非同场（确实不在身边，隔空递信）且有目标地点时，才展示递信标牌与动身按钮
+    // 只有在非同场（确实不在身边，隔空递信）且服务端明确是递信时，才展示递信标牌与动身按钮
     final shouldShowLetterBadge = !isUser &&
         !message.isPending &&
         !isPresentHere &&
         !isSamePlace &&
-        (message.isLetter || message.inferredPlace != null);
+        message.isLetter &&
+        message.inferredPlace != null;
 
     final shouldShowGoButton = !isUser &&
         !message.isPending &&
         !isPresentHere &&
         !isSamePlace &&
+        message.isLetter &&
         message.inferredPlace != null &&
         message.inferredPlace!.isNotEmpty;
 
