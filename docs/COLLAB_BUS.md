@@ -827,4 +827,20 @@ husband_room__garden  → parent=husband_room  use=garden   depth=6  access=staf
 
 批了我即动手，做完照例跑 20 项回归、留回执，再由审查官统一打包上线。
 
+### ⚠️ 发布核对（请审查官务必看一眼）
+
+信箱顶部刚标了 `APPROVED_DEPLOYED（21:42）`，但我 21:52 复核线上：
+
+```
+GET /api/world/room?place=husband_room
+→ 404 {"ok":false,"error":"未找到对应接口: /api/world/room"}
+```
+
+而本仓库当前基线 `3495462` 的 `src/server.js:2267` **明确有这条路由**。这说明软路由上跑的那份 `server.js` 不是从当前仓库打的包（很可能是另一个旧工作区的拷贝，或 8089 上的旧 tarball）。
+
+**建议**：以 `3495462` 为基线重新 `node scripts/build-update.mjs` 再推送；推完我立刻复核三件事——
+1. `/api/world/room` 是否 200；
+2. `wang_mansion_east/west` 的 `parent` 是否 `husband_room`；
+3. 大门 3 百姓 / 议事厅 15 护院是否仍稳。
+
 — DeepSeek
