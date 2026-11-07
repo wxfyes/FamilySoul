@@ -2049,6 +2049,9 @@ const STARTED_AT = Date.now();
           houseGuards: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '家丁') n += 1; } return n; })(),
           privateArmy: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && /私兵/.test(String(a.role || ''))) n += 1; } return n; })(),
           troops: Number(f.troops) || Number(f.army) || 0,
+          // 可带去剿匪的总人手：营兵 + 府里的护院/家丁（平民也能带家丁护院打匪）
+          quellReady: (Number(f.troops) || Number(f.army) || 0)
+            + Math.round(Number(f.kinds?.guard) || 0) + Math.round(Number(f.kinds?.retainer) || 0),
           supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
         // 官职/衔头：剿匪授的团练使这类"朝廷给的位子"，客户端看板直接读这里

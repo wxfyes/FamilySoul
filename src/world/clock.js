@@ -1449,6 +1449,35 @@ function onNewDay(world, events) {
     for (const ev of runPayday(world, events)) {
       try { events.push(nextEvent(world, ev)); } catch { /* 忽略 */ }
     }
+    // 每月初一：官职俸银（相公名下的团练使等差遣，按月给俸，进流水）
+    try {
+      const dayNow = Number(world.clock?.day) || 1;
+      if (dayNow % 30 === 0 && world.assets && Number(world.flags?.lastStipendDay) !== dayNow) {
+        world.flags = world.flags || {};
+        world.flags.lastStipendDay = dayNow;
+        const pays = { tuanlian: 3 };
+        let total = 0;
+        const titles = [];
+        for (const [key, o] of Object.entries(world.court?.offices || {})) {
+          if (!o || o.vacant || String(o.holder) !== 'husband') continue;
+          total += Number(pays[key]) || 1.5;
+          titles.push(o.title || key);
+        }
+        if (total > 0) {
+          total = Math.round(total * 100) / 100;
+          world.assets.silver = Math.round((Number(world.assets.silver) || 0) * 100 + total * 100) / 100;
+          world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+          world.ledger.push({
+            day: dayNow, hour: Number(world.clock?.hour) || 0, delta: total,
+            title: `${titles.join('、')}俸银`, by: 'husband', balance: world.assets.silver, category: '俸银',
+          });
+          events.push(nextEvent(world, {
+            action: 'stipend', actor: 'husband', place: null,
+            payload: { text: `官府送来${titles.join('、')}俸银 ${total} 两` },
+          }));
+        }
+      }
+    } catch { /* 忽略 */ }
   } catch (err) {
     console.warn('[Army] 军需结算失败：', err.message);
   }

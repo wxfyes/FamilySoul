@@ -8,7 +8,7 @@
  *   ④ 相公可派护院剿匪：缴获、民心、名声、功名
  */
 
-import { factionOf, detachmentStrength, syncWangjiaToMilitary } from './factions.js';
+import { factionOf, factionStrength, syncWangjiaToMilitary } from './factions.js';
 import { changeCityOwner, troopsAt, setWarEventSink } from './warfare.js';
 import { addFame } from './reputation.js';
 
@@ -169,30 +169,43 @@ export function quellBandits(world, banditId, troops, fromCity) {
   const f = factionOf(world, 'wangjia');
   if (!f) return { ok: false, error: '没有王家势力' };
   const city = fromCity && world.cities?.[fromCity] ? fromCity : (Object.keys(f.stationed || {})[0] || '');
-  const here = troopsAt(world, f, city);
-  const send = Math.min(Math.round(num(troops)), here);
-  if (send < 1) return { ok: false, error: '你在这座城没有兵' };
 
-  const power = detachmentStrength(world, f, send);
+  // 可派的人 = 营兵（出征） + 府里的护院/家丁（平民也能带出去打匪，募护院不犯法）
+  const armyHere = troopsAt(world, f, city);
+  const kinds = f.kinds || {};
+  const retainerHave = Math.max(0, Math.round(num(kinds.retainer)));
+  const guardHave = Math.max(0, Math.round(num(kinds.guard)));
+  const available = armyHere + retainerHave + guardHave;
+  const asked = Math.round(num(troops));
+  const send = Math.min(asked > 0 ? asked : available, available);
+  if (send < 1) return { ok: false, error: '你手头没有可带的人手（营兵 / 护院 / 家丁）' };
+
+  // 先出营兵，再出护院，最后家丁
+  let need = send;
+  const fromArmy = Math.min(need, armyHere); need -= fromArmy;
+  const fromRetainer = Math.min(need, retainerHave); need -= fromRetainer;
+  const fromGuard = Math.min(need, guardHave); need -= fromGuard;
+
+  // 战力：营兵按 factionStrength 折（含新兵/训练/装备），护院约七成、家丁约四成五
+  const q = Math.max(10, Math.min(120, num(world.military?.quality) || 50));
+  const morale = Math.max(10, Math.min(120, num(f.morale) || 50));
+  const baseMan = 0.9 * (q / 50) * (0.6 + morale / 100) * 0.7;
+  const armyMan = armyHere > 0 ? Math.max(baseMan, factionStrength(world, f) / Math.max(1, armyHere)) : 0;
+  const power = fromArmy * armyMan + fromRetainer * baseMan * 0.7 + fromGuard * baseMan * 0.45;
   const foe = num(b.strength) * (b.tier >= 3 ? 1.3 : b.tier === 2 ? 1.1 : 1);
   const win = power * (0.85 + Math.random() * 0.4) > foe;
 
-  // 伤亡
+  // 伤亡：先扣营兵，再扣护院，最后家丁
   const loss = Math.round(send * (win ? 0.05 + Math.random() * 0.1 : 0.25 + Math.random() * 0.15));
-  const left = Math.max(0, here - loss);
-  f.stationed[city] = left;
+  let cut = loss;
+  const cutArmy = Math.min(cut, fromArmy); cut -= cutArmy;
+  const cutRetainer = Math.min(cut, fromRetainer); cut -= cutRetainer;
+  const cutGuard = Math.min(cut, fromGuard);
+  f.stationed[city] = Math.max(0, armyHere - cutArmy);
+  kinds.retainer = Math.max(0, retainerHave - cutRetainer);
+  kinds.guard = Math.max(0, guardHave - cutGuard);
+  f.kinds = kinds;
   f.troops = Object.values(f.stationed).reduce((x, y) => x + num(y), 0);
-  // 兵种账跟着扣（家丁/护院的真人另由世界自愈处理，账上先对齐）
-  if (loss > 0 && f.kinds) {
-    let cut = loss;
-    for (const k of ['retainer', 'guard']) {
-      const have = Math.round(num(f.kinds[k]));
-      const take = Math.min(have, cut);
-      f.kinds[k] = have - take;
-      cut -= take;
-      if (cut <= 0) break;
-    }
-  }
   try { syncWangjiaToMilitary(world); } catch { /* 忽略 */ }
 
   const day = Number(world.clock?.day) || 1;
