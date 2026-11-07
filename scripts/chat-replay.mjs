@@ -36,6 +36,17 @@ const CASES = [
   },
   { id: 'summon-yunnia', input: '叫芸娘来。', llm: '【林芸娘】：“妾身来了。”' },
   { id: 'dismiss', input: '都退下歇着吧。', llm: '【沈婉儿】：“是，相公早些歇息。”' },
+  {
+    id: 'dismiss-named',
+    input: '芸娘先回房歇着。',
+    setup: 'all',
+    llm: '【二房·芸娘】：“是，相公，妾身先回房了。”',
+  },
+  {
+    id: 'pay-tag',
+    input: '这顿饭多少钱？',
+    llm: '【跑堂】：“一共一两二钱。”\n[[pay:饭钱|晚饭=1.2]]',
+  },
   { id: 'say-go-home', input: '我回家了。', llm: '【沈婉儿】：“相公说笑了。”' },
   { id: 'ask-absent', input: '紫嫣在哪？', llm: '【沈婉儿】：“紫嫣在花铺。”' },
   { id: 'withdraw-silver', input: '取二十两银子来。', llm: '【沈婉儿】：“妾身这就去取。”' },

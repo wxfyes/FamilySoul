@@ -41,7 +41,11 @@ import { addMemory, recallMemories } from './world/memory.js';
 import { cnNum, stripForVoice, mergeSameSpeaker, cleanSpeakerLabel, cleanRoleLabel } from './chat/text-utils.js';
 import { cleanReply } from './chat/reply-sanitizer.js';
 import { composeViewerPersona, composeWorldRules } from './chat/prompt-composer.js';
-import { parseSummonTarget, pickSummonActor } from './chat/intent-pipeline.js';
+import {
+  parseSummonTarget, pickSummonActor,
+  parseDismissIntent, isMassDismiss, homeRoomForName,
+  parsePayTag, isActionHandledPay,
+} from './chat/intent-pipeline.js';
 
 
 export class PetService {
@@ -755,17 +759,11 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     try {
       const payTag = reply.match(/\[\[pay:([^\]]+)\]\]/);
       if (payTag) {
-        const body2 = payTag[1];
-        const [title2, ...optParts] = body2.split('|');
-        const opts2 = optParts
-          .map((x) => {
-            const m2 = /^(.+?)=([\d.]+)$/.exec(String(x).trim());
-            return m2 ? { key: m2[1], label: m2[1], price: Number(m2[2]) || 0 } : null;
-          })
-          .filter(Boolean);
+        // 纯解析见 chat/intent-pipeline.js
+        const { title: title2, options: opts2 } = parsePayTag(payTag[1]);
         if (opts2.length > 0) {
           // 引擎动作已经管的名目（开房/买米/走货/赌/打点）：付款标签作废，免重复扣钱
-          const handledByAction = /开房|上房|房钱|住店|买米|卖米|走货|赌|打点/.test(`${title2} ${String(sayText || '')}`);
+          const handledByAction = isActionHandledPay(title2, sayText);
           if (handledByAction) {
             for (const o of opts2) { o.price = 0; o.skip = true; }
             console.log(`[Pay] 「${title2}」由动作入口结算，报价标签作废`);
@@ -1103,12 +1101,8 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     // 8.9 相公吩咐离场 / 回房 / 送客（单一入口：严格限定在场人物，杜绝异地同名误判与多头打架）
     try {
       const sayStr = String(sayText || '').trim();
-      const isDismissOrGo =
-        /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.test(sayStr)
-        || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.test(sayStr)
-        || /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(sayStr)
-        || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋/.test(sayStr)
-        || /都[^。]{0,4}(出去|退下|散了|退出去|回去)/.test(sayStr);
+      // 纯解析见 chat/intent-pipeline.js（只判断"要不要打发人"和"打发谁"）
+      const { isDismiss: isDismissOrGo, targetName: dismissName, targetWhere: dismissWhere } = parseDismissIntent(sayStr);
 
       if (isDismissOrGo) {
         const wF = loadState(this.dataDir);
@@ -1122,24 +1116,9 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
         console.log(`[Departure] 单一入口判定：在场 ${hereActors.length} 人，say="${sayStr.slice(0, 30)}"`);
 
         if (hereActors.length > 0) {
-          // 1. 是否是点名某人？
-          let targetName = null;
-          let targetWhere = null;
-
-          const m1 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.exec(sayStr);
-          const m2 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.exec(sayStr);
-
-          if (m1) {
-            targetName = m1[1];
-            targetWhere = m1[2];
-          } else if (m2) {
-            targetName = m2[1];
-            targetWhere = m2[2] || '回房';
-          }
-
-          if (targetName && /^(你|你们|大家|大伙|都|大家伙|诸位|全)$/.test(targetName)) {
-            targetName = null;
-          }
+          // 1. 是否是点名某人？（解析结果来自 parseDismissIntent）
+          let targetName = dismissName;
+          let targetWhere = dismissWhere;
 
           if (targetName) {
             // 在【当前在场的人】中精确或模糊匹配
@@ -1169,12 +1148,11 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
               } else if (/西厢/.test(targetWhere || '')) {
                 dest = 'wang_mansion_west';
               } else if (/房间|回房|屋|歇着|等我|候着|退下|出去/.test(targetWhere || '')) {
-                // 王宅内眷规制：
-                if (who.name.includes('婉宁')) dest = 'wang_mansion_east';
-                else if (who.name.includes('芸娘')) dest = 'wang_mansion_west';
-                else if (who.name.includes('婉儿')) dest = 'husband_room';
-                else if (who.name.includes('小翠')) dest = wF.places?.['husband_room__servant'] ? 'husband_room__servant' : 'wang_mansion_west';
-                else dest = who.quarters || who.home || null;
+                // 王宅内眷规制（纯映射见 homeRoomForName）
+                dest = homeRoomForName(who.name, {
+                  includeWife: true,
+                  hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                }) || who.quarters || who.home || null;
               }
 
               if (!dest) {
@@ -1198,14 +1176,13 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
             } else {
               console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
             }
-          } else if (/都|全|大伙|诸位|退下|散了/.test(sayStr)) {
+          } else if (isMassDismiss(sayStr)) {
             // 全员清场：仅限在场的客人与侍从（不含相公），各自回各自住处
             const names = [];
             for (const a of hereActors) {
-              let back = a.quarters || a.home;
-              if (a.name.includes('婉宁')) back = 'wang_mansion_east';
-              else if (a.name.includes('芸娘')) back = 'wang_mansion_west';
-              else if (a.name.includes('小翠')) back = wF.places?.['husband_room__servant'] ? 'husband_room__servant' : 'wang_mansion_west';
+              let back = homeRoomForName(a.name, {
+                hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+              }) || a.quarters || a.home;
 
               if (!back || !wF.places?.[back]) {
                 try { back = ensureDwelling(wF, a.id, a.name, 'street'); } catch { back = null; }

@@ -1,10 +1,10 @@
 /**
- * 意图动作层（Step 4a：先抽"纯解析 + 只读候选"，不执行位移）
+ * 意图动作层（Step 4：纯解析 + 只读候选，不执行位移）
  *
  * 军规：
  *   ① 本文件**不写世界**：不 import loadState/saveState/moveActor，不碰 fs；
- *   ② 只做两件事：从台词里解析"要传唤谁"，从世界里挑出"最可能是谁"；
- *   ③ 真正的位移仍然由 pet-service.js 统一调 moveActor()（单一权威写入口）；
+ *   ② 只做解析：传唤谁、打发谁走/是否全员清场、默认回哪间屋、[[pay:...]] 报价；
+ *   ③ 真正的位移/扣款仍由 pet-service.js 统一执行（moveActor / 记账唯一入口）；
  *   ④ 依赖单向：chat/* ← pet-service.js。
  */
 
@@ -64,4 +64,73 @@ export function pickSummonActor(world, targetName, selfId = 'husband') {
     return yInMansion - xInMansion;
   });
   return cands[0];
+}
+
+/**
+ * 解析"打发人走 / 送客"的台词（只解析，不移动）。
+ * @param {string} sayText 相公原始台词
+ * @returns {{isDismiss:boolean, targetName:string|null, targetWhere:string|null}}
+ */
+export function parseDismissIntent(sayText) {
+  const say = String(sayText || '').trim();
+  const isDismiss =
+    /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.test(say)
+    || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.test(say)
+    || /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(say)
+    || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋/.test(say)
+    || /都[^。]{0,4}(出去|退下|散了|退出去|回去)/.test(say);
+
+  let targetName = null;
+  let targetWhere = null;
+  const m1 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.exec(say);
+  const m2 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.exec(say);
+  if (m1) {
+    targetName = m1[1];
+    targetWhere = m1[2];
+  } else if (m2) {
+    targetName = m2[1];
+    targetWhere = m2[2] || '回房';
+  }
+  if (targetName && /^(你|你们|大家|大伙|都|大家伙|诸位|全)$/.test(targetName)) targetName = null;
+
+  return { isDismiss, targetName, targetWhere };
+}
+
+/** 是否"全员清场"（都出去/全退下/散了…） */
+export function isMassDismiss(sayText) {
+  return /都|全|大伙|诸位|退下|散了/.test(String(sayText || '').trim());
+}
+
+/**
+ * 名字 → 王宅内默认去处（纯映射，不写库；解析不到返回 null）。
+ * @param {string} name 人物名
+ * @param {{includeWife?:boolean, hasServantRoom?:boolean}} opts
+ */
+export function homeRoomForName(name, { includeWife = false, hasServantRoom = false } = {}) {
+  const n = String(name || '');
+  if (n.includes('婉宁')) return 'wang_mansion_east';
+  if (n.includes('芸娘')) return 'wang_mansion_west';
+  if (includeWife && n.includes('婉儿')) return 'husband_room';
+  if (n.includes('小翠')) return hasServantRoom ? 'husband_room__servant' : 'wang_mansion_west';
+  return null;
+}
+
+/**
+ * [[pay:标题|选项=价|选项=价]] 纯解析。
+ * @returns {{title:string, options:Array<{key:string,label:string,price:number}>}}
+ */
+export function parsePayTag(body) {
+  const [title, ...optParts] = String(body || '').split('|');
+  const options = optParts
+    .map((x) => {
+      const m = /^(.+?)=([\d.]+)$/.exec(String(x).trim());
+      return m ? { key: m[1], label: m[1], price: Number(m[2]) || 0 } : null;
+    })
+    .filter(Boolean);
+  return { title: String(title || ''), options };
+}
+
+/** 引擎动作已管的名目（开房/买米/走货/赌/打点）：付款标签作废，免重复扣钱 */
+export function isActionHandledPay(title, sayText) {
+  return /开房|上房|房钱|住店|买米|卖米|走货|赌|打点/.test(`${title} ${String(sayText || '')}`);
 }

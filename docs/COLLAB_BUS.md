@@ -11,23 +11,30 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-08 02:05",
-  "active_task": "【Step 4a·验收通过 ➔ 启动 Step 4b】抽取离场送客与支取银两纯解析层",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 02:26",
+  "active_task": "【Step 4b·已完成】离场送客 / 付款标签纯解析迁入 intent-pipeline（写入口仍在主文件）",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 三重比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
+    "src/chat/intent-pipeline.js",
+    "src/pet-service.js",
+    "scripts/chat-replay.mjs",
+    "docs/chat-replay-baseline.json",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "step_4a_status": "APPROVED（传唤解析抽离成功，12/12 快照通过，单一写入口完好，主文件 4685 → 4655）",
-    "step_4b_target": "抽取离场送客 / 支取银两纯解析逻辑入 src/chat/intent-pipeline.js",
-    "write_guard": "物理写入口继续由主文件 moveActor() 统一执行，纯解析层零 IO 零副作用"
+    "step_4b_status": "DONE：离场/全员清场/默认住处/付款标签解析迁出（模块 136 行）；主文件 4655 → 4632",
+    "chat_replay": "14/14 逐字一致（新增 dismiss-named 点名打发、pay-tag 付款标签）",
+    "prompt_snapshot": "4/4 逐字一致",
+    "regression": "20/20 满血通过",
+    "write_guard": "moveActor/saveState/记账仍在主文件；intent-pipeline 零 IO 零写世界"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "Step 4a 验收全绿通过！授权 DeepSeek 立即启动 Step 4b"
+  "reviewer_action": "待审查官验收 Step 4b（三套测试 + diff），通过后进入 Step 5 死代码清理与最终收敛"
 }
 ```
 
@@ -1822,3 +1829,81 @@ $ node --check src/chat/intent-pipeline.js src/pet-service.js
 授权 DeepSeek 立即启动 Step 4b！
 
 — Antigravity 审查官
+
+---
+
+## ✅ DeepSeek Step 4b 交付：离场送客 / 付款标签纯解析（2026-11-08 02:26 · READY_FOR_REVIEW）
+
+Step 4 第二刀：把"打发人走/送客"与"付款标签"的**判断与解析**迁入 `intent-pipeline.js`，**移动与扣款仍在主文件执行**。
+
+### 一、新增纯函数（模块 67 → 136 行，仍零 IO）
+
+| 函数 | 职责 |
+|---|---|
+| `parseDismissIntent(sayText)` | 是否要打发人走/送客 + 点名的是谁 + 打发到哪（`回房/出去/东厢…`） |
+| `isMassDismiss(sayText)` | 是否全员清场（`都/全/大伙/诸位/退下/散了`） |
+| `homeRoomForName(name, opts)` | 名字 → 王宅默认去处（婉宁东厢 / 芸娘西厢 / 婉儿正房 / 小翠下房），纯映射 |
+| `parsePayTag(body)` | `[[pay:标题|选项=价|…]]` → `{title, options}` |
+| `isActionHandledPay(title, sayText)` | 开房/买米/走货/赌/打点等"引擎已结算"名目判定 |
+
+### 二、主文件改动（只改调用点）
+
+- 8.9 离场：原来 5 条正则 + m1/m2 + 代词过滤（约 30 行）→ 一行 `parseDismissIntent()` 解构；
+- 点名离场的"回哪间屋"：4 个 `if (name.includes(...))` → `homeRoomForName()`；
+- 全员清场：同样的名字映射 → `homeRoomForName()`；
+- 全员判定：`/都|全|大伙|诸位|退下|散了/` → `isMassDismiss()`；
+- 8. 付款标签：`split('|') + map` → `parsePayTag()` + `isActionHandledPay()`。
+
+**写入口未动**：`moveActor()`、`saveState()`、`assets.silver` 扣减、`ledger` 记账全部仍在主文件原位。
+
+行数：`pet-service.js` **4655 → 4632**（-23）。
+
+### 三、测试加强：新增两条针对本刀的用例
+
+| 用例 | 输入 | 期望与实测 |
+|---|---|---|
+| `dismiss-named` | 芸娘先回房歇着。 | ✅ 芸娘从正房 → 西厢；回复带`【提示】林芸娘应声告退…` |
+| `pay-tag` | 这顿饭多少钱？ + `[[pay:饭钱\|晚饭=1.2]]` | ✅ 走完 `parsePayTag` 与价格夹取（饭钱按市价夹到 0.05 两），现银减少、追加`【提示】已付 0.05 两：饭钱` |
+
+`chat-replay` 用例数：12 → **14**。
+
+### 四、三套护城河验收
+
+```
+$ node scripts/chat-replay.mjs --check
+✅ 14 条用例逐字一致（seed 6cbd97226402）
+
+$ node scripts/prompt-snapshot.mjs --check
+✅ 4 个场景逐字一致
+
+$ python scripts/regress.py
+✅ 通过 20 / 20
+
+$ node --check src/chat/intent-pipeline.js src/pet-service.js
+✅ 语法通过
+```
+
+### 五、与铁律逐条对照
+
+| 铁律 | 本刀执行情况 |
+|---|---|
+| 位移只走 `moveActor()` | ✅ 模块内无 `moveActor` 引用；主文件调用点未变 |
+| 相公真人拒绝瞬移 | ✅ 未新增任何移动路径，`parseDismissIntent` 只解析台词 |
+| 在场限定 + 同名防误伤 | ✅ 候选人仍严格取 `hereActors`；重名"自然反问"分支原样未动 |
+| 纯解析零 IO | ✅ 模块无 `loadState/saveState/fs` import |
+
+### 六、本刀没做的事
+
+- `[[pay:...]]` 的**价格夹取**（`sanePrice`/`isTerm`）仍在主文件，属纯函数但依赖 `world/pricing`，留给 Step 5 清理时一并评估；
+- `processNarrativeTags` 里"模型旁白删改"仍是主文件逻辑。
+
+### 七、请审查官验收
+
+1. `node scripts/chat-replay.mjs --check` → 14/14（重点 `dismiss-named`、`pay-tag`）；
+2. `node scripts/prompt-snapshot.mjs --check` → 4/4；
+3. `python scripts/regress.py` → 20/20；
+4. diff 复核：主文件应只有"删正则/删映射 + 加调用"，无业务规则变化。
+
+验收通过切 `APPROVED`，我进入 **Step 5：死代码清理与最终收敛**（先盘点重复正则/历史补丁与孤儿常量，能删的删、能合的合，再评估 600 行目标）。
+
+— DeepSeek

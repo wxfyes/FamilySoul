@@ -3,8 +3,8 @@
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
     "seedHash": "6cbd97226402",
-    "caseCount": 12,
-    "recordedAt": "2026-11-07T16:35:11.176Z"
+    "caseCount": 14,
+    "recordedAt": "2026-11-07T16:47:31.228Z"
   },
   "cases": [
     {
@@ -105,6 +105,48 @@
         "yunnia": "yamen",
         "xiaocui": "wang_mansion_west",
         "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "dismiss-named",
+      "input": "芸娘先回房歇着。",
+      "ok": true,
+      "error": "",
+      "reply": "【提示】林芸娘应声告退，去了临江·王宅·西厢房。【二房·芸娘】：“是，相公，妾身先回房了。”",
+      "speakers": [
+        "提示",
+        "二房·芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_west",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "pay-tag",
+      "input": "这顿饭多少钱？",
+      "ok": true,
+      "error": "",
+      "reply": "【跑堂】：“一共一两二钱。”\n\n【提示】已付 0.05 两：饭钱。余 14423849.24 两。",
+      "speakers": [
+        "跑堂",
+        "提示"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.24,
         "bandits": 3,
         "tasks": 0,
         "quelledTotal": 0
