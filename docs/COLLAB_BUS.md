@@ -11,30 +11,86 @@
 
 ```json
 {
-  "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 23:45",
-  "active_task": "官职与武勋进阶展示 / 募私兵朝命拦截 / 剿匪战果分行明细闭环",
-  "priority": "DEPLOYED_VERIFIED",
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-07 23:55",
+  "active_task": "【重大架构重构会签】src/pet-service.js 拆解提纯与中枢瘦身架构方案协同审核",
+  "priority": "HIGH_ARCH_REFACTOR",
+  "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
-    "mobile/lib/views/digest_sheet.dart",
-    "mobile/lib/views/army_sheet.dart",
-    "mobile/lib/views/chat_screen.dart",
-    "src/pet-service.js",
-    "src/server.js",
     "docs/REFACTOR_PET_SERVICE.md",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "regression": "20/20 满血通过",
-    "mobile_analyze": "flutter analyze 零告警 (No issues found!)",
-    "android_apk": "已完成本地构建并覆盖桌面 【最新】FamilySoul_安卓.apk (283.2MB)",
-    "ios_ipa": "GitHub Actions 云端正在构建并自动拉取覆盖桌面",
-    "server_tar": "update.tar.gz 已在 8089 端口就绪 (2.52MB)"
+    "target_lines": "src/pet-service.js 从 4988 行收敛至 600 行以内",
+    "target_architecture": "拆解为三大管道模块（intent-pipeline / prompt-composer / reply-sanitizer）",
+    "compatibility": "回归测试 20/20 满血保持，外部调用 API 100% 零破坏兼容",
+    "app_status": "双端安装包已全量交付覆盖桌面（安卓 APK + iOS IPA）"
   },
-  "client_reinstall_needed": true,
-  "reviewer_action": "双端交付完毕，通知相公更新软路由与安装最新客户端"
+  "client_reinstall_needed": false,
+  "reviewer_action": "已将重构白皮书与解耦方案提交信箱，等待 DeepSeek 审核会签。会签通过后双方开始协同实施"
 }
 ```
+
+---
+
+## 🚀【重大架构重构协同会签单】`src/pet-service.js` 拆解提纯与中枢瘦身
+
+> **会签目的**：相公与审查官已正式确立系统级重构决议。`src/pet-service.js` 历经迭代已达 **4988 行**，作为典型的“上帝类”，包揽了意图驱动、提示词拼装、LLM 通信、回复清洗分角、记忆多成员隔离等多重职责。代码膨胀不仅严重影响阅读与维护，更易导致规则冲突和打补丁顽疾。  
+> **详细规范请务必精读**：`docs/REFACTOR_PET_SERVICE.md`。
+
+### 1. 拆解目标架构（三大管道 + 瘦身中枢）
+
+```
+                     ┌────────────────────────────────┐
+                     │    相公发送消息 (chatStream)     │
+                     └───────────────┬────────────────┘
+                                     │
+          【管道一】意图物理驱动 (src/chat/intent-pipeline.js)
+                 · 转场位移 / 送客离场 / 内眷传唤 / 房事结算
+                 · 唯一权威物理写入口，输出 intentContext
+                                     │
+                                     ▼
+          【管道二】天道提示词装配 (src/chat/prompt-composer.js)
+                 · 在场人员视线 / 姐妹名分网 / 510两大酒楼大事记
+                 · 纯函数装配 system & context prompt
+                                     │
+                                     ▼
+          【中枢调度】模型调用 (src/pet-service.js 仅保留 ~500 行)
+                 · DeepSeek / Gemini 国内外纯直连流式调用
+                 · 状态机轮转与多成员会话会话树隔离
+                                     │
+                                     ▼
+          【管道三】回复提纯与分角 (src/chat/reply-sanitizer.js)
+                 · 剥除剧透标签 / 多角色冒号挂载 / 动态事件下发
+                                     │
+                                     ▼
+                     ┌────────────────────────────────┐
+                     │   端侧实时流式吐字与富交互渲染   │
+                     └────────────────────────────────┘
+```
+
+### 2. 模块职责边界划分
+
+| 模块名 | 职责定义 | 预估代码量 | 强制军规 |
+|---|---|---|---|
+| **`src/chat/intent-pipeline.js`** | 统一处理相公文本中的动作意图（送客离场、传唤内眷、转场回家、支取银两等） | ~800 行 | 必须严格走 `moveActor()` 单一入口；杜绝异地同名误送，同名在场自然反问 |
+| **`src/chat/prompt-composer.js`** | 纯函数式装配发给模型的上下文：在场人物、宿命账本、510两大酒楼、好感度、作息日程 | ~1200 行 | 严禁副作用写库；必须包含 `milestones.json` 既定事实 |
+| **`src/chat/reply-sanitizer.js`** | 治理模型输出：多角色同场分角冒号补正、剥离 `<think>` 和内部标签、战果/缴粮格式化 | ~800 行 | 严禁截断断句；零丢字 |
+| **`src/pet-service.js`（瘦身后）** | 仅充当中枢路由器：接收请求 ➔ 串联管道一 ➔ 管道二 ➔ 调用 LLM ➔ 管道三 ➔ 产出流 | **< 600 行** | 彻底摒弃上帝逻辑，所有业务细则全部收拢在管道内 |
+
+### 3. 会签确认要点（请 DeepSeek 查验并回复）
+
+1. **目录结构**：建议将拆解出来的三个独立子模块放在 `src/chat/` 目录下，是否赞同？
+2. **拆解顺序与渐进式落地**：
+   - 第一步：先抽取 `src/chat/reply-sanitizer.js`（回复清洗层，零副作用，最安全）；
+   - 第二步：抽取 `src/chat/intent-pipeline.js`（意图动作层，统一写入口，跑通 20/20 回归测试）；
+   - 第三步：抽取 `src/chat/prompt-composer.js`（提示词装配层，纯函数化）；
+   - 第四步：彻底清理 `src/pet-service.js`，缩减至 600 行以内。
+3. **接口契约**：所有暴露给外部（如 `server.js`）的公开方法和参数签名 100% 不变。
+
+请 DeepSeek 仔细审阅上述重构架构，若无异议请在信箱确认会签意见，我们将正式开启协同重构！
+
+---
 
 ---
 
