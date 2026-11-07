@@ -11,23 +11,30 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-08 01:10",
-  "active_task": "【Step 2·验收通过 ➔ 启动 Step 3】抽取提示词装配层 src/chat/prompt-composer.js",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 01:36",
+  "active_task": "【Step 3·已完成】抽取 src/chat/prompt-composer.js（视角装配 + 静态规则，含 510 两酒楼铁律）",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
-  "reviewer_role": "代码复审、20/20 回归 + chat-replay 逐字比对验收、打包与生产部署",
+  "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 逐字比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
+    "src/chat/prompt-composer.js",
+    "src/pet-service.js",
+    "scripts/prompt-snapshot.mjs",
+    "docs/prompt-baseline.json",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "step_2_status": "APPROVED（reply-sanitizer.js cleanReply 迁出成功，主文件 4890 → 4762，双检全绿）",
-    "step_3_target": "抽取 src/chat/prompt-composer.js（提示词装配 / 纯函数式 / 保护 510 两运河大酒楼大事记）",
-    "memory_guard": "严禁副作用写库；必须 100% 保持既定历史与在场人员视线装配"
+    "step_3_status": "DONE：composeViewerPersona + composeWorldRules 迁出，主文件 4762 → 4685（-77）",
+    "chat_replay": "11/11 逐字一致（seed 6cbd97226402）",
+    "prompt_snapshot": "4/4 场景 system prompt 逐字一致（新增第二道提示词护城河）",
+    "regression": "20/20 满血通过",
+    "temple_fact": "510 两运河大酒楼既定事实已保留在 composeWorldRules，逐字未改"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "Step 2 验收全绿通过！授权 DeepSeek 立即启动 Step 3"
+  "reviewer_action": "待审查官验收 Step 3（--check + prompt-snapshot + 20/20），通过后进入 Step 4 intent-pipeline"
 }
 ```
 
@@ -1575,3 +1582,73 @@ $ git diff --stat
 授权 DeepSeek 立即启动 Step 3！
 
 — Antigravity 审查官
+
+---
+
+## ✅ DeepSeek Step 3 交付：`src/chat/prompt-composer.js`（2026-11-08 01:36 · READY_FOR_REVIEW）
+
+### 一、迁出内容（规则文字一字未改）
+
+| 导出函数 | 原位置 | 作用 |
+|---|---|---|
+| `composeViewerPersona({ persona, playerName, viewerActorId, ownCard })` | `buildSystemPrompt` 独立人物视角分支（32 行） | 玩家绑定某个 actor 时的全量身份/格式/代演规则 + 个人实况卡 |
+| `composeWorldRules({ roleName, memberKey, currentEpoch, promptMode, milestones })` | `buildSystemPrompt` 静态缓存区（57 行） | 主视角/妻子/导师三态世界观、妻妾血仇铁律、**510 两运河大酒楼既定事实**、城中人物攻略、主仆礼法 |
+
+- **510 两酒楼**：4 条"已全款盘下/红押契纸/严禁说还没买"逐字保留在 `prompt-composer.js` 第 81~87 行，未删未改；
+- `readMilestones()` 的结果由调用方传入（`milestones` 参数），composer 内**不读文件、不写 world**。
+
+### 二、主文件改动（只搬家）
+
+- 新增 `import { composeViewerPersona, composeWorldRules } from './chat/prompt-composer.js'`；
+- 视角分支改为：先 `buildMemberCard(...)` 取 `ownCard`，再 `return composeViewerPersona({...}).join('\n')`；
+- 静态区 57 行替换为 `lines.push(...composeWorldRules({...}))`；
+- **可见行为零变化**：原条件里的 `!this._viewerActorId` 由调用方"视角分支提前 return"保证，语义等价（已在模块注释写明）。
+
+行数：`pet-service.js` **4762 → 4685**（-77）；新模块 **107 行**。
+
+### 三、新增第二道"提示词护城河"（本轮新增，补 chat-replay 的盲区）
+
+`chat-replay` 只比回复文本，LLM 桩不看 prompt，**提示词被改坏它发现不了**。因此本轮新增：
+
+| 文件 | 说明 |
+|---|---|
+| `scripts/prompt-snapshot.mjs` | `--record` / `--check`：对 4 个场景调用 `buildSystemPrompt`，归一化日期时间后**逐字比对** |
+| `docs/prompt-baseline.json` | 基线：主视角古/今（7822/7752 字）、妻子视角（2610 字）、独立人物视角（1397 字） |
+
+覆盖场景：`husband-full` / `wife-full` / `modern-full` / `viewer-liuwenxia`。
+
+### 四、验收结果
+
+```
+$ node scripts/prompt-snapshot.mjs --check
+✅ prompt-snapshot 通过：4 个场景逐字一致
+
+$ node scripts/chat-replay.mjs --check
+✅ 11 条用例逐字一致（seed 6cbd97226402）
+
+$ python scripts/regress.py
+✅ 通过 20 / 20
+
+$ node --check src/chat/prompt-composer.js src/pet-service.js
+✅ 语法通过
+```
+
+重构前后 prompt 对比（迁移前先录、迁移后再录）：
+
+```
+husband-full  前 7822 / 后 7822  一致
+wife-full     前 2610 / 后 2610  一致
+modern-full   前 7752 / 后 7752  一致
+viewer         前 1397 / 后 1397  一致
+```
+
+### 五、请审查官验收
+
+1. `node scripts/prompt-snapshot.mjs --check` → 4/4；
+2. `node scripts/chat-replay.mjs --check` → 11/11；
+3. `python scripts/regress.py` → 20/20；
+4. diff 抽查：`prompt-composer.js` 的 510 两段落应与原文逐字一致；主文件只应"删静态区 + 加 import + 改视角分支"。
+
+验收通过切 `APPROVED`，我即进入 **Step 4：`src/chat/intent-pipeline.js`**（最后、最危险的一层；先只抽"纯命令解析/参数归一"这类无副作用部分，`applyAction`/`moveActor` 等写世界动作逐步再迁，严守单一入口）。
+
+— DeepSeek
