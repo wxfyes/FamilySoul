@@ -50,6 +50,7 @@ class _ArmySheetState extends State<ArmySheet> {
 
   Map<String, dynamic>? get _mil => (_world?['military'] as Map?)?.cast<String, dynamic>();
   int get _troops => (_mil?['troops'] as num?)?.toInt() ?? (_wang?['troops'] as num?)?.toInt() ?? 0;
+  int get _quellReady => (_mil?['quellReady'] as num?)?.toInt() ?? (_troops + _retainers + _houseGuards);
   int get _houseGuards => (_mil?['houseGuards'] as num?)?.toInt() ?? (_mil?['guards'] as num?)?.toInt() ?? 0;
   int get _retainers => (_mil?['retainers'] as num?)?.toInt() ?? (_mil?['escort'] as num?)?.toInt() ?? 0;
   int get _strength => (_wang?['strength'] as num?)?.toInt() ?? 0;
@@ -294,7 +295,28 @@ class _ArmySheetState extends State<ArmySheet> {
   Future<void> _quell(dynamic b) async {
     final name = '${b['name'] ?? ''}';
     final id = '${b['id'] ?? ''}';
-    int troops = 20;
+    final maxTroops = _quellReady;
+    if (maxTroops <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('府中暂无可战人马，先招募家丁、护院或私兵！'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    final candidatePresets = <int>[];
+    for (final n in [10, 20, 50, 100]) {
+      if (n < maxTroops) candidatePresets.add(n);
+    }
+    if (!candidatePresets.contains(maxTroops)) {
+      candidatePresets.add(maxTroops);
+    }
+    if (candidatePresets.isEmpty) {
+      candidatePresets.add(maxTroops);
+    }
+
+    int troops = candidatePresets.firstWhere((n) => n <= 20, orElse: () => candidatePresets.first);
+
     final ok = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -303,12 +325,13 @@ class _ArmySheetState extends State<ArmySheet> {
           decoration: const BoxDecoration(color: Color(0xFF12131A), borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('派护院出征 · $name', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            Text('点兵剿匪 · $name', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            Text('据探报：兵力 ${b['strength'] ?? 0}，${b['tier'] ?? 1} 阶', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text('据探报：匪寇兵力 ${b['strength'] ?? 0}，${b['tier'] ?? 1} 阶 · 府中可用战力 $maxTroops 人',
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
             const SizedBox(height: 16),
-            Wrap(spacing: 10, children: [
-              for (final n in [10, 20, 50, 100])
+            Wrap(spacing: 10, runSpacing: 8, children: [
+              for (final n in candidatePresets)
                 InkWell(
                   onTap: () => setSt(() => troops = n),
                   borderRadius: BorderRadius.circular(999),
@@ -319,7 +342,8 @@ class _ArmySheetState extends State<ArmySheet> {
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(color: troops == n ? const Color(0xFF8B5CF6) : Colors.white10),
                     ),
-                    child: Text('$n 人', style: TextStyle(color: troops == n ? Colors.white : Colors.white70, fontSize: 13)),
+                    child: Text(n == maxTroops ? '全军出击 ($n人)' : '$n 人',
+                        style: TextStyle(color: troops == n ? Colors.white : Colors.white70, fontSize: 13)),
                   ),
                 ),
             ]),
@@ -335,7 +359,7 @@ class _ArmySheetState extends State<ArmySheet> {
                   borderRadius: BorderRadius.circular(999),
                   gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFB91C1C)]),
                 ),
-                child: const Text('点齐人马，出兵', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                child: Text('点齐 $troops 人，出征剿匪', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
               ),
             ),
           ]),
@@ -347,13 +371,73 @@ class _ArmySheetState extends State<ArmySheet> {
     if (!mounted) return;
     final win = r?['win'] == true;
     final text = r?['text']?.toString() ?? r?['error']?.toString() ?? '没能出兵';
-    if (!mounted) return;
+    final loss = (r?['loss'] as num?)?.toInt() ?? 0;
+    final lootSilver = (r?['lootSilver'] as num?)?.toDouble() ?? 0.0;
+    final lootGrain = (r?['lootGrain'] as num?)?.toDouble() ?? 0.0;
+    final appoint = r?['appoint']?.toString();
+
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(win ? '大获全胜' : '出师不利'),
-        content: Text(text),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('好'))],
+        backgroundColor: const Color(0xFF1A1B25),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Colors.white12)),
+        title: Row(
+          children: [
+            Icon(win ? Icons.military_tech_rounded : Icons.report_problem_rounded,
+                color: win ? const Color(0xFFE0B252) : const Color(0xFFEF4444), size: 24),
+            const SizedBox(width: 8),
+            Text(win ? '剿匪大捷' : '出师不利', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF12131A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Text('折损人马：', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    Text('$loss 人', style: TextStyle(color: loss > 0 ? const Color(0xFFFCA5A5) : Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ]),
+                  if (lootSilver > 0 || lootGrain > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Text('缴获战利：', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      Text('${lootSilver > 0 ? '白银 $lootSilver 两 ' : ''}${lootGrain > 0 ? '粮草 $lootGrain 石' : ''}',
+                          style: const TextStyle(color: Color(0xFFE0B252), fontSize: 13, fontWeight: FontWeight.w600)),
+                    ]),
+                  ],
+                  if (appoint != null && appoint.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Text('朝命封赏：', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      Expanded(
+                        child: Text(appoint,
+                            style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 13, fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(text, style: const TextStyle(color: Color(0xFFCFD6E4), fontSize: 13.5, height: 1.45)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('知晓了', style: TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
     if (r?['ok'] == true) {
@@ -458,6 +542,24 @@ class _ArmySheetState extends State<ArmySheet> {
                       style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 12)),
                 ),
               Wrap(spacing: 10, runSpacing: 10, children: [
+                _pill(
+                  icon: Icons.military_tech_rounded,
+                  label: '募私兵 ·需朝命',
+                  color: const Color(0xFFF59E0B),
+                  onTap: () => _pickCount(
+                    title: '募私兵',
+                    unit: '人',
+                    unitPrice: _priceOf('army_gift', 0.8),
+                    grainPer: 0.4,
+                    monthly: 1.5,
+                    note: '需朝廷官职（乡勇团练使及以上）方准募私兵，否则以聚众谋逆论。安家银 0.8 两，口粮 0.4 石，月饷 1.5 两。',
+                    min: 5,
+                    max: 500,
+                    presets: const [5, 10, 20, 50],
+                    action: 'recruit',
+                    extra: {'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'army'},
+                  ),
+                ),
                 _pill(
                   icon: Icons.groups_rounded,
                   label: '招募家丁 ·安家0.2两',

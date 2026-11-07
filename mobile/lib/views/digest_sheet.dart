@@ -78,6 +78,9 @@ class _DigestSheetState extends State<DigestSheet> {
     final houseGuards = mil?['houseGuards'] ?? mil?['guards'];
     final retainers = mil?['retainers'] ?? mil?['escort'];
     final troops = mil?['troops'] ?? d['troops'] ?? 0;
+    final offices = (raw['offices'] as List?) ?? (d['offices'] as List?) ?? const [];
+    final quelled = mil?['quelled'];
+    final nextRank = (mil?['nextRank'] is Map) ? mil!['nextRank'] as Map : null;
     final items = (raw['items'] as List?) ?? (d['items'] as List?) ?? const [];
     final bandits = (raw['bandits'] as List?) ?? (d['bandits'] as List?) ?? const [];
 
@@ -116,6 +119,10 @@ class _DigestSheetState extends State<DigestSheet> {
               Expanded(
                 child: ListView(padding: EdgeInsets.zero, children: [
                   _section('家中', Column(children: [
+                    if (offices.isNotEmpty)
+                      _kv('官职品级', offices.map((o) => (o is Map ? o['title'] : o).toString()).join('、'), color: _gold),
+                    if (nextRank != null)
+                      _kv('武勋阶梯', '已平${quelled ?? 0}股 · 晋「${nextRank['title'] ?? ''}」需${nextRank['need'] ?? 0}股(还差${((nextRank['need'] as num? ?? 0).toInt() - (quelled as num? ?? 0).toInt()).clamp(0, 99)}股)'),
                     _kv('现银', '${(d['silver'] as num?)?.toStringAsFixed(1) ?? '-'} 两', color: _gold),
                     _kv('府库粮', '${(d['grain'] as num?)?.toStringAsFixed(1) ?? '-'} 石'),
                     _kv('私兵', '$troops 人'),
