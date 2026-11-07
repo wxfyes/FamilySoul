@@ -1349,7 +1349,15 @@ const STARTED_AT = Date.now();
         const hereList = Object.values(after.actors || {})
           .filter((a) => a && !a.dead && a.name && a.location === me2?.location && a.id !== (me2?.id || 'husband'))
           .slice(0, 5)
-          .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
+          .map((a) => {
+            const act = String(a.activity?.text || '').trim();
+            // activity 若是过期的位移文本（如"去了X"），但人就在眼前，绝不拼出"在去了X"
+            if (!act || act.startsWith('去了') || act.startsWith('回了') || act.includes('离开')) {
+              return a.name;
+            }
+            const actClean = act.startsWith('在') ? act.slice(1) : act;
+            return `${a.name}（在${actClean}）`;
+          });
         const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
         // 随行的护院/家丁跟着主人走
         try {
