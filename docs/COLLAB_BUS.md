@@ -12,22 +12,27 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 22:44",
-  "active_task": "离场单一权威入口收口：严格限定在场匹配 / 杜绝异地同名误送 / 芸娘西厢独立归宿 / 重名自然反问",
+  "last_updated": "2026-11-07 23:45",
+  "active_task": "官职与武勋进阶展示 / 募私兵朝命拦截 / 剿匪战果分行明细闭环",
   "priority": "DEPLOYED_VERIFIED",
   "changed_files": [
+    "mobile/lib/views/digest_sheet.dart",
+    "mobile/lib/views/army_sheet.dart",
+    "mobile/lib/views/chat_screen.dart",
     "src/pet-service.js",
-    "src/world/state.js",
+    "src/server.js",
+    "docs/REFACTOR_PET_SERVICE.md",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "regression": "20/20 通过",
-    "departure_single_entry": "已合并 8.83/8.835/8.9 为单一入口",
-    "homonym_defense": "严格限定 hereActors，异地婉宁不再误送；同场重名触发自然反问",
-    "mansion_residence": "芸娘定西厢 / 婉宁定东厢 / 婉儿居正房，杜绝送客反向搬回正房"
+    "regression": "20/20 满血通过",
+    "mobile_analyze": "flutter analyze 零告警 (No issues found!)",
+    "android_apk": "已完成本地构建并覆盖桌面 【最新】FamilySoul_安卓.apk (283.2MB)",
+    "ios_ipa": "GitHub Actions 云端正在构建并自动拉取覆盖桌面",
+    "server_tar": "update.tar.gz 已在 8089 端口就绪 (2.52MB)"
   },
-  "client_reinstall_needed": false,
-  "reviewer_action": "更新包已生成，通知相公在软路由拉包热更新"
+  "client_reinstall_needed": true,
+  "reviewer_action": "双端交付完毕，通知相公更新软路由与安装最新客户端"
 }
 ```
 
