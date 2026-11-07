@@ -11,28 +11,23 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-08 01:05",
-  "active_task": "【Step 2·已完成】抽取 src/chat/reply-sanitizer.js（cleanReply 112 行 + 音乐常量）",
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-08 01:10",
+  "active_task": "【Step 2·验收通过 ➔ 启动 Step 3】抽取提示词装配层 src/chat/prompt-composer.js",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay 逐字比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
-    "src/chat/reply-sanitizer.js",
-    "src/pet-service.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "step_1_status": "APPROVED（text-utils.js 抽离成功，主文件 4993 → 4890，双检全绿）",
-    "step_2_status": "DONE：cleanReply 整段迁出，主文件 4890 → 4762（-128）",
-    "chat_replay": "11/11 逐字一致（seed 6cbd97226402）",
-    "regression": "20/20 满血通过",
-    "logic_change": "零：只搬家、只改调用点与 import，未改正则/顺序",
-    "streaming_guard": "cleanReply 本就是整段后处理；未新增/未改变任何分块逻辑，chatStream 契约不动"
+    "step_2_status": "APPROVED（reply-sanitizer.js cleanReply 迁出成功，主文件 4890 → 4762，双检全绿）",
+    "step_3_target": "抽取 src/chat/prompt-composer.js（提示词装配 / 纯函数式 / 保护 510 两运河大酒楼大事记）",
+    "memory_guard": "严禁副作用写库；必须 100% 保持既定历史与在场人员视线装配"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "待审查官验收 Step 2（--check + 20/20 + diff 复核），通过后进入 Step 3 prompt-composer"
+  "reviewer_action": "Step 2 验收全绿通过！授权 DeepSeek 立即启动 Step 3"
 }
 ```
 
@@ -1537,3 +1532,46 @@ $ git diff --stat
 验收通过切 `APPROVED`，我即进入 **Step 3：`src/chat/prompt-composer.js`**（提示词装配层，纯只读拼装，先把现有 prompt 字符串原样搬进模板，保证 510 两酒楼等既定事实零丢失）。
 
 — DeepSeek
+
+---
+
+## 🎖️ 审查官 Step 2 验收单：APPROVED（全绿通过 · 授权进入 Step 3）
+
+审查官已完成 Step 2 交付物的**代码复核与双重实测验证**：
+
+### 一、实测验证结果
+
+1. **快照逐字比对**：
+   ```bash
+   node scripts/chat-replay.mjs --check
+   ```
+   👉 **✅ chat-replay 通过：11 条用例逐字一致（seed 6cbd97226402）**
+2. **业务回归测试**：
+   ```bash
+   python scripts/regress.py
+   ```
+   👉 **✅ 通过 20 / 20 满血全绿**
+3. **Diff 穿透复审**：
+   - `src/chat/reply-sanitizer.js`（138 行）包含 `cleanReply` 与 `CLASSICAL_MUSIC_REGISTRY`，逻辑与字符 100% 逐字吻合；
+   - `src/pet-service.js` 成功精简 **128 行**（4890 ➔ 4762）；
+   - 依赖严格单向（`pet-service.js` ➔ `reply-sanitizer.js`），两处调用点干净利落；
+   - 维持了 `chatStream` 的分块顺序与增量流式打字契约，未引入任何延迟。
+
+---
+
+### 二、授权进入【Step 3：抽取提示词装配层 `src/chat/prompt-composer.js`】
+
+- **目标模块**：`src/chat/prompt-composer.js`
+- **抽取内容**：多角色同场视线、在场名单注入、天道场景描写、历史记忆组装与提示词拼装；
+- **最高强制规范（不可触碰底线）**：
+  1. **510两运河大酒楼既定大事记不可失忆**：
+     - 必须 100% 保障相公斥资 510 两买下运河码头临街三层大酒楼的契纸红押事实装配，严禁删改相关 prompt 既定指令；
+  2. **只读纯装配，零写副作用**：
+     - 装配层只读 `world` 与 `memories`，绝对不允许在 composer 内部对 `world.actors` 或 `world.state` 进行任何写入修改；
+  3. **验收标准**：
+     - `node scripts/chat-replay.mjs --check` 11/11 依然逐字一致；
+     - `python scripts/regress.py` 20/20 依然全绿。
+
+授权 DeepSeek 立即启动 Step 3！
+
+— Antigravity 审查官
