@@ -11,10 +11,10 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-08 02:52",
-  "active_task": "【Step 5·已完成】死代码清理：16 个未用 import + 2 个死方法 + 1 条调试日志",
-  "priority": "HIGH_ARCH_REFACTOR",
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-08 02:58",
+  "active_task": "【Step 5·验收通过 + 紧急实测缺陷修复】领受差事严禁夜半当场瞬移大街致人蒸发",
+  "priority": "HIGH_BUG_FIX",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 三重比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
@@ -23,16 +23,12 @@
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "step_4b_status": "APPROVED（离场送客/付款解析抽离成功，14/14 快照通过，主文件 4655 → 4632）",
-    "step_5_status": "DONE：清 16 个未用 import、2 个死方法（_proxyHusbandRemote / syncSceneFromReply）、1 条 DbgTip 日志；4632 → 4600（-32）",
-    "chat_replay": "14/14 逐字一致",
-    "prompt_snapshot": "4/4 逐字一致",
-    "regression": "20/20 满血通过",
-    "dead_code_scan": "0 注释代码块 / 0 未使用局部函数 / 0 孤儿顶层常量 / 未引用方法仅 public API",
-    "convergence_note": "剩余 4600 行基本为活跃逻辑；距 600 行目标需继续结构性拆分（建议 Step 6 另开任务单）"
+    "step_5_status": "APPROVED（16 未用 import + 2 死方法已清理，代码高度提纯，三检全绿）",
+    "emergency_bug": "崔婉宁领差事（回娘家问爹娘）导致深更半夜被 moveActor 瞬移到长街，下一轮相公说好时人没了变成空风景",
+    "fix_target": "领受差事只记 tasks，夜间内宅严禁当场瞬移大街；崔婉宁自愈归位回东跨院"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "待审查官验收 Step 5；并请裁决：直接打包上线本次重构，还是先开 Step 6 继续拆分"
+  "reviewer_action": "Step 5 验收通过！下达紧急实测缺陷修复单，修完即可完成本次重构全闭环打包！"
 }
 ```
 
@@ -2008,3 +2004,53 @@ $ node --check src/pet-service.js
 3. 请裁决下一步：**打包上线** 还是 **开 Step 6 继续拆**。
 
 — DeepSeek
+
+---
+
+## 🎖️ 审查官 Step 5 验收单：APPROVED（全绿通过 · 裁决与紧急实测 Bug 派单）
+
+审查官对 DeepSeek 的 Step 5 交付及专业诚实的工程评估给予**高度赞赏**！
+
+### 一、实测验证结果（三重护城河满血全绿）
+
+1. `node scripts/chat-replay.mjs --check` 👉 **✅ 14/14 条用例逐字一致**；
+2. `node scripts/prompt-snapshot.mjs --check` 👉 **✅ 4/4 场景提示词字符逐字吻合**；
+3. `python scripts/regress.py` 👉 **✅ 20 / 20 核心业务逻辑满血全绿**；
+4. 语法检测 `node --check src/pet-service.js` 零报错，死代码清理彻底干净！
+
+---
+
+### 二、审查官关于架构收敛的决议裁决
+
+- **高度赞同 DeepSeek 的务实判断**：软件工程的第一法则是**“可用与稳定高于形式行数”**。本次重构已将 5000 行巨石成功解耦出四大纯净管道模块，并建成了 `chat-replay` 与 `prompt-snapshot` 双重行为快照护城河，结构清晰度与防退化能力已实现质的飞跃；
+- **裁决**：600 行收敛目标转为长期规划，不硬拆活跃业务逻辑。**本轮重构以此为终点准备打包发布！**
+
+---
+
+### 🚨 三、紧急实测缺陷派单（修完即刻打包上线闭环）
+
+相公在实测洞房承欢时发现了一个严重断层：  
+**现象**：相公前一句体贴同意崔婉宁回娘家问底细，婉宁回复：`……后日一早便动身……（【领受差事 · 崔婉宁】回娘家问爹娘……限2日）`。相公紧接着温柔说了一句：`嗯，好`（意思是早点歇息）。**结果下一秒崔婉宁凭空蒸发了！** 对话里没有任何人开口，只剩下一句冰冷的窗外风景描写：`东跨院窗下，青瓷茶盏还冒着热气，院角桂花落了几瓣……`！
+
+#### 🔍 审查官穿透底层查明的致命病灶：
+在 `src/pet-service.js` 第 464~468 行：
+```javascript
+// 去哪儿由 places-target 统一翻译成真实地点，位移只走 moveActor
+const dest = resolvePlaceTarget(wT, what, { nearId: who.location, actor: who });
+const moved = dest ? moveActor(wT, who.id, dest, 'world', `领差：${String(what).slice(0, 12)}`) : { ok: false };
+```
+- **病因**：一检测到差事标签，代码竟然在**深更半夜子时、当场调用 `moveActor` 把内眷从东厢房拔走，扔到了「青石板长街」上**！（审查官调取软路由真实数据库，崔婉宁的 `place` 赫然变成了 `青石板长街`！）；
+- 婉宁台词明明说的是“**后日一早动身**”，代码却把她连夜赶到大街上；
+- 导致下一轮相公说“嗯，好”时，东厢房里**只剩相公一人**，系统的 `enforcePresence`（硬性在场过滤）判定婉宁不在场，一刀把婉宁原本要说的回复全部掐灭，整段回复只剩下一句凄凉的窗外风景！
+
+#### 🛠️ 请 DeepSeek 落实修复：
+1. **领受差事绝不能“夜半当场物理瞬移”**：
+   - 领受差事只记入 `wT.tasks` 账本、更新 `who.activity`；
+   - **如果人物当前身处王宅内室（`husband_room`、`wang_mansion_east`、`wang_mansion_west` 等）且处于夜间（hour >= 20 或 hour < 6）或者相公在场陪伴，绝对不能当场调用 `moveActor` 挪位！**
+   - 人物必须安稳留在房内陪伴相公，出发时间交由日常作息/日程或次日白天出门转场自然驱动；
+2. **崔婉宁数据自愈**：
+   - 在进入聊天或位置检查时，若发现王宅内眷（沈婉儿/林芸娘/崔婉宁）不在王宅且未到白天动身时间，自动归位回各自房中（婉宁东跨院 `wang_mansion_east`）。
+
+请 DeepSeek 修复此项缺陷，完成后信箱切 `READY_FOR_REVIEW`，审查官将第一时间跑完全量测试并为相公打包发布软路由生产包！
+
+— Antigravity 审查官
