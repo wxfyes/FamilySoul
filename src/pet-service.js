@@ -1,4 +1,4 @@
-﻿import { resolveVoiceCasting } from './world/voice-casting.js';
+import { resolveVoiceCasting } from './world/voice-casting.js';
 import { quellBandits } from './world/bandits.js';
 import { resolvePlaceTarget } from './world/places-target.js';
 import { describeRoom } from './world/room-life.js';
@@ -370,7 +370,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
         lines.push('- 【对话指向与第一应答者法则】：');
         lines.push('  1. 【呼名必应，谁被问谁答】：相公若明确叫了某人（如叫随科、或向随科发问），被问者必须首先以自身独立身份正面开口回应！绝不可由其他人替其代言或冒名答非所问！');
         lines.push('  2. 【同场鲜活群戏】：现场在场其他人就在身旁，可在主应答者说话后，根据各自立场、性格或恩怨自然插话、斥责、补充或表态；');
-        lines.push('  3. 【每人独立分角】：每位开口的人物必须各自独立成行，且必须以「【姓名】：“台词”」严格标明分角，呈现真实生动的同场多人交涉！');
+        lines.push('  3. 【每人独立分角】：每位开口的人物必须各自独立成行，且必须以「【身份·姓名】：“台词”」（如【客栈掌柜·孙进】、【伙计·罗河】）严格标明分角，呈现真实生动的同场多人交涉！');
         lines.push('  4. 【严禁一人包揽多人对话】：绝不可在一个人名下把其他角色的应答塞在同一段或同一气泡里；');
         lines.push('  5. 【严禁裸露孤立冒号】：严禁输出如“： “台词””这样不带人名的残缺格式，下属领命或伙计应声也必须明确写出【某某】！');
         lines.push('  4. 【严禁空间失忆妄语】：在场之人就在眼前同一桌/同一屋，绝不许说"我去找他"、"我回去敲打他"等把眼前人当成不在场的失忆怪话！');
@@ -4604,33 +4604,81 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
 
   /**
    * 统一说话人花名：模型写成「【沈婉儿】」「【婉儿】」都归一到「【正妻·婉儿】」，
-   * 免得同一个人一会儿只有名字、一会儿带身份，看着生分。
+   * 模型写成「【孙进】」归一到「【客栈掌柜·孙进】」，「【罗河】」归一到「【伙计·罗河】」，
+   * 免得同一个人一会儿只有名字、一会儿带身份，或客户端无法识别真实身份。
    */
   normalizeSpeakers(text) {
     try {
       const world = loadState(this.dataDir);
       const map = new Map();
+
+      function cleanRole(raw) {
+        if (!raw) return '';
+        let r = String(raw).trim();
+        if (/正妻|正室|大娘子/.test(r)) return '正妻';
+        if (/二房|如夫人|侧妾/.test(r)) return '二房';
+        if (/丫鬟/.test(r)) return '丫鬟';
+        if (/发妻/.test(r)) return '发妻';
+        if (/老鸨/.test(r)) return '老鸨';
+        if (/跑堂/.test(r)) return '跑堂';
+        if (/伙计/.test(r)) return '伙计';
+        if (/掌柜/.test(r)) {
+          const m = r.match(/([^\s·]{0,4}掌柜)/);
+          return m ? m[1].replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁)/, '') : '掌柜';
+        }
+        if (/老板娘/.test(r)) {
+          const m = r.match(/([^\s·]{0,4}老板娘)/);
+          return m ? m[1].replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁)/, '') : '老板娘';
+        }
+        if (/老板/.test(r)) {
+          const m = r.match(/([^\s·]{0,4}老板)/);
+          return m ? m[1].replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁)/, '') : '老板';
+        }
+        if (/东家/.test(r)) return '东家';
+        if (/郎中|大夫/.test(r)) return '郎中';
+        if (/仵作/.test(r)) return '仵作';
+        if (/知府/.test(r)) return '知府';
+        if (/知县|县令/.test(r)) return '知县';
+        if (/统领|侍卫/.test(r)) return '侍卫';
+        if (/私兵|部曲/.test(r)) return '私兵';
+        if (/护院|家丁/.test(r)) return '家丁';
+        if (/帮主/.test(r)) return '帮主';
+        if (/住持|方丈/.test(r)) return '住持';
+        if (/先生|夫子/.test(r)) return '先生';
+        if (/铁匠|木匠|石匠/.test(r)) return r.slice(-2);
+        // 去除地名
+        r = r.replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁|太原|淮安|庐州|泰州|幽州|冀州|沧州|广州|潮州|桂州|成都|绵州|嘉州|济南|青州|登州|兖州|东昌|大同|平阳|蒲州|长安|凤翔|延安|江陵|潭州|襄阳|开封|南阳|归德|辽阳|金州|开原|兰州|凉州|秦州|昆明|大理|贵阳|福州|泉州|温州|宁波|洪州|赣州|吉安|徐州|宿州|府|县)+/, '');
+        if (r.length > 5) r = r.slice(-4);
+        return r;
+      }
+
       for (const a of Object.values(world.actors || {})) {
-        if (!a?.name) continue;
+        if (!a?.name || a.id === 'husband' || a.name === '王甯') continue;
         const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
-        const label = a.label ? `${a.label}·${short}` : a.name;
+        const roleTitle = cleanRole(a.role || a.title || a.label);
+        const label = roleTitle ? `${roleTitle}·${short}` : a.name;
         map.set(a.name, label);
         if (short !== a.name) map.set(short, label);
       }
       // 尊称与身份反向归一映射：解决大模型只写【正妻】、【二房】等导致丢失名字的问题
       if (world.actors?.waner) {
+        map.set('沈婉儿', '正妻·婉儿');
+        map.set('婉儿', '正妻·婉儿');
         map.set('正妻', '正妻·婉儿');
         map.set('大娘子', '正妻·婉儿');
         map.set('少夫人', '正妻·婉儿');
         map.set('正室', '正妻·婉儿');
       }
       if (world.actors?.yunnia) {
+        map.set('林芸娘', '二房·芸娘');
+        map.set('芸娘', '二房·芸娘');
         map.set('二房', '二房·芸娘');
         map.set('二娘子', '二房·芸娘');
         map.set('如夫人', '二房·芸娘');
         map.set('侧妾', '二房·芸娘');
       }
       if (world.actors?.xiaocui) {
+        map.set('小翠', '丫鬟·小翠');
         map.set('丫鬟', '丫鬟·小翠');
         map.set('通房丫鬟', '丫鬟·小翠');
         map.set('大丫鬟', '丫鬟·小翠');
@@ -4641,6 +4689,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
         map.set('紫嫣', '老板娘·紫嫣');
       }
       if (world.actors?.zhanjing) {
+        map.set('战静', '发妻·静儿');
         map.set('静儿', '发妻·静儿');
       }
       let res = String(text || '').replace(/【([^】\n]{1,10})】/g, (whole, name) => {

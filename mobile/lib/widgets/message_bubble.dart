@@ -812,7 +812,7 @@ class _SpeakerMeta {
       );
     }
 
-    // 7. 通用市井伴侣 / 客卿（名字哈希古典色调）
+    // 7. 通用市井伴侣 / NPC 角色（名字哈希古典色调）
     final clean = s.replaceAll(RegExp(r'[【】·•.\[\]:："”]'), '').trim();
     final name = clean.isEmpty ? '伴侣' : (clean.length <= 4 ? clean : clean.substring(clean.length - 2));
 
@@ -832,7 +832,7 @@ class _SpeakerMeta {
 
     return _SpeakerMeta(
       raw: s,
-      title: '客卿',
+      title: '', // 彻底去除硬编码"客卿"，无身份前缀时干净展示真实名字，由服务端全权下发真实身份
       name: name,
       symbol: '🍵',
       primaryColor: pc,

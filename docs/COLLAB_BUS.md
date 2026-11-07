@@ -12,20 +12,13 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 14:38",
-  "active_task": "客户端全链路接通服务端接口（军中兵马分列、随身契据、我的世界自适应、系统独立提示气泡）",
-  "priority": "DATA_DRIVEN_CLIENT_SYNC",
+  "last_updated": "2026-11-07 15:10",
+  "active_task": "彻底根除客卿硬编码，服务端下发真实身份控制",
+  "priority": "ROLE_IDENTITY_CONTROL_AND_CLEANUP",
   "changed_files": [
-    "mobile/lib/views/digest_sheet.dart",
-    "mobile/lib/views/army_sheet.dart",
-    "mobile/lib/views/my_world_screen.dart",
-    "mobile/lib/views/chat_screen.dart",
     "mobile/lib/widgets/message_bubble.dart",
-    "mobile/lib/models/chat_message.dart",
-    "mobile/lib/services/api_client.dart",
-    "mobile/lib/providers/chat_provider.dart",
-    "docs/COLLAB_BUS.md",
-    "docs/APP_TODO.md"
+    "src/pet-service.js",
+    "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "flutter_analyze": "0 issues",
@@ -33,7 +26,7 @@
     "desktop_deliverables": "【最新】FamilySoul_安卓.apk + 【最新】FamilySoul_iOS.ipa"
   },
   "client_reinstall_needed": true,
-  "reviewer_action": "双端交付完毕"
+  "reviewer_action": "双端治理闭环完成"
 }
 ```
 
