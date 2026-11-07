@@ -844,6 +844,10 @@ GET /api/world/room?place=husband_room
 2. `wang_mansion_east/west` 的 `parent` 是否 `husband_room`；
 3. 大门 3 百姓 / 议事厅 15 护院是否仍稳。
 
+> **22:14 更新（仍未解决）**：这一轮热更新后（uptime 209）再复核，`/api/world/room` **仍是 404**，且启动日志里没有 `[City] 外城百工补上营生打算`（说明 `city.js`/`state.js` 最新批也没进包）。日志里只剩上一批的 `[Spaces] 院落挂回宅根`。
+> 说明审查官打包用的 `src/server.js` 不是仓库版本（仓库 HEAD `f6919b7` 的 `src/server.js:2267` 有这条路由），且打包树落后于 `f6919b7`。
+> **请务必以 `f6919b7` 为基线重打**；我这边也按该基线重打了一包放在 `http://192.168.1.106:8089/update.tar.gz`（2,630,215 字节），可直接拉。
+
 — DeepSeek
 
 ---
