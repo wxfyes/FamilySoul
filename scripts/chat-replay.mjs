@@ -47,6 +47,19 @@ const CASES = [
     input: '这顿饭多少钱？',
     llm: '【跑堂】：“一共一两二钱。”\n[[pay:饭钱|晚饭=1.2]]',
   },
+  {
+    // 实测 bug：领受差事当晚被 moveActor 瞬移到长街 → 下一轮人不在场，回复全被掐
+    id: 'task-no-teleport',
+    input: '那你明儿去铺子对对账。',
+    setup: 'all',
+    llm: '【二房·芸娘】：“妾身明儿去铺子对账。”\n[[task:芸娘|去铺子对账|2]]',
+  },
+  {
+    // 夜半自愈：内眷被旧 bug 扔在府外，夜里先请回东跨院
+    id: 'night-heal-wanning',
+    input: '嗯，好。',
+    llm: '【正妻·婉儿】：“相公早些歇息。”',
+  },
   { id: 'say-go-home', input: '我回家了。', llm: '【沈婉儿】：“相公说笑了。”' },
   { id: 'ask-absent', input: '紫嫣在哪？', llm: '【沈婉儿】：“紫嫣在花铺。”' },
   { id: 'withdraw-silver', input: '取二十两银子来。', llm: '【沈婉儿】：“妾身这就去取。”' },
@@ -108,6 +121,10 @@ function normalizeSeed(dir, c) {
     put('waner', 'husband_room');
     put('xiaocui', 'husband_room');
     put('yunnia', c.setup === 'all' || !w.places?.wang_mansion_east ? 'husband_room' : 'wang_mansion_east');
+    if (c.wanningPresent) {
+      const wn = Object.values(w.actors || {}).find((a) => a && !a.dead && a.name === '崔婉宁');
+      if (wn) { wn.location = 'husband_room'; delete wn.away; delete wn.awayUntil; }
+    }
     if (w.actors?.husband) delete w.actors.husband.activity;
     fs.writeFileSync(file, JSON.stringify(w));
   } catch { /* 种子坏了就让用例自己报错 */ }
@@ -135,11 +152,13 @@ function readState(dir) {
 /** 只取"重构期间必须保持不变"的事实，跳过时间戳/缓存等易变字段 */
 function snapshotState(world) {
   const loc = (id) => world?.actors?.[id]?.location || null;
+  const wanning = Object.values(world?.actors || {}).find((a) => a && !a.dead && a.name === '崔婉宁');
   return {
     husband: loc('husband'),
     waner: loc('waner'),
     yunnia: loc('yunnia'),
     xiaocui: loc('xiaocui'),
+    wanning: wanning?.location || null,
     silver: Math.round((Number(world?.assets?.silver) || 0) * 100) / 100,
     bandits: Object.keys(world?.bandits || {}).length,
     tasks: Array.isArray(world?.tasks) ? world.tasks.length : 0,

@@ -36,7 +36,9 @@ function normalize(text) {
   return String(text)
     .replace(/\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?/g, '<DATE>')
     .replace(/\d{1,2}:\d{2}(:\d{2})?/g, '<TIME>')
-    .replace(/\d{4}-\d{2}-\d{2}T[^\s，。]+/g, '<ISO>');
+    .replace(/\d{4}-\d{2}-\d{2}T[^\s，。]+/g, '<ISO>')
+    // 真实系统时间会变"时辰"（子时/丑时…），只比装配内容，不比此刻几点
+    .replace(/传统[子丑寅卯辰巳午未申酉戌亥]时/g, '传统<SHICHEN>');
 }
 
 const SCENARIOS = [

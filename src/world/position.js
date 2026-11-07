@@ -24,6 +24,40 @@ export function isHumanBound(world, actorId) {
   return humanBoundSet(world).has(String(actorId));
 }
 
+/**
+ * 夜半自愈：王宅内眷若被错误挪到府外（差事/旧 bug），半夜先请回各自房中。
+ * 只动"不在王宅任何内室、且相公不在身边"的人；白天不干预。
+ */
+const INNER_FAMILY_HOMES = [
+  { id: 'waner', home: 'husband_room' },
+  { id: 'yunnia', home: 'wang_mansion_west' },
+  { name: '崔婉宁', home: 'wang_mansion_east' },
+];
+
+export function healInnerFamilyAtNight(world) {
+  const hour = Number(world?.clock?.hour);
+  if (!Number.isFinite(hour)) return [];
+  if (!(hour >= 20 || hour < 6)) return [];
+  const hus = world?.actors?.husband;
+  const moved = [];
+  for (const rule of INNER_FAMILY_HOMES) {
+    const a = rule.id
+      ? world?.actors?.[rule.id]
+      : Object.values(world?.actors || {}).find((x) => x && !x.dead && x.name === rule.name);
+    if (!a || a.dead || !world.places?.[rule.home]) continue;
+    const loc = String(a.location || '');
+    if (loc === rule.home) continue;
+    // 已在王宅任一内室（正房/东厢/西厢/暖阁/后院）就算安稳在家，不强行搬
+    if (loc.startsWith('wang_mansion_') || loc === 'husband_room' || loc === 'backyard' || loc === 'tea_house') continue;
+    // 相公就在身边陪着，不拆散
+    if (hus && a.location === hus.location) continue;
+    const from = a.location;
+    const r = moveActor(world, a.id, rule.home, 'world', '夜半归位');
+    if (r?.ok) moved.push({ id: a.id, name: a.name, from, to: rule.home });
+  }
+  return moved;
+}
+
 export function moveActor(world, actorId, placeId, reason = 'world', note = '') {
   if (!MOVE_REASONS.has(reason)) return { ok: false, error: '未知的移动理由' };
   const a = world?.actors?.[actorId];

@@ -3,8 +3,8 @@
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
     "seedHash": "6cbd97226402",
-    "caseCount": 14,
-    "recordedAt": "2026-11-07T16:47:31.228Z"
+    "caseCount": 16,
+    "recordedAt": "2026-11-07T17:00:33.823Z"
   },
   "cases": [
     {
@@ -19,8 +19,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -39,8 +40,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -62,6 +64,7 @@
         "waner": "husband_room",
         "yunnia": "husband_room",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -73,7 +76,7 @@
       "input": "叫芸娘来。",
       "ok": true,
       "error": "",
-      "reply": "【提示】林芸娘听唤，已从临江县衙快步赶了过来。\n【二房·芸娘】：“妾身来了。”",
+      "reply": "【提示】林芸娘听唤，已从临江·王宅·西厢房快步赶了过来。\n【二房·芸娘】：“妾身来了。”",
       "speakers": [
         "提示",
         "二房·芸娘"
@@ -83,6 +86,7 @@
         "waner": "husband_room",
         "yunnia": "husband_room",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -102,8 +106,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "wang_mansion_west",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -125,6 +130,7 @@
         "waner": "husband_room",
         "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -144,9 +150,53 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.24,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "task-no-teleport",
+      "input": "那你明儿去铺子对对账。",
+      "ok": true,
+      "error": "",
+      "reply": "【二房·芸娘】：“妾身明儿去铺子对账。”\n\n（【领受差事 · 林芸娘】去铺子对账 · 限2日）",
+      "speakers": [
+        "二房·芸娘",
+        "领受差事 · 林芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "husband_room",
+        "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 1,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "night-heal-wanning",
+      "input": "嗯，好。",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“相公早些歇息。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_west",
+        "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
+        "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
         "quelledTotal": 0
@@ -164,8 +214,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -184,8 +235,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -204,8 +256,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -225,8 +278,9 @@
       "state": {
         "husband": "husband_room",
         "waner": "husband_room",
-        "yunnia": "yamen",
+        "yunnia": "wang_mansion_west",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -238,7 +292,7 @@
       "input": "叫来吧。",
       "ok": true,
       "error": "",
-      "reply": "【提示】林芸娘听唤，已从临江县衙快步赶了过来。\n【二房·芸娘】：“妾身来了。”",
+      "reply": "【提示】林芸娘听唤，已从临江·王宅·西厢房快步赶了过来。\n【二房·芸娘】：“妾身来了。”",
       "speakers": [
         "提示",
         "二房·芸娘"
@@ -248,6 +302,7 @@
         "waner": "husband_room",
         "yunnia": "husband_room",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -269,6 +324,7 @@
         "waner": "husband_room",
         "yunnia": "husband_room",
         "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
@@ -287,6 +343,7 @@
         "waner": "husband_room",
         "yunnia": "wang_mansion_east",
         "xiaocui": "husband_room",
+        "wanning": "扬州_estate_1",
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,

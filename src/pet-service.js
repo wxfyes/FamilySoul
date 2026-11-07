@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { personFacts } from './world/person-facts.js';
 import { sanePrice, priceHint } from './world/pricing.js';
 import { isPlaceName, matchActor, getPlaceDisplayName } from './world/naming.js';
-import { moveActor, isHumanBound } from './world/position.js';
+import { moveActor, isHumanBound, healInnerFamilyAtNight } from './world/position.js';
 import { hireStaff } from './world/employment.js';
 import { proposeMarriage, acceptAlliance, declineAlliance } from './world/marriage.js';
 import { applyChatActions } from './world/chat-actions.js';
@@ -454,21 +454,14 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
             });
             console.log(`[Task] ${who.name} 领受差事：${what}`);
 
-            // 物理身体联动：言行合一，领了差事肉身即离场办差，绝不滞留原地
+            // 领受差事只记账、只更新 activity；绝不在这里当场 moveActor。
+            // 实测 bug：夜半把内眷从东厢挪到长街，下一轮"人不在场"会把她的回复全掐灭。
+            // 真正动身交给日常作息/日程，或次日白天由交互转场自然驱动。
             who.activity = {
               text: `办差：${what.slice(0, 24)}`,
               at: wT.clock?.hour || 0,
               day: wT.clock?.day || 1,
             };
-            // 去哪儿由 places-target 统一翻译成真实地点，位移只走 moveActor
-            const dest = resolvePlaceTarget(wT, what, { nearId: who.location, actor: who });
-            const moved = dest ? moveActor(wT, who.id, dest, 'world', `领差：${String(what).slice(0, 12)}`) : { ok: false };
-            if (moved?.ok) {
-              who.away = { place: dest, untilDay: (Number(wT.clock?.day) || 1) + Math.min(days, 2) };
-              console.log(`[Task] ${who.name} 领命离开 → ${wT.places?.[dest]?.name || dest}`);
-            } else {
-              console.warn(`[Task] ${who.name} 没能动身（${moved?.error || '无去处'}）`);
-            }
           }
           const targetName = who?.name || whoName;
           const cnTag = `\n（【领受差事 · ${targetName}】${what} · 限${days}日）`;
@@ -1318,6 +1311,17 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     const selfId = actorId || profileKey;
     // 记录开局位置：这一轮如果换了地方，末尾补一行"你到了"
     const __locAtStart = (() => { try { const w0 = loadState(this.dataDir); return (this._viewerActorId ? w0.actors?.[this._viewerActorId] : w0.actors?.husband)?.location || null; } catch { return null; } })();
+
+    // 0. 夜半自愈：王宅内眷若被误挪到府外，先请回各自房中，再走在场过滤
+    //    （差事/旧 bug 都可能把人半夜扔到长街，导致下一轮"人不在场"把回复全掐灭）
+    try {
+      const wHeal = loadState(this.dataDir);
+      const healed = healInnerFamilyAtNight(wHeal);
+      if (healed.length) {
+        saveState(this.dataDir, wHeal);
+        console.log(`[Home] 夜半归位：${healed.map((x) => `${x.name} ${x.from}→${x.to}`).join('，')}`);
+      }
+    } catch { /* 忽略 */ }
 
     // 0. 七层单向管道架构：Intent 意图归一与 Gate 合法性门禁 (第 ①、② 层)
     let intent = null;

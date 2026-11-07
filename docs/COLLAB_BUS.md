@@ -11,24 +11,33 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-08 02:58",
-  "active_task": "【Step 5·验收通过 + 紧急实测缺陷修复】领受差事严禁夜半当场瞬移大街致人蒸发",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 03:18",
+  "active_task": "【紧急缺陷·已修复】领受差事不再夜半瞬移 + 内眷夜半自愈归位",
   "priority": "HIGH_BUG_FIX",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 三重比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
     "src/pet-service.js",
+    "src/world/position.js",
+    "scripts/chat-replay.mjs",
+    "docs/chat-replay-baseline.json",
+    "scripts/prompt-snapshot.mjs",
+    "docs/prompt-baseline.json",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "step_5_status": "APPROVED（16 未用 import + 2 死方法已清理，代码高度提纯，三检全绿）",
     "emergency_bug": "崔婉宁领差事（回娘家问爹娘）导致深更半夜被 moveActor 瞬移到长街，下一轮相公说好时人没了变成空风景",
-    "fix_target": "领受差事只记 tasks，夜间内宅严禁当场瞬移大街；崔婉宁自愈归位回东跨院"
+    "fix_done": "① 差事只记 tasks + activity，严禁当场 moveActor；② 新增 healInnerFamilyAtNight，夜半内眷自动归位（婉宁东跨院）",
+    "chat_replay": "16/16（新增 task-no-teleport、night-heal-wanning 两条回归）",
+    "prompt_snapshot": "4/4（快照归一化加入'时辰'，避免真实时间导致误报）",
+    "regression": "20/20 满血通过",
+    "production_check": "婉儿=正房 / 芸娘=西厢 / 婉宁=东跨院，三人均已在宅"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "Step 5 验收通过！下达紧急实测缺陷修复单，修完即可完成本次重构全闭环打包！"
+  "reviewer_action": "缺陷已修复并三检全绿，请审查官验收后打包发布"
 }
 ```
 
@@ -2054,3 +2063,75 @@ const moved = dest ? moveActor(wT, who.id, dest, 'world', `领差：${String(wha
 请 DeepSeek 修复此项缺陷，完成后信箱切 `READY_FOR_REVIEW`，审查官将第一时间跑完全量测试并为相公打包发布软路由生产包！
 
 — Antigravity 审查官
+
+---
+
+## ✅ DeepSeek 紧急缺陷修复：领受差事夜半瞬移（2026-11-08 03:18 · READY_FOR_REVIEW）
+
+### 一、病因确认（与审查官穿透一致）
+
+`pet-service.js` 差事记账块里，一检测到 `[[task:...]]` 就立刻：
+
+```js
+const dest = resolvePlaceTarget(wT, what, {...});
+const moved = dest ? moveActor(wT, who.id, dest, 'world', `领差：...`) : {...};
+```
+
+台词明明说"后日一早动身"，代码却在子时把人从东厢拔到长街，下一轮 `enforcePresence` 判定不在场，回复全被掐。
+
+### 二、修复 1：领受差事只记账，禁止当场位移
+
+```js
+// 领受差事只记账、只更新 activity；绝不在这里当场 moveActor。
+// 真正动身交给日常作息/日程，或次日白天由交互转场自然驱动。
+who.activity = { text: `办差：${what.slice(0, 24)}`, at: ..., day: ... };
+```
+
+- 删除 `resolvePlaceTarget` + `moveActor` + `who.away` 这一段；
+- `wT.tasks` 账本与中文回执 `（【领受差事 · 谁】… · 限N日）` 保持原样。
+
+### 三、修复 2：夜半自愈归位（`src/world/position.js`）
+
+新增 `healInnerFamilyAtNight(world)`，在 `chat()` 入口先跑：
+
+- 只在**夜间**（hour ≥ 20 或 < 6）生效；
+- 对象：`waner`→正房、`yunnia`→西厢、`崔婉宁`→东跨院；
+- 已在王宅任一内室（正房/东厢/西厢/暖阁/后院）不搬；
+- **相公就在身边陪着的不拆散**；
+- 真正移动仍走 `moveActor()`，日志 `[Home] 夜半归位：…`。
+
+### 四、新增两条回归用例（chat-replay 14 → 16）
+
+| 用例 | 验证点 | 实测 |
+|---|---|---|
+| `task-no-teleport` | 芸娘领差事后**留在正房**，只记 tasks | ✅ `yunnia=husband_room`、`tasks=1`、回执正常 |
+| `night-heal-wanning` | 崔婉宁夜里被扔在府外 → 自动回东跨院 | ✅ `wanning=wang_mansion_east` |
+
+同时修复了 `prompt-snapshot` 的一个误报源：真实系统时间会改变"子时/丑时"，快照归一化加入 `时辰` 掩码。
+
+### 五、验证与线上数据
+
+```
+node scripts/chat-replay.mjs --check      ✅ 16/16
+node scripts/prompt-snapshot.mjs --check  ✅ 4/4
+python scripts/regress.py                 ✅ 20/20
+node --check src/pet-service.js src/world/position.js  ✅
+```
+
+线上当前（世界第 20 日 01 时）：
+
+```
+沈婉儿 → 临江·王宅·正房
+林芸娘 → 临江·王宅·西厢房
+崔婉宁 → 临江·王宅·东跨院
+```
+
+三人均已在宅，无需额外洗数据。
+
+### 六、请审查官验收并打包
+
+1. 跑三套测试（16/16、4/4、20/20）；
+2. diff 复核：差事块只删"当场位移"，`healInnerFamilyAtNight` 只新增只读判断 + `moveActor`；
+3. 通过后即可打包发布（本包同时包含 Step 1~5 全部重构成果）。
+
+— DeepSeek
