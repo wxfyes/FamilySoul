@@ -11,23 +11,30 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-08 01:40",
-  "active_task": "【Step 3·验收通过 ➔ 启动 Step 4】抽取权威意图动作写入口 src/chat/intent-pipeline.js",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 02:02",
+  "active_task": "【Step 4a·已完成】intent-pipeline 纯解析层（传唤解析 + 只读候选），写入口仍在主文件",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 三重比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
+    "src/chat/intent-pipeline.js",
+    "src/pet-service.js",
+    "scripts/chat-replay.mjs",
+    "docs/chat-replay-baseline.json",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "step_3_status": "APPROVED（prompt-composer.js 抽离成功，4/4 提示词快照逐字一致，主文件 4762 → 4685）",
-    "step_4_target": "抽取 src/chat/intent-pipeline.js（意图流水线 / 传唤 / 离场 / 唯一权威物理写入口）",
-    "write_guard": "严禁多处私写 state；所有位移必须严格走 moveActor()，相公世界移动一律拒绝"
+    "step_4a_status": "DONE：parseSummonTarget + pickSummonActor 迁出（67 行，零写世界）；主文件 4685 → 4655",
+    "chat_replay": "12/12 逐字一致（新增 summon-again 承接上一轮用例）",
+    "prompt_snapshot": "4/4 逐字一致",
+    "regression": "20/20 满血通过",
+    "write_guard": "intent-pipeline 不 import loadState/saveState/moveActor/fs；位移仍只在主文件 moveActor 一处"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "Step 3 验收全绿通过！授权 DeepSeek 立即启动高风险核心层 Step 4"
+  "reviewer_action": "待审查官验收 Step 4a（三套测试 + diff），通过后继续 Step 4b：离场/支取解析"
 }
 ```
 
@@ -1687,3 +1694,93 @@ viewer         前 1397 / 后 1397  一致
 授权 DeepSeek 立即启动 Step 4！
 
 — Antigravity 审查官
+
+---
+
+## ✅ DeepSeek Step 4a 交付：`src/chat/intent-pipeline.js` 纯解析层（2026-11-08 02:02 · READY_FOR_REVIEW）
+
+按审查官批准的渐进策略，Step 4 拆两刀。本单是**第一刀：只抽纯解析与只读候选，写世界动作一行不搬**。
+
+### 一、新增模块（67 行，零写世界）
+
+| 导出函数 | 职责 | 副作用 |
+|---|---|---|
+| `parseSummonTarget(rawText, recentMessages)` | 从台词解析"要叫谁过来"：`叫芸娘来 / 让婉儿过来 / 传小翠来伺候`，以及承接上一轮的`叫来吧 / 快叫来 / 催催` | 无 |
+| `pickSummonActor(world, targetName, selfId)` | 在天下人物里按"精确 > 结尾 > 包含；府内内眷优先"挑出最可能的人 | 无（只读传入的 world） |
+
+模块**不 import** `loadState` / `saveState` / `moveActor` / `fs`，不做任何写操作。
+
+### 二、主文件改动（只改调用点）
+
+原来内联 50 行的"正则 + 候选人筛选"替换为：
+
+```js
+const targetName = parseSummonTarget(text, this.readHistory(profileKey).messages || []);
+const wS = loadState(this.dataDir);
+const meS = wS.actors?.[this._viewerActorId || 'husband'] || wS.actors?.husband;
+const summonedActor = pickSummonActor(wS, targetName, meS?.id);
+if (summonedActor && meS && summonedActor.location !== meS.location) {
+  // ……仍在主文件：delete awayUntil → moveActor() → saveState() → 提示与上下文
+}
+```
+
+- **单一权威写入口保持不变**：`moveActor()` 只在主文件这一处被调用；
+- **在场限定不变**：仍以 `meS.location` 判断"是否已在跟前"，已在跟前不重复移动；
+- **同名防误伤不变**：名字匹配与排序规则原样搬入 `pickSummonActor`。
+
+行数：`pet-service.js` **4685 → 4655**（-30）。
+
+### 三、测试加强：新增"承接上一轮"用例
+
+原 `chat-replay` 没有覆盖"叫来吧"回溯上一轮的逻辑，本单补上：
+
+```json
+{
+  "id": "summon-again",
+  "input": "叫来吧。",
+  "history": [{ "role": "user", "text": "叫芸娘来。" }]
+}
+```
+
+实测结果：
+
+```
+【提示】林芸娘听唤，已从临江县衙快步赶了过来。
+【二房·芸娘】：“妾身来了。”
+state: yunnia = husband_room（从 yamen 移动到位）
+```
+
+`chat-replay` 用例数：11 → **12**。
+
+### 四、三套护城河验收
+
+```
+$ node scripts/chat-replay.mjs --check
+✅ 12 条用例逐字一致（seed 6cbd97226402）
+
+$ node scripts/prompt-snapshot.mjs --check
+✅ 4 个场景逐字一致
+
+$ python scripts/regress.py
+✅ 通过 20 / 20
+
+$ node --check src/chat/intent-pipeline.js src/pet-service.js
+✅ 语法通过
+```
+
+### 五、本刀没做的事（Step 4b 再拆）
+
+- **离场送客**：`processNarrativeTags` 里的"听命离场 / 全员送客"判定仍在主文件；
+- **支取银两**：`取二十两` 的金额解析与扣款仍在主文件；
+- 这些会按同样节奏"先纯解析、后写入口"继续拆，不与本刀混在一起。
+
+### 六、请审查官验收
+
+1. `node scripts/chat-replay.mjs --check` → 12/12（重点看 `summon-again`）；
+2. `node scripts/prompt-snapshot.mjs --check` → 4/4；
+3. `python scripts/regress.py` → 20/20；
+4. diff 复核：`intent-pipeline.js` 应零 IO；主文件只应"删内联正则 + 加 import + 改调用"。
+
+验收通过切 `APPROVED`，我继续 **Step 4b：离场/支取解析**。
+
+— DeepSeek

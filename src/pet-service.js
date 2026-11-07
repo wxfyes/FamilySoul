@@ -41,6 +41,7 @@ import { addMemory, recallMemories } from './world/memory.js';
 import { cnNum, stripForVoice, mergeSameSpeaker, cleanSpeakerLabel, cleanRoleLabel } from './chat/text-utils.js';
 import { cleanReply } from './chat/reply-sanitizer.js';
 import { composeViewerPersona, composeWorldRules } from './chat/prompt-composer.js';
+import { parseSummonTarget, pickSummonActor } from './chat/intent-pipeline.js';
 
 
 export class PetService {
@@ -1705,54 +1706,23 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
         // 注意：这里 history 还没加载，直接读一次历史文件取她上一句（本地 JSON，开销极小）
         const lastBotSaid =
           [...(this.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
-        // 相公传唤内眷/仆从到场单一权威入口（"叫婉宁过来"、"让芸娘来"、"叫小翠来伺候"）
+        // 相公传唤内眷/仆从到场单一权威入口（纯解析见 chat/intent-pipeline.js，位移仍走 moveActor）
         try {
-          const sayClean = String(text || '').trim();
-          let targetName = null;
-          const m1 = /(?:让|叫|命|请|唤|打发|派人叫|把)?\s*([^去回到往先来叫让请过\s]{1,4})\s*(?:叫|请|唤)?\s*(?:过来|过来吧|来|来吧|来一趟|来一下|来正房|到这来|到这里|到跟前|来伺候)/.exec(sayClean);
-          const m2 = /(?:叫|唤|请|传)\s*([^去回到往先来叫让请过\s]{1,4})\s*(?:来吧|过来|到跟前来)/.exec(sayClean);
-          if (m1 && !/^(你|你们|都|大伙|大家|全)$/.test(m1[1])) targetName = m1[1];
-          else if (m2 && !/^(你|你们|都|大伙|大家|全)$/.test(m2[1])) targetName = m2[1];
-
-          // 承接上一轮：若相公说"叫来吧/叫她来/快叫来/催催"，回溯上一轮相公呼唤的名字
-          if (!targetName && /^(?:叫|唤|请|传)?\s*(?:来吧|叫来吧|叫她来吧|唤她来|快叫来|快唤来|催催|那就叫来|快去叫)[。！!~…\s]*$/.test(sayClean)) {
-            const histMsgs = (this.readHistory(profileKey).messages || []).slice(-4);
-            const prevUserMsg = histMsgs.reverse().find((m) => m.role === 'user' && m.text !== text)?.text || '';
-            const mPrev = /(?:让|叫|命|请|唤|打发|把)?\s*([^去回到往先来叫让请过\s]{1,4})\s*(?:叫|请|唤)?\s*(?:过来|过来吧|来|来吧|来一趟|来一下|来正房|到这来|到这里|到跟前|来伺候)/.exec(prevUserMsg);
-            if (mPrev && !/^(你|你们|都|大伙)$/.test(mPrev[1])) targetName = mPrev[1];
-          }
-
+          const targetName = parseSummonTarget(text, this.readHistory(profileKey).messages || []);
           if (targetName) {
             const wS = loadState(this.dataDir);
             const meS = wS.actors?.[this._viewerActorId || 'husband'] || wS.actors?.husband;
-            // 匹配目标人物：在天下人物中按亲疏与当前同府优先级排序
-            const cands = Object.values(wS.actors || {}).filter((a) => {
-              if (!a || a.dead || a.id === meS?.id) return false;
-              if (a.name === targetName) return true;
-              if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName))) return true;
-              if (targetName.length === 1 && a.name.includes(targetName)) return true;
-              return false;
-            });
-
-            if (cands.length > 0) {
-              // 优先级：王宅府内内眷 > 同城人物 > 外地
-              cands.sort((x, y) => {
-                const xInMansion = (x.location && x.location.startsWith('wang_mansion_')) || x.household ? 2 : 0;
-                const yInMansion = (y.location && y.location.startsWith('wang_mansion_')) || y.household ? 2 : 0;
-                return yInMansion - xInMansion;
-              });
-              const summonedActor = cands[0];
-              if (summonedActor.location !== meS.location) {
-                const fromPlace = wS.places?.[summonedActor.location]?.name || '别处';
-                delete summonedActor.awayUntil;
-                const mvRes = moveActor(wS, summonedActor.id, meS.location, 'world', '听召到场');
-                if (mvRes?.ok) {
-                  saveState(this.dataDir, wS);
-                  summonedNames = [summonedActor.name];
-                  this._lastSummonNotice = `【提示】${summonedActor.name}听唤，已从${fromPlace}快步赶了过来。`;
-                  contextHintEarly += `（【已召到场】：相公亲自传唤，${summonedActor.name} 已从「${fromPlace}」快步赶到相公跟前！本轮【必须】由 ${summonedActor.name} 亲自开口向相公请安奉茶应答，其他人切勿抢话！）\n`;
-                  console.log(`[Summon] 成功召来：${summonedActor.name} 从 ${fromPlace} 移至 ${wS.places?.[meS.location]?.name || meS.location}`);
-                }
+            const summonedActor = pickSummonActor(wS, targetName, meS?.id);
+            if (summonedActor && meS && summonedActor.location !== meS.location) {
+              const fromPlace = wS.places?.[summonedActor.location]?.name || '别处';
+              delete summonedActor.awayUntil;
+              const mvRes = moveActor(wS, summonedActor.id, meS.location, 'world', '听召到场');
+              if (mvRes?.ok) {
+                saveState(this.dataDir, wS);
+                summonedNames = [summonedActor.name];
+                this._lastSummonNotice = `【提示】${summonedActor.name}听唤，已从${fromPlace}快步赶了过来。`;
+                contextHintEarly += `（【已召到场】：相公亲自传唤，${summonedActor.name} 已从「${fromPlace}」快步赶到相公跟前！本轮【必须】由 ${summonedActor.name} 亲自开口向相公请安奉茶应答，其他人切勿抢话！）\n`;
+                console.log(`[Summon] 成功召来：${summonedActor.name} 从 ${fromPlace} 移至 ${wS.places?.[meS.location]?.name || meS.location}`);
               }
             }
           }

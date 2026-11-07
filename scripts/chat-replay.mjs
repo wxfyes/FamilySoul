@@ -41,6 +41,13 @@ const CASES = [
   { id: 'withdraw-silver', input: '取二十两银子来。', llm: '【沈婉儿】：“妾身这就去取。”' },
   { id: 'call-xiaocui', input: '小翠，沏壶茶来。', llm: '【小翠】：“奴婢这就去。”' },
   {
+    id: 'summon-again',
+    input: '叫来吧。',
+    // 承接上一轮：上一轮相公叫的是"芸娘"，这一轮只说"叫来吧"
+    history: [{ role: 'user', text: '叫芸娘来。' }],
+    llm: '【二房·芸娘】：“妾身来了。”',
+  },
+  {
     id: 'tavern-plan',
     input: '运河大酒楼开张的事，你们怎么看？',
     setup: 'all',
@@ -95,6 +102,17 @@ function normalizeSeed(dir, c) {
   } catch { /* 种子坏了就让用例自己报错 */ }
 }
 
+/** 预置历史（测"叫来吧"承接上一轮） */
+function seedHistory(dir, c) {
+  if (!Array.isArray(c.history) || !c.history.length) return;
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'chat', 'history-husband.json'),
+      JSON.stringify({ messages: c.history, lastUserAt: 0, lastAssistantAt: 0 }),
+    );
+  } catch { /* 忽略 */ }
+}
+
 function readState(dir) {
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, 'world', 'state.json'), 'utf8'));
@@ -146,6 +164,7 @@ const silent = async (fn) => {
 async function runCase(c) {
   const dir = prepareDataDir();
   normalizeSeed(dir, c);
+  seedHistory(dir, c);
   const realRandom = Math.random;
   Math.random = seededRandom(10086);
   try {

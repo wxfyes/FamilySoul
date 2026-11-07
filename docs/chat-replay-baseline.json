@@ -3,8 +3,8 @@
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
     "seedHash": "6cbd97226402",
-    "caseCount": 11,
-    "recordedAt": "2026-11-07T16:07:00.227Z"
+    "caseCount": 12,
+    "recordedAt": "2026-11-07T16:35:11.176Z"
   },
   "cases": [
     {
@@ -184,6 +184,27 @@
         "husband": "husband_room",
         "waner": "husband_room",
         "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "summon-again",
+      "input": "叫来吧。",
+      "ok": true,
+      "error": "",
+      "reply": "【提示】林芸娘听唤，已从临江县衙快步赶了过来。\n【二房·芸娘】：“妾身来了。”",
+      "speakers": [
+        "提示",
+        "二房·芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "husband_room",
         "xiaocui": "husband_room",
         "silver": 14423849.29,
         "bandits": 3,
