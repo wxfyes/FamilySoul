@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 「去哪儿」的唯一出处。
  *
  * 天道的台词里说的是"东厢""后院""码头""街市"这些人话，
@@ -22,8 +22,8 @@ const SEMANTICS = [
   { key: '酒楼', test: /酒楼|酒肆|饭庄/ },
   { key: '码头', test: /码头|渡口|船坞|河埠/ },
   { key: '茶山', test: /茶山|茶园|山场/ },
-  { key: '东厢', test: /东厢|东院|书房/ },
-  { key: '西厢', test: /西厢|西院/ },
+  { key: '东厢', test: /东厢|东院|东跨院|东房|东屋|书房/ },
+  { key: '西厢', test: /西厢|西院|西跨院|西房|西屋/ },
   { key: '后院', test: /后院|花园|庖厨|灶房|下房|暖阁/ },
   { key: '祠堂', test: /祠堂|家庙/ },
   { key: '马厩', test: /马厩|马房|车马/ },
@@ -92,12 +92,14 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
     if (person && world.places?.[person.location]) return person.location;
   } catch { /* 忽略 */ }
 
-  // 王宅（含七进大宅院/王家大宅这种产业名）一律回丈夫正房或大门，绝不另辟孤岛
+  // 王宅专属厢房与跨院精准直达（优先级必须高于王宅大院，避免"王宅·东跨院"被王宅截胡成大门）
+  if (/东厢|东院|东跨/.test(text) && world.places?.wang_mansion_east) return 'wang_mansion_east';
+  if (/西厢|西院|西跨/.test(text) && world.places?.wang_mansion_west) return 'wang_mansion_west';
+
+  // 王宅（含七进大宅院/王家大宅这种产业名）一律回丈夫正房，绝不另辟孤岛；只有明确提大门才去大门
   if (/王宅|王家大宅|七进大宅|王家庭院/.test(text)) {
-    const gate = 'husband_room__gate';
-    const main = 'husband_room';
-    if (world.places?.[gate]) return gate;
-    if (world.places?.[main]) return main;
+    if (/门|大门|门头|门房|照壁/.test(text) && world.places?.husband_room__gate) return 'husband_room__gate';
+    if (world.places?.husband_room) return 'husband_room';
   }
 
   // ① 天道的暗示里直接点了某个地点的名字

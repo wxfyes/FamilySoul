@@ -473,7 +473,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final textToSend = _liveWords.trim();
     if (textToSend.isNotEmpty) {
       final provider = context.read<ChatProvider>();
-      provider.sendMessage(textToSend);
+      await provider.sendMessage(textToSend);
+      if (mounted) _refreshPlace();
       _scrollToBottom();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -693,7 +694,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _handleSend() {
+  Future<void> _handleSend() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
@@ -707,7 +708,8 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     _textController.clear();
-    provider.sendMessage(text);
+    await provider.sendMessage(text);
+    if (mounted) _refreshPlace();
     _scrollToBottom(force: true);
 
     // 发完立刻把焦点还给输入框：否则每次都要再点一下才能打字

@@ -1,4 +1,4 @@
-﻿import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPartyMembers } from './party.js';
+import { syncPartyIntent, addToParty, removeFromParty, onMemberSelfAction, getPartyMembers } from './party.js';
 /**
  * 召唤与走动 —— 把"叫谁过来""我去谁那儿"落到世界账本上
  *
@@ -567,34 +567,18 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
-  // 「去某地」：话里带了账本里已有的地名（全名或尾两字），就把相公与同行伴侣挪过去（复杂对话案情讨论绝不触发）
-  if (mentioned.length === 0 && !isComplexChat && hasRealMoveVerb(say)) {
-    // "回我房间/去正房"这类说法：先按别名认
-    const roomAlias = { 我房间: 'husband_room', 我的房间: 'husband_room', 我房里: 'husband_room', 回房: 'husband_room', 回屋: 'husband_room', 正房: 'husband_room', 上房: 'husband_room', 卧房: 'husband_room', 寝室: 'husband_room' };
-    const placeHit = resolveStandardPlace(world, selfId, say);
-    if (placeHit) {
-      const [pid, p] = placeHit;
-      const pName = String(p?.name || '');
-      // 必须有真实位移动词作用于该地点或其简称，或者是强日常别名（回房/回家），避免随口提及地点相关词汇误瞬移
-      const moveRe = new RegExp(`(?:去|往|到|回|逛|移步|转到|奔|赶往)\\s*(?:一趟|那|那个|这)?\\s*([一-龥]{0,4}${pName.slice(0, 2)}|[一-龥]{0,4}${pName.slice(-2)})`);
-      const isStrongAlias = /(回家|回铺子|回店|回房|回屋|正房)/.test(say);
-      if (isStrongAlias || moveRe.test(say)) {
-        const companions = findCompanions(world, selfId, say);
+
+
+  // 「回房/回正房」：相公自己回正房（单人回房，绝不偷听拉同行人覆盖）
+  if (mentioned.length === 0 && !isComplexChat && /(?:回|去)(?:我)?(?:房|屋|房间|正房)/.test(String(say).trim())) {
+    const pid = 'husband_room';
+    if (world.places?.[pid]) {
+      if (me.location !== pid) {
         me.location = pid;
-        const comers = [];
-        for (const c of companions) {
-          if (c && !c.dead && c.id !== me.id) {
-            c.location = pid;
-            c.activity = { text: `随相公前往${p.name}`, at: world.clock?.hour || 0, day: world.clock?.day || 1 };
-            comers.push(c.name);
-          }
-        }
         saveState(dataDir, world);
-        const party = [me.name || '相公', ...comers];
-        console.log(`[Party] 同行名单：${party.join(' + ')}`);
-        console.log(`[Move] ${me.name || '相公'} → ${p.name}（同行：${comers.length > 0 ? comers.join('、') : '无'}）`);
-        return { moved: party, summoned: [], visited: null, wentTo: p.name };
+        return { moved: [me.name || '相公'], summoned: [], visited: null, wentTo: world.places[pid].name };
       }
+      return { moved: [], summoned: [], visited: null, wentTo: world.places[pid].name, alreadyThere: true };
     }
   }
 
@@ -690,13 +674,16 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
 
     const from = actor.location;
     let dest = resolvePlaceTarget(world, hint, { nearId: from, actor });
-    // 家眷离场只认自己的住处：不许被一句"去长街"支到街上
+    // 家眷离场保护：如果是去王宅内部的房间（东厢/西厢/书房/花园等），完全放行；
+    // 只有当被误指派到府外非住宅（如长街/集市），且不是出门办差时，才兜底改回自家庭院
     const isKin = String(actor.spouse || '') === 'husband' || /正妻|如夫人|二房|侧室|妾|通房|丫鬟|婆子|嬷嬷/.test(String(actor.role || ''));
     if (isKin) {
-      const home = actor.home && world.places?.[actor.home] ? actor.home : null;
-      if (home && dest !== home) {
-        console.log(`[Departure] ${actor.name} 是内眷，目的地改回住处`);
-        dest = home;
+      const curRoot = String(world.places?.[from]?.parent || from);
+      const destRoot = String(world.places?.[dest]?.parent || dest);
+      const isInsideMansion = dest && (destRoot === curRoot || destRoot === 'husband_room' || dest.startsWith('wang_mansion_'));
+      if (!isInsideMansion && !/街|铺|店|楼|栈/.test(hint)) {
+        const home = actor.home && world.places?.[actor.home] ? actor.home : null;
+        if (home) dest = home;
       }
     }
     if (!dest || dest === from) continue;

@@ -1301,64 +1301,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     } catch (err) { console.warn('[Job] 营生处理失败：', err.message); }
 
 
-    // 8.83 相公点名让谁去某处（"让紫嫣回家""叫小翠回房"）：真搬
-    try {
-      const mGo = /(?:让|叫|命|打发|请)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下)/.exec(String(sayText || ''));
-      if (mGo) {
-        const whoName = mGo[1];
-        const where = mGo[2];
-        const wG = loadState(this.dataDir);
-        const who = Object.values(wG.actors || {}).find((a) => a && !a.dead && a.name === whoName);
-        if (who) {
-          let dest = null;
-          if (/铺子/.test(where)) {
-            const prop = (wG.assets?.properties || []).find((x) => x && (String(x.keeper || '') === String(who.id) || String(x.owner || '') === String(who.id)) && x.place);
-            dest = prop?.place || null;
-          }
-          // 目的地跟现在同一处院落（只是同一栋楼里换个房间），那不算"走"
-          const curRoot = String(wG.places?.[who.location]?.parent || who.location);
-          const destRoot = dest ? String(wG.places?.[dest]?.parent || dest) : '';
-          if (dest && (dest === who.location || destRoot === curRoot)) dest = null;
-          if (!dest) dest = who.quarters || who.home || null;
-          if (!dest || !wG.places?.[dest]) {
-            try { dest = ensureDwelling(wG, who.id, who.name, 'street'); } catch { dest = null; }
-          }
-          if (dest && wG.places?.[dest] && dest !== who.location) {
-            const mv = moveActor(wG, who.id, dest, 'world', '送客离场');
-            if (mv?.ok) {
-              saveState(this.dataDir, wG);
-              reply = `（${who.name}应了一声，起身往${wG.places[dest].name}去了。）\n` + String(reply || '');
-              console.log(`[Departure] 点名离场：${who.name} → ${wG.places[dest].name}`);
-            } else {
-              console.log(`[Departure] ${who.name} 没走成：${mv?.error}`);
-            }
-          }
-        }
-      }
-    } catch (err) { console.warn('[Departure] 点名离场失败：', err.message); }
 
-    // 8.835 让某人去某处：按地点名真的挪过去（引擎解析地点，不靠模型）
-    try {
-      const mSend = /(?:让|叫|命|打发|请)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(?:去|到|往|回)\s*([\u4e00-\u9fa5]{2,8}?)(?:去|了|罢|吧|。|！|!|$)/.exec(String(sayText || ''));
-      if (mSend) {
-        const wSd = loadState(this.dataDir);
-        const meSd = wSd.actors?.[this._viewerActorId || 'husband'] || wSd.actors?.husband;
-        const whoSd = Object.values(wSd.actors || {}).find((a) => a && !a.dead && a.name === mSend[1]);
-        if (whoSd) {
-          const destSd = resolvePlaceTarget(wSd, mSend[2], { nearId: meSd?.location, actor: whoSd });
-          if (destSd && wSd.places?.[destSd]) {
-            const mvSd = moveActor(wSd, whoSd.id, destSd, 'world', '听命往某处');
-            if (mvSd?.ok) {
-              saveState(this.dataDir, wSd);
-              reply += `\n【提示】${whoSd.name}去了${wSd.places[destSd].name}。`;
-              console.log(`[Departure] 听命：${whoSd.name} → ${wSd.places[destSd].name}`);
-            } else {
-              reply += `\n【提示】${whoSd.name}去不了那里：${mvSd?.error || '路不通'}。`;
-            }
-          }
-        }
-      }
-    } catch (err) { console.warn('[Departure] 听命去某处失败：', err.message); }
 
     // 8.85 相公说"进你屋里/去你房间"：对方答应了就真的换场（她带你进她的私房）
     try {
@@ -1394,86 +1337,133 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       }
     } catch (err) { console.warn('[Scene] 入内室失败：', err.message); }
 
-    // 8.9 相公明确说"你走吧/退下/送客"：不靠天道自觉写标签，引擎直接让人离场
+    // 8.9 相公吩咐离场 / 回房 / 送客（单一入口：严格限定在场人物，杜绝异地同名误判与多头打架）
     try {
-      const farewellSay = /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(String(sayText || '').trim())
-        || /送客|你回吧|你走吧|退下吧|都散了吧/.test(String(sayText || '').trim())
-        || /让.{0,10}(走|回去|回房|退下|出去|散了)/.test(String(sayText || ''))
-        || /叫他们.{0,4}(走|回去|出去)|都回(房|屋|去)|散了吧|退下/.test(String(sayText || ''))
-        || /(?:回|进)(?:房|屋)(?:间|去|里)?|回去歇着|各自回/.test(String(sayText || ''))
-        || /^\s*出去吧?[。！!~…\s]*$/.test(String(sayText || '').trim())
-        || /([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(?:出去|退下|退出去|走吧|回房)/.test(String(sayText || '').trim())
-        || /都[^。]{0,4}(出去|退下|散了|退出去|回去)/.test(String(sayText || '').trim())
-        || (/留下/.test(String(sayText || '')) && /都|出去|散/.test(String(sayText || '')));
-      console.log(`[Departure] 判定 say="${String(sayText || '').slice(0, 24)}" farewell=${farewellSay}`);
-      if (farewellSay) {
+      const sayStr = String(sayText || '').trim();
+      const isDismissOrGo =
+        /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.test(sayStr)
+        || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.test(sayStr)
+        || /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(sayStr)
+        || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋/.test(sayStr)
+        || /都[^。]{0,4}(出去|退下|散了|退出去|回去)/.test(sayStr);
+
+      if (isDismissOrGo) {
         const wF = loadState(this.dataDir);
         const meF = wF.actors?.[this._viewerActorId || 'husband'] || wF.actors?.husband;
-        const hereF = Object.values(wF.actors || {}).filter(
+        // 核心铁律：候选人必须 100% 严格限定在【当前在场的人】！严禁搜寻全天下不在场的人！
+        const hereActors = Object.values(wF.actors || {}).filter(
           (a) => a && !a.dead && a.id !== meF?.id && a.location === meF?.location
             && !a.humanBound && !/^usr_/.test(String(a.id)),
         );
-        // 主人家自己不走；带"都/大伙"的就是清场
-        // 话里点了名的：不管在不在跟前，都回自己的住处；没点名才清场
-        const saidNow = String(sayText || '');
-        const namedAll = Object.values(wF.actors || {}).filter((a) => {
-          if (!a || a.dead || !a.name || a.id === meF?.id) return false;
-          if (saidNow.includes(a.name)) return true;
-          const short = a.name.length > 2 ? a.name.slice(-2) : '';
-          return Boolean(short && saidNow.includes(short) && /回|退|走/.test(saidNow));
-        });
-        // "都出去，婉儿留下"：留下点名的，其余清场
-        const saidNow2 = String(sayText || '');
-        const keepRaw = /留下\s*([\u4e00-\u9fa5]{2,4})|([\u4e00-\u9fa5]{2,4})\s*留下/.exec(saidNow2);
-        const keepName = keepRaw ? String(keepRaw[1] || keepRaw[2] || '').trim() : '';
-        const keepActor = keepName
-          ? Object.values(wF.actors || {}).find((a) => a && a.name && (a.name === keepName || a.name.endsWith(keepName)))
-          : null;
-        let goers0;
-        if (keepActor && /都|出去|退下|散了|回去/.test(saidNow2)) {
-          goers0 = hereF.filter((a) => a.id !== keepActor.id)
-            .concat(namedAll.filter((a) => a.id !== keepActor.id && a.location !== meF?.location));
-        } else if (namedAll.length) {
-          goers0 = namedAll;
-        } else {
-          goers0 = hereF.slice();
-        }
-        const cap = /都|你们|大伙|诸位|全/.test(String(sayText || '')) ? 10 : 3;
-        const goers = goers0.slice(0, cap);
-        console.log(`[Departure] 送客判定：在场 ${hereF.length} 人，应走 ${goers.length} 人`);
-        if (goers.length) {
-          const names = [];
-          for (const a of goers) {
-            // 有住处回住处；住在街上的人，给他安个家再让他回去（不让人凭空消失）
-            let back = a.home || a.quarters;   // 回房优先回自己的住处，不是当差的门房
-            const backPlace = back ? wF.places?.[back] : null;
-            if (!back || !backPlace || backPlace.residence === undefined && !backPlace.name) {
-              try { back = ensureDwelling(wF, a.id, a.name, 'street'); } catch { back = null; }
-            }
-            if (!back || back === 'street') {
-              const prop = (wF.assets?.properties || []).find((x) => x && String(x.keeper || '') === String(a.id) && x.place);
-              back = prop?.place || null;
-            }
-            if (!back) back = 'street';
-            const mv = wF.places?.[back] ? moveActor(wF, a.id, back, 'world', '送客离场') : { ok: false };
-            if (mv?.ok) {
-              // 刚被请走的人，几个时辰内不会再自己溜回来
-              a.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
-              names.push(a.name);
-            } else console.log(`[Departure] ${a.name} 没走成：${mv?.error || '没有去处'}`);
+
+        console.log(`[Departure] 单一入口判定：在场 ${hereActors.length} 人，say="${sayStr.slice(0, 30)}"`);
+
+        if (hereActors.length > 0) {
+          // 1. 是否是点名某人？
+          let targetName = null;
+          let targetWhere = null;
+
+          const m1 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.exec(sayStr);
+          const m2 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.exec(sayStr);
+
+          if (m1) {
+            targetName = m1[1];
+            targetWhere = m1[2];
+          } else if (m2) {
+            targetName = m2[1];
+            targetWhere = m2[2] || '回房';
           }
-          if (names.length) {
-            try {
-              wF.flags = wF.flags || {};
-              wF.flags.stallQuietUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 3) % 24 };
-            } catch { /* 忽略 */ }
-            saveState(this.dataDir, wF);
-            reply = String(reply || '') + `\n【提示】${names.join('、')}起身告辞，退了出去。`;
-            console.log(`[Departure] 相公送客，${names.join('、')} 真的走了`);
+
+          if (targetName && /^(你|你们|大家|大伙|都|大家伙|诸位|全)$/.test(targetName)) {
+            targetName = null;
+          }
+
+          if (targetName) {
+            // 在【当前在场的人】中精确或模糊匹配
+            const matched = hereActors.filter((a) => {
+              if (a.name === targetName) return true;
+              if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName))) return true;
+              if (targetName.length === 1 && a.name.includes(targetName)) return true;
+              return false;
+            });
+
+            if (matched.length > 1) {
+              // 人性化设计：当场有不同姓氏的同名角色（如两个婉宁同场）！
+              // 严禁一股脑全赶走，由其中一位自然反问，明确相公到底叫谁！
+              console.log(`[Departure] 在场存在重名歧义：${matched.map((a) => a.name).join('、')}，触发自然反问`);
+              const firstN = matched[0].name;
+              reply = `（${firstN}神情微怔，有些拿不准，轻声问道：“相公唤的是妾身，还是哪位妹妹？”）\n` + String(reply || '');
+            } else if (matched.length === 1) {
+              // 精准锁定唯一在场角色
+              const who = matched[0];
+              let dest = null;
+
+              if (/铺子/.test(targetWhere || '')) {
+                const prop = (wF.assets?.properties || []).find((x) => x && (String(x.keeper || '') === String(who.id) || String(x.owner || '') === String(who.id)) && x.place);
+                dest = prop?.place || null;
+              } else if (/东厢/.test(targetWhere || '')) {
+                dest = 'wang_mansion_east';
+              } else if (/西厢/.test(targetWhere || '')) {
+                dest = 'wang_mansion_west';
+              } else if (/房间|回房|屋|歇着|等我|候着|退下|出去/.test(targetWhere || '')) {
+                // 王宅内眷规制：
+                if (who.name.includes('婉宁')) dest = 'wang_mansion_east';
+                else if (who.name.includes('芸娘')) dest = 'wang_mansion_west';
+                else if (who.name.includes('婉儿')) dest = 'husband_room';
+                else if (who.name.includes('小翠')) dest = wF.places?.['husband_room__servant'] ? 'husband_room__servant' : 'wang_mansion_west';
+                else dest = who.quarters || who.home || null;
+              }
+
+              if (!dest) {
+                dest = resolvePlaceTarget(wF, targetWhere, { nearId: meF?.location, actor: who });
+              }
+              if (!dest) dest = who.quarters || who.home || null;
+              if (!dest || !wF.places?.[dest]) {
+                try { dest = ensureDwelling(wF, who.id, who.name, 'street'); } catch { dest = null; }
+              }
+
+              if (dest && wF.places?.[dest] && dest !== who.location) {
+                const mv = moveActor(wF, who.id, dest, 'world', '听命离场');
+                if (mv?.ok) {
+                  who.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
+                  saveState(this.dataDir, wF);
+                  const destName = wF.places[dest].name;
+                  reply = `\n【提示】${who.name}应声告退，去了${destName}。` + String(reply || '').replace(new RegExp(`【提示】${who.name}[^\\n]*\\n?`, 'g'), '');
+                  console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
+                }
+              }
+            } else {
+              console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
+            }
+          } else if (/都|全|大伙|诸位|退下|散了/.test(sayStr)) {
+            // 全员清场：仅限在场的客人与侍从（不含相公），各自回各自住处
+            const names = [];
+            for (const a of hereActors) {
+              let back = a.quarters || a.home;
+              if (a.name.includes('婉宁')) back = 'wang_mansion_east';
+              else if (a.name.includes('芸娘')) back = 'wang_mansion_west';
+              else if (a.name.includes('小翠')) back = wF.places?.['husband_room__servant'] ? 'husband_room__servant' : 'wang_mansion_west';
+
+              if (!back || !wF.places?.[back]) {
+                try { back = ensureDwelling(wF, a.id, a.name, 'street'); } catch { back = null; }
+              }
+              if (back && wF.places?.[back] && back !== a.location) {
+                const mv = moveActor(wF, a.id, back, 'world', '全员送客离场');
+                if (mv?.ok) {
+                  a.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
+                  names.push(a.name);
+                }
+              }
+            }
+            if (names.length) {
+              saveState(this.dataDir, wF);
+              reply = `\n【提示】${names.join('、')}躬身告辞，各自退了出去。` + String(reply || '');
+              console.log(`[Departure] 全员清场：${names.join('、')} 离场`);
+            }
           }
         }
       }
-    } catch (err) { console.warn('[Departure] 送客处理失败：', err.message); }
+    } catch (err) { console.warn('[Departure] 离场处理失败：', err.message); }
 
     // 8.96 模型自己写的"起身告辞/退了出去"旁白：删掉，离场事实只由引擎那一行说
     try {
