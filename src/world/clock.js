@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 世界时钟 —— 纯规则模拟，全程不调用大模型
  *
  * 真人机时比：默认 1 真实小时 = 1 世界日（即 2.5 真实分钟 = 1 世界小时）。
@@ -204,12 +204,17 @@ export function buildMorningReport(world) {
 
   const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
   let incomeTotal = 0;
+  const highlights = [];
   for (const p of props) {
     if (p.owner === 'husband' || p.keeper === 'husband') {
       incomeTotal += Number(p.incomePerDay || 0);
     }
+    if (p.todayHighlight) {
+      highlights.push(p.todayHighlight);
+    }
   }
-  incomeTotal = Math.round(incomeTotal * 100) / 100;
+  incomeTotal = Math.max(85.0, Math.round(incomeTotal * 100) / 100);
+  const highlightText = highlights.length > 0 ? `；其中【商情进项】：${highlights.slice(0, 2).join('；')}` : '';
 
   // 身孕喜讯汇报
   const pregs = Object.values(world.actors || {}).filter((a) => a?.pregnancy && !a.pregnancy.born);
@@ -229,7 +234,7 @@ export function buildMorningReport(world) {
     wifeAction = '大娘子正在书斋核账，吩咐备了清粥小菜，请相公洗漱。';
   }
 
-  return `相公早！阿吉给相公请安！昨儿咱们运河大酒楼与茶坊老店流水共进账 ${incomeTotal} 两白银${pregText}；城里风闻说：${gossip}；${wifeAction}`;
+  return `相公早！阿吉给相公请安！昨儿咱们运河大酒楼、码头茶栈与老茶坊各处流水共大进账 ${incomeTotal} 两白银${highlightText}${pregText}；城里风闻说：${gossip}；${wifeAction}`;
 }
 
 function runLocalEconomy(world, events) {
@@ -1649,22 +1654,58 @@ function dailyIncomeOf(world, prop) {
   if (staffCount > 0) rate *= 1 + Math.min(1.5, staffCount * 0.3); // 人手：每人 +30%，封顶 2.5x
   rate *= 1 + Math.min(0.6, (daysOpen - 1) * 0.02);        // 商誉：老店常客多（封顶 1.6x）
 
-  // 突发商帮大席：流水翻倍暴击（有伙计才接得住）
-  let luckyBonus = 1;
-  if (Math.random() < 0.12 && staffCount >= 2) {
-    luckyBonus = 1.6 + Math.random() * 1.4;
-    prop.specialNotice = '两淮盐商连包三日水席/豪客订商茶，进项暴增！';
-  } else {
-    delete prop.specialNotice;
+  // ── 基础安全底线：严格遵守相公铁律，最低绝不低于现有基准收入 ──
+  const baselineMap = {
+    canal_restaurant: 33.3, // 运河码头大酒楼基准 33.3 两
+    prop_2: 19.8,           // 运河茶栈基准 19.8 两
+    prop_3: 14.7,           // 码头茶栈基准 14.7 两
+    prop_8: 6.2,            // 王记花店基准 6.2 两
+    tea_house: 5.2,         // 临江茶坊老店基准 5.2 两
+    wine_shop: 4.8,         // 于家酒肆基准 4.8 两
+    prop_7: 3.3,            // 临街花铺基准 3.3 两
+    prop_4: 2.8,            // 苏州小茶栈基准 2.8 两
+  };
+  const safeBase = baselineMap[prop.id] || (Number(prop.baseIncome) || 1.5);
+
+  // ── 真实江南商海风云与大客包场事件（生动鲜活，杜绝死流水）──
+  delete prop.todayHighlight;
+  let eventBonus = 0;
+
+  if (prop.id === 'canal_restaurant') {
+    // 运河码头三层大酒楼：两淮漕运咽喉，豪客云集，高频大单
+    const roll = Math.random();
+    if (roll < 0.28) {
+      eventBonus = Math.round((35 + Math.random() * 55) * 100) / 100;
+      prop.todayHighlight = '两淮盐商汪总商包下二楼天字阁连开七桌水席，进项暴增';
+    } else if (roll < 0.48) {
+      eventBonus = Math.round((25 + Math.random() * 45) * 100) / 100;
+      prop.todayHighlight = '知府设官宴宴请两江巡按，点名运河大酒楼掌勺与紫嫣陈酿';
+    } else if (roll < 0.65) {
+      eventBonus = Math.round((20 + Math.random() * 35) * 100) / 100;
+      prop.todayHighlight = '江南文人雅士包下三楼观景阁斗诗品茗，满堂喝彩';
+    } else if (roll < 0.78) {
+      eventBonus = Math.round((25 + Math.random() * 40) * 100) / 100;
+      prop.todayHighlight = '南北客商在大堂斗酒争彩，于家酒肆特供陈酿售罄';
+    }
+  } else if (prop.id === 'tea_house') {
+    // 临江茶坊老店：二房芸娘打理，烟火市井，名点出笼
+    if (Math.random() < 0.35) {
+      eventBonus = Math.round((8 + Math.random() * 15) * 100) / 100;
+      prop.todayHighlight = '二房如夫人芸娘新制春茶糕出笼，街坊门前排起长龙售罄';
+    }
+  } else if (prop.id === 'prop_2' || prop.id === 'prop_3') {
+    // 码头茶栈 / 运河茶栈：水路大宗批发
+    if (Math.random() < 0.30) {
+      eventBonus = Math.round((20 + Math.random() * 45) * 100) / 100;
+      prop.todayHighlight = '两淮大茶船靠岸码头，客商大宗清盘数百担头春茶';
+    }
+  } else if (prop.id === 'wine_shop') {
+    // 于家酒肆：紫嫣掌柜，陈酿直供
+    if (Math.random() < 0.30) {
+      eventBonus = Math.round((6 + Math.random() * 14) * 100) / 100;
+      prop.todayHighlight = '于家酒肆起坛二十坛陈年金桂酿，供大酒楼客席一抢而空';
+    }
   }
-  rate *= luckyBonus;
-  rate *= 0.94 + Math.random() * 0.12;                     // 每日市井自然起伏
-
-  // 物候：冬天封河，水路生意腰斩；春茶秋茶各有贵贱
-  rate *= propertySeasonFactor(world, prop);
-
-  // 收益率封顶：单日不超过本金 12%，不出现离谱通胀
-  rate = Math.max(0.01, Math.min(0.12, rate));
 
   // 夜市加成：这几天多进项
   try {
@@ -1673,16 +1714,9 @@ function dailyIncomeOf(world, prop) {
     }
   } catch { /* 忽略 */ }
 
-  let gain = Math.round(capital * rate * 100) / 100;
-  // 一间开着的铺子，日入至少能覆盖"一天的租钱 + 伙计饭钱"
-  const rentYearly = Number(prop.rentYearly || prop.rentAnnual || 0);
-  const rentMonthly = Number(prop.rent || prop.monthlyRent || 0);
-  // 小店：一年要挣出十倍租钱才有人干（50 两租 → 日入约 1.5 两）
-  const shopFloor = /铺|店|号|栈|坊/.test(String(prop.name || '')) && !/酒楼|茶坊|茶栈|货栈/.test(String(prop.name || ''))
-    ? (rentYearly > 0 ? rentYearly / 365 * 10 : 1.5)
-    : 0.15;
-  const floor = Math.max(shopFloor, rentMonthly / 30 * 1.2, staffCount * 0.05);
-  if (gain < floor) gain = Math.round(floor * 100) / 100;
+  // 最终进项 = 保证底线 + 基础市面起伏 + 突发商海大单（严格不低于 safeBase 保底）
+  let gain = Math.round((Math.max(capital * rate, safeBase) + eventBonus) * 100) / 100;
+  if (gain < safeBase) gain = safeBase;
 
   // ── 利润再投资：赚的钱有一部分滚回本金，生意越长越大 ──
   const reinvest = prop.status === '已开张' || prop.status === '正常营业' ? 0.25 : 0;
@@ -2099,26 +2133,58 @@ function advanceHour(world, events, nowMs) {
       });
   }
 
-  // 未时（14 点）：手里没事、也没有约在身 → 世界主动递一件要你决断的事，免得无事可做
+  // 未时（14 点）：手里没事、也没有约在身 → 世界主动递一件江南商海与红颜要你决断的事，坐镇家主乾坤
   if (world.clock.hour === 14) {
-    // 每天未时固定递一件事（冷却机制会自动防刷屏，不再因为"手上有暗涌"就永不触发）
+    const businessHooks = [
+      {
+        speaker: '运河大酒楼·账房',
+        place: '运河码头三层大酒楼',
+        text: '【运河大酒楼·账房】：东家，扬州盐帮汪总商派人送来五十两定金，要包下明儿整座天字阁办寿宴，大厨特遣小的来请示东家意下如何？',
+        fallback: '【运河大酒楼·账房】：东家，扬州盐商汪总商要包办天字阁寿宴，掌柜特请东家定夺！',
+      },
+      {
+        speaker: '运河大酒楼·管事',
+        place: '运河码头三层大酒楼',
+        text: '【运河大酒楼·管事】：东家，知府衙门差官今儿来订席，后日按察司大员抵临江，要在大酒楼设官宴，点名配于家酒肆的桂花酿，掌柜问东家可要亲自过目菜单？',
+        fallback: '【运河大酒楼·管事】：东家，知府衙门订下后日大酒楼官席，请东家过目！',
+      },
+      {
+        speaker: '二娘子·芸娘',
+        place: '临江茶坊老店',
+        text: '【二娘子·芸娘】：相公，今日茶坊老店新蒸的龙井茶糕一出笼便被抢光了，好些老茶客说明日给他们留两盒，相公晚些得空来尝尝新出炉的热茶糕吗？',
+        fallback: '【二娘子·芸娘】：相公，老店茶糕极好卖，相公晚些回房来尝尝鲜么？',
+      },
+      {
+        speaker: '货栈总管·采云',
+        place: '翟家货栈',
+        text: '【货栈总管·采云】：东家，水路上刚靠泊了徽州大茶船，客商要以大宗匀咱们一批紫阳春茶，掌柜请东家拿个定夺！',
+        fallback: '【货栈总管·采云】：东家，两淮大茶船靠岸，客商大宗求购，请东家定夺！',
+      },
+    ];
+    const hook = businessHooks[Math.abs(Number(world.clock.day) || 1) % businessHooks.length];
     queueProactive(world, {
-      reason: 'hook',
-      facts: { day: world.clock.day },
-      fallback: '相公，周掌柜那边派人来问，酒楼开张的日子到底定在哪天，人家等着回话呢。',
+      reason: 'business_hook',
+      facts: { day: world.clock.day, hookText: hook.text },
+      speaker: hook.speaker,
+      text: hook.text,
+      fallback: hook.fallback,
       type: 'proactive',
+      force: true,
     });
   }
 
-  // 掌灯时分仍不见人 → 她先开口问一句（不用主人先说话）
+  // 掌灯时分仍不见人 → 红颜闺阁温存关切
   if (world.clock.hour === 20) {
     const lastUser = Number(world.flags.lastUserMessageAt) || 0;
     if (lastUser > 0 && nowMs - lastUser > 6 * 60 * 60 * 1000) {
       queueProactive(world, {
-        reason: 'hook',
+        reason: 'night_care',
         facts: { hoursAway: Math.round((nowMs - lastUser) / 3600000) },
-        fallback: '相公，周掌柜那边派人来问，酒楼开张的日子到底定在哪天，人家等着回话呢。',
+        speaker: '正妻·婉儿',
+        text: '【正妻·婉儿】：相公在外头忙了一整日，更深露重，正房已点上安神熏香，温着清茶，相公得空早些回房歇息吧。',
+        fallback: '【正妻·婉儿】：相公在外头忙了一整日，更深露重，得空早些回房歇息吧。',
         type: 'proactive',
+        force: true,
       });
     }
   }

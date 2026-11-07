@@ -12,24 +12,20 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 16:51",
-  "active_task": "彻底根治男性角色按钮显示找她、抹除裸露英文代号an与补齐酒肆递信药丸",
-  "priority": "FIX_GENDER_ACTION_AND_STRIP_AN_DIRT",
+  "last_updated": "2026-11-07 20:06",
+  "active_task": "江南商海活态重构：运河大酒楼大客包场水席、茶坊新茶点轰动、保底铁律与生动商情早报",
+  "priority": "LIVELY_BUSINESS_EVENTS_AND_GUARANTEED_INCOME_DEPLOYED",
   "changed_files": [
-    "mobile/lib/models/chat_message.dart",
-    "mobile/lib/widgets/message_bubble.dart",
-    "src/server.js",
+    "src/world/clock.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "flutter_analyze": "0 issues",
     "regression": "20/20",
-    "android_build": "283.2MB APK built & copied to Desktop",
-    "ios_build": "Triggering Actions",
-    "server_status": "update.tar.gz built 2.50MB"
+    "server_status": "update.tar.gz built 2.51MB",
+    "baseline_protection": "全产业最低保底 >= 85.0两，大单暴击叠加"
   },
-  "client_reinstall_needed": true,
-  "reviewer_action": "客户端双端与服务端一并完成闭环交付"
+  "client_reinstall_needed": false,
+  "reviewer_action": "服务端已更新，客户端无需重装"
 }
 ```
 
