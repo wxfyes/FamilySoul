@@ -11,14 +11,18 @@
 
 ```json
 {
-  "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 09:42",
-  "active_task": "【千行级真实重构】彻底粉碎上帝类：pet-service.js 从 4612 狂砍至 3091 行（净削减 1521 行）",
-  "priority": "DEPLOYED_VERIFIED",
-  "single_owner": "Antigravity",
-  "reviewer_role": "代码深度提纯重构、四重护城河全量验证、构建生产更新包 update.tar.gz",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 10:10",
+  "active_task": "【交接验收】pet-service.js 388 行 + chat-flow 1896 行；敏感段未动；包已构建待真机测试",
+  "priority": "HIGH_ARCH_REFACTOR",
+  "single_owner": "DeepSeek（本轮执行），Antigravity（验收）",
+  "reviewer_role": "四项复核：行数/敏感段/模块边界/包内容；相公同步真机测试",
   "changed_files": [
     "src/pet-service.js",
+    "src/chat/chat-flow.js",
+    "src/chat/system-prompt.js",
+    "src/chat/finalize-response.js",
+    "src/chat/context-hints.js",
     "src/chat/narrative-engine.js",
     "src/chat/dialogue-postprocess.js",
     "src/chat/environment-hints.js",
@@ -26,20 +30,16 @@
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "lines_cut": "4612 → 3091 行（净砍 1521 行，提纯 33% 核心业务），四大专业引擎独立封箱",
-    "new_engines": [
-      "narrative-engine.js: 叙事标签与因果律落账执行引擎 (880行)",
-      "dialogue-postprocess.js: 在场人员校验与发音人归一管道 (380行)",
-      "environment-hints.js: 客观世界行情与兵事陈设环境事实构建 (300行)",
-      "scenario-triggers.js: 夫妻私密/支走旁人/510两酒楼大事记剧情触发 (120行)"
-    ],
-    "unused_imports": "17 个孤儿依赖全量清理",
-    "chat_replay": "19/19 逐字全绿",
-    "prompt_snapshot": "4/4 满分通过",
-    "regression": "20/20 满血通过"
+    "lines": "pet-service.js 4600 → 388（-91.6%）；chat-flow.js 1896；模块合计 ~3300",
+    "sensitive_block": "chat-flow.js 674~1230『后宫/私语/在场判定』一行未动（可用 git diff 0283b9f..HEAD 核对）",
+    "chat_replay": "19/19 逐字一致",
+    "prompt_snapshot": "4/4 逐字一致",
+    "dismiss_regression": "专项全过",
+    "regression": "20/20 满血通过",
+    "package": "update.tar.gz 2,656,602 字节 / 579 文件；本地 /health 200"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "重大瘦身全部验收通过，更新包已更新至 192.168.1.106:8089，相公随时可一键更新"
+  "reviewer_action": "请审查官复核四项 + 相公拉包真机测试；异常按原话+时间回传"
 }
 ```
 
@@ -2233,3 +2233,72 @@ node --check src/pet-service.js src/world/position.js  ✅
 4. 三刀全部 PASS 后，我再做一次全量复核（含线上包校验），然后才建议相公打包上线。
 
 — DeepSeek（监督官）
+
+---
+
+## 📨 DeepSeek → 审查官：交接单（主文件 388 行 / 敏感段未动 / 包已构建）
+
+相公已拍板：**先拉包真机测试**。这封信是交接单，请审查官按下面四项验收。
+
+### 一、当前数字（实测，不是汇报口径）
+
+| 文件 | 行数 | 说明 |
+|---|---|---|
+| `src/pet-service.js` | **388** | 原 4600，-91.6%，只剩类壳与薄委托 |
+| `src/chat/chat-flow.js` | **1896** | 对话主流程 |
+| `src/chat/finalize-response.js` | 510 | 收尾/TTS/assistantMsg/返回 |
+| `src/chat/context-hints.js` | 272 | 诊脉/位置/产业/锁定/点名提示 |
+| `src/chat/system-prompt.js` | 241 | 系统提示词装配 |
+| `src/chat/narrative-engine.js` | 908 | 标签执行 |
+| `src/chat/dialogue-postprocess.js` | 322 | 在场/分角 |
+| `src/chat/intent-pipeline.js` | 169 | 意图解析 |
+| 其余小模块（environment-hints / scenario-triggers / text-utils / reply-sanitizer / prompt-composer） | 104～265 | — |
+
+### 二、敏感段声明（相公特别交代）
+
+**"后宫/私语/在场判定"段（`chat-flow.js` 第 674～1230 行）一行未动**：没删、没改、没机械替换。
+
+审查官可用两种方式核对：
+
+```bash
+# 1) 看该段自迁出后有无被改
+git diff 0283b9f..HEAD -- src/chat/chat-flow.js
+
+# 2) 取迁出时的版本与当前版本，逐行比对 674～1230 区间
+git show 0283b9f:src/chat/chat-flow.js
+```
+
+上面第 1 条 diff 应只涉及 `364～575`（context-hints 迁出）和 `2100+`（finalize 迁出）两段，**不应出现 674～1230 的任何改动**。
+
+### 三、四套验收（我本地已跑）
+
+```
+node scripts/chat-replay.mjs --check      ✅ 19/19 逐字一致
+node scripts/prompt-snapshot.mjs --check  ✅ 4/4 逐字一致
+node scripts/test_dismiss_regression.mjs  ✅ 全过
+python scripts/regress.py                 ✅ 20/20
+```
+
+### 四、包与真机测试
+
+| 项目 | 结果 |
+|---|---|
+| `update.tar.gz` | **2,656,602 字节**，579 个文件 |
+| 本地启动 | `PORT=3099 node src/server.js` → `/health` **200** |
+| 相公动作 | 现在拉包真机测试 |
+
+拉包命令：
+
+```bash
+cd /opt/familysoul && wget -O - http://192.168.1.106:8089/update.tar.gz | tar -xz && chmod +x *.sh && ./stop.sh && ./start.sh
+```
+
+### 五、请审查官重点复核
+
+1. `pet-service.js` 是否真的只剩壳与委托，没有"影子逻辑"；
+2. `chat-flow.js` 的 674～1230 段是否逐字未变；
+3. 新模块是否零 `this.`、无反向 import、无循环依赖；
+4. 包内 `src/pet-service.js` 是否就是 388 行版本（可 `tar -xOf` 核对）；
+5. 真机测试若有异常，把原话 + 时间给我，我按新链路定位。
+
+— DeepSeek
