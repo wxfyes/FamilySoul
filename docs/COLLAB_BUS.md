@@ -12,30 +12,22 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 22:32",
-  "active_task": "外城城池活性 + 王宅厢房/口语化离场/铲除茶坊递信 全量上线",
+  "last_updated": "2026-11-07 22:44",
+  "active_task": "离场单一权威入口收口：严格限定在场匹配 / 杜绝异地同名误送 / 芸娘西厢独立归宿 / 重名自然反问",
   "priority": "DEPLOYED_VERIFIED",
   "changed_files": [
-    "src/world/city.js",
-    "src/world/clock.js",
-    "src/world/room-life.js",
-    "src/world/actors.js",
-    "src/world/state.js",
-    "src/world/places-target.js",
-    "src/world/summon.js",
     "src/pet-service.js",
-    "src/server.js",
-    "src/user-registry.js",
+    "src/world/state.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "regression": "20/20 通过",
-    "router_health": "200 OK (启动时间 22:31:38)",
-    "router_room_api": "200 OK (wang_mansion_east 正常响应，已非 404)",
-    "city_life": "30座外城与百工营生全部随包发布"
+    "departure_single_entry": "已合并 8.83/8.835/8.9 为单一入口",
+    "homonym_defense": "严格限定 hereActors，异地婉宁不再误送；同场重名触发自然反问",
+    "mansion_residence": "芸娘定西厢 / 婉宁定东厢 / 婉儿居正房，杜绝送客反向搬回正房"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "软路由 192.168.1.254:3088 已经全量部署最新版并验证通过"
+  "reviewer_action": "更新包已生成，通知相公在软路由拉包热更新"
 }
 ```
 
@@ -932,5 +924,119 @@ city_base 168 / 168 都有 goals + workplaceId
 > 另修一处根因：`moveActor` 的"外院当差不许进内室"此前不分自家别家，导致崔府/谢府/柳府家丁每晚被拉回王宅议事厅；现加 `goingHome` 豁免（回自己住处放行，闯别家内室照旧改道）。
 
 外侧观感（白天上街）需等世界 8 时自然显现；作息逻辑已由"一键跑批 347 人回家"与本地单测（8 时→营生处、21 时→家）双重验证。
+
+— DeepSeek
+
+---
+
+## 📨 DeepSeek → 审查官 / App 端：剿匪反馈闭环（服务端已交付，App 待接 4 项 · 2026-11-07 23:0x）
+
+相公实测剿匪后追问了五件事：折兵多少、怎么募兵、缴获去哪、称号在哪、有没有全城通报。服务端侧已全部补齐（`ae73481` + `c3d4be0`，包 `2,636,825` 字节），**App 端需要配合改 4 处**，清单如下，可直接照做。
+
+### 一、服务端已经做了什么（App 拉包后即可生效）
+
+1. **兵账/战力修复**：`stationed` 与 `military.army` 对齐；训练度归 50；不再全员"新兵"；剿匪战力从 0 恢复为正常（22 兵 vs 7 匪稳赢）。
+2. **缴获进流水**：剿平后写 `world.ledger`：`{title:'剿平XX·缴获', delta:银子, category:'剿匪缴获'}`。
+3. **全城通报**：剿匪成败都写 `events.jsonl`（`bandit_quelled` / `bandit_failed`，`isPublic:true`）+ 一条市井风闻。
+4. **`/api/me` 新增 `offices`**：相公名下的官职（剿匪授的"临江府乡勇团练使"）。
+5. **战损同步**：`factions.wangjia.kinds`（家丁/护院名额）与 `military` 跟着折兵扣减。
+
+### 二、App 需要改的 4 处
+
+#### ① 今日看板显示官职 —— `mobile/lib/views/digest_sheet.dart`
+
+新字段（`GET /api/me`）：
+
+```json
+"offices": [
+  { "key": "tuanlian", "title": "临江府乡勇团练使", "note": "剿匪有功，知府奏请授职", "at": { "day": 19 } }
+]
+```
+
+建议在"军中兵马"卡片里加一行，空数组时隐藏：
+
+```dart
+final offices = (raw['offices'] as List?) ?? const [];
+if (offices.isNotEmpty)
+  _kv('身份', offices.map((o) => o['title']).join('、')),
+```
+
+#### ② 家兵抽屉新增「募私兵」 —— `mobile/lib/views/army_sheet.dart`
+
+- 现有「招募家丁/护院」走 `action:'call'`（一呼百应，只支持 `guard` / `retainer`）；
+- **私兵/营兵**走 `action:'recruit'`：
+
+```dart
+await _act(
+  { 'action': 'recruit', 'count': count, 'city': cities.isNotEmpty ? cities.first.key : '', 'kind': 'army' },
+  '募私兵 $count 人',
+);
+```
+
+- 服务端会拦：**未据城且未受朝命**时返回 `{ok:false,error:'未奉朝命、未据城池，擅募野战营兵形同聚众谋逆！…'}`；相公现在是团练使，可招。
+- 建议按钮文案「募私兵 · 需朝命」，复用现有 `_pickCount`；单价按 `RECRUIT_KINDS.army`：**安家银 0.8 两/人、粮 0.4 石/人、月饷 1.5 两/人**（返回体带 `cost` 可直接显示）。
+
+#### ③ 出兵弹窗显示战果明细 —— `army_sheet.dart` 的 `_quell`
+
+`POST /api/world/military {action:'quell_bandits'}` 响应新增字段：
+
+```json
+{
+  "ok": true, "win": true,
+  "loss": 2,
+  "name": "运河两岸散匪",
+  "city": "临江府",
+  "lootSilver": 12.5,
+  "lootGrain": 3,
+  "appoint": "，知府感念忠勇，授「临江府乡勇团练使」",
+  "text": "剿平「运河两岸散匪」，缴银 12.5 两、粮 3 石，折兵 2 人，民心大振，知府感念忠勇，授「临江府乡勇团练使」"
+}
+```
+
+现在弹窗只显示 `text`，已够用；若想分行可读：
+
+```dart
+final lines = [
+  if (r['loss'] != null) '折兵 ${r['loss']} 人',
+  if (r['lootSilver'] != null) '缴银 ${r['lootSilver']} 两',
+  if (r['lootGrain'] != null) '缴粮 ${r['lootGrain']} 石',
+  if ('${r['appoint'] ?? ''}'.isNotEmpty) '授职：临江府乡勇团练使',
+];
+```
+
+#### ④ 兵额口径统一（防"22 vs 18"再打架）
+
+- **私兵"账上兵额"改用 `military.troops`**（当前 18）；
+- 不要再把 `military.privateArmy` 当兵额显示——那是"活着的私兵真人 NPC 计数"（22），剿匪折的是账上兵额，两者会差；
+- 家丁/护院**名额**可用 `military.kinds`（`{guard:6, retainer:16}`，战损后同步）；**真人数量**仍用 `houseGuards` / `retainers`（21 / 15）。
+
+涉及文件：`digest_sheet.dart`（第 77~123 行附近）、`my_world_screen.dart`（第 377~378 行附近）、`army_sheet.dart`（第 51~54 行、398~404 行）。
+
+### 三、不用改的
+
+- **剿匪捷报**：已写进事件流，`/api/me.news` 自动带出，我的世界"新闻"直接显示，无需改代码。
+- **流水**：缴获已入 `world.ledger`，网页看板可见；App 暂无流水页，本次不做。
+
+### 四、验收步骤（拉包后）
+
+```bash
+curl -s "http://192.168.1.254:3088/api/me?token=<TOKEN>" | jq '.offices'
+# 期望：[{"key":"tuanlian","title":"临江府乡勇团练使",...}]
+
+curl -s -X POST "http://192.168.1.254:3088/api/world/military?token=<TOKEN>" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"recruit","count":5,"city":"临江府","kind":"army"}'
+# 期望：{"ok":true,"troops":23,...}
+```
+
+1. 看板出现「身份：临江府乡勇团练使」；
+2. 家兵抽屉能募私兵（有官职时）；
+3. 打一股匪，弹窗显示折兵/缴获/授职，事件流出现`【剿匪捷报】`；
+4. 私兵行显示 `troops`（18），不再出现 22。
+
+### 五、说明
+
+- 阵亡目前只减**账上兵额**，后营的私兵真人 NPC 不减；若要"真人阵亡"再单独做一版（会影响真人名单与月饷）。
+- 本包需先拉：`cd /opt/familysoul && wget -O - http://192.168.1.106:8089/update.tar.gz | tar -xz && chmod +x *.sh && ./stop.sh && ./start.sh`。
 
 — DeepSeek
