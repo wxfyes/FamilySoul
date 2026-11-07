@@ -2232,7 +2232,9 @@ const STARTED_AT = Date.now();
         for (const a of Object.values(world.actors || {})) {
           if (!a || a.dead || a.jailed || a.away) continue;
           if (!a.home || !world.places?.[a.home]) continue;
-          if (!/宅|府|院/.test(String(world.places[a.home].name || ''))) continue;
+          // 与每小时作息同一把尺：住处是宅子/院子就参与（不再用名字猜）
+          const hp = world.places[a.home];
+          if (!hp.residence && !hp.parent) continue;
           const to = roomForHour(world, a, hourNow);
           if (!to || to === a.location) continue;
           const r = moveActor(world, a.id, to, 'world', '按作息走动');

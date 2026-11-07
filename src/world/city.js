@@ -57,10 +57,19 @@ function citySlugOf(actor) {
   return m ? m[1] : '';
 }
 
+/** 营生归类：先精确匹配，再按包含匹配（"客栈掌柜"也算掌柜） */
+function cityPlanOf(role) {
+  const r = String(role || '').trim();
+  if (!r) return null;
+  if (CITY_ROLE_PLAN[r]) return CITY_ROLE_PLAN[r];
+  const key = Object.keys(CITY_ROLE_PLAN).find((k) => r.includes(k));
+  return key ? CITY_ROLE_PLAN[key] : null;
+}
+
 /** 给一名外城百工挂上营生打算与白天去处（幂等） */
 function planCityJob(world, actor, slug) {
   if (!actor) return false;
-  const plan = CITY_ROLE_PLAN[String(actor.role || '').trim()];
+  const plan = cityPlanOf(actor.role);
   if (!plan) return false;
   let changed = false;
   if (!Array.isArray(actor.goals) || actor.goals.length === 0) {
