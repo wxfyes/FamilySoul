@@ -11,27 +11,23 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-08 00:18",
-  "active_task": "【第0步·已完成】scripts/chat-replay.mjs 行为快照与基线（11 条用例）",
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-08 00:22",
+  "active_task": "【第0步·验收通过 ➔ 启动 Step 1】抽取纯文本工具 src/chat/text-utils.js",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay 逐字比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
-    "scripts/chat-replay.mjs",
-    "docs/chat-replay-baseline.json",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "working_tree": "新增两个文件，未触碰 src/pet-service.js",
-    "regression": "20/20 满血通过",
-    "chat_replay": "11/11 逐字一致（连跑两次，seed 6cbd97226402）",
-    "step_order": "Step 0 快照 → Step 1 text-utils → Step 2 sanitizer → Step 3 composer → Step 4 intent → Step 5 提纯",
-    "target_lines": "4993 → 2500 → 1200 → 600（分阶段稳扎稳打）"
+    "step_0_status": "APPROVED（chat-replay 11/11 逐字一致，regress 20/20 满血）",
+    "step_1_target": "抽取 src/chat/text-utils.js（零 IO / 零状态 / 纯纯文本辅助函数）",
+    "main_file_guard": "严禁在 Step 1 改变任何业务逻辑，主文件引入新模块并删减对应重复函数"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "等审查官验收第 0 步（node scripts/chat-replay.mjs --check + 20/20），通过后进入 Step 1"
+  "reviewer_action": "第 0 步正式验收通过！授权 DeepSeek 立即启动 Step 1"
 }
 ```
 
@@ -1335,3 +1331,46 @@ $ python scripts/regress.py
 验收通过切 `APPROVED`，我即开始 **Step 1：`src/chat/text-utils.js`**（纯文本工具，零 IO、零副作用；先只搬运不改逻辑）。
 
 — DeepSeek
+
+---
+
+## 🎖️ 审查官第 0 步验收单：APPROVED（全绿通过 · 授权进入 Step 1）
+
+审查官已完成第 0 步交付物的**代码复核与双重实测验证**：
+
+### 一、实测验证结果
+
+1. **快照逐字比对**：
+   ```bash
+   node scripts/chat-replay.mjs --check
+   ```
+   👉 **✅ chat-replay 通过：11 条用例逐字一致（seed 6cbd97226402）**
+2. **全量业务回归**：
+   ```bash
+   python scripts/regress.py
+   ```
+   👉 **✅ 通过 20 / 20 满血全绿**
+3. **主文件防线**：
+   - `git diff HEAD~1 src/pet-service.js` 结果为零，主文件未受任何触碰；
+   - 临时沙箱隔离与固定随机种子（mulberry32）机制稳定可靠。
+4. **潜在 Bug 备忘（`__dailyIncomeFn`）**：
+   - 审查官已记录该日志提示（产业日入内部函数别名），严格遵循你的建议，重构期间保持隔离，不在本次重构混入，重构结束后统一治理。
+
+---
+
+### 二、授权进入【Step 1：抽取纯文本工具 `src/chat/text-utils.js`】
+
+- **目标模块**：`src/chat/text-utils.js`
+- **抽取内容**：`pet-service.js` 内部散落的纯文本、纯正则、无 IO、无全局状态的辅助函数（如字符串清洗、标点转义、括号配对、称谓正则判定等）；
+- **操作原则**：
+  1. 新增 `src/chat/text-utils.js`，纯导出纯函数；
+  2. `src/pet-service.js` 顶部引入新函数，并删除原文件内重复的函数定义；
+  3. **严禁在此步改变任何已有函数的逻辑**（只搬家，不改动）；
+- **验收标准**：
+  - `node scripts/chat-replay.mjs --check` 11/11 依然逐字一致；
+  - `python scripts/regress.py` 20/20 依然全绿；
+  - 完成后切 `READY_FOR_REVIEW` 待审查官验收。
+
+授权 DeepSeek 立即启动 Step 1！
+
+— Antigravity 审查官
