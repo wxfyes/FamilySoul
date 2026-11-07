@@ -1112,7 +1112,10 @@
             <div class="row"><span>正式兵马</span><span id="m-army">0</span></div>
             <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
             <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
-            <div class="row"><span>身份</span><span id="m-standing">—</span></div>
+            <div class="row"><span>官职</span><span id="m-office">白身</span></div>
+            <div class="row"><span>战略</span><span id="m-standing">—</span></div>
+            <div class="row"><span>最近战报</span><span id="m-battle">暂无</span></div>
+            <div class="row"><span>上次缴获</span><span id="m-loot">—</span></div>
             <div class="row"><span>名声 / 通缉</span><span id="m-rep">—</span></div>
             <div class="row"><span>朝廷压力</span><span id="m-pressure">—</span></div>
           </section>
@@ -2079,6 +2082,35 @@ function render(w){
     $('m-standing').textContent = wf.stance === 'expand' ? '伺机开拔' : '守土保境';
     $('m-rep').textContent = `城池 ${wf.cities?.length || 0}座`;
     $('m-pressure').textContent = `朝廷关系 ${courtF.relations?.wangjia ?? 0}`;
+
+    // 官职：剿匪授的团练使这类衔头（原"身份"行显示的是战略，已分开）
+    if ($('m-office')) {
+      const posts = Object.values(w.court?.offices || {})
+        .filter(o => o && String(o.holder || '') === 'husband')
+        .map(o => o.title);
+      $('m-office').textContent = posts.length ? posts.join('、') : '白身（未授官）';
+    }
+
+    // 最近战报：从事件流里取剿匪成败
+    if ($('m-battle')) {
+      const evs = (w.recentEvents || []).filter(e => ['bandit_quelled', 'bandit_failed'].includes(String(e.action || '')));
+      const last = evs[evs.length - 1];
+      const txt = last ? String(last.payload?.text || last.text || '') : '';
+      $('m-battle').textContent = txt ? txt.replace(/^【[^】]+】/, '') : '暂无';
+    }
+
+    // 上次缴获：账本里的"剿匪缴获"（银）+ 事件里的粮
+    if ($('m-loot')) {
+      const lootRows = (w.ledger || []).filter(x => x && (x.category === '剿匪缴获' || /剿平.*缴获/.test(String(x.title || ''))));
+      const lastLoot = lootRows[lootRows.length - 1];
+      if (lastLoot) {
+        const ev = (w.recentEvents || []).filter(e => String(e.action || '') === 'bandit_quelled').pop();
+        const gm = String(ev?.payload?.text || '').match(/粮\s*([\d.]+)\s*石/);
+        $('m-loot').textContent = `银 ${Number(lastLoot.delta || 0).toFixed(2)} 两${gm ? ` · 粮 ${gm[1]} 石` : ''}（第${lastLoot.day}日）`;
+      } else {
+        $('m-loot').textContent = '暂无记录';
+      }
+    }
   }
 
   // 天下势力卡片全量展示
