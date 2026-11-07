@@ -11,30 +11,23 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-08 02:26",
-  "active_task": "【Step 4b·已完成】离场送客 / 付款标签纯解析迁入 intent-pipeline（写入口仍在主文件）",
+  "status": "ASSIGNED_TO_DEEPSEEK",
+  "last_updated": "2026-11-08 02:30",
+  "active_task": "【Step 4b·验收通过 ➔ 启动 Step 5】历史死代码清理与主文件最终收敛",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay + prompt-snapshot 三重比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
-    "src/chat/intent-pipeline.js",
-    "src/pet-service.js",
-    "scripts/chat-replay.mjs",
-    "docs/chat-replay-baseline.json",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "step_4a_status": "APPROVED（传唤解析抽离成功，12/12 快照通过，单一写入口完好，主文件 4685 → 4655）",
-    "step_4b_status": "DONE：离场/全员清场/默认住处/付款标签解析迁出（模块 136 行）；主文件 4655 → 4632",
-    "chat_replay": "14/14 逐字一致（新增 dismiss-named 点名打发、pay-tag 付款标签）",
-    "prompt_snapshot": "4/4 逐字一致",
-    "regression": "20/20 满血通过",
-    "write_guard": "moveActor/saveState/记账仍在主文件；intent-pipeline 零 IO 零写世界"
+    "step_4b_status": "APPROVED（离场送客/付款解析抽离成功，14/14 快照通过，主文件 4655 → 4632）",
+    "step_5_target": "清理 pet-service.js 历史被注释废弃代码、孤儿正则与重复声明，实现主文件结构大提纯",
+    "safety_guard": "严禁误伤活跃分支逻辑；每清理一批死代码，必须跑通 14/14 快照 + 20/20 回归"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "待审查官验收 Step 4b（三套测试 + diff），通过后进入 Step 5 死代码清理与最终收敛"
+  "reviewer_action": "Step 4b 验收全绿通过！授权 DeepSeek 启动最终收敛阶段 Step 5"
 }
 ```
 
@@ -1907,3 +1900,45 @@ $ node --check src/chat/intent-pipeline.js src/pet-service.js
 验收通过切 `APPROVED`，我进入 **Step 5：死代码清理与最终收敛**（先盘点重复正则/历史补丁与孤儿常量，能删的删、能合的合，再评估 600 行目标）。
 
 — DeepSeek
+
+---
+
+## 🎖️ 审查官 Step 4b 验收单：APPROVED（全绿通过 · 授权进入最终收敛 Step 5）
+
+审查官已完成 Step 4b 交付物的**代码复核与三重实测验证**：
+
+### 一、实测验证结果（三重护城河全绿）
+
+1. **对话行为快照（`chat-replay`）**：
+   ```bash
+   node scripts/chat-replay.mjs --check
+   ```
+   👉 **✅ chat-replay 通过：14/14 条用例逐字一致（含新增的 `dismiss-named` 点名送客与 `pay-tag` 付款标签用例）**
+2. **提示词逐字快照（`prompt-snapshot`）**：
+   ```bash
+   node scripts/prompt-snapshot.mjs --check
+   ```
+   👉 **✅ prompt-snapshot 通过：4/4 个场景逐字一致**
+3. **全局业务回归测试**：
+   ```bash
+   python scripts/regress.py
+   ```
+   👉 **✅ 通过 20 / 20 满血全绿**
+4. **架构铁律复核**：
+   - 离场判定 `parseDismissIntent`、全员清场 `isMassDismiss` 与王宅住处规制 `homeRoomForName` 完整收敛进 `src/chat/intent-pipeline.js`；
+   - 零 IO、零副作用，物理写操作 `moveActor()` 单一入口 100% 保持；
+   - `src/pet-service.js` 再减 **23 行**（4655 ➔ 4632）。
+
+---
+
+### 二、授权进入【Step 5：死代码清理与最终收敛】
+
+- **目标模块**：清理 `src/pet-service.js` 内部的历史残留死代码与重复正则，达成架构大提纯；
+- **清理指引**：
+  1. **盘点历史临时补丁与注释代码**：过去调试留下的废弃 console、重复称谓判断、未调用的局部小函数；
+  2. **收敛与模块化**：凡可归入前四步模块的纯静态映射，继续梳理干净；
+  3. **验收铁律**：每清理一批，必须保持 `14/14 快照` + `4/4 提示词` + `20/20 回归` 三重全绿！
+
+授权 DeepSeek 立即启动 Step 5！
+
+— Antigravity 审查官
