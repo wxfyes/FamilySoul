@@ -14,6 +14,12 @@ class ChatMessage {
   /// 这一条是谁说的（分角剧本里的角色名）；null 表示主角色本人
   final String? speaker;
 
+  /// 发言人所在地点/铺子（或信函来源地，例如「于家酒肆」）
+  final String? place;
+
+  /// 是否差人送来的口信/家书（消除隔空假象）
+  final bool isLetter;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -27,6 +33,8 @@ class ChatMessage {
     this.isPending = false,
     this.notices,
     this.speaker,
+    this.place,
+    this.isLetter = false,
   });
 
   /// 智能推导说话人：正文显式前缀【xxx】拥有最高真相权重（彻底防止外部默认账号名污染覆盖剧本真实角色）；
@@ -107,6 +115,19 @@ class ChatMessage {
     return url;
   }
 
+  /// 智能推导说话人常驻/所在地点（用于非同场时提供"动身前往"快捷操作）
+  String? get inferredPlace {
+    if (place != null && place!.isNotEmpty) return place;
+    final spk = effectiveSpeaker ?? '';
+    if (spk.contains('紫嫣')) return '于家酒肆';
+    if (spk.contains('静儿')) return '县衙';
+    if (spk.contains('采云')) return '翟家货栈';
+    if (spk.contains('孙进')) return '临江客栈';
+    if (spk.contains('鲁青')) return '城南窑厂';
+    if (spk.contains('芸娘')) return '临江茶坊';
+    return null;
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'text': text,
@@ -117,6 +138,8 @@ class ChatMessage {
         'emojiType': emojiType ?? detectedEmoji,
         'isError': isError,
         'speaker': speaker,
+        'place': place,
+        'isLetter': isLetter,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -131,6 +154,8 @@ class ChatMessage {
         emojiType: json['emojiType'] as String?,
         isError: json['isError'] as bool? ?? false,
         speaker: json['speaker'] as String?,
+        place: json['place'] as String?,
+        isLetter: json['isLetter'] as bool? ?? false,
       );
 
   ChatMessage copyWith({
@@ -145,6 +170,8 @@ class ChatMessage {
     bool? isPending,
     List<String>? notices,
     String? speaker,
+    String? place,
+    bool? isLetter,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -158,6 +185,8 @@ class ChatMessage {
       isPending: isPending ?? this.isPending,
       notices: notices ?? this.notices,
       speaker: speaker ?? this.speaker,
+      place: place ?? this.place,
+      isLetter: isLetter ?? this.isLetter,
     );
   }
 }

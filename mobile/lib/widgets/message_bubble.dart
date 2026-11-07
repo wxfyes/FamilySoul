@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -92,32 +93,68 @@ class MessageBubble extends StatelessWidget {
                 if (!isUser && !message.isPending)
                   Padding(
                     padding: const EdgeInsets.only(left: 2.0, bottom: 5.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                      decoration: BoxDecoration(
-                        color: meta.primaryColor.withValues(alpha: isDark ? 0.22 : 0.10),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: meta.primaryColor.withValues(alpha: isDark ? 0.35 : 0.22),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(meta.symbol, style: const TextStyle(fontSize: 10.5)),
-                          const SizedBox(width: 4),
-                          Text(
-                            meta.title.isEmpty ? meta.name : '${meta.title} · ${meta.name}',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: meta.primaryColor,
-                              letterSpacing: 0.3,
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: meta.primaryColor.withValues(alpha: isDark ? 0.22 : 0.10),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: meta.primaryColor.withValues(alpha: isDark ? 0.35 : 0.22),
+                              width: 0.8,
                             ),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(meta.symbol, style: const TextStyle(fontSize: 10.5)),
+                              const SizedBox(width: 4),
+                              Text(
+                                meta.title.isEmpty ? meta.name : '${meta.title} · ${meta.name}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: meta.primaryColor,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (message.isLetter || (message.inferredPlace != null && !message.isPending))
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF2A2318) : const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('💌', style: TextStyle(fontSize: 9.5)),
+                                const SizedBox(width: 3),
+                                Text(
+                                  message.inferredPlace != null
+                                      ? '${message.inferredPlace}·递信'
+                                      : '差人递信',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ),
 
@@ -194,6 +231,13 @@ class MessageBubble extends StatelessWidget {
                               _buildImageCard(context, message.detectedImageUrl!),
                             if (message.detectedMusicTitle != null)
                               _buildMusicCard(context, message.detectedMusicTitle!, message.detectedMusicUrl),
+                            if (!isUser && !message.isPending && message.inferredPlace != null)
+                              _buildGoToTargetButton(
+                                context,
+                                message.inferredPlace!,
+                                meta.name.isNotEmpty ? meta.name : characterName,
+                                isDark,
+                              ),
                           ],
                         ),
                 ),
@@ -726,6 +770,67 @@ class MessageBubble extends StatelessWidget {
                   color: const Color(0xFF8B5CF6),
                   size: 26,
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 消除隔空喊话假象：提供一键物理移步前往当面相叙的快捷国风药丸
+  Widget _buildGoToTargetButton(
+    BuildContext context,
+    String targetPlace,
+    String targetName,
+    bool isDark,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () async {
+            HapticFeedback.mediumImpact();
+            final chatProvider = context.read<ChatProvider>();
+            final messenger = ScaffoldMessenger.of(context);
+            final line = await chatProvider.travelTo(targetPlace, targetName: targetName);
+            if (line != null && line.isNotEmpty) {
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(line),
+                  duration: const Duration(seconds: 4),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF262035) : const Color(0xFFF5F3FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isDark ? const Color(0xFF6D28D9).withValues(alpha: 0.5) : const Color(0xFFDDD6FE),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.directions_walk_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                const SizedBox(width: 4),
+                Text(
+                  '动身前往「$targetPlace」找她',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF7C3AED),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(Icons.keyboard_arrow_right_rounded, size: 14, color: Color(0xFF8B5CF6)),
               ],
             ),
           ),

@@ -78,6 +78,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
     super.initState();
     _refreshPlace();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<ChatProvider>().onPlaceChanged = () {
+          if (mounted) _refreshPlace();
+        };
+      }
+    });
     _locTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refreshPlace());
     if (Platform.isAndroid) {
       OfflineAsrService.instance.ensureInitialized();
@@ -921,8 +928,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final isOnline = provider.isConnected;
     final characterName = provider.petStatus.characterName;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final locSub = isDark ? Colors.white38 : const Color(0xFF64748B);
-
 
     // 冷启动未设置 token 时自动弹出立牒入世名册
     if (provider.isInitialized && provider.config.token.trim().isEmpty && !_hasCheckedToken) {
@@ -1082,19 +1087,36 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    color: isDark ? const Color(0xFF1B1E28) : const Color(0xFFF1F5F9),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1B1E28) : const Color(0xFFF8FAFC),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+                          width: 0.8,
+                        ),
+                      ),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Row(
                       children: [
-                        const Icon(Icons.place_rounded, size: 15, color: Color(0xFF8B5CF6)),
+                        Icon(
+                          Icons.place_rounded,
+                          size: 15,
+                          color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED),
+                        ),
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             _placeName.isEmpty ? '定位中…' : _placeName,
-                            style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                            style: TextStyle(
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -1116,12 +1138,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ));
                                 }
                               },
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.home_rounded, size: 14, color: Color(0xFF8B5CF6)),
-                                  SizedBox(width: 2),
-                                  Text('回家', style: TextStyle(color: Color(0xFF9B8CF6), fontSize: 11.5)),
+                                  Icon(
+                                    Icons.home_rounded,
+                                    size: 14,
+                                    color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '回家',
+                                    style: TextStyle(
+                                      color: isDark ? const Color(0xFF9B8CF6) : const Color(0xFF6D28D9),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -1133,17 +1166,29 @@ class _ChatScreenState extends State<ChatScreen> {
                               _partyNames.length <= 2
                                   ? '与${_partyNames.join('、')}同行'
                                   : '与${_partyNames.take(2).join('、')}等${_partyNames.length}人同行',
-                              style: const TextStyle(color: Color(0xFF9B8CF6), fontSize: 11.5),
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFF9B8CF6) : const Color(0xFF6D28D9),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         if (_worldDay > 0)
                           Text(
                             '第$_worldDay日 $_worldHour时',
-                            style: TextStyle(color: isDark ? Colors.white30 : const Color(0xFF475569), fontSize: 11.5),
+                            style: TextStyle(
+                              color: isDark ? Colors.white60 : const Color(0xFF334155),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         const SizedBox(width: 4),
-                        Icon(Icons.keyboard_arrow_right_rounded, size: 15, color: isDark ? Colors.white : const Color(0xFF94A3B8)),
+                        Icon(
+                          Icons.keyboard_arrow_right_rounded,
+                          size: 15,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                        ),
                       ],
                         ),
                         // 此处有谁
@@ -1153,7 +1198,11 @@ class _ChatScreenState extends State<ChatScreen> {
                             _hereNames.isEmpty
                                 ? '此处无人'
                                 : '此处：${_hereNames.length <= 4 ? _hereNames.join('、') : '${_hereNames.take(4).join('、')}等${_hereNames.length}人'}',
-                            style: TextStyle(color: locSub, fontSize: 11),
+                            style: TextStyle(
+                              color: isDark ? Colors.white60 : const Color(0xFF334155),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

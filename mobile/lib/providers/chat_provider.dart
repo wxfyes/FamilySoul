@@ -50,6 +50,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   final AudioPlayer _keeperPlayer = AudioPlayer();
   bool _isKeeperActive = false;
 
+  /// 地点变动全局通知回调（用于顶部导航条即时刷新）
+  VoidCallback? onPlaceChanged;
+
   Timer? _statusTimer;
 
   ServerConfig get config => _config;
@@ -405,6 +408,8 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
                 audioUrl: audioUrl,
                 // 主动消息也要显示真实说话人（比如芸娘自己冒出来说话）
                 speaker: e['speaker'] as String?,
+                place: e['place'] as String?,
+                isLetter: e['isLetter'] as bool? ?? (type == 'proactive'),
               );
 
               // 避免重复追加
@@ -1007,6 +1012,24 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     _messages.removeWhere((m) => m.isError);
     notifyListeners();
     await sendMessage(text);
+  }
+
+  /// 动身前往目标地点（消除隔空违和感）
+  Future<String?> travelTo(String targetPlace, {String? targetName}) async {
+    final res = await _apiClient.goTo(targetPlace);
+    // 在消息列表追加一条典雅的场景提示
+    final hint = '【提示】你动身前往「$targetPlace」${(targetName != null && targetName.isNotEmpty) ? '，见到了$targetName' : ''}。';
+    _messages.add(ChatMessage(
+      id: 'travel_${DateTime.now().millisecondsSinceEpoch}',
+      text: hint,
+      isUser: false,
+      timestamp: DateTime.now(),
+      speaker: '提示',
+    ));
+    _persistMessages();
+    notifyListeners();
+    onPlaceChanged?.call();
+    return res;
   }
 
   /// 清空本地聊天历史记录

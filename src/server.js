@@ -3468,6 +3468,44 @@ const STARTED_AT = Date.now();
 
 
 
+    // 9.88 立即触发一条主动递话事件（供相公或测试随时演练，带TTS语音合成）
+    if (req.method === 'POST' && pathname === '/api/admin/proactive/trigger') {
+      try {
+        const body = await parseJsonBody(req, 16 * 1024);
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const world = loadState(DATA_DIR);
+        const speaker = body.speaker || '老板娘·紫嫣';
+        const text = body.text || '【老板娘·紫嫣】：相公，于家酒肆刚起了一坛桂花新酿，妾身特差小二给相公送去府上了。这几日城南酒肆都在打听咱们运河大酒楼的存酒呢，相公何时得空过来坐坐？';
+        let audioKey = null;
+        try {
+          if (ttsService) {
+            const cleanSpeech = text.replace(/【[^】\n]+】\s*[:：]?/g, '').replace(/[（(][^）)]*[）)]/g, '').trim();
+            if (cleanSpeech) {
+              const ttsRes = await ttsService.synthesizeToFile({ text: cleanSpeech });
+              audioKey = ttsRes?.audioKey || null;
+            }
+          }
+        } catch { /* 忽略语音失败 */ }
+        world.proactive = Array.isArray(world.proactive) ? world.proactive : [];
+        world.proactive.push({
+          id: `test_push_${Date.now()}`,
+          type: 'proactive',
+          to: 'husband',
+          speaker,
+          text,
+          fallback: text,
+          audioKey,
+          at: Date.now(),
+        });
+        saveState(DATA_DIR, world);
+        console.log(`[Admin] 立即触发主动递话: ${speaker} -> 相公`);
+        return sendJson(res, 200, { ok: true, text, speaker, audioKey });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.9 提示词体检 GET /api/admin/prompt（看天道到底收到了什么）
     if (req.method === 'GET' && pathname === '/api/admin/prompt') {
       try {
@@ -4074,10 +4112,22 @@ const STARTED_AT = Date.now();
             cursor: now,
             events: due.map((item, i) => {
               const textSpk = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
+              const spk = (textSpk ? textSpk[1].trim() : item.speaker) || '';
+              let place = item.place || null;
+              if (!place) {
+                if (/紫嫣/.test(spk || item.text)) place = '于家酒肆';
+                else if (/静儿/.test(spk || item.text)) place = '县衙';
+                else if (/采云/.test(spk || item.text)) place = '翟家货栈';
+                else if (/孙进/.test(spk || item.text)) place = '临江客栈';
+                else if (/鲁青/.test(spk || item.text)) place = '城南窑厂';
+                else if (/芸娘/.test(spk || item.text)) place = '临江茶坊';
+              }
               return {
                 type: item.type || 'proactive',
                 text: item.text,
-                speaker: (textSpk ? textSpk[1].trim() : item.speaker) || null,
+                speaker: spk || null,
+                place,
+                isLetter: true,
                 audioKey: item.audioKey || null,
                 messageId: `push_${now}_${i}`,
                 modality: item.audioKey ? 'audio' : 'text',

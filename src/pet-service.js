@@ -4462,7 +4462,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       let cleanAsName = asName ? String(asName).trim() : null;
       // 真人号不许被"主动推送"代他说话（他不是 NPC）
       try {
-        const wGuard = peek(this.dataDir);
+        const wGuard = loadState(this.dataDir);
         const who0 = cleanAsName
           ? (wGuard.actors?.[cleanAsName] || Object.values(wGuard.actors || {}).find((a) => a && a.name === cleanAsName))
           : null;
@@ -4471,7 +4471,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
           return null;
         }
       } catch { /* 忽略 */ }
-      const wSnap = peek(this.dataDir);
+      const wSnap = loadState(this.dataDir);
       let speakerActor = null;
       if (cleanAsName) {
         const pureName = cleanAsName.includes('·') ? cleanAsName.split('·')[1].trim() : cleanAsName;
