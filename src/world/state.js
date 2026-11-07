@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 世界状态层 —— 唯一真相源
  *
  * 只用纯规则读写，不调用任何大模型。
@@ -10,7 +10,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { ensureClans } from './clans.js';
 import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
-import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters } from './residence.js';
+import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters, demoteNestedMansions, linkSameHouseRooms } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
 import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, ensureShopStaff, streetOfCity } from './city.js';
@@ -1745,10 +1745,25 @@ export function migrateOwnership(world) {
         for (const cn of Object.keys(world.flags?.cityBase || {})) ensureCityExtras(world, cn);
       } catch { /* 忽略 */ }
       const evicted = evictOutsiders(world);          // 混进后宅的外人，请出去
+
+      // 一次性：房间不自成一宅（西厢房曾被当成宅根，长出第二座七进大宅）
+      try {
+        if (!world.flags?.nestedRoomDemoteV2) {
+          const demoted = demoteNestedMansions(world);
+          world.flags = world.flags || {};
+          world.flags.nestedRoomDemoteV2 = { at: Date.now(), demoted };
+          if (demoted.length) {
+            console.log(`[Space] 房间降格（不再自成一宅）：${demoted.join('、')}`);
+            world.__migratedDirty = true;
+          }
+        }
+      } catch (e) { console.warn('[Space] 房间降格失败：', e.message); }
+
       // 宅子的房间账被清空过（只剩门）：按等第把院子补回来，否则人会"无处可去"
       try {
         for (const [pid, pl] of Object.entries(world.places || {})) {
           if (!pl || !pl.residence) continue;
+          if (pl.isRoom || pl.parent) continue;   // 房间不是宅子，绝不给它建院子
           const n = Object.keys(pl.rooms || {}).length;
           if (n >= 5) continue;
           ensureResidence(world, pid, { grade: Number(pl.grade) || 7, ownerId: pl.owner || null });
@@ -1841,6 +1856,17 @@ export function migrateOwnership(world) {
     }
   } catch (e) {
     console.warn('[Residence] 宅院巡检失败：', e.message);
+  }
+
+  // 房间归位：同宅名下的院落，parent 一律挂回宅根（每次读档都跑，幂等、几乎不花钱）
+  try {
+    const linkedRooms = linkSameHouseRooms(world);
+    if (linkedRooms) {
+      console.log(`[Spaces] 院落挂回宅根：${linkedRooms} 处`);
+      world.__migratedDirty = true;
+    }
+  } catch (e) {
+    console.warn('[Residence] 院落挂回宅根失败：', e.message);
   }
 
   // 性别：天道衍生的人可能是 unknown，一律按名字与身份补
@@ -2415,19 +2441,41 @@ export function migrateOwnership(world) {
     hr.owner = 'husband';
     hr.exits = ['tea_house', 'wang_mansion_east', 'wang_mansion_west', 'street'];
   }
-  // 2. 府邸东跨院（二房如夫人林芸娘雅居院落）
+  // 2. 府邸东跨院（二房如夫人林芸娘雅居院落）—— 是正房底下的房间，不是独立宅子
   if (!world.places.wang_mansion_east) {
-    world.places.wang_mansion_east = { name: '临江·王宅·东跨院', exits: ['husband_room'], owner: 'husband' };
+    world.places.wang_mansion_east = {
+      id: 'wang_mansion_east', name: '临江·王宅·东跨院', parent: 'husband_room', isRoom: true,
+      residence: false, use: 'bedroom', access: 'family_inner', depth: 5,
+      exits: ['husband_room'], owner: 'husband',
+    };
   } else {
-    world.places.wang_mansion_east.name = '临江·王宅·东跨院';
-    world.places.wang_mansion_east.owner = 'husband';
+    const ep = world.places.wang_mansion_east;
+    ep.name = '临江·王宅·东跨院';
+    ep.owner = 'husband';
+    ep.parent = 'husband_room';
+    ep.isRoom = true;
+    ep.residence = false;
+    if (!ep.use) ep.use = 'bedroom';
+    if (!ep.access) ep.access = 'family_inner';
+    if (!ep.depth) ep.depth = 5;
   }
-  // 3. 府邸西厢房（贴身丫鬟小翠及随侍值宿）
+  // 3. 府邸西厢房（贴身丫鬟小翠及随侍值宿）—— 同样是正房底下的房间
   if (!world.places.wang_mansion_west) {
-    world.places.wang_mansion_west = { name: '临江·王宅·西厢房', exits: ['husband_room'], owner: 'husband' };
+    world.places.wang_mansion_west = {
+      id: 'wang_mansion_west', name: '临江·王宅·西厢房', parent: 'husband_room', isRoom: true,
+      residence: false, use: 'bedroom', access: 'family_inner', depth: 5,
+      exits: ['husband_room'], owner: 'husband',
+    };
   } else {
-    world.places.wang_mansion_west.name = '临江·王宅·西厢房';
-    world.places.wang_mansion_west.owner = 'husband';
+    const wp = world.places.wang_mansion_west;
+    wp.name = '临江·王宅·西厢房';
+    wp.owner = 'husband';
+    wp.parent = 'husband_room';
+    wp.isRoom = true;
+    wp.residence = false;
+    if (!wp.use) wp.use = 'bedroom';
+    if (!wp.access) wp.access = 'family_inner';
+    if (!wp.depth) wp.depth = 5;
   }
 
   // 4. 清除把客栈混淆成大宅的误建地名，恢复客栈上房

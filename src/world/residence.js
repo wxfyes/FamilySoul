@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 宅院生成器：一座宅子不是一个点，是一进一进的院子。
  *
  * 规矩：
@@ -146,12 +146,136 @@ function hasLayout(place) {
 }
 
 /**
+ * 一间院子不是一座宅子。
+ * 老存档里，展开放出来的院子被标成了 residence:true，巡检便把它当宅根，
+ * 又给它建出一整套七进院落（西厢房里再长出一座王府），人越住越乱。
+ * 规矩：凡是自成一宅的"房间"，一律降回房间，绝不再递归建院。
+ */
+export function demoteNestedMansions(world) {
+  const demoted = [];
+  const places = world?.places || {};
+  const houseNameOf = (p) => {
+    const segs = String(p?.name || '宅').split('·').map((x) => x.trim()).filter(Boolean);
+    return segs.length >= 2 ? `${segs[0]}·${segs[1]}` : (segs[0] || '宅');
+  };
+
+  // 谁的账上点了谁（按 id 的强引用）：被点得多的排在后面，先让真宅根动手
+  const claimed = new Map();
+  for (const root of Object.values(places)) {
+    if (!root?.rooms) continue;
+    for (const rec of Object.values(root.rooms)) {
+      if (rec?.id && places[rec.id]) claimed.set(rec.id, (claimed.get(rec.id) || 0) + 1);
+    }
+  }
+  const priority = (id) => (id === 'husband_room' ? -1 : 0);   // 王宅正房是既定的宅根
+  const roots = Object.entries(places)
+    .filter(([, p]) => p && p.rooms && !p.isRoom && !p.parent)
+    .sort((a, b) => (priority(a[0]) - priority(b[0])) || ((claimed.get(a[0]) || 0) - (claimed.get(b[0]) || 0)));
+
+  const demoteOne = (room, rootId, rec) => {
+    if (!room || String(room.id) === String(rootId)) return;
+    room.isRoom = true;
+    room.residence = false;
+    if (room.parent !== rootId) room.parent = rootId;
+    const root = places[rootId];
+    root.exits = Array.isArray(root.exits) ? root.exits : [];
+    if (!root.exits.includes(room.id)) root.exits.push(room.id);
+    const n = Object.keys(room.rooms || {}).length;
+    if (n < 4) return;                     // 只是零星补过账，不必大动
+    // 这间房长出过自己的宅子：拆掉它，把住在里头的人送回本房
+    for (const sub of Object.values(room.rooms || {})) {
+      if (!sub?.id) continue;
+      if (places[sub.id]) delete places[sub.id];
+      for (const a of Object.values(world?.actors || {})) {
+        if (!a) continue;
+        if (a.location === sub.id) a.location = room.id;
+        if (a.home === sub.id) a.home = room.id;
+        if (a.quarters === sub.id) delete a.quarters;
+      }
+    }
+    for (const a of Object.values(world?.actors || {})) {
+      if (!a) continue;
+      if (a.quarters && String(a.quarters).startsWith(`${room.id}__`)) delete a.quarters;
+      if (a.duty && String(a.duty.home) === String(room.id)) delete a.duty;
+    }
+    delete room.rooms;
+    delete room.grade;
+    delete room.owner;
+    room.use = (rec && rec.use) || room.use || 'bedroom';
+    room.depth = (rec && rec.depth) || null;
+    room.access = (rec && rec.access) || 'family_inner';
+    room.exits = [rootId];
+    demoted.push(`${room.name || room.id}（原 ${n} 间账）`);
+  };
+
+  for (const [rootId, root] of roots) {
+    if (!root.rooms) continue;
+    if (root.isRoom || root.parent) continue;   // 已被前面的宅子认作房间，不再当宅根
+    const houseName = houseNameOf(root);
+    const used = new Set();
+    for (const rec of Object.values(root.rooms)) {
+      if (!rec || !rec.name) continue;
+      let room = rec.id ? places[rec.id] : null;
+      // 老存档：账上写的是 husband_room__west，真正的院子却叫 wang_mansion_west —— 按宅名·房名认回来
+      if (!room) {
+        const want = `${houseName}·${rec.name}`;
+        const hits = Object.entries(places).filter(([id, p]) => id !== rootId && p && p.name === want);
+        if (hits.length === 1) {
+          rec.id = hits[0][0];
+          room = hits[0][1];
+        }
+      }
+      if (room) { used.add(room.id); demoteOne(room, rootId, rec); }
+    }
+    // 账上房名与地点名对不上（东厢房 vs 东跨院）：同一宅名下、就走门的另一头，也是这宅的房间
+    for (const exId of Array.isArray(root.exits) ? root.exits : []) {
+      if (used.has(exId) || exId === 'husband_room') continue;
+      const ex = places[exId];
+      if (!ex || !ex.rooms || ex.id === rootId) continue;
+      if (!String(ex.name || '').startsWith(`${houseName}·`)) continue;
+      demoteOne(ex, rootId, null);
+    }
+  }
+  return demoted;
+}
+
+/**
+ * 同宅名下的院落，一律挂回宅根名下（幂等，每次巡检都跑）。
+ * 老存档里展开放出来的院子与宅根脱了钩，成了同名"野地点"——门能从宅子里走过去，
+ * 但 parent 空着，homeOf/门禁/房间账全认不出它，越住越乱。
+ */
+export function linkSameHouseRooms(world) {
+  let linked = 0;
+  for (const [rootId, root] of Object.entries(world?.places || {})) {
+    if (!root?.rooms || root.isRoom || root.parent) continue;
+    const segs = String(root.name || '').split('·').map((x) => x.trim()).filter(Boolean);
+    const houseName = segs.length >= 2 ? `${segs[0]}·${segs[1]}` : '';
+    if (!houseName) continue;
+    root.exits = Array.isArray(root.exits) ? root.exits : [];
+    for (const exId of root.exits) {
+      const ex = world.places?.[exId];
+      if (!ex || exId === rootId || ex.parent) continue;
+      if (!String(ex.name || '').startsWith(`${houseName}·`)) continue;
+      ex.parent = rootId;
+      ex.isRoom = true;
+      ex.residence = false;
+      if (!ex.use) ex.use = 'bedroom';
+      if (!ex.access) ex.access = 'family_inner';
+      linked += 1;
+    }
+  }
+  return linked;
+}
+
+/**
  * 给一座宅子把院子建出来（幂等）
  * @returns {{built:boolean, rooms:number, grade:number}}
  */
 export function ensureResidence(world, rootId, { scale = 0, ownerId = null } = {}) {
   const root = world?.places?.[rootId];
   if (!root) return { built: false, rooms: 0, grade: 0 };
+  // 房间不自成一宅：有父宅的、或被明确标成房间的，绝不再建院子（防"西厢房里再长一座王府"）
+  if (root.isRoom || root.parent) return { built: false, rooms: 0, grade: 0 };
 
   const gradeWanted = residenceGrade(root.name, scale);
   const grade = Math.max(num(root.grade), gradeWanted) || 3;
@@ -269,7 +393,7 @@ export function repairRooms(world, rootId) {
     if (!world.places[r.id]) {
       world.places[r.id] = {
         id: r.id, name: `${String(root.name || '宅').split('·').slice(0, 2).join('·')}·${r.name}`,
-        residence: true, use: r.use, parent: rootId, owner: root.owner || null,
+        residence: false, isRoom: true, use: r.use, parent: rootId,
         exits: [rootId], dynamic: true,
       };
       fixed += 1;
@@ -398,7 +522,8 @@ export function materializeRoom(world, parentId, key) {
     world.places[id] = {
       id,
       name: `${houseName}·${rec.name}`,
-      residence: true,
+      residence: false,
+      isRoom: true,
       use: rec.use || null,
       parent: parentId,
       owner: root.owner || null,
