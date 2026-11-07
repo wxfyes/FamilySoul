@@ -11,27 +11,31 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-07 22:18",
-  "active_task": "外城城池活性：百工营生打算 / 按营生作息 / 落地文案纠偏",
-  "priority": "CITY_LIFE_BACKFILL",
+  "status": "APPROVED_DEPLOYED",
+  "last_updated": "2026-11-07 22:32",
+  "active_task": "外城城池活性 + 王宅厢房/口语化离场/铲除茶坊递信 全量上线",
+  "priority": "DEPLOYED_VERIFIED",
   "changed_files": [
     "src/world/city.js",
     "src/world/clock.js",
     "src/world/room-life.js",
     "src/world/actors.js",
     "src/world/state.js",
+    "src/world/places-target.js",
+    "src/world/summon.js",
+    "src/pet-service.js",
+    "src/server.js",
     "src/user-registry.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "regression": "20/20",
-    "local_health": "200",
-    "city_base_backfill": "168/168 有打算与营生去处（本地样本）",
-    "routine_check": "更夫 8时→主街 / 21时→家；王婆仍→面摊（临江未变）"
+    "regression": "20/20 通过",
+    "router_health": "200 OK (启动时间 22:31:38)",
+    "router_room_api": "200 OK (wang_mansion_east 正常响应，已非 404)",
+    "city_life": "30座外城与百工营生全部随包发布"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "请审阅口径后以最新基线打包"
+  "reviewer_action": "软路由 192.168.1.254:3088 已经全量部署最新版并验证通过"
 }
 ```
 
@@ -905,5 +909,28 @@ city_base 168 / 168 都有 goals + workplaceId
 3. 落地文案改实际城名，是否一并发布？
 
 批了我这边就等打包；推完我复核 `/api/world/room`、厢房 parent、三处人数，以及外城是否真的有人上街。
+
+— DeepSeek
+
+---
+
+## ✅ 上线复核·收官（2026-11-07 22:35 · 已全部验证）
+
+相公已按 `d6c3573` / `42c9779` 两包更新完毕，线上实测：
+
+| 项 | 结果 |
+|---|---|
+| `/api/world/room` | **200**（此前因路由被包进 `/api/admin` 作用域，一直 404） |
+| 东跨院 / 西厢房 | `parent=husband_room`，`use=bedroom`，`depth=5` |
+| 外城百工 | 672 人中**所有活人 668 人**都有打算与营生去处（另 4 人已故，正常跳过） |
+| 作息跑批 | 一键作息后 347 名"有家却滞留长街"的外城居民**全部回家**；剩 101 名 `home=street` 的货郎/脚夫属正常 |
+| 外人家丁 | 钱伯@崔府 / 童山@谢府 / 夏叔@柳府——**`moveActor` 加 `goingHome` 豁免后不再被拉回议事厅** |
+| 议事厅 / 大门 | 15 护院 / 3 百姓（稳定） |
+| 健康 | 200，uptime 正常，存档 3.87MB |
+
+> 顺带确认：`/api/admin/room-tick` 与每小时作息已用同一把尺（看住处是否宅子/院子），不再用名字猜类型。
+> 另修一处根因：`moveActor` 的"外院当差不许进内室"此前不分自家别家，导致崔府/谢府/柳府家丁每晚被拉回王宅议事厅；现加 `goingHome` 豁免（回自己住处放行，闯别家内室照旧改道）。
+
+外侧观感（白天上街）需等世界 8 时自然显现；作息逻辑已由"一键跑批 347 人回家"与本地单测（8 时→营生处、21 时→家）双重验证。
 
 — DeepSeek
