@@ -2263,23 +2263,6 @@ const STARTED_AT = Date.now();
       }
     }
 
-    // 院子里有什么：GET /api/world/room?place=xxx
-    if (req.method === 'GET' && matchRoute('/world/room')) {
-      try {
-        const world = loadState(DATA_DIR);
-        const member = resolveMember(req, url);
-        const actorId = member?.actor || 'husband';
-        const want = String(url.searchParams.get('place') || '').trim();
-        const me = world.actors?.[actorId] || world.actors?.husband;
-        const placeId = want || me?.location;
-        const info = describeRoom(world, placeId);
-        if (!info) return sendJson(res, 404, { ok: false, error: '没有这处地方' });
-        return sendJson(res, 200, { ok: true, room: info, here: placeId === me?.location });
-      } catch (err) {
-        return sendJson(res, 500, { ok: false, error: err.message });
-      }
-    }
-
     // 空间体检：清串模板房间、补经营场所与衙署、流动小贩归位（一次性手动触发后落盘）
     if (req.method === 'POST' && pathname === '/api/admin/spaces-sweep') {
       try {
@@ -4507,6 +4490,23 @@ const STARTED_AT = Date.now();
         .slice(0, 12)
         .map((a) => ({ name: a.name, doing: a.goal.text, due: a.goal.due }));
       return sendJson(res, 200, { ok: true, day, log, goals });
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  // 院子里有什么：GET /api/world/room?place=xxx（顶层路由，绝不能放进 /api/admin 的块里）
+  if (req.method === 'GET' && matchRoute('/world/room')) {
+    try {
+      const world = loadState(DATA_DIR);
+      const member = resolveMember(req, url);
+      const actorId = member?.actor || 'husband';
+      const want = String(url.searchParams.get('place') || '').trim();
+      const me = world.actors?.[actorId] || world.actors?.husband;
+      const placeId = want || me?.location;
+      const info = describeRoom(world, placeId);
+      if (!info) return sendJson(res, 404, { ok: false, error: '没有这处地方' });
+      return sendJson(res, 200, { ok: true, room: info, here: placeId === me?.location });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }
