@@ -49,7 +49,7 @@ import { marketSnapshot, grainPrice } from './world/prices.js';
 import { roomPriceAt, propertyPriceAt, priceOf } from './world/pricing.js';
 import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { materializeMigrant, fallbackName } from './world/migration.js';
-import { quellBandits, banditStrengthTotal, nextPromotion } from './world/bandits.js';
+import { quellBandits, banditStrengthTotal, nextPromotion, spawnBandit } from './world/bandits.js';
 import { RECRUIT_KINDS } from './world/warfare.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
@@ -3549,6 +3549,25 @@ const STARTED_AT = Date.now();
           householdLine: (sp.split('\n').find((l) => l.startsWith('【府中】')) || ''),
           tail: sp.slice(-900),
         });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.36 手动放一股匪 POST /api/admin/bandit/spawn {city, strength, tier, name}
+    if (req.method === 'POST' && pathname === '/api/admin/bandit/spawn') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = loadState(DATA_DIR);
+        const b = spawnBandit(world, {
+          city: String(body.city || '临江府'),
+          strength: Number(body.strength) || 8,
+          tier: Number(body.tier) || 1,
+          name: String(body.name || ''),
+        });
+        saveState(DATA_DIR, world);
+        console.log(`[Bandit] 手动放匪：${b.name}（${b.strength} 人，${b.tier} 阶）@${b.homeCity}`);
+        return sendJson(res, 200, { ok: true, bandit: { id: b.id, name: b.name, strength: b.strength, tier: b.tier, city: b.homeCity } });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

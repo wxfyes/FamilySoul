@@ -263,23 +263,36 @@ export function quellBandits(world, banditId, troops, fromCity) {
     return { ok: true, win: false, error: null, loss, name: b.name, city: b.homeCity, text: `攻${b.name}不利，折兵 ${loss} 人` };
   }
 
-  // 剿平
+  // 剿平：钱粮兵马都归相公
   const lootSilver = round2(num(b.silver));
   const lootGrain = round2(num(b.grain));
   delete world.bandits[banditId];
   world.assets.silver = round2(num(world.assets.silver) + lootSilver);
+  // 粮不再充公，入王家随军粮
+  f.grain = round2(num(f.grain) + lootGrain);
   const ct = world.cities?.[b.homeCity];
-  if (ct) {
-    ct.unrest = Math.max(0, num(ct.unrest) - 20);
-    ct.grain = round2(num(ct.grain) + lootGrain);
+  if (ct) ct.unrest = Math.max(0, num(ct.unrest) - 20);
+  // 降卒：匪众里愿意归顺的，编入王家（有朝命编为营兵，白身编为家丁）
+  const captured = Math.max(0, Math.round(num(b.strength) * 0.25));
+  if (captured > 0) {
+    const hasOffice = Object.values(world.court?.offices || {}).some((o) => o && String(o.holder || '') === 'husband');
+    if (hasOffice) {
+      const cur = troopsAt(world, f, city);
+      f.stationed[city] = Math.max(0, cur) + captured;
+    } else {
+      f.kinds = f.kinds || {};
+      f.kinds.guard = Math.round(num(f.kinds.guard) + captured);
+    }
+    f.troops = Object.values(f.stationed || {}).reduce((x, y) => x + num(y), 0);
+    try { syncWangjiaToMilitary(world); } catch { /* 忽略 */ }
   }
   addFame(world, 'husband', 25, '义士');
-  // 缴获进账本（流水里能看见）
-  if (lootSilver > 0) {
+  // 缴获进账本（流水里能看见，银与粮都记）
+  if (lootSilver > 0 || lootGrain > 0 || captured > 0) {
     world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
     world.ledger.push({
-      day, hour, delta: lootSilver, title: `剿平${b.name}·缴获`,
-      by: 'husband', balance: world.assets.silver, category: '剿匪缴获',
+      day, hour, delta: lootSilver, grain: lootGrain, troops: captured,
+      title: `剿平${b.name}·缴获`, by: 'husband', balance: world.assets.silver, category: '剿匪缴获',
     });
   }
 
@@ -311,8 +324,40 @@ export function quellBandits(world, banditId, troops, fromCity) {
     city: b.homeCity,
     lootSilver,
     lootGrain,
+    captured,
     quelledTotal: world.flags.quelledTotal,
     appoint: appoint || '',
-    text: `剿平「${b.name}」，缴银 ${lootSilver} 两、粮 ${lootGrain} 石${loss > 0 ? `，折兵 ${loss} 人` : ''}，民心大振${appoint}`,
+    text: `剿平「${b.name}」，缴银 ${lootSilver} 两、粮 ${lootGrain} 石（入随军粮）${captured > 0 ? `，收降卒 ${captured} 人` : ''}${loss > 0 ? `，折兵 ${loss} 人` : ''}，民心大振${appoint}`,
   };
+}
+
+/**
+ * 手造一股匪（验收/剧情用）：指定城、兵力、阶位
+ * @returns {object} 新匪对象
+ */
+export function spawnBandit(world, { city = '临江府', strength = 8, tier = 1, name = '' } = {}) {
+  ensureBandits(world);
+  const cityName = String(city || '临江府');
+  const ct = world.cities?.[cityName] || { region: '江南道', name: cityName };
+  const kind = kindOf(ct);
+  const st = Math.max(3, Math.round(num(strength)));
+  const day = Number(world.clock?.day) || 1;
+  const id = `bandit_${cityName}_${day}_${Math.floor(Math.random() * 100000)}`;
+  const leader = pick(LEADERS);
+  const nm = name || `${cityName}${pick(KINDS[kind].names)}`;
+  world.bandits[id] = {
+    id,
+    name: nm,
+    kind,
+    region: ct.region || '',
+    homeCity: cityName,
+    leader,
+    strength: st,
+    tier: Math.max(1, Math.min(3, Math.round(num(tier)))),
+    silver: Math.round(st * 0.5 * 100) / 100,
+    grain: Math.round(st * 1.2 * 100) / 100,
+    infamy: 20 + Math.floor(Math.random() * 20),
+    createdDay: day,
+  };
+  return world.bandits[id];
 }
