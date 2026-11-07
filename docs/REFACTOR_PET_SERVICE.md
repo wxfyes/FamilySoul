@@ -23,3 +23,4 @@
 3. LLM 驱动调用（DeepSeek / Gemini 直连）
 4. `src/chat/reply-sanitizer.js`（回复清洗/分角/提示挂载）
 5. `src/pet-service.js`（调度总控 · 仅保留约 500 行）
+
