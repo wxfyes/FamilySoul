@@ -43,6 +43,24 @@ const CASES = [
     llm: '【二房·芸娘】：“是，相公，妾身先回房了。”',
   },
   {
+    id: 'dismiss-urge',
+    input: '芸娘怎么还不走？',
+    setup: 'all',
+    llm: '【二房·芸娘】：“是，相公，妾身这就回房。”',
+  },
+  {
+    id: 'dismiss-mass-all',
+    input: '都各自回房间睡觉吧',
+    setup: 'all',
+    llm: '【正妻·婉儿】：“是，相公。”',
+  },
+  {
+    id: 'dismiss-pronoun',
+    input: '你怎么还不走',
+    setup: 'all',
+    llm: '【正妻·婉儿】：“相公说什么呢。”',
+  },
+  {
     id: 'pay-tag',
     input: '这顿饭多少钱？',
     llm: '【跑堂】：“一共一两二钱。”\n[[pay:饭钱|晚饭=1.2]]',

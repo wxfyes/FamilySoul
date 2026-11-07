@@ -1166,7 +1166,8 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
             } else {
               console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
             }
-          } else if (isMassDismiss(sayStr) || /还不(?:走|退|动身|回)/.test(sayStr)) {
+          } else if (isMassDismiss(sayStr)) {
+            // 无主语的一句"还不走？"不在这里清场：宁可不动作，也不误把一屋人赶走
             // 全员清场：仅限在场的客人与侍从（不含相公），各自回各自住处
             const names = [];
             for (const a of hereActors) {

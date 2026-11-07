@@ -3142,6 +3142,22 @@ const STARTED_AT = Date.now();
           let pid = world.places?.[locStr] ? locStr : Object.keys(world.places || {}).find(k => world.places[k]?.name === locStr || k === locStr);
           if (pid && world.places?.[pid]) { moveActor(world, a.id, pid, 'ui', '管理改位'); changed.location = world.places[pid].name; }
         }
+        // 住处（数据清洗用）：按 place id 或地点全名都认
+        if (body.home != null) {
+          const homeStr = String(body.home).trim();
+          const pid = world.places?.[homeStr] ? homeStr : Object.keys(world.places || {}).find(k => k === homeStr || world.places[k]?.name === homeStr);
+          if (!pid || !world.places?.[pid]) return sendJson(res, 400, { ok: false, error: '没有这个住处' });
+          a.home = pid;
+          a.homeName = world.places[pid].name;
+          changed.home = a.homeName;
+        }
+        if (body.quarters != null) {
+          const qStr = String(body.quarters).trim();
+          const qid = world.places?.[qStr] ? qStr : Object.keys(world.places || {}).find(k => k === qStr || world.places[k]?.name === qStr);
+          if (!qid || !world.places?.[qid]) return sendJson(res, 400, { ok: false, error: '没有这个住处' });
+          a.quarters = qid;
+          changed.quarters = world.places[qid].name;
+        }
         // 婚配：给谁当配偶（双向写，避免一边有一边没有）
         if (body.spouse !== undefined) {
           const sid = body.spouse ? String(body.spouse) : null;

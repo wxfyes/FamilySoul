@@ -2,9 +2,9 @@
   "meta": {
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
-    "seedHash": "6cbd97226402",
-    "caseCount": 16,
-    "recordedAt": "2026-11-07T17:00:33.823Z"
+    "seedHash": "22cf4c52db98",
+    "caseCount": 19,
+    "recordedAt": "2026-11-07T17:28:10.362Z"
   },
   "cases": [
     {
@@ -129,6 +129,71 @@
         "husband": "husband_room",
         "waner": "husband_room",
         "yunnia": "wang_mansion_west",
+        "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "dismiss-urge",
+      "input": "芸娘怎么还不走？",
+      "ok": true,
+      "error": "",
+      "reply": "【提示】林芸娘应声告退，去了临江·王宅·西厢房。【二房·芸娘】：“是，相公，妾身这就回房。”",
+      "speakers": [
+        "提示",
+        "二房·芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_west",
+        "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "dismiss-mass-all",
+      "input": "都各自回房间睡觉吧",
+      "ok": true,
+      "error": "",
+      "reply": "【提示】林芸娘、小翠躬身告辞，各自退了出去。【正妻·婉儿】：“是，相公。”",
+      "speakers": [
+        "提示",
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_west",
+        "xiaocui": "wang_mansion_west",
+        "wanning": "wang_mansion_east",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "dismiss-pronoun",
+      "input": "你怎么还不走",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“相公说什么呢。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "husband_room",
         "xiaocui": "husband_room",
         "wanning": "wang_mansion_east",
         "silver": 14423849.29,

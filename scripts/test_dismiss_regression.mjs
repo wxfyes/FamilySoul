@@ -27,6 +27,20 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   const r5 = parseDismissIntent('还不走？');
   assert.equal(r5.isDismiss, true);
   assert.equal(r5.targetName, null);
+
+  // 代词"她/他/它"绝不能被当成人名
+  const r6 = parseDismissIntent('她怎么还不走？');
+  assert.equal(r6.isDismiss, true);
+  assert.equal(r6.targetName, null, '她 是代词，不是人名');
+
+  // 名字里含"全/都/各"的正常人名不能被误杀
+  const r7 = parseDismissIntent('全叔回房');
+  assert.equal(r7.targetName, '全叔', '全叔 是正常人名，不能被当成群体词');
+
+  // 群体称呼仍必须清洗
+  const r8 = parseDismissIntent('都给我退下');
+  assert.equal(r8.targetName, null);
+  assert.equal(isMassDismiss('都给我退下'), true);
 }
 
 // 2. 内眷住处规制映射回归
@@ -43,6 +57,13 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
 
   const cuiRoomWithHouzhao = homeRoomForName('小翠', { places: { 'place_houzhao': { name: '临江·王宅·后罩房' } } });
   assert.equal(cuiRoomWithHouzhao, 'place_houzhao', '有后罩房时小翠去后罩房');
+
+  // 别家的下房绝不能收留王宅丫鬟
+  const cuiRoomOtherMansion = homeRoomForName('小翠', {
+    places: { 'cui_mansion__servant': { name: '崔府·下房' } },
+  });
+  assert.equal(cuiRoomOtherMansion, 'wang_mansion_west', '别家下房不算，小翠回西厢');
 }
 
 console.log('✅ 所有送客/回房意图解析与内眷规制测试全部通过！');
+

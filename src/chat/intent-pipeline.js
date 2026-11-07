@@ -9,6 +9,11 @@
  */
 
 const NOT_A_NAME = /^(你|你们|都|大伙|大家|全)$/;
+// 代词：整句只有这些词时，不是具体人名（她/他/它 也必须排除，避免"她怎么还不走"被当成人）
+const PRONOUNS = /^(?:你|您|你们|我|我们|他|她|它|他们|她们|它们|大家|大伙|大家伙|诸位|各位|众人|所有人)$/;
+// 群体称呼：只认"整体就是群体词"（可带 都/们/给我/一起/全 等语气尾巴），
+// 绝不按"名字里含全/都/各"就误杀——"全叔/都管"是正常人名。
+const GROUP_WORDS = /^(?:都|全都|全|各|各自|大伙|大家|大家伙|诸位|各位|你们|我们|他们|她们|所有人|众人)(?:都|们|给我|一起|全|各自|各)?$/;
 
 /**
  * 解析"相公要叫谁过来"。
@@ -104,13 +109,10 @@ export function parseDismissIntent(sayText) {
     }
   }
 
-  // 3. 泛指代词强力清洗：含"都/各/大伙/大家/诸位/你们/全/所有/众人"的一律不是具体人名
-  if (targetName) {
-    if (/(?:^|.*?)(?:都|各|大伙|大家|诸位|你们|全|所有|众人)/.test(targetName)) {
-      targetName = null;
-    } else if (/^(你|你们|大家|大伙|都|大家伙|诸位|全|各自|都各自|所有人|众人)$/.test(targetName)) {
-      targetName = null;
-    }
+  // 3. 代词/群体称呼清洗：只清"整体就是代词或群体词"的，
+  //    绝不按"名字里含全/都/各"误杀（全叔、都管仍是正常人名）
+  if (targetName && (PRONOUNS.test(targetName) || GROUP_WORDS.test(targetName))) {
+    targetName = null;
   }
 
   return { isDismiss, targetName, targetWhere };
@@ -133,7 +135,12 @@ export function homeRoomForName(name, { includeWife = false, hasServantRoom = fa
   if (includeWife && n.includes('婉儿')) return 'husband_room';
   if (n.includes('小翠')) {
     if (places && typeof places === 'object') {
-      const houzhao = Object.keys(places).find((k) => /后罩房|下房|耳房/.test(String(places[k]?.name || '')));
+      // 只认王宅自己的下房/后罩房/耳房，绝不把丫鬟送进别家宅院
+      const houzhao = Object.keys(places).find((k) => {
+        const nm = String(places[k]?.name || '');
+        if (!/后罩房|下房|耳房/.test(nm)) return false;
+        return k.startsWith('husband_room') || /王宅/.test(nm);
+      });
       if (houzhao) return houzhao;
     }
     return hasServantRoom ? 'husband_room__servant' : 'wang_mansion_west';
