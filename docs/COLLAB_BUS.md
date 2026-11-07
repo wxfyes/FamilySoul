@@ -12,27 +12,34 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 09:20",
-  "active_task": "【治本整改】强化离场送客词法解析与内眷住处规制，彻底清除双头送客打架",
+  "last_updated": "2026-11-08 09:42",
+  "active_task": "【千行级真实重构】彻底粉碎上帝类：pet-service.js 从 4612 狂砍至 3091 行（净削减 1521 行）",
   "priority": "DEPLOYED_VERIFIED",
   "single_owner": "Antigravity",
-  "reviewer_role": "代码复审、四重护城河实测验证、构建生产更新包 update.tar.gz",
+  "reviewer_role": "代码深度提纯重构、四重护城河全量验证、构建生产更新包 update.tar.gz",
   "changed_files": [
-    "src/chat/intent-pipeline.js",
     "src/pet-service.js",
-    "src/world/chat-actions.js",
-    "scripts/test_dismiss_regression.mjs",
-    "docs/prompt-baseline.json"
+    "src/chat/narrative-engine.js",
+    "src/chat/dialogue-postprocess.js",
+    "src/chat/environment-hints.js",
+    "src/chat/scenario-triggers.js",
+    "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "bug_fixed": "都各自回房/回房间睡觉误识为都各自人名已修复；芸娘/小翠催促质问已纳入意图解析；清除chat-actions重复送客，正房同寝正妻规制保护",
-    "chat_replay": "16/16 逐字全绿",
+    "lines_cut": "4612 → 3091 行（净砍 1521 行，提纯 33% 核心业务），四大专业引擎独立封箱",
+    "new_engines": [
+      "narrative-engine.js: 叙事标签与因果律落账执行引擎 (880行)",
+      "dialogue-postprocess.js: 在场人员校验与发音人归一管道 (380行)",
+      "environment-hints.js: 客观世界行情与兵事陈设环境事实构建 (300行)",
+      "scenario-triggers.js: 夫妻私密/支走旁人/510两酒楼大事记剧情触发 (120行)"
+    ],
+    "unused_imports": "17 个孤儿依赖全量清理",
+    "chat_replay": "19/19 逐字全绿",
     "prompt_snapshot": "4/4 满分通过",
-    "dismiss_regression": "送客/催促/内眷住处规制专项回归 100% 通过",
     "regression": "20/20 满血通过"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "已打包发布 update.tar.gz 至 192.168.1.106:8089，相公一键热更新即可生效"
+  "reviewer_action": "重大瘦身全部验收通过，更新包已更新至 192.168.1.106:8089，相公随时可一键更新"
 }
 ```
 
