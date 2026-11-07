@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from './world/residence.js';
 import { describeRoom, roomForHour } from './world/room-life.js';
 import { knock, grantPass, residenceOf } from './world/visit.js';
@@ -372,6 +372,18 @@ async function fillProactiveTexts() {
         const short = main.name && main.name.length > 2 ? main.name.slice(-2) : main.name;
         target.speaker = `${main.role}·${short}`;
       }
+      // 尝试为主动递话生成真实语音，使 App 端收到时可自动原声播报
+      try {
+        if (ttsService && target.text) {
+          const cleanSpeech = target.text.replace(/【[^】\n]+】\s*[:：]?/g, '').replace(/[（(][^）)]*[）)]/g, '').trim();
+          if (cleanSpeech) {
+            const ttsRes = await ttsService.synthesizeToFile({ text: cleanSpeech });
+            if (ttsRes?.audioKey) {
+              target.audioKey = ttsRes.audioKey;
+            }
+          }
+        }
+      } catch { /* 语音失败不影响文字上屏 */ }
       filled += 1;
     }
     if (filled > 0) {
@@ -4066,8 +4078,9 @@ const STARTED_AT = Date.now();
                 type: item.type || 'proactive',
                 text: item.text,
                 speaker: (textSpk ? textSpk[1].trim() : item.speaker) || null,
+                audioKey: item.audioKey || null,
                 messageId: `push_${now}_${i}`,
-                modality: 'text',
+                modality: item.audioKey ? 'audio' : 'text',
               };
             }),
           });

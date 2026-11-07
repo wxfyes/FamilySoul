@@ -4471,18 +4471,29 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
           return null;
         }
       } catch { /* 忽略 */ }
-      if (cleanAsName && /^[a-zA-Z_0-9]+$/.test(cleanAsName)) {
-        const wSnap = peek(this.dataDir);
-        const aObj = wSnap.actors?.[cleanAsName] || (typeof matchActor === 'function' ? matchActor(wSnap.actors, cleanAsName) : null);
-        cleanAsName = aObj?.name || (aObj?.role ? String(aObj.role).slice(0, 4) : '店里的伙计');
+      const wSnap = peek(this.dataDir);
+      let speakerActor = null;
+      if (cleanAsName) {
+        const pureName = cleanAsName.includes('·') ? cleanAsName.split('·')[1].trim() : cleanAsName;
+        speakerActor = wSnap.actors?.[cleanAsName] ||
+          wSnap.actors?.[pureName] ||
+          Object.values(wSnap.actors || {}).find((a) => a && (a.name === pureName || pureName.includes(a.name) || a.id === cleanAsName));
       }
 
-      const speakerActor = wSnap?.actors ? Object.values(wSnap.actors).find((x) => x && x.name === cleanAsName) : null;
-      const isHouseholdWife = Boolean(speakerActor && (speakerActor.household || speakerActor.spouse === 'husband'));
+      // 是否眷属/红颜知己（妻妾或心意相通的红颜，如婉儿、芸娘、紫嫣、静儿）
+      const isBeloved = Boolean(
+        speakerActor && (
+          speakerActor.household ||
+          speakerActor.spouse === 'husband' ||
+          /正妻|二房|如夫人|发妻|妾|紫嫣|文霞|静儿|婉儿|芸娘/.test(cleanAsName) ||
+          /正妻|二房|如夫人|发妻|妾|紫嫣|文霞|静儿|婉儿|芸娘/.test(String(speakerActor.role || ''))
+        )
+      );
+
       const identity = cleanAsName
-        ? (isHouseholdWife
-            ? `你现在是「${cleanAsName}」本人，正在房中。没有人跟你说话，是你主动开口找相公。用「${cleanAsName}」温婉亲近的口吻说话。`
-            : `你现在是「${cleanAsName}」，市井营生人/雇工。你称呼王甯为「东家」或「王掌柜」，【绝对严禁称呼相公】！你不在内宅私房，是差人送口信或在外头当差回话，就事论事禀报，绝无儿女私情！`)
+        ? (isBeloved
+            ? `你现在是「${cleanAsName}」本人。你与相公王甯情深意重。没有人跟你说话，是你主动差人送信或开口找相公。用「${cleanAsName}」温婉亲近、暗自关切的口吻说话，称呼王甯为「相公」或「夫君」。`
+            : `你现在是「${cleanAsName}」，市井营生掌柜/雇工/名门千金。你称呼王甯为「东家」或「王掌柜」（绝不可称呼相公）！你不在内宅私房，是差人送口信或在外头当差回话，就事论事禀报商情、官府风闻或客商要事。`)
         : `你现在是「${activeRole}」这个角色本人，正在家中。没有人跟你说话，是你主动开口找相公。`;
       const system = [
         identity,

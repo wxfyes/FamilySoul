@@ -101,6 +101,20 @@ function applyNpcEffect(world, actor, events, queuePush) {
       bumpRelation(actor, 'trust', 1);
       const g = growIncome(world, 'tea_house', 0.015);
       if (g) changes.push(`${g.name}日入→${g.income}两`);
+      if (day % 3 === 0) {
+        queuePush?.({
+          speaker: '二房·芸娘',
+          to: 'husband',
+          reason: 'wife_care',
+          facts: {
+            who: '林芸娘',
+            role: '二房如夫人',
+            topic: '茶坊近来流水颇稳，芸娘新做了桂花糕，请相公品尝'
+          },
+          fallback: '【二房·芸娘】：相公，柜台这几日的账目妾身已理清了，日入平稳。方才灶上新蒸了桂花茶糕，妾身差小翠给相公端过去趁热尝尝，看可合相公胃口？',
+          force: true,
+        });
+      }
       break;
     }
 
@@ -126,6 +140,65 @@ function applyNpcEffect(world, actor, events, queuePush) {
             isPublic: true,
           }),
         );
+        if (actor.id === 'liuwenxia') {
+          queuePush?.({
+            speaker: '老板娘·紫嫣',
+            to: 'husband',
+            reason: 'npc_intel',
+            facts: {
+              who: '紫嫣',
+              role: '于家酒肆老板娘',
+              intel: '城南几家酒肆掌柜打听运河大酒楼的存酒，肯出高价'
+            },
+            fallback: '【老板娘·紫嫣】：相公，城南几家酒肆掌柜今早托人来我铺子里打听，说想高价匀咱们运河大酒楼的存酒，妾身没敢擅自应下，特差伙计来递个口信，看相公如何示下？',
+            force: true,
+          });
+        } else if (actor.id === 'zhanjing') {
+          queuePush?.({
+            speaker: '发妻·静儿',
+            to: 'husband',
+            reason: 'npc_intel',
+            facts: {
+              who: '战静',
+              role: '县衙书吏发妻',
+              intel: '县衙新茶税知县尚未画押，托相熟老吏还能缓几天'
+            },
+            fallback: '【发妻·静儿】：夫君，静儿在衙门听到些风声，新茶税的册子知县还没画押，托相熟的老吏递个话还能缓上几天，夫君心里好有个准备。',
+            force: true,
+          });
+        } else if (actor.id === 'yangcaiyun') {
+          queuePush?.({
+            speaker: '货栈老板娘·采云',
+            to: 'husband',
+            reason: 'npc_intel',
+            facts: {
+              who: '杨采云',
+              role: '翟家货栈老板娘',
+              intel: '翟家货栈新到两淮客船，月底前走水路头春茶可压三成价'
+            },
+            fallback: '【货栈老板娘·采云】：王东家，翟家货栈新到了两淮的客船，东家若是还要进头春毛尖，月底前走水路我能替您压三成价，您若有心，差人来货栈支会一声便是。',
+            force: true,
+          });
+        }
+      }
+      break;
+    }
+
+    case 'sunjin': {
+      // 临江客栈掌柜：经营顺遂时晨间向东家请安禀报
+      if ((day + hash(actor.id)) % 4 === 0) {
+        queuePush?.({
+          speaker: '客栈掌柜·孙进',
+          to: 'husband',
+          reason: 'business_report',
+          facts: {
+            who: '孙进',
+            role: '临江客栈掌柜',
+            topic: '客栈上房客满，向东家回禀早安'
+          },
+          fallback: '【客栈掌柜·孙进】：王东家，昨夜两淮客商把天字上房全包下了，柜上银钱点清妥当。孙进给东家请早安，今日若得空，请东家来店里坐坐品茶！',
+          force: true,
+        });
       }
       break;
     }
@@ -151,6 +224,18 @@ function applyNpcEffect(world, actor, events, queuePush) {
               isPublic: true,
             }),
           );
+          queuePush?.({
+            speaker: '知府千金·振华',
+            to: 'husband',
+            reason: 'official_intel',
+            facts: {
+              who: '杨振华',
+              role: '知府千金',
+              intel: '衙门正商议整肃两淮茶税，大小姐遣侍女暗中提醒'
+            },
+            fallback: '【知府千金·振华】：王掌柜，家父在签押房正与通判商议茶税重厘之事，小女子特让侍女递个私信，东家这几日的账目契纸还需做扎实些，莫让人拿了短处。',
+            force: true,
+          });
         }
       }
       break;

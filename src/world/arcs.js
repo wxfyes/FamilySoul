@@ -192,7 +192,7 @@ export function advanceArcs(world, events, queuePush, nextEvent) {
       );
     }
 
-    // 只推给她本人
+    // 既推给她本人，亦在关键事态时差人向相公通报（让相公感知到世界人物的因果涌现）
     queuePush?.({
       to: id,
       reason: 'arc',
@@ -201,6 +201,35 @@ export function advanceArcs(world, events, queuePush, nextEvent) {
       fallback: stepText,
       force: true,
     });
+
+    if (id === 'liuwenxia' && (arc.stage % 2 === 1 || arc.atEdge)) {
+      queuePush?.({
+        to: 'husband',
+        reason: 'arc_report',
+        speaker: '老板娘·紫嫣',
+        facts: { 主线: seed.title, 眼前: stepText },
+        fallback: `【老板娘·紫嫣】：相公，于家酒肆这边事态有了新动静：${stepText}。妾身心里记挂着相公，特差伙计来知会一声。`,
+        force: true,
+      });
+    } else if (id === 'zhanjing' && (arc.stage % 2 === 1 || arc.atEdge)) {
+      queuePush?.({
+        to: 'husband',
+        reason: 'arc_report',
+        speaker: '发妻·静儿',
+        facts: { 主线: seed.title, 眼前: stepText },
+        fallback: `【发妻·静儿】：夫君，衙门内宅这边今日有些变动：${stepText}。静儿已暗中替夫君留心，夫君在外经营千万当心。`,
+        force: true,
+      });
+    } else if (id === 'yangcaiyun' && (arc.stage % 2 === 1 || arc.atEdge)) {
+      queuePush?.({
+        to: 'husband',
+        reason: 'arc_report',
+        speaker: '货栈老板娘·采云',
+        facts: { 主线: seed.title, 眼前: stepText },
+        fallback: `【货栈老板娘·采云】：王东家，翟家货栈今日出了桩要紧事：${stepText}。东家若得空，请移步货栈一叙。`,
+        force: true,
+      });
+    }
 
     // 世界没有终局：不设"最后一步"，只累积压力
     arc.atEdge = (Number(arc.stage) || 0) >= 3; // 仅用于提示"到了要紧关头"
