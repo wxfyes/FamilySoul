@@ -182,10 +182,25 @@ export function quellBandits(world, banditId, troops, fromCity) {
   const left = Math.max(0, here - loss);
   f.stationed[city] = left;
   f.troops = Object.values(f.stationed).reduce((x, y) => x + num(y), 0);
+  // 兵种账跟着扣（家丁/护院的真人另由世界自愈处理，账上先对齐）
+  if (loss > 0 && f.kinds) {
+    let cut = loss;
+    for (const k of ['retainer', 'guard']) {
+      const have = Math.round(num(f.kinds[k]));
+      const take = Math.min(have, cut);
+      f.kinds[k] = have - take;
+      cut -= take;
+      if (cut <= 0) break;
+    }
+  }
   try { syncWangjiaToMilitary(world); } catch { /* 忽略 */ }
 
+  const day = Number(world.clock?.day) || 1;
+  const hour = Number(world.clock?.hour) || 0;
+
   if (!win) {
-    return { ok: true, win: false, error: null, text: `攻${b.name}不利，折兵 ${loss} 人` };
+    world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+    return { ok: true, win: false, error: null, loss, name: b.name, city: b.homeCity, text: `攻${b.name}不利，折兵 ${loss} 人` };
   }
 
   // 剿平
@@ -199,6 +214,14 @@ export function quellBandits(world, banditId, troops, fromCity) {
     ct.grain = round2(num(ct.grain) + lootGrain);
   }
   addFame(world, 'husband', 25, '义士');
+  // 缴获进账本（流水里能看见）
+  if (lootSilver > 0) {
+    world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+    world.ledger.push({
+      day, hour, delta: lootSilver, title: `剿平${b.name}·缴获`,
+      by: 'husband', balance: world.assets.silver, category: '剿匪缴获',
+    });
+  }
 
   // 功名：剿匪大胜 → 团练使
   world.court = world.court || {};
@@ -217,8 +240,12 @@ export function quellBandits(world, banditId, troops, fromCity) {
   return {
     ok: true,
     win: true,
+    loss,
+    name: b.name,
+    city: b.homeCity,
     lootSilver,
     lootGrain,
-    text: `剿平「${b.name}」，缴银 ${lootSilver} 两、粮 ${lootGrain} 石，民心大振${appoint}`,
+    appoint: appoint || '',
+    text: `剿平「${b.name}」，缴银 ${lootSilver} 两、粮 ${lootGrain} 石${loss > 0 ? `，折兵 ${loss} 人` : ''}，民心大振${appoint}`,
   };
 }

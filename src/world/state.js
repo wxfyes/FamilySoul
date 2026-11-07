@@ -2040,6 +2040,26 @@ export function migrateOwnership(world) {
       world.flags.wangjiaArmyFixV1 = { at: Date.now(), troops: f.troops, quality: mil.quality };
     }
   } catch (e) { console.warn('[Army] 兵账对齐失败：', e.message); }
+
+  // 一次性：兵种账不得大于实际兵力（剿匪/战损后对齐，先扣随行护院再扣家丁）
+  try {
+    if (!world.flags?.wangjiaKindsSyncV1 && world.factions?.wangjia) {
+      const f = world.factions.wangjia;
+      const k = f.kinds && typeof f.kinds === 'object' ? f.kinds : {};
+      let excess = Math.round((Number(k.guard) || 0) + (Number(k.retainer) || 0) + (Number(k.army) || 0) - (Number(f.troops) || 0));
+      if (excess > 0) {
+        for (const key of ['retainer', 'guard', 'army']) {
+          const have = Math.round(Number(k[key]) || 0);
+          const take = Math.min(have, excess);
+          k[key] = have - take;
+          excess -= take;
+          if (excess <= 0) break;
+        }
+      }
+      f.kinds = k;
+      world.flags.wangjiaKindsSyncV1 = { at: Date.now(), kinds: k, troops: Number(f.troops) || 0 };
+    }
+  } catch (e) { console.warn('[Army] 兵种账对齐失败：', e.message); }
   try { ensureMarket(world); } catch { /* 忽略 */ }
   try { ensureFame(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }

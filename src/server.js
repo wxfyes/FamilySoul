@@ -15,7 +15,7 @@ import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes } from './world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
-import { readRecentEvents, shichenOf, saveState } from './world/state.js';
+import { readRecentEvents, shichenOf, saveState, appendEvents, nextEvent } from './world/state.js';
 import { beginStateBatch, endStateBatch, runInStateTurn } from './world/state.js';
 import { buildStateSummary } from './world/summarize.js';
 import { maybeOfferAlliance } from './world/marriage.js';
@@ -695,7 +695,29 @@ const STARTED_AT = Date.now();
         else if (act === 'gear') result = buyGear(world, fid, String(body.kind || 'weapon'), Number(body.qty) || 0);
         else if (act === 'call') result = callToArms(world, fid, { city: String(body.city || ''), max: Number(body.max) || 60, kind: String(body.kind || 'guard') });
         else if (act === 'pay_arrears') result = payArrears(world, fid);
-        else if (act === 'quell_bandits') result = quellBandits(world, String(body.banditId || ''), Number(body.troops) || 0, String(body.city || ''));
+        else if (act === 'quell_bandits') {
+          result = quellBandits(world, String(body.banditId || ''), Number(body.troops) || 0, String(body.city || ''));
+          try {
+            // 全城通报：剿匪成败都进事件流（客户端 news / 事件卡能读到），并添一条市井风闻
+            if (result?.ok && result.win) {
+              const ev = nextEvent(world, {
+                action: 'bandit_quelled', actor: 'husband', place: result.city || '临江府',
+                payload: { text: `【剿匪捷报】临江王家出兵剿平「${result.name || '匪帮'}」，缴银 ${result.lootSilver || 0} 两、粮 ${result.lootGrain || 0} 石${result.loss ? `，折兵 ${result.loss} 人` : ''}，民心大振` },
+                isPublic: true,
+              });
+              appendEvents(DATA_DIR, [ev]);
+              world.rumors = Array.isArray(world.rumors) ? world.rumors : [];
+              world.rumors.push({ text: `王家剿平「${result.name || '匪帮'}」，缴获颇丰，城中人心大定`, day: world.clock?.day || 1, weight: 4, tone: 1, heardBy: [] });
+            } else if (result?.ok && !result.win) {
+              const ev = nextEvent(world, {
+                action: 'bandit_failed', actor: 'husband', place: result.city || '临江府',
+                payload: { text: `【战报】王家出兵攻「${result.name || '匪帮'}」不利，折兵 ${result.loss || 0} 人` },
+                isPublic: true,
+              });
+              appendEvents(DATA_DIR, [ev]);
+            }
+          } catch { /* 忽略 */ }
+        }
         else if (act === 'army') result = { ok: true, troops: totalTroops(world, factionOf(world, fid)), stationed: factionOf(world, fid)?.stationed || {} };
 
         if (result.ok) saveState(DATA_DIR, world);
@@ -2029,6 +2051,14 @@ const STARTED_AT = Date.now();
           troops: Number(f.troops) || Number(f.army) || 0,
           supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
+        // 官职/衔头：剿匪授的团练使这类"朝廷给的位子"，客户端看板直接读这里
+        offices: (() => {
+          try {
+            return Object.entries(world.court?.offices || {})
+              .filter(([, o]) => o && String(o.holder || '') === String(actorId || 'husband'))
+              .map(([key, o]) => ({ key, title: o.title || '', note: o.note || '', at: o.at || null }));
+          } catch { return []; }
+        })(),
       });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
@@ -4119,21 +4149,42 @@ const STARTED_AT = Date.now();
               if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk) {
                 finalText = `【${spk}】：${finalText}`;
               }
+
+              // 判定发言人当前真实位置与相公位置（严禁当面当场面对面说话还变成递信）
+              const husLoc = world.actors?.husband?.location || 'husband_room';
+              let actorLoc = null;
+              for (const [aId, a] of Object.entries(world.actors || {})) {
+                if (a && a.name && (spk.includes(a.name) || a.name.includes(spk))) {
+                  actorLoc = a.location;
+                  break;
+                }
+              }
+
+              // 府内女眷与家眷（婉儿、芸娘、小翠、婉宁），家在王宅，永久禁止推向府外商铺
+              const isFamily = /芸娘|婉儿|小翠|婉宁|王宅/.test(spk);
+
               let place = item.place || null;
-              if (!place) {
+              if (!place && !isFamily) {
                 if (/紫嫣|酒肆/.test(spk || finalText)) place = '于家酒肆';
                 else if (/静儿|县衙/.test(spk || finalText)) place = '县衙';
                 else if (/采云|货栈/.test(spk || finalText)) place = '翟家货栈';
                 else if (/孙进|客栈/.test(spk || finalText)) place = '临江客栈';
                 else if (/鲁青|窑厂/.test(spk || finalText)) place = '城南窑厂';
-                else if (/芸娘|茶坊/.test(spk || finalText)) place = '临江茶坊';
+                else if (/茶坊/.test(spk || finalText)) place = '临江茶坊老店';
               }
+
+              // 同场判定：在相公同处、同为王宅或没有外地地点时，100% 当面对话，绝非递信
+              const isSamePlace = actorLoc ? (actorLoc === husLoc) : isFamily;
+              const isLetter = (item.isLetter !== undefined)
+                ? (item.isLetter && !isSamePlace && !isFamily)
+                : (!isSamePlace && !isFamily && Boolean(place));
+
               return {
                 type: item.type || 'proactive',
                 text: finalText,
                 speaker: spk || null,
-                place,
-                isLetter: true,
+                place: isLetter ? place : null,
+                isLetter: Boolean(isLetter),
                 audioKey: item.audioKey || null,
                 messageId: `push_${now}_${i}`,
                 modality: item.audioKey ? 'audio' : 'text',
