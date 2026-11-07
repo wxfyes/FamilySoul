@@ -110,3 +110,8 @@ App 面板建议分三行列：
 - 物品：输入框旁"给/取"胶囊是否列出 `me.items`
 - 兵马：家丁/护院/私兵三行是否显示（houseGuards/retainers/troops）
 - 我的世界：婚姻（正妻/侧室）、住处、家仆（household）、匪患
+
+## 十二、私兵真人化（已完成，App 可接）
+
+`GET /api/me` → `military.privateArmy`：私兵真人数量（现为 22，驻「临江·王宅·后营」）。
+App 若要显示：家丁 / 护院 / 私兵（真人）/ 账上兵额 四行。

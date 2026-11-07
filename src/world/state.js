@@ -1205,7 +1205,73 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
 
-      // 一次性：给相公几件真东西（房契、酒楼契、茶坊契、茶山契）
+      // 一次性：私兵没补够的，补齐到账上兵额
+      try {
+        if (world.flags?.privateArmyV2 !== true) {
+          const troops = Number(world.factions?.wangjia?.troops) || 0;
+          const have = Object.values(world.actors || {}).filter((a) => a && !a.dead && /私兵/.test(String(a.role || ''))).length;
+          const need = Math.max(0, troops - have);
+          const barrackId = Object.keys(world.places || {}).find((id) => /兵营|校场|后营/.test(String(world.places[id]?.name || ''))) || 'street';
+          const usedNames = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
+          let made = 0;
+          for (let i = 0; i < need; i += 1) {
+            let nm = fallbackName(world, 'male') || `王勇${['二','三','四','五','六','七','八','九'][i % 8]}`;
+            if (usedNames.has(nm)) nm = `${nm}郎`;
+            usedNames.add(nm);
+            const id = `wangjia_soldier_${Date.now()}_${i}`;
+            world.actors[id] = {
+              id, name: nm, role: '私兵', title: '私兵', gender: 'male',
+              age: 20 + Math.floor(Math.random() * 12), home: barrackId, location: barrackId,
+              money: 0.5, relations: {}, origin: 'private_army', faction: 'wangjia',
+            };
+            made += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.privateArmyV2 = true;
+          if (made) console.log(`[Army] 私兵补齐：${made} 人`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：账上私兵落到兵营名册（真人）      // 一次性：账上私兵落到兵营名册（真人）
+      try {
+        if (!world.flags?.privateArmyV1) {
+          const troops = Number(world.factions?.wangjia?.troops) || 0;
+          const have = Object.values(world.actors || {}).filter((a) => a && !a.dead && /私兵/.test(String(a.role || ''))).length;
+          const need = Math.max(0, troops - have);
+          // 兵营：城里没有就建一处
+          let barrackId = Object.keys(world.places || {}).find((id) => /兵营|校场/.test(String(world.places[id]?.name || '')));
+          if (!barrackId) {
+            world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+            barrackId = `place_${world.flags.placeSeq}`;
+            world.places[barrackId] = { id: barrackId, name: '临江·王宅·后营', exits: ['street'], dynamic: true, use: 'barrack' };
+            console.log('[Army] 建了后营');
+          }
+          let made = 0;
+          const usedNames = new Set(Object.values(world.actors || {}).map((a) => a && a.name).filter(Boolean));
+          for (let i = 0; i < need; i += 1) {
+            let nm = fallbackName(world, 'male');
+            if (!nm) {
+              const base = (fallbackName(world, 'male') || '王勇');
+              nm = `${base}${['二', '三', '四', '五', '六', '七', '八', '九', '十'][i % 9]}`;
+            }
+            if (usedNames.has(nm)) nm = `${nm}郎`;
+            usedNames.add(nm);
+            const id = `wangjia_soldier_${Date.now()}_${i}`;
+            world.actors[id] = {
+              id, name: nm, role: '私兵', title: '私兵', gender: 'male',
+              age: 20 + Math.floor(Math.random() * 12),
+              home: barrackId, location: barrackId, money: 0.5,
+              relations: {}, origin: 'private_army', faction: 'wangjia',
+            };
+            made += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.privateArmyV1 = { at: Date.now(), made };
+          console.log(`[Army] 私兵落籍：${made} 人（账上 ${troops}）`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：给相公几件真东西      // 一次性：给相公几件真东西（房契、酒楼契、茶坊契、茶山契）
       try {
         ensureItems(world);
         if (!world.flags?.itemSeedV1 && Object.keys(world.items).length === 0) {

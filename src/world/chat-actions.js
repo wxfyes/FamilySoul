@@ -237,7 +237,11 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     const mGive = /(?:给|赏|送|递)\s*([\u4e00-\u9fa5]{2,4})\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
     if (mGive) {
       const who = findByName(world, mGive[1]);
-      if (who && who.location === me.location) {
+      if (!who) {
+        notices.push(`（没找到「${mGive[1]}」这个人。）`);
+      } else if (who.location !== me.location) {
+        notices.push(`（${who.name}不在跟前，东西递不过去。）`);
+      } else {
         const it = findItem(world, me.id, mGive[2]) || itemsOf(world, me.id).find((x) => mGive[2].includes(x.name.slice(-2)));
         if (it) {
           const r = giveItem(world, me.id, who.id, it.id);
@@ -338,7 +342,9 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   // 剿匪：带出来的人 + 私兵一起打
   if (/(剿匪|打匪|清剿|平匪)/.test(say)) {
     const city = (() => { const seg = String(world.places?.[me.location]?.name || '').split('·')[0]; return /府$|州$|县$/.test(seg) ? seg : '临江府'; })();
-    const bt = world.bandits?.[city] || Object.values(world.bandits || {}).find((x) => x && x.city === city);
+    const bt = world.bandits?.[city] || Object.values(world.bandits || {}).find((x) => x && (
+      x.city === city || x.homeCity === city || String(x.id || '').includes(city)
+    ) && Number(x.strength) > 0);
     const strength = Number(bt?.strength || bt?.power || 0);
     const followers = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.following === me.id && /护院|家丁/.test(String(a.role || '')));
     const troops = Number(world.factions?.wangjia?.troops) || 0;

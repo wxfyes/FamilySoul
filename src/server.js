@@ -2005,6 +2005,7 @@ const STARTED_AT = Date.now();
           kinds: (f.kinds && Object.keys(f.kinds).length) ? f.kinds : {},   // 空则由下面真人数据反推
           retainers: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '护院') n += 1; } return n; })(),
           houseGuards: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '家丁') n += 1; } return n; })(),
+          privateArmy: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && /私兵/.test(String(a.role || ''))) n += 1; } return n; })(),
           troops: Number(f.troops) || Number(f.army) || 0,
           supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
@@ -4587,6 +4588,7 @@ const STARTED_AT = Date.now();
         places: Object.keys(world.places || {}).length,
         events: Array.isArray(world.events) ? world.events.length : 0,
         state: st,
+        moneyAudit: world.flags?.moneyAudit || null,
         chat: globalThis.__chatStats || null,
       });
     } catch (err) {
