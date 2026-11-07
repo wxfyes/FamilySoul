@@ -112,36 +112,6 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     else notices.push('（厅上此刻没有当差的人。）');
   }
 
-  // 都出去，某某留下 / 清场
-  const clearAll = /(都|你们)[^。]{0,4}(出去|退下|散了|回房|回去)/.test(say) || /都出去/.test(say);
-  const keepM = /留下\s*([\u4e00-\u9fa5]{2,4})|([\u4e00-\u9fa5]{2,4})\s*留下/.exec(say);
-  const keepActor = keepM ? findByName(world, keepM[1] || keepM[2]) : null;
-  if (clearAll) {
-    const names = [];
-    for (const a of Object.values(world.actors || {})) {
-      if (!a || a.dead || a.id === me.id || a.location !== me.location) continue;
-      if (keepActor && a.id === keepActor.id) continue;
-      const back = isKin(a) ? (homeOf(a) || a.location) : (a.home || a.quarters || hallOf(world));
-      if (!back || !world.places?.[back] || back === a.location) continue;
-      const mv = moveActor(world, a.id, back, 'world', '送客离场');
-      if (mv?.ok) names.push(a.name);
-    }
-    if (names.length) notices.push(`${names.join('、')}起身告辞，退了出去。`);
-  }
-
-  // 让/叫 某人 出去/回房/回去
-  const mDismiss = /(?:让|叫|请|命|打发)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(?:出去|退下|回房|回屋|回去|走吧)/.exec(say);
-  if (mDismiss) {
-    const who = findByName(world, mDismiss[1]);
-    if (who && who.location === me.location) {
-      const back = homeOf(who) || who.location;
-      if (back && world.places?.[back] && back !== who.location) {
-        const mv = moveActor(world, who.id, back, 'world', '送客离场');
-        if (mv?.ok) notices.push(`${who.name}起身告辞，回${world.places[back].name}去了。`);
-      }
-    }
-  }
-
   // 让某人去某处
   const mSend = /(?:让|叫|命|打发|请)\s*([\u4e00-\u9fa5]{2,4})\s*(?:先)?\s*(?:去|到|往|回)\s*([\u4e00-\u9fa5]{2,8})/.exec(say);
   if (mSend) {

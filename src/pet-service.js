@@ -1136,11 +1136,12 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
                 dest = 'wang_mansion_east';
               } else if (/西厢/.test(targetWhere || '')) {
                 dest = 'wang_mansion_west';
-              } else if (/房间|回房|屋|歇着|等我|候着|退下|出去/.test(targetWhere || '')) {
+              } else if (/房间|回房|屋|歇着|等我|候着|退下|出去|睡/.test(targetWhere || '')) {
                 // 王宅内眷规制（纯映射见 homeRoomForName）
                 dest = homeRoomForName(who.name, {
                   includeWife: true,
                   hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                  places: wF.places,
                 }) || who.quarters || who.home || null;
               }
 
@@ -1165,12 +1166,17 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
             } else {
               console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
             }
-          } else if (isMassDismiss(sayStr)) {
+          } else if (isMassDismiss(sayStr) || /还不(?:走|退|动身|回)/.test(sayStr)) {
             // 全员清场：仅限在场的客人与侍从（不含相公），各自回各自住处
             const names = [];
             for (const a of hereActors) {
+              // 正房同寝规制保护：相公在正房睡觉/安歇时，沈婉儿是正妻，默认同房安歇，绝不能作为客侍扫地出门！
+              if (meF?.location === 'husband_room' && /睡|歇|安歇|休|卧/.test(sayStr) && a.id === 'waner') {
+                continue;
+              }
               let back = homeRoomForName(a.name, {
                 hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                places: wF.places,
               }) || a.quarters || a.home;
 
               if (!back || !wF.places?.[back]) {

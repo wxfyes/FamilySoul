@@ -2797,7 +2797,7 @@ const STARTED_AT = Date.now();
     if (req.method === 'POST' && pathname === '/api/admin/self-update') {
       try {
         const body = await parseJsonBody(req, 64 * 1024);
-        const url = String(body.url || 'http://192.168.1.112:8089/update.tar.gz');
+        const url = String(body.url || 'http://192.168.1.106:8089/update.tar.gz');
         const root = process.cwd();
         const script = [
           'set -e',

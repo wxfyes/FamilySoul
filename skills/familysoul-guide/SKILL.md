@@ -15,7 +15,7 @@ description: >-
 - **严禁质疑目录**：老脚本中的 `/opt/surfcore-server` 属于历史废弃路径，严禁建议用户拷贝文件到老目录！
 - **更新命令**：
   ```bash
-  cd /opt/familysoul && wget -O - http://192.168.1.112:8089/update.tar.gz | tar -xz && chmod +x *.sh && ./stop.sh && ./start.sh
+  cd /opt/familysoul && wget -O - http://192.168.1.106:8089/update.tar.gz | tar -xz && chmod +x *.sh && ./stop.sh && ./start.sh
   ```
 
 ## 2. 打包与数据保护规则

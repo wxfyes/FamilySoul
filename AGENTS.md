@@ -30,12 +30,12 @@
    - 软路由生产目录唯一确定为 **`/opt/familysoul`（运行端口 3088）**；
    - 历史遗留脚本中的 `/opt/surfcore-server` 属早先废弃路径，**严禁**任何 AI 怀疑软路由路径或建议拷贝到老目录！
 2. **开发与发布环境（小主机已暂停）**：
-   - 开发与打包源机：`192.168.1.112`（本机，提供 `http://192.168.1.112:8089/update.tar.gz`）；
+   - 开发与打包源机：`192.168.1.106`（本机，提供 `http://192.168.1.106:8089/update.tar.gz`）；
    - 生产测试机：`192.168.1.254:3088`（软路由）；
    - **小主机项目已暂停**，不再向小主机同步任何产物或排查小主机网络。
 3. **生产环境标准热更新命令**：
    ```bash
-   cd /opt/familysoul && wget -O - http://192.168.1.112:8089/update.tar.gz | tar -xz && chmod +x *.sh && ./stop.sh && ./start.sh
+   cd /opt/familysoul && wget -O - http://192.168.1.106:8089/update.tar.gz | tar -xz && chmod +x *.sh && ./stop.sh && ./start.sh
    ```
 
 ---

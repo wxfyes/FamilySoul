@@ -74,44 +74,70 @@ export function pickSummonActor(world, targetName, selfId = 'husband') {
 export function parseDismissIntent(sayText) {
   const say = String(sayText || '').trim();
   const isDismiss =
-    /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.test(say)
-    || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.test(say)
-    || /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客)[。！!~…\s]*$/.test(say)
-    || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋/.test(say)
-    || /都[^。]{0,4}(出去|退下|散了|退出去|回去)/.test(say);
+    /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|睡觉|[\u4e00-\u9fa5]{2,6})/.test(say)
+    || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间|去睡)/.test(say)
+    || /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客|睡吧|安歇吧)[。！!~…\s]*$/.test(say)
+    || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋|各自回|回房间睡觉|回屋睡|去睡吧|回房睡|都走吧/.test(say)
+    || /(?:怎么|为何)?还不(?:走|退|回去|回房|歇|动身|出去)/.test(say)
+    || /都[^。]{0,6}(出去|退下|散了|退出去|回去|回房|睡觉|走)/.test(say);
 
   let targetName = null;
   let targetWhere = null;
-  const m1 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|[\u4e00-\u9fa5]{2,6})/.exec(say);
-  const m2 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间)/.exec(say);
-  if (m1) {
-    targetName = m1[1];
-    targetWhere = m1[2];
-  } else if (m2) {
-    targetName = m2[1];
-    targetWhere = m2[2] || '回房';
+
+  // 1. 优先捕获质问催促（如："芸娘怎么还不走？"、"小翠怎么还不走"、"芸娘还不回去"）
+  const mUrge = /(?:让|叫)?\s*([^去回到往先怎么为何\s，,。？！!?]{1,4})\s*(?:怎么|为何|怎么还|为何还)?还不(?:走|退|回去|回房|歇|动身|出去)/.exec(say);
+  if (mUrge && mUrge[1]) {
+    targetName = mUrge[1];
+    targetWhere = '回房';
   }
-  if (targetName && /^(你|你们|大家|大伙|都|大家伙|诸位|全)$/.test(targetName)) targetName = null;
+
+  // 2. 捕获常规打发（如："叫芸娘回房"、"婉宁先回东厢"）
+  if (!targetName) {
+    const m1 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|睡觉|[\u4e00-\u9fa5]{2,6})/.exec(say);
+    const m2 = /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间|去睡)/.exec(say);
+    if (m1) {
+      targetName = m1[1];
+      targetWhere = m1[2];
+    } else if (m2) {
+      targetName = m2[1];
+      targetWhere = m2[2] || '回房';
+    }
+  }
+
+  // 3. 泛指代词强力清洗：含"都/各/大伙/大家/诸位/你们/全/所有/众人"的一律不是具体人名
+  if (targetName) {
+    if (/(?:^|.*?)(?:都|各|大伙|大家|诸位|你们|全|所有|众人)/.test(targetName)) {
+      targetName = null;
+    } else if (/^(你|你们|大家|大伙|都|大家伙|诸位|全|各自|都各自|所有人|众人)$/.test(targetName)) {
+      targetName = null;
+    }
+  }
 
   return { isDismiss, targetName, targetWhere };
 }
 
-/** 是否"全员清场"（都出去/全退下/散了…） */
+/** 是否"全员清场"（都出去/全退下/散了/各自回房…） */
 export function isMassDismiss(sayText) {
-  return /都|全|大伙|诸位|退下|散了/.test(String(sayText || '').trim());
+  return /都|全|大伙|诸位|退下|散了|各自|大家|所有人|众人/.test(String(sayText || '').trim());
 }
 
 /**
  * 名字 → 王宅内默认去处（纯映射，不写库；解析不到返回 null）。
  * @param {string} name 人物名
- * @param {{includeWife?:boolean, hasServantRoom?:boolean}} opts
+ * @param {{includeWife?:boolean, hasServantRoom?:boolean, places?:object}} opts
  */
-export function homeRoomForName(name, { includeWife = false, hasServantRoom = false } = {}) {
+export function homeRoomForName(name, { includeWife = false, hasServantRoom = false, places = null } = {}) {
   const n = String(name || '');
   if (n.includes('婉宁')) return 'wang_mansion_east';
   if (n.includes('芸娘')) return 'wang_mansion_west';
   if (includeWife && n.includes('婉儿')) return 'husband_room';
-  if (n.includes('小翠')) return hasServantRoom ? 'husband_room__servant' : 'wang_mansion_west';
+  if (n.includes('小翠')) {
+    if (places && typeof places === 'object') {
+      const houzhao = Object.keys(places).find((k) => /后罩房|下房|耳房/.test(String(places[k]?.name || '')));
+      if (houzhao) return houzhao;
+    }
+    return hasServantRoom ? 'husband_room__servant' : 'wang_mansion_west';
+  }
   return null;
 }
 
