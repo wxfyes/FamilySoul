@@ -1902,6 +1902,13 @@ class _ChatScreenState extends State<ChatScreen> {
               groupTitle('其它'),
               Wrap(spacing: 12, runSpacing: 10, children: [
                 tile(
+                  icon: Icons.inventory_2_rounded, label: '随身契据', color: const Color(0xFFE0B252),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showItemsSheet(context, provider);
+                  },
+                ),
+                tile(
                   icon: Icons.payments_rounded, label: '记一笔账', color: const Color(0xFF94A3B8),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -1993,6 +2000,135 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _showItemsSheet(BuildContext context, ChatProvider provider) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => FutureBuilder<Map<String, dynamic>?>(
+        future: provider.api.fetchMyWorld(),
+        builder: (ctx, snapshot) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final d = snapshot.data ?? const {};
+          final items = (d['items'] as List?) ?? const [];
 
-
+          return Container(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.65),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF12131A) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.inventory_2_rounded, size: 20, color: Color(0xFFF59E0B)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '随身物产 · 契纸字据（${items.length}）',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 36),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  else if (items.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 36),
+                      child: Center(
+                        child: Text(
+                          '随身未携有房契字据或宝物',
+                          style: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          color: isDark ? Colors.white10 : Colors.grey.shade200,
+                        ),
+                        itemBuilder: (ctx, i) {
+                          final item = (items[i] is Map) ? items[i] as Map : {};
+                          final name = '${item['name'] ?? '未知物产'}';
+                          final kind = '${item['kind'] ?? '契纸'}';
+                          final detail = '${item['detail'] ?? item['desc'] ?? ''}';
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.description_outlined, color: Color(0xFFF59E0B), size: 20),
+                            ),
+                            title: Row(
+                              children: [
+                                Text(name, style: TextStyle(
+                                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                )),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(kind, style: const TextStyle(color: Color(0xFFF59E0B), fontSize: 10.5)),
+                                ),
+                              ],
+                            ),
+                            subtitle: detail.isNotEmpty ? Text(
+                              detail,
+                              style: TextStyle(color: isDark ? Colors.white38 : Colors.grey.shade600, fontSize: 12),
+                            ) : null,
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

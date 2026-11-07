@@ -29,8 +29,50 @@ class MessageBubble extends StatelessWidget {
     final isUser = message.isUser;
     final timeStr = DateFormat('HH:mm').format(message.timestamp);
     final speakerName = displaySpeakerName;
-    final meta = _SpeakerMeta.resolve(speakerName, isUser: isUser);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 系统提示气泡（无头像、无角色称谓、居中小灰条）
+    final cleanTrim = message.text.trim();
+    final isNotice = !isUser && (
+      speakerName == '提示' ||
+      speakerName.contains('提示') ||
+      cleanTrim.startsWith('【提示】') ||
+      cleanTrim.startsWith('[提示]')
+    );
+
+    if (isNotice) {
+      var noticeContent = message.displayCleanText;
+      if (noticeContent.startsWith('【提示】') || noticeContent.startsWith('[提示]')) {
+        noticeContent = noticeContent.substring(4).trim();
+        if (noticeContent.startsWith(':') || noticeContent.startsWith('：')) {
+          noticeContent = noticeContent.substring(1).trim();
+        }
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 5.0),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E222D).withValues(alpha: 0.8) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.06)),
+            ),
+            child: Text(
+              noticeContent,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white60 : const Color(0xFF475569),
+                height: 1.35,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final meta = _SpeakerMeta.resolve(speakerName, isUser: isUser);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 7.0),

@@ -21,6 +21,7 @@ class _DigestSheetState extends State<DigestSheet> {
   static const _violet = Color(0xFF8B5CF6);
 
   Map<String, dynamic>? _digest;
+  Map<String, dynamic>? _rawMe;
   bool _loading = true;
 
   @override
@@ -33,6 +34,7 @@ class _DigestSheetState extends State<DigestSheet> {
     final me = await widget.api.fetchMyWorld();
     if (!mounted) return;
     setState(() {
+      _rawMe = me;
       _digest = (me?['digest'] as Map?)?.cast<String, dynamic>();
       _loading = false;
     });
@@ -65,11 +67,19 @@ class _DigestSheetState extends State<DigestSheet> {
   @override
   Widget build(BuildContext context) {
     final d = _digest ?? const <String, dynamic>{};
+    final raw = _rawMe ?? const <String, dynamic>{};
     final today = (d['today'] as List?) ?? const [];
     final big = (d['big'] as List?) ?? const [];
     final kin = (d['household'] as List?) ?? const [];
     final priceMove = (d['priceMove'] as num?)?.toDouble() ?? 0;
     final unrestMove = (d['unrestMove'] as num?)?.toInt() ?? 0;
+
+    final mil = (raw['military'] as Map?)?.cast<String, dynamic>() ?? (d['military'] as Map?)?.cast<String, dynamic>();
+    final houseGuards = mil?['houseGuards'] ?? mil?['guards'];
+    final retainers = mil?['retainers'] ?? mil?['escort'];
+    final troops = mil?['troops'] ?? d['troops'] ?? 0;
+    final items = (raw['items'] as List?) ?? (d['items'] as List?) ?? const [];
+    final bandits = (raw['bandits'] as List?) ?? (d['bandits'] as List?) ?? const [];
 
     return Container(
       decoration: const BoxDecoration(color: _bg, borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
@@ -108,10 +118,16 @@ class _DigestSheetState extends State<DigestSheet> {
                   _section('家中', Column(children: [
                     _kv('现银', '${(d['silver'] as num?)?.toStringAsFixed(1) ?? '-'} 两', color: _gold),
                     _kv('府库粮', '${(d['grain'] as num?)?.toStringAsFixed(1) ?? '-'} 石'),
-                    _kv('兵力', '${d['troops'] ?? 0} 人'),
+                    _kv('私兵', '$troops 人'),
+                    if (retainers != null) _kv('随行护院', '$retainers 人'),
+                    if (houseGuards != null) _kv('府里家丁', '$houseGuards 人'),
                     _kv('米价', priceMove == 0 ? '持平' : (priceMove > 0 ? '涨 $priceMove' : '跌 ${-priceMove}'),
                         color: priceMove > 0 ? const Color(0xFFFCA5A5) : const Color(0xFF86EFAC)),
                     if (unrestMove != 0) _kv('民心', unrestMove > 0 ? '浮动 +$unrestMove' : '稍安 $unrestMove'),
+                    if (items.isNotEmpty)
+                      _kv('随身契据', '${items.length}件（${items.take(3).map((i) => (i is Map ? i['name'] : i).toString()).join('、')}${items.length > 3 ? '…' : ''}）'),
+                    if (bandits.isNotEmpty)
+                      _kv('境外匪患', bandits.map((b) => '${(b is Map ? b['name'] : b) ?? '散匪'}(${(b is Map ? b['strength'] : null) ?? 0}兵)').join('、'), color: const Color(0xFFFCA5A5)),
                   ])),
                   if (kin.isNotEmpty)
                     _section('府里人', Column(

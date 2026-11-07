@@ -120,6 +120,7 @@ class SurfCoreApiClient {
         final reply = data['reply'] as Map<String, dynamic>;
         final replyText = reply['text'] as String? ?? '';
         final audioKey = reply['audio']?['key'] as String?;
+        final notices = (reply['notices'] as List?)?.map((e) => e.toString()).toList();
         String? audioUrl;
         if (audioKey != null && audioKey.isNotEmpty) {
           audioUrl = '${config.apiPrefix}/audio/$audioKey.wav?token=${Uri.encodeComponent(config.token.trim())}';
@@ -132,6 +133,7 @@ class SurfCoreApiClient {
           timestamp: DateTime.now(),
           modality: reply['modality'] as String? ?? 'text',
           audioUrl: audioUrl,
+          notices: notices,
         );
       } else {
         throw Exception(data['error'] ?? '回复失败');

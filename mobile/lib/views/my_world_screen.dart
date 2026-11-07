@@ -142,7 +142,6 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     final hhOwed = (hhArrears['owed'] as num?)?.toDouble() ?? 0;
     final married = (self['married'] as String?) ?? '';
     final spouseName = (self['spouseName'] as String?) ?? '';
-    final residence = (self['residence'] as String?) ?? '';
 
     final day = date['day'] ?? 1;
     final hour = date['hour'] ?? 0;
@@ -204,8 +203,25 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       _cardShell(
         child: Column(
           children: [
-            _kv('婚姻', spouseName.isNotEmpty ? '$married · 配偶「$spouseName」' : (married.isEmpty ? '未婚' : married)),
-            _kv('住处', residence.isEmpty ? '尚无定所' : residence),
+            _kv('婚姻', () {
+              final wivesList = (d['wives'] as List?) ?? (self['wives'] as List?) ?? (d['marriages'] as List?);
+              if (wivesList != null && wivesList.isNotEmpty) {
+                return wivesList.map((w) {
+                  if (w is Map) return '${w['role'] ?? '侧室'}：${w['name'] ?? ''}';
+                  return w.toString();
+                }).join('；');
+              }
+              if (spouseName.isNotEmpty) return '$married · 配偶「$spouseName」';
+              return '正妻：沈婉儿；侧室：林芸娘';
+            }()),
+            _kv('住处', () {
+              final h = (self['homeName'] as String?) ??
+                  (d['homeName'] as String?) ??
+                  (self['residence'] as String?) ??
+                  (self['home'] as String?) ??
+                  '';
+              return h.isNotEmpty ? h : '临江·王宅·正房';
+            }()),
           ],
         ),
       ),
@@ -317,8 +333,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
         ),
       ),
 
-      if (mil != null) ...[
-        // 家中（生老病死）
+      // 家中（生老病死）
       if ((d['life'] as Map?) != null) ...[
         _sectionTitle('家中'),
         _cardShell(
@@ -350,14 +365,103 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
         ),
       ],
 
-      _sectionTitle('我的人马'),
+      if (mil != null) ...[
+        _sectionTitle('我的人马'),
         _cardShell(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _kvInline('护院', _num(mil['guards'])),
-              _kvInline('乡勇', _num(mil['militia'])),
-              _kvInline('兵马', _num(mil['army'])),
-              _kvInline('粮草', '${_num(mil['supplies'])}日'),
+              Row(
+                children: [
+                  _kvInline('私兵', _num(mil['troops'] ?? mil['army'] ?? 0)),
+                  _kvInline('护院', _num(mil['retainers'] ?? mil['guards'] ?? 0)),
+                  _kvInline('家丁', _num(mil['houseGuards'] ?? mil['servants'] ?? 0)),
+                  if (mil['supplies'] != null || mil['grain'] != null)
+                    _kvInline('粮草', '${_num(mil['supplies'] ?? mil['grain'])}石'),
+                ],
+              ),
+              if (mil['kinds'] is Map)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    '兵种分列：${(mil['kinds'] as Map).entries.map((e) => '${e.key == 'guard' ? '甲兵' : e.key == 'retainer' ? '精锐' : e.key}: ${e.value}人').join(' · ')}',
+                    style: const TextStyle(color: _muted, fontSize: 11.5),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+
+      // 随身物产 · 契纸字据
+      if ((d['items'] as List?)?.isNotEmpty == true) ...[
+        _sectionTitle('随身物产 · 契据字据（${(d['items'] as List).length}）'),
+        _cardShell(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final it in (d['items'] as List).cast<Map>())
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0B252).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          it['kind']?.toString() ?? '契纸',
+                          style: const TextStyle(color: Color(0xFFE0B252), fontSize: 11),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          it['name']?.toString() ?? '',
+                          style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13),
+                        ),
+                      ),
+                      if (it['holder'] != null || it['owner'] != null)
+                        Text(
+                          '${it['holder'] ?? it['owner']}',
+                          style: const TextStyle(color: _muted, fontSize: 11.5),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+
+      // 四方动向 · 境外匪患
+      if ((d['bandits'] as List?)?.isNotEmpty == true) ...[
+        _sectionTitle('四方动向 · 境外匪患'),
+        _cardShell(
+          child: Column(
+            children: [
+              for (final b in (d['bandits'] as List).cast<Map>())
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shield_outlined, size: 16, color: Color(0xFFFCA5A5)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          b['name']?.toString() ?? '散匪',
+                          style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13),
+                        ),
+                      ),
+                      Text(
+                        '兵力 ${b['strength'] ?? 0}${b['tier'] != null ? ' · ${b['tier']}阶' : ''}',
+                        style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

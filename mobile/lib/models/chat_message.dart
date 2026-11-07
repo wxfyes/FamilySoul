@@ -9,6 +9,7 @@ class ChatMessage {
   final String? localImagePath;
   final bool isError;
   final bool isPending;
+  final List<String>? notices;
 
   /// 这一条是谁说的（分角剧本里的角色名）；null 表示主角色本人
   final String? speaker;
@@ -24,6 +25,7 @@ class ChatMessage {
     this.localImagePath,
     this.isError = false,
     this.isPending = false,
+    this.notices,
     this.speaker,
   });
 
@@ -141,6 +143,7 @@ class ChatMessage {
     String? emojiType,
     bool? isError,
     bool? isPending,
+    List<String>? notices,
     String? speaker,
   }) {
     return ChatMessage(
@@ -153,6 +156,7 @@ class ChatMessage {
       emojiType: emojiType ?? this.emojiType,
       isError: isError ?? this.isError,
       isPending: isPending ?? this.isPending,
+      notices: notices ?? this.notices,
       speaker: speaker ?? this.speaker,
     );
   }

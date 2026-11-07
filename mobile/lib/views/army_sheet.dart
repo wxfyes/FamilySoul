@@ -48,7 +48,10 @@ class _ArmySheetState extends State<ArmySheet> {
     });
   }
 
-  int get _troops => (_wang?['troops'] as num?)?.toInt() ?? 0;
+  Map<String, dynamic>? get _mil => (_world?['military'] as Map?)?.cast<String, dynamic>();
+  int get _troops => (_mil?['troops'] as num?)?.toInt() ?? (_wang?['troops'] as num?)?.toInt() ?? 0;
+  int get _houseGuards => (_mil?['houseGuards'] as num?)?.toInt() ?? (_mil?['guards'] as num?)?.toInt() ?? 0;
+  int get _retainers => (_mil?['retainers'] as num?)?.toInt() ?? (_mil?['escort'] as num?)?.toInt() ?? 0;
   int get _strength => (_wang?['strength'] as num?)?.toInt() ?? 0;
   num get _grain => (_wang?['grain'] as num?) ?? 0;
 
@@ -391,10 +394,18 @@ class _ArmySheetState extends State<ArmySheet> {
               )
             else ...[
               Row(children: [
-                _stat('兵力', '$_troops', _accent),
-                const SizedBox(width: 10),
+                _stat('私兵', '$_troops', _accent),
+                if (_retainers > 0) ...[
+                  const SizedBox(width: 8),
+                  _stat('护院', '$_retainers', const Color(0xFF38BDF8)),
+                ],
+                if (_houseGuards > 0) ...[
+                  const SizedBox(width: 8),
+                  _stat('家丁', '$_houseGuards', const Color(0xFFF59E0B)),
+                ],
+                const SizedBox(width: 8),
                 _stat('战力', '$_strength', _green),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 _stat('月饷', '${_monthlyPay.toStringAsFixed(0)} 两', _gold),
               ]),
               if (_arrearsMonths > 0) ...[

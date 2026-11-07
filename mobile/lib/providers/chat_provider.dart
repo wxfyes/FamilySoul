@@ -960,24 +960,42 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         _messages.add(single);
       }
-      return;
+    } else {
+      if (idx != -1) _messages.removeAt(idx);
+      for (var i = 0; i < segments.length; i += 1) {
+        final seg = segments[i];
+        _messages.add(
+          ChatMessage(
+            id: '${reply.id}_$i',
+            text: seg.text,
+            isUser: false,
+            timestamp: reply.timestamp.add(Duration(milliseconds: i * 40)),
+            modality: reply.modality,
+            audioUrl: i == segments.length - 1 ? reply.audioUrl : null,
+            speaker: seg.speaker,
+            isError: reply.isError,
+          ),
+        );
+      }
     }
 
-    if (idx != -1) _messages.removeAt(idx);
-    for (var i = 0; i < segments.length; i += 1) {
-      final seg = segments[i];
-      _messages.add(
-        ChatMessage(
-          id: '${reply.id}_$i',
-          text: seg.text,
-          isUser: false,
-          timestamp: reply.timestamp.add(Duration(milliseconds: i * 40)),
-          modality: reply.modality,
-          audioUrl: i == segments.length - 1 ? reply.audioUrl : null,
-          speaker: seg.speaker,
-          isError: reply.isError,
-        ),
-      );
+    // 独立系统事实提示（reply.notices：开房、走货、买粮、扣款等）
+    if (reply.notices != null && reply.notices!.isNotEmpty) {
+      for (var i = 0; i < reply.notices!.length; i++) {
+        final notice = reply.notices![i].trim();
+        // 避免与正文里已有的【提示】重复渲染
+        if (notice.isNotEmpty && !reply.text.contains(notice)) {
+          _messages.add(
+            ChatMessage(
+              id: '${reply.id}_notice_$i',
+              text: notice,
+              isUser: false,
+              timestamp: reply.timestamp.add(Duration(milliseconds: 100 + i * 20)),
+              speaker: '提示',
+            ),
+          );
+        }
+      }
     }
   }
 
