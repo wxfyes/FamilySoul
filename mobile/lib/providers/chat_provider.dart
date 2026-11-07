@@ -53,6 +53,21 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 地点变动全局通知回调（用于顶部导航条即时刷新）
   VoidCallback? onPlaceChanged;
 
+  /// 相公当前所在地点与在场人物名单（用于同场面对面对话判定，严禁当面递信）
+  String _currentPlace = '';
+  List<String> _hereNames = const [];
+
+  String get currentPlace => _currentPlace;
+  List<String> get hereNames => _hereNames;
+
+  void updatePresence(String place, List<String> here) {
+    if (_currentPlace != place || _hereNames.join(',') != here.join(',')) {
+      _currentPlace = place;
+      _hereNames = List.unmodifiable(here);
+      notifyListeners();
+    }
+  }
+
   Timer? _statusTimer;
 
   ServerConfig get config => _config;

@@ -635,6 +635,9 @@ class _ChatScreenState extends State<ChatScreen> {
             .where((x) => x.isNotEmpty)
             .toList();
       }
+      // 同步给 ChatProvider，让所有消息气泡精准感知同场状态（严禁同场面对面还当面递信）
+      provider0?.updatePresence(place, here);
+
       final homeName2 = (self['homeName'] ?? '').toString();
       final pend = (d['pendingAction'] is Map) ? d['pendingAction'] as Map : null;
       if (place != _placeName || day != _worldDay || hour != _worldHour

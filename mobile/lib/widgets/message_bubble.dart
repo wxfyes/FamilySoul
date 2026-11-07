@@ -32,6 +32,31 @@ class MessageBubble extends StatelessWidget {
     final speakerName = displaySpeakerName;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final chatProvider = context.watch<ChatProvider>();
+    final currentPlace = chatProvider.currentPlace;
+    final hereNames = chatProvider.hereNames;
+
+    // 严谨判定是否面对面同场（在场名单有此人，或推导地点与相公当前地点一致）：
+    final isPresentHere = hereNames.isNotEmpty &&
+        hereNames.any((h) => h.isNotEmpty && (speakerName.contains(h) || h.contains(speakerName)));
+    final isSamePlace = currentPlace.isNotEmpty &&
+        message.inferredPlace != null &&
+        (currentPlace.contains(message.inferredPlace!) || message.inferredPlace!.contains(currentPlace));
+
+    // 只有在非同场（确实不在身边，隔空递信）且有目标地点时，才展示递信标牌与动身按钮
+    final shouldShowLetterBadge = !isUser &&
+        !message.isPending &&
+        !isPresentHere &&
+        !isSamePlace &&
+        (message.isLetter || message.inferredPlace != null);
+
+    final shouldShowGoButton = !isUser &&
+        !message.isPending &&
+        !isPresentHere &&
+        !isSamePlace &&
+        message.inferredPlace != null &&
+        message.inferredPlace!.isNotEmpty;
+
     // 系统提示气泡（无头像、无角色称谓、居中小灰条）
     final cleanTrim = message.text.trim();
     final isNotice = !isUser && (
@@ -125,7 +150,7 @@ class MessageBubble extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (message.isLetter || (message.inferredPlace != null && !message.isPending))
+                        if (shouldShowLetterBadge)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -231,7 +256,7 @@ class MessageBubble extends StatelessWidget {
                               _buildImageCard(context, message.detectedImageUrl!),
                             if (message.detectedMusicTitle != null)
                               _buildMusicCard(context, message.detectedMusicTitle!, message.detectedMusicUrl),
-                            if (!isUser && !message.isPending && message.inferredPlace != null)
+                            if (shouldShowGoButton)
                               _buildGoToTargetButton(
                                 context,
                                 message.inferredPlace!,

@@ -1349,15 +1349,7 @@ const STARTED_AT = Date.now();
         const hereList = Object.values(after.actors || {})
           .filter((a) => a && !a.dead && a.name && a.location === me2?.location && a.id !== (me2?.id || 'husband'))
           .slice(0, 5)
-          .map((a) => {
-            const act = String(a.activity?.text || '').trim();
-            // 如果 activity 记录的是过期的位移文本（如"去了X"），但人实际就在眼前，绝不拼出"在去了X"
-            if (!act || act.startsWith('去了') || act.startsWith('回了') || act.includes('离开')) {
-              return a.name;
-            }
-            const actClean = act.startsWith('在') ? act.slice(1) : act;
-            return `${a.name}（在${actClean}）`;
-          });
+          .map((a) => a.name + (a.activity?.text ? '在' + a.activity.text : ''));
         const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
         // 随行的护院/家丁跟着主人走
         try {
@@ -2245,6 +2237,40 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 世界日报：今天世界自己发生了什么（米价、民心、摊子、谁有了打算）
+    if (req.method === 'GET' && matchRoute('/world/daily-report')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const world = loadState(DATA_DIR);
+        const day = Number(world.clock?.day) || 1;
+        const log = (world.flags?.tickLog || []).filter((x) => x && Number(x.day) === day).slice(-24);
+        const goals = Object.values(world.actors || {})
+          .filter((a) => a && !a.dead && a.goal && !String(a.id).startsWith('usr_'))
+          .slice(0, 12)
+          .map((a) => ({ name: a.name, doing: a.goal.text, 到: a.goal.due }));
+        return sendJson(res, 200, { ok: true, day, log, goals });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 院子里有什么：GET /api/world/room?place=xxx
+    if (req.method === 'GET' && matchRoute('/world/room')) {
+      try {
+        const world = loadState(DATA_DIR);
+        const member = resolveMember(req, url);
+        const actorId = member?.actor || 'husband';
+        const want = String(url.searchParams.get('place') || '').trim();
+        const me = world.actors?.[actorId] || world.actors?.husband;
+        const placeId = want || me?.location;
+        const info = describeRoom(world, placeId);
+        if (!info) return sendJson(res, 404, { ok: false, error: '没有这处地方' });
+        return sendJson(res, 200, { ok: true, room: info, here: placeId === me?.location });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
 
     // 空间体检：清串模板房间、补经营场所与衙署、流动小贩归位（一次性手动触发后落盘）
     if (req.method === 'POST' && pathname === '/api/admin/spaces-sweep') {
@@ -4473,23 +4499,6 @@ const STARTED_AT = Date.now();
         .slice(0, 12)
         .map((a) => ({ name: a.name, doing: a.goal.text, due: a.goal.due }));
       return sendJson(res, 200, { ok: true, day, log, goals });
-    } catch (err) {
-      return sendJson(res, 500, { ok: false, error: err.message });
-    }
-  }
-
-  // 院子里有什么：GET /api/world/room?place=xxx
-  if (req.method === 'GET' && matchRoute('/world/room')) {
-    try {
-      const world = loadState(DATA_DIR);
-      const member = resolveMember(req, url);
-      const actorId = member?.actor || 'husband';
-      const want = String(url.searchParams.get('place') || '').trim();
-      const me = world.actors?.[actorId] || world.actors?.husband;
-      const placeId = want || me?.location;
-      const info = describeRoom(world, placeId);
-      if (!info) return sendJson(res, 404, { ok: false, error: '没有这处地方' });
-      return sendJson(res, 200, { ok: true, room: info, here: placeId === me?.location });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: err.message });
     }
