@@ -8,6 +8,7 @@
 import { moveActor } from './position.js';
 import { buyRice, sellRice, gamble, bribeOfficials, ensureDen, stockOf } from './goods.js';
 import { startTradeRun, startNightMarket, drainBizNotices } from './business.js';
+import { ensureItems, itemsOf, findItem, giveItem } from './items.js';
 import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
 
@@ -231,26 +232,82 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 开房住店：按行情收房钱，登记今夜在此歇下
+  // 给东西：给/赏/送 某人 某物
+  {
+    const mGive = /(?:给|赏|送|递)\s*([\u4e00-\u9fa5]{2,4})\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
+    if (mGive) {
+      const who = findByName(world, mGive[1]);
+      if (who && who.location === me.location) {
+        const it = findItem(world, me.id, mGive[2]) || itemsOf(world, me.id).find((x) => mGive[2].includes(x.name.slice(-2)));
+        if (it) {
+          const r = giveItem(world, me.id, who.id, it.id);
+          if (r.ok) notices.push(r.line.replace(/^（|）$/g, ''));
+        } else {
+          notices.push(`（你手里没有「${mGive[2]}」这件东西。）`);
+        }
+      }
+    }
+  }
+
+  // 要东西：向/问 某人 要 某物
+  {
+    const mAsk = /(?:向|问|跟)\s*([\u4e00-\u9fa5]{2,4})\s*(?:要|讨|索取)\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
+    if (mAsk) {
+      const who = findByName(world, mAsk[1]);
+      if (who) {
+        const it = findItem(world, who.id, mAsk[2]);
+        if (!it) {
+          notices.push(`（${who.name}手里没有「${mAsk[2]}」。）`);
+        } else {
+          const trust = Number(who.relations?.[me.id]?.trust ?? who.relations?.husband?.trust ?? 0);
+          const willing = trust >= 20 || String(who.spouse || '') === me.id || /正妻|如夫人|侧室|丫鬟/.test(String(who.role || ''));
+          if (!willing) {
+            notices.push(`（${who.name}没应声，把那件东西往身后收了收。）`);
+          } else {
+            const r = giveItem(world, who.id, me.id, it.id);
+            if (r.ok) notices.push(`（${who.name}把《${it.name}》递了过来。）`);
+          }
+        }
+      }
+    }
+  }
+
+  // 开房住店：真开一间上房（地点），把人挪进去
   if (/(开|要|住)(一间|间|个)?(上房|房间|房)|住店/.test(say)) {
-    const innId = Object.keys(world.places || {}).find((id) => /客栈/.test(String(world.places[id]?.name || ''))
-      && String(world.places[id]?.name || '').startsWith(String(world.places?.[me.location]?.name || '').split('·')[0]));
+    const curName = String(world.places?.[me.location]?.name || '');
+    const innId = Object.keys(world.places || {}).find((id) => {
+      const n = String(world.places[id]?.name || '');
+      return /客栈/.test(n) && (curName.startsWith(n) || n.startsWith(curName.split('·')[0]));
+    });
+    const innName = String(world.places?.[innId]?.name || '客栈');
     const fee = 0.1;
     const purse = Number(world.assets?.silver) || 0;
     if (purse < fee) {
       notices.push(`（上房一晚 ${fee.toFixed(2)} 两，手头不够。）`);
     } else {
+      let roomId = Object.keys(world.places || {}).find((id) => String(world.places[id]?.name || '') === `${innName}·上房`);
+      if (!roomId) {
+        world.flags = world.flags || {};
+        world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+        roomId = `place_${world.flags.placeSeq}`;
+        world.places[roomId] = { id: roomId, name: `${innName}·上房`, exits: innId ? [innId] : ['street'], parent: innId || null, use: 'room', dynamic: true };
+        if (innId && world.places[innId]) {
+          world.places[innId].exits = Array.isArray(world.places[innId].exits) ? world.places[innId].exits : [];
+          if (!world.places[innId].exits.includes(roomId)) world.places[innId].exits.push(roomId);
+        }
+      }
       world.assets.silver = Math.round((purse - fee) * 100) / 100;
       world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
       world.ledger.push({ day, hour: world.clock?.hour || 0, delta: -fee, title: '客栈上房', by: 'husband', balance: world.assets.silver });
       world.flags = world.flags || {};
-      world.flags.lodging = { place: innId || me.location, day };
-      notices.push(`上房开好了，一晚 ${fee.toFixed(2)} 两，今夜就在此处歇下。`);
+      world.flags.lodging = { place: roomId, day };
+      moveActor(world, me.id, roomId, 'world', '开房入住');
+      notices.push(`上房开好了：${world.places[roomId].name}，一晚 ${fee.toFixed(2)} 两，今夜就在此处歇下。`);
     }
   }
 
   // 带护院出门：最多 4 人随行
-  if (/(带|领|点)\s*(个|几名|几个)?\s*(护院|家丁)|(护院|家丁)\s*(随我|随行|跟我)/.test(say)) {
+  if (/(带|领|点)\s*([\d一二两三四五六七八九十]+\s*个?|几名|几个)?\s*(护院|家丁)|(护院|家丁)\s*(随我|随行|跟我)/.test(say)) {
     const hereName0 = String(world.places?.[me.location]?.name || '');
     const estate0 = hereName0.includes('·') ? hereName0.split('·').slice(0, 2).join('·') : '';
     const guards = Object.values(world.actors || {}).filter((a) => a && !a.dead

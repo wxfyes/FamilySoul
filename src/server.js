@@ -22,6 +22,7 @@ import { maybeOfferAlliance } from './world/marriage.js';
 import { advanceWorldTick } from './world/tick.js';
 import { ensureCityBase, streetOfCity, cityOfPlace } from './world/city.js';
 import { isPlaceNameOk } from './world/ledger-rules.js';
+import { itemsOf } from './world/items.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -1011,7 +1012,7 @@ const STARTED_AT = Date.now();
         // 私宅里的院子只列"自己这座宅子"的；公共地点全列
         const places = Object.entries(world.places || {})
           .filter(([id, pl]) => {
-            if (id === curId || !pl || !pl.name || pl.private) return false;
+            if (id === curId || !pl || !pl.name || pl.private || pl.hidden) return false;
             // 只列本城的地方：成都的人不该看见临江的铺子
             if (myCity && labelOf(pl.name) !== myCity) return false;
             // 私房一律不列（结构性 access 之外再兜一层，防老数据的漏网）
@@ -1998,6 +1999,7 @@ const STARTED_AT = Date.now();
             return [];
           }
         })(),
+        items: itemsOf(world, actorId || 'husband').map((it) => ({ id: it.id, name: it.name, kind: it.kind })),
         military: troops > 0 ? { guards: f.guards || 0, militia: f.militia || 0, army: f.army || 0,
           // 家丁 / 护院 / 私兵 分列（账上兵额 + 府里真人）
           kinds: f.kinds || {},

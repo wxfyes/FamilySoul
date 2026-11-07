@@ -8,6 +8,7 @@
  *
  * 铁律：只报告，不擅自改世界。要改必须人来点头。
  */
+import { hireStaff } from './employment.js';
 import { moveActor } from './position.js';
 import { MEMORY_CAP } from './memory.js';
 

@@ -999,6 +999,12 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
           })
           .filter(Boolean);
         if (opts2.length > 0) {
+          // 引擎动作已经管的名目（开房/买米/走货/赌/打点）：付款标签作废，免重复扣钱
+          const handledByAction = /开房|上房|房钱|住店|买米|卖米|走货|赌|打点/.test(`${title2} ${String(sayText || '')}`);
+          if (handledByAction) {
+            for (const o of opts2) { o.price = 0; o.skip = true; }
+            console.log(`[Pay] 「${title2}」由动作入口结算，报价标签作废`);
+          }
           // 报价夹回人间：房钱、饭钱这类，天道随口报多大都要收回来
           const clampKey = (label) => {
             const s2 = String(label || '');
@@ -1013,6 +1019,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
             return null;
           };
           for (const o of opts2) {
+            if (o.skip) continue;
             const labelAll = `${o.label} ${title2}`;
             // 房租/半年付/年付这类是"分期"，不能拿整间铺子的市价下限去夹它
             const isTerm = /租|付|月|季|半年|年|押/.test(labelAll) || opts2.length > 1;
@@ -1027,8 +1034,8 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
           const mePay = this._viewerActorId ? wPay.actors?.[this._viewerActorId] : wPay.actors?.husband;
           // 即刻落账：不再挂待付单等确认，扣完在回复里报明
           try {
-            const first = (opts2 || []).find((o) => Number(o.price) > 0) || opts2[0];
-            const price = Number(first?.price) || 0;
+            const first = (opts2 || []).find((o) => Number(o.price) > 0 && !o.skip) || (opts2 || [])[0];
+            const price = first?.skip ? 0 : (Number(first?.price) || 0);
             if (price > 0) {
               const silverNow = Number(wPay.assets?.silver) || 0;
               if (silverNow >= price) {
