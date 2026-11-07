@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 位置：全世界只有这里能改人的所在地。
  *
  * 为什么要有这一层：
@@ -34,7 +34,14 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
     const destPlace = world.places[placeId];
     const role = String(a.role || '');
     const outerStaff = /家丁|护院|门房|小厮|马夫|车夫|脚夫/.test(role);
-    if (outerStaff && isInnerRoom(destPlace) && !/当值|值房|通禀允入/.test(String(note || ''))) {
+    // 回自己家（住处本身、或住处所在的宅子）不算"闯别家内室"
+    const homeId = String(a.home || '');
+    const goingHome = Boolean(homeId) && (
+      String(placeId) === homeId
+      || String(world.places?.[homeId]?.parent || '') === String(placeId)
+      || String(destPlace?.parent || '') === homeId
+    );
+    if (outerStaff && !goingHome && isInnerRoom(destPlace) && !/当值|值房|通禀允入/.test(String(note || ''))) {
       const hall = Object.keys(world.places || {}).find((id) => /议事厅/.test(String(world.places[id]?.name || '')));
       if (hall) placeId = hall;
     }
