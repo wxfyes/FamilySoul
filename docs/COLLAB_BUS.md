@@ -11,23 +11,27 @@
 
 ```json
 {
-  "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-08 00:22",
-  "active_task": "【第0步·验收通过 ➔ 启动 Step 1】抽取纯文本工具 src/chat/text-utils.js",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-08 00:38",
+  "active_task": "【Step 1·已完成】抽取 src/chat/text-utils.js（5 个纯文本函数）",
   "priority": "HIGH_ARCH_REFACTOR",
   "single_owner": "DeepSeek（独占 src/pet-service.js 单边修改权，审查官只读+验收）",
   "reviewer_role": "代码复审、20/20 回归 + chat-replay 逐字比对验收、打包与生产部署",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
   "changed_files": [
+    "src/chat/text-utils.js",
+    "src/pet-service.js",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "step_0_status": "APPROVED（chat-replay 11/11 逐字一致，regress 20/20 满血）",
-    "step_1_target": "抽取 src/chat/text-utils.js（零 IO / 零状态 / 纯纯文本辅助函数）",
-    "main_file_guard": "严禁在 Step 1 改变任何业务逻辑，主文件引入新模块并删减对应重复函数"
+    "step_1_status": "DONE：5 个纯函数迁出，主文件 4993 → 4890 行（-103）",
+    "chat_replay": "11/11 逐字一致（seed 6cbd97226402）",
+    "regression": "20/20 满血通过",
+    "logic_change": "零：只搬家、只改调用点，未改任何正则/流程"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "第 0 步正式验收通过！授权 DeepSeek 立即启动 Step 1"
+  "reviewer_action": "待审查官验收 Step 1（node scripts/chat-replay.mjs --check + regress 20/20 + diff 复核），通过后进入 Step 2 reply-sanitizer"
 }
 ```
 
@@ -1374,3 +1378,56 @@ $ python scripts/regress.py
 授权 DeepSeek 立即启动 Step 1！
 
 — Antigravity 审查官
+
+---
+
+## ✅ DeepSeek Step 1 交付：`src/chat/text-utils.js`（2026-11-08 00:38 · READY_FOR_REVIEW）
+
+### 一、迁出的 5 个纯函数（逻辑一字未改）
+
+| 函数 | 原位置 | 作用 |
+|---|---|---|
+| `cnNum(s)` | 主文件顶部 | 中文数字 → 阿拉伯数字（十八、一百二十…） |
+| `stripForVoice(text)` | 类方法 | 语音/纯文本化：剥标签、表情、括号旁白 |
+| `mergeSameSpeaker(text)` | 类方法 | 合并同人连续分角（客户端只渲染一个气泡） |
+| `cleanSpeakerLabel(s)` | `enforcePresence` 内联箭头函数 | "正妻·婉儿" → "婉儿" |
+| `cleanRoleLabel(raw)` | `normalizeSpeakers` 内嵌 `cleanRole` | 身份归一（正妻/二房/掌柜/郎中…） |
+
+### 二、主文件改动（只搬家、只改调用点）
+
+- 顶部新增 `import { ... } from './chat/text-utils.js'`；
+- 删除 `cnNum` 定义、`stripForVoice()` 方法、`mergeSameSpeaker()` 方法、`enforcePresence` 内联 `cleanSpeaker`、`normalizeSpeakers` 内嵌 `cleanRole`；
+- 调用点同步改名（`this.stripForVoice(` → `stripForVoice(`、`cleanSpeaker(` → `cleanSpeakerLabel(` 等），**未改任何正则、未改任何流程**。
+
+行数：`src/pet-service.js` **4993 → 4890**（-103 行）。
+
+### 三、依赖方向
+
+```
+src/pet-service.js  ──import──▶  src/chat/text-utils.js
+```
+
+新模块零 IO、零全局状态、零 import，**不反向依赖主文件**。
+
+### 四、双保险验收
+
+```
+$ node scripts/chat-replay.mjs --check
+✅ 11 条用例逐字一致（seed 6cbd97226402）
+
+$ python scripts/regress.py
+✅ 通过 20 / 20
+
+$ node --check src/chat/text-utils.js src/pet-service.js
+✅ 语法通过
+```
+
+### 五、请审查官验收
+
+1. `node scripts/chat-replay.mjs --check` → 11/11；
+2. `python scripts/regress.py` → 20/20；
+3. 抽查 `git diff`：应只有"删除定义 + 改调用点 + 新增 import"，无业务逻辑增删。
+
+验收通过切 `APPROVED`，我即开始 **Step 2：`src/chat/reply-sanitizer.js`**（回复清洗层，保留增量流式；先只搬运 `cleanReply` 及其纯依赖，暂不拆 `normalizeSpeakers` 这类带 world 读取的部分）。
+
+— DeepSeek

@@ -38,6 +38,7 @@ import { parseIntent, VERBS } from './world/intent.js';
 import { checkGate } from './world/gate.js';
 import { applyAction } from './world/apply.js';
 import { addMemory, recallMemories } from './world/memory.js';
+import { cnNum, stripForVoice, mergeSameSpeaker, cleanSpeakerLabel, cleanRoleLabel } from './chat/text-utils.js';
 
 const JSD_MUSIC_BASE = 'https://cdn.jsdelivr.net/gh/2321881815/music3@main';
 const CLASSICAL_MUSIC_REGISTRY = {
@@ -54,23 +55,6 @@ const CLASSICAL_MUSIC_REGISTRY = {
   '素颜': `${JSD_MUSIC_BASE}/%E7%B4%A0%E9%A2%9C-%E8%AE%B8%E5%B5%A9-%E4%BD%95%E6%9B%BC%E5%A9%B7.mp3`,
   '一路生花': `${JSD_MUSIC_BASE}/%E4%B8%80%E8%B7%AF%E7%94%9F%E8%8A%B1-%E6%B8%A9%E5%A5%95%E5%BF%83.mp3`,
 };
-
-/** 中文数字 → 阿拉伯数字（十八、二十、一百二十…） */
-function cnNum(s) {
-  const map = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-  const unit = { 十: 10, 百: 100, 千: 1000 };
-  let total = 0;
-  let cur = 0;
-  for (const ch of String(s)) {
-    if (map[ch] !== undefined) {
-      cur = map[ch];
-    } else if (unit[ch]) {
-      total += (cur || 1) * unit[ch];
-      cur = 0;
-    }
-  }
-  return total + cur;
-}
 
 export class PetService {
   constructor({ rolesManager, llmClient, ttsService, visionService, dataDir, historyTurns = 4, promptMode = 'full' } = {}) {
@@ -575,23 +559,6 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     });
 
     return out;
-  }
-
-  stripForVoice(text) {
-    return String(text || '')
-      .replace(/\[(compare|image|music|sticker|card):[^\]]*\]/gi, '')
-      .replace(/\[\s*emoji[:_][^\]]+\]/gi, '')
-      .replace(/\{\s*emoji[:_][^\}]+\}/gi, '')
-      .replace(/\bemoji[:_][a-zA-Z0-9_-]+/gi, '')
-      .replace(/\[[^\]]{1,50}\]/g, '')
-      .replace(/【[^】]{1,50}】/g, '')
-      .replace(/[（(][^）)]{1,50}[）)]/g, '')
-      .replace(/\*[^*]{1,50}\*/g, '')
-      .replace(/~[^~]{1,30}~/g, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, ' ')
-      .replace(/，\s*，/g, '，')
-      .trim();
   }
 
   processNarrativeTags(replyText, sayText = '') {
@@ -2898,7 +2865,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       // 天道回执：先摘除 [[world:...]] 标签，再把世界变更落账（绝不让标签进入正文/语音）
       const { clean, ops } = parseWorldTags(completion.text);
       const realOps = ops.filter((o) => o.kind !== 'none');
-      reply = this.mergeSameSpeaker(this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall)));
+      reply = mergeSameSpeaker(this.normalizeSpeakers(this.cleanReply(clean, say, isVideoCall)));
 
       // 场上只有一个人、而主回复没写分角标记时，直接补上她的花名——
       // 这样就不必再为同一个人开第二次模型（那一步要 6~8 秒）
@@ -4007,7 +3974,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     let audioKey = null;
 
     if (modality === 'voice') {
-      const voiceText = this.stripForVoice(reply);
+      const voiceText = stripForVoice(reply);
       if (voiceText) {
         try {
           const matchSpeaker = String(reply || '').match(/^[^\w一-龥]*?【([^】\n]{1,16})】/);
@@ -4562,42 +4529,12 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
   }
 
   /**
-   * 合并同一个人连续写的多个分角标记：
-   * 【侧妾·芸娘】：A / 【侧妾·芸娘】：B  →  【侧妾·芸娘】：A（换行）B
-   * 这样客户端只渲染一个气泡，不会看起来像"连发三条"。
-   */
-  mergeSameSpeaker(text) {
-    const lines = String(text || '').split('\n');
-    const out = [];
-    let lastSpeaker = null;
-    for (const line of lines) {
-      const m = line.match(/^\s*【([^】\n]{1,12})】\s*[:：]?\s*(.*)$/);
-      if (m) {
-        const speaker = m[1].trim();
-        const body = (m[2] || '').trim();
-        if (speaker === lastSpeaker) {
-          if (body) out.push(body);
-          continue;
-        }
-        lastSpeaker = speaker;
-        out.push(`【${speaker}】：${body}`);
-        continue;
-      }
-      if (line.trim() === '') lastSpeaker = null;
-      out.push(line);
-    }
-    return out.join('\n');
-  }
-
-  /**
    * 硬性在场过滤：不在场的人，其分角段落直接从回复里删掉。
    * 只放行「此刻就在相公所在之处」的人，以及相公明说要请/叫的人。
    */
   enforcePresence(text, allowedNames) {
-    const cleanSpeaker = (s) => String(s || '').replace(/^[^\w\u4e00-\u9fa5]*?(?:正妻|侧妾|二房|如夫人|通房|丫鬟|伙计|掌柜|知县|老板娘|夫人|姑娘|姐姐|妹妹)[·・\s]*/, '').trim();
-
     const cleanAllowed = (allowedNames || []).flatMap((n) => {
-      const c = cleanSpeaker(n);
+      const c = cleanSpeakerLabel(n);
       return [c, c.length > 2 ? c.slice(-2) : c];
     }).filter(Boolean);
 
@@ -4616,12 +4553,12 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
         kept.push(seg);
         continue;
       }
-      const pureSpeaker = cleanSpeaker(rawSpeaker);
+      const pureSpeaker = cleanSpeakerLabel(rawSpeaker);
       const pureShort = pureSpeaker.length > 2 ? pureSpeaker.slice(-2) : pureSpeaker;
 
       // 只有「账本里真有的人」才算说话人；动作描写不参与在场删除
       const isKnown = (this._knownNames || []).some((n) => {
-        const cn = cleanSpeaker(n);
+        const cn = cleanSpeakerLabel(n);
         return cn && (pureSpeaker.includes(cn) || cn.includes(pureSpeaker));
       });
       if (!isKnown) {
@@ -4652,50 +4589,10 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       const world = loadState(this.dataDir);
       const map = new Map();
 
-      function cleanRole(raw) {
-        if (!raw) return '';
-        let r = String(raw).trim();
-        if (/正妻|正室|大娘子/.test(r)) return '正妻';
-        if (/二房|如夫人|侧妾/.test(r)) return '二房';
-        if (/丫鬟/.test(r)) return '丫鬟';
-        if (/发妻/.test(r)) return '发妻';
-        if (/老鸨/.test(r)) return '老鸨';
-        if (/跑堂/.test(r)) return '跑堂';
-        if (/伙计/.test(r)) return '伙计';
-        if (/掌柜/.test(r)) {
-          const m = r.match(/([^\s·]{0,4}掌柜)/);
-          return m ? m[1].replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁)/, '') : '掌柜';
-        }
-        if (/老板娘/.test(r)) {
-          const m = r.match(/([^\s·]{0,4}老板娘)/);
-          return m ? m[1].replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁)/, '') : '老板娘';
-        }
-        if (/老板/.test(r)) {
-          const m = r.match(/([^\s·]{0,4}老板)/);
-          return m ? m[1].replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁)/, '') : '老板';
-        }
-        if (/东家/.test(r)) return '东家';
-        if (/郎中|大夫/.test(r)) return '郎中';
-        if (/仵作/.test(r)) return '仵作';
-        if (/知府/.test(r)) return '知府';
-        if (/知县|县令/.test(r)) return '知县';
-        if (/统领|侍卫/.test(r)) return '侍卫';
-        if (/私兵|部曲/.test(r)) return '私兵';
-        if (/护院|家丁/.test(r)) return '家丁';
-        if (/帮主/.test(r)) return '帮主';
-        if (/住持|方丈/.test(r)) return '住持';
-        if (/先生|夫子/.test(r)) return '先生';
-        if (/铁匠|木匠|石匠/.test(r)) return r.slice(-2);
-        // 去除地名
-        r = r.replace(/^(临江|苏州|杭州|扬州|松江|京城|洛阳|汴梁|太原|淮安|庐州|泰州|幽州|冀州|沧州|广州|潮州|桂州|成都|绵州|嘉州|济南|青州|登州|兖州|东昌|大同|平阳|蒲州|长安|凤翔|延安|江陵|潭州|襄阳|开封|南阳|归德|辽阳|金州|开原|兰州|凉州|秦州|昆明|大理|贵阳|福州|泉州|温州|宁波|洪州|赣州|吉安|徐州|宿州|府|县)+/, '');
-        if (r.length > 5) r = r.slice(-4);
-        return r;
-      }
-
       for (const a of Object.values(world.actors || {})) {
         if (!a?.name || a.id === 'husband' || a.name === '王甯') continue;
         const short = a.name.length > 2 ? a.name.slice(-2) : a.name;
-        const roleTitle = cleanRole(a.role || a.title || a.label);
+        const roleTitle = cleanRoleLabel(a.role || a.title || a.label);
         const label = roleTitle ? `${roleTitle}·${short}` : a.name;
         map.set(a.name, label);
         if (short !== a.name) map.set(short, label);
