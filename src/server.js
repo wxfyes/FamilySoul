@@ -49,7 +49,7 @@ import { marketSnapshot, grainPrice } from './world/prices.js';
 import { roomPriceAt, propertyPriceAt, priceOf } from './world/pricing.js';
 import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { materializeMigrant, fallbackName } from './world/migration.js';
-import { quellBandits, banditStrengthTotal } from './world/bandits.js';
+import { quellBandits, banditStrengthTotal, nextPromotion } from './world/bandits.js';
 import { RECRUIT_KINDS } from './world/warfare.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
@@ -702,7 +702,7 @@ const STARTED_AT = Date.now();
             if (result?.ok && result.win) {
               const ev = nextEvent(world, {
                 action: 'bandit_quelled', actor: 'husband', place: result.city || '临江府',
-                payload: { text: `【剿匪捷报】临江王家出兵剿平「${result.name || '匪帮'}」，缴银 ${result.lootSilver || 0} 两、粮 ${result.lootGrain || 0} 石${result.loss ? `，折兵 ${result.loss} 人` : ''}，民心大振` },
+                payload: { text: `【剿匪捷报】临江王家出兵剿平「${result.name || '匪帮'}」，缴银 ${result.lootSilver || 0} 两、粮 ${result.lootGrain || 0} 石${result.loss ? `，折兵 ${result.loss} 人` : ''}，民心大振${result.appoint || ''}` },
                 isPublic: true,
               });
               appendEvents(DATA_DIR, [ev]);
@@ -2052,6 +2052,9 @@ const STARTED_AT = Date.now();
           // 可带去剿匪的总人手：营兵 + 府里的护院/家丁（平民也能带家丁护院打匪）
           quellReady: (Number(f.troops) || Number(f.army) || 0)
             + Math.round(Number(f.kinds?.guard) || 0) + Math.round(Number(f.kinds?.retainer) || 0),
+          // 武勋升迁：累计剿平股数 + 下一阶要求（差多少）
+          quelled: Number(world.flags?.quelledTotal) || 0,
+          nextRank: (() => { try { return nextPromotion(world); } catch { return null; } })(),
           supplies: f.supplies || 0 } : null,
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
         // 官职/衔头：剿匪授的团练使这类"朝廷给的位子"，客户端看板直接读这里
@@ -3829,6 +3832,8 @@ const STARTED_AT = Date.now();
           grain,
           digest,
           morningReport,
+          quelledTotal: Number(world.flags?.quelledTotal) || 0,
+          nextRank: (() => { try { return nextPromotion(world); } catch { return null; } })(),
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });

@@ -1455,7 +1455,7 @@ function onNewDay(world, events) {
       if (dayNow % 30 === 0 && world.assets && Number(world.flags?.lastStipendDay) !== dayNow) {
         world.flags = world.flags || {};
         world.flags.lastStipendDay = dayNow;
-        const pays = { tuanlian: 3 };
+        const pays = { tuanlian: 3, shoubei: 6, dusi: 10, canjiang: 16, fuzongbing: 24 };
         let total = 0;
         const titles = [];
         for (const [key, o] of Object.entries(world.court?.offices || {})) {

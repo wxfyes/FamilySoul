@@ -2060,6 +2060,14 @@ export function migrateOwnership(world) {
       world.flags.wangjiaKindsSyncV1 = { at: Date.now(), kinds: k, troops: Number(f.troops) || 0 };
     }
   } catch (e) { console.warn('[Army] 兵种账对齐失败：', e.message); }
+
+  // 一次性：旧档补记剿匪功次（已有团练使者至少剿平过一股，之后逐股累加）
+  try {
+    world.flags = world.flags || {};
+    if (world.flags.quelledTotal === undefined && world.court?.offices?.tuanlian?.holder === 'husband') {
+      world.flags.quelledTotal = 1;
+    }
+  } catch { /* 忽略 */ }
   try { ensureMarket(world); } catch { /* 忽略 */ }
   try { ensureFame(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }

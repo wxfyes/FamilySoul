@@ -19,6 +19,53 @@ const num = (v) => {
 const round2 = (v) => Math.round(num(v) * 100) / 100;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+/**
+ * 武勋升迁阶梯：剿匪累功，朝廷按功授官（团练使是起点，之后一阶一阶升）
+ * 条件：累计剿平股数 + 名声 + 朝廷关系；官职写在 court.offices，月俸见 clock.js 的 pays 表
+ */
+export const MILITARY_LADDER = [
+  { key: 'shoubei', title: '临江府守备', need: 3, fame: 60, court: -99 },
+  { key: 'dusi', title: '临江府都司', need: 6, fame: 75, court: 10 },
+  { key: 'canjiang', title: '江淮参将', need: 10, fame: 90, court: 20 },
+  { key: 'fuzongbing', title: '副总兵', need: 15, fame: 100, court: 35 },
+];
+
+function courtRelOf(world) {
+  const c = world?.factions?.court;
+  const f = world?.factions?.wangjia;
+  return Number(c?.relations?.wangjia ?? f?.relations?.court ?? 0) || 0;
+}
+
+/** 下一阶该升什么、差多少（给接口/看板用；已封满返回 null） */
+export function nextPromotion(world) {
+  const held = world?.court?.offices || {};
+  const quelled = Number(world?.flags?.quelledTotal) || 0;
+  const fame = Number(world?.actors?.husband?.fame?.value) || 0;
+  const court = courtRelOf(world);
+  const next = MILITARY_LADDER.find((r) => !held[r.key]);
+  if (!next) return null;
+  return {
+    key: next.key, title: next.title, need: next.need, fame: next.fame, court: next.court,
+    quelled, fameNow: fame, courtNow: court,
+    ready: quelled >= next.need && fame >= next.fame && court >= next.court,
+  };
+}
+
+/** 达标就授下一阶；返回授职文案（没升则为空串） */
+function maybePromote(world) {
+  const n = nextPromotion(world);
+  if (!n || !n.ready) return '';
+  world.court = world.court || {};
+  world.court.offices = world.court.offices || {};
+  world.court.offices[n.key] = {
+    holder: 'husband',
+    title: n.title,
+    at: { day: Number(world.clock?.day) || 1 },
+    note: `剿匪累功，朝廷叙功授${n.title}`,
+  };
+  return `，朝廷叙功，升授「${n.title}」`;
+}
+
 const LEADERS = ['翻江蛟', '过山虎', '黑面判官', '独眼狼', '铁臂熊', '野狐', '穿山甲', '秃鹫', '一阵风', '活阎王'];
 const KINDS = {
   water: { label: '水盗', names: ['水寨', '水盗', '水帮'] },
@@ -250,6 +297,12 @@ export function quellBandits(world, banditId, troops, fromCity) {
     appoint = '，知府感念忠勇，授「临江府乡勇团练使」';
   }
 
+  // 累功：剿平股数 + 升迁判定（守备→都司→参将→副总兵）
+  world.flags = world.flags || {};
+  world.flags.quelledTotal = Math.round(Number(world.flags.quelledTotal) || 0) + 1;
+  const promo = maybePromote(world);
+  if (promo) appoint += promo;
+
   return {
     ok: true,
     win: true,
@@ -258,6 +311,7 @@ export function quellBandits(world, banditId, troops, fromCity) {
     city: b.homeCity,
     lootSilver,
     lootGrain,
+    quelledTotal: world.flags.quelledTotal,
     appoint: appoint || '',
     text: `剿平「${b.name}」，缴银 ${lootSilver} 两、粮 ${lootGrain} 石${loss > 0 ? `，折兵 ${loss} 人` : ''}，民心大振${appoint}`,
   };

@@ -1113,6 +1113,7 @@
             <div class="row"><span>训练 / 士气</span><span id="m-qm">—</span></div>
             <div class="row"><span>粮草（日）</span><span id="m-sup">0</span></div>
             <div class="row"><span>官职</span><span id="m-office">白身</span></div>
+            <div class="row"><span>剿匪功次</span><span id="m-quell">—</span></div>
             <div class="row"><span>战略</span><span id="m-standing">—</span></div>
             <div class="row"><span>最近战报</span><span id="m-battle">暂无</span></div>
             <div class="row"><span>上次缴获</span><span id="m-loot">—</span></div>
@@ -2089,6 +2090,15 @@ function render(w){
         .filter(o => o && String(o.holder || '') === 'husband')
         .map(o => o.title);
       $('m-office').textContent = posts.length ? posts.join('、') : '白身（未授官）';
+    }
+
+    // 剿匪功次与下一阶
+    if ($('m-quell')) {
+      const q = Number(w.quelledTotal) || 0;
+      const nr = w.nextRank;
+      $('m-quell').textContent = nr
+        ? `${q} 股 · 下一阶 ${nr.title}（需 ${nr.need} 股 / 名声 ${nr.fame} / 朝中 ${nr.court}）`
+        : `${q} 股 · 已至最高`;
     }
 
     // 最近战报：从事件流里取剿匪成败
