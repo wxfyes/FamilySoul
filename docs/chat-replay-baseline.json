@@ -1,0 +1,234 @@
+{
+  "meta": {
+    "version": 1,
+    "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
+    "seedHash": "6cbd97226402",
+    "caseCount": 11,
+    "recordedAt": "2026-11-07T16:07:00.227Z"
+  },
+  "cases": [
+    {
+      "id": "daily-greet",
+      "input": "娘子，今日可好？",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“相公回来了，妾身这就沏茶。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "accounts",
+      "input": "酒楼这个月进项如何？",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“回相公，酒楼本月净入三十三两。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "group-scene",
+      "input": "都说说今日各忙什么。",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“妾身核了茶坊的账。”\n【二房·芸娘】：“妾身在柜台招呼客人。”",
+      "speakers": [
+        "正妻·婉儿",
+        "二房·芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "husband_room",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "summon-yunnia",
+      "input": "叫芸娘来。",
+      "ok": true,
+      "error": "",
+      "reply": "【提示】林芸娘听唤，已从临江县衙快步赶了过来。\n【二房·芸娘】：“妾身来了。”",
+      "speakers": [
+        "提示",
+        "二房·芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "husband_room",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "dismiss",
+      "input": "都退下歇着吧。",
+      "ok": true,
+      "error": "",
+      "reply": "【提示】小翠躬身告辞，各自退了出去。【正妻·婉儿】：“是，相公早些歇息。”",
+      "speakers": [
+        "提示",
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "wang_mansion_west",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "say-go-home",
+      "input": "我回家了。",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“相公说笑了。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "ask-absent",
+      "input": "紫嫣在哪？",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“紫嫣在花铺。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "withdraw-silver",
+      "input": "取二十两银子来。",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“妾身这就去取。”",
+      "speakers": [
+        "正妻·婉儿"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "call-xiaocui",
+      "input": "小翠，沏壶茶来。",
+      "ok": true,
+      "error": "",
+      "reply": "【府中】小翠是通房大丫鬟，就住「临江·王宅·正房」。\n【丫鬟·小翠】：“奴婢这就去。”",
+      "speakers": [
+        "府中",
+        "丫鬟·小翠"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "yamen",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "tavern-plan",
+      "input": "运河大酒楼开张的事，你们怎么看？",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“妾身以为先请个好掌柜。”\n【二房·芸娘】：“妾身去牙行打听。”\n（临江·王宅（七进大宅）、运河码头三层大酒楼 今日开张了。）",
+      "speakers": [
+        "正妻·婉儿",
+        "二房·芸娘"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "husband_room",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    },
+    {
+      "id": "empty-input",
+      "input": "   ",
+      "ok": false,
+      "error": "输入内容为空",
+      "reply": "",
+      "speakers": [],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_east",
+        "xiaocui": "husband_room",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0
+      }
+    }
+  ]
+}
