@@ -1205,7 +1205,37 @@ export function migrateOwnership(world) {
         }
       } catch { /* 忽略 */ }
 
-      // 一次性：私兵没补够的，补齐到账上兵额
+      // 一次性：错挂到王宅的丫鬟/婆子，按出身改回本处
+      try {
+        if (!world.flags?.servantHomeFixV1) {
+          let fixed = 0;
+          for (const a of Object.values(world.actors || {})) {
+            if (!a || a.dead) continue;
+            const homeName = String(world.places?.[a.home]?.name || '');
+            if (!homeName.startsWith('临江·王宅')) continue;
+            if (String(a.spouse || '') === 'husband') continue;
+            if (/正妻|如夫人|二房|侧室|妾|通房/.test(String(a.role || ''))) continue;
+            if (String(a.id) === 'xiaocui') continue;
+            if (a.household) continue;
+            // 按 id 推本家：临江_servant_1_0 → 临江_estate_1
+            const m = String(a.id).match(/^(.+?)_(?:servant|gentry)_(\d+)/);
+            const estate = m ? `${m[1]}_estate_${m[2]}` : null;
+            if (estate && world.places?.[estate]) {
+              a.home = estate;
+            } else {
+              // 铺面当差的：住处跟铺面；其余就算街坊
+              const loc = world.places?.[a.location];
+              a.home = loc && loc.residence ? a.location : 'street';
+            }
+            fixed += 1;
+          }
+          world.flags = world.flags || {};
+          world.flags.servantHomeFixV1 = { at: Date.now(), fixed };
+          if (fixed) console.log(`[House] 错挂丫鬟归位：${fixed} 人`);
+        }
+      } catch { /* 忽略 */ }
+
+      // 一次性：私兵没补够的，补齐到账上兵额      // 一次性：私兵没补够的，补齐到账上兵额
       try {
         if (world.flags?.privateArmyV2 !== true) {
           const troops = Number(world.factions?.wangjia?.troops) || 0;

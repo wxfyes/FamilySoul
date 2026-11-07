@@ -1936,10 +1936,10 @@ const STARTED_AT = Date.now();
               && (a.spouse === 'husband'
                 || (/妻|夫人|妾|姨娘|通房|丫鬟|婆子|嬷嬷|姑娘|小姐/.test(String(a.role || ''))
                   && (() => {
-                    const pl = world.places?.[a.home];
-                    const nm = String(pl?.name || '');
-                    return Boolean(meL?.home && (a.home === meL.home || pl?.parent === meL.home
-                      || nm.startsWith('临江·王宅') || nm.startsWith('王宅')));
+                    const estate = String(world.places?.[meL?.home]?.name || '').split('·').slice(0, 2).join('·');
+                    const locName = String(world.places?.[a.location]?.name || '');
+                    if (!estate || !locName.startsWith(estate)) return false;   // 人不在宅里，不算家仆
+                    return true;
                   })())),
           );
           return {
