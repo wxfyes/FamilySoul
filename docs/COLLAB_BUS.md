@@ -12,31 +12,27 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 03:25",
-  "active_task": "【全量重构与紧急缺陷双闭环】领受差事夜半瞬移已治愈 + 确立新分工必须新建文件宪法铁律",
+  "last_updated": "2026-11-08 09:20",
+  "active_task": "【治本整改】强化离场送客词法解析与内眷住处规制，彻底清除双头送客打架",
   "priority": "DEPLOYED_VERIFIED",
-  "single_owner": "双 AI 协同治理",
-  "reviewer_role": "代码复审、三重护城河实测验证、构建生产更新包 update.tar.gz",
-  "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
+  "single_owner": "Antigravity",
+  "reviewer_role": "代码复审、四重护城河实测验证、构建生产更新包 update.tar.gz",
   "changed_files": [
-    "src/pet-service.js",
-    "src/world/position.js",
-    "src/world/bedchamber.js",
-    "src/chat/text-utils.js",
-    "src/chat/reply-sanitizer.js",
-    "src/chat/prompt-composer.js",
     "src/chat/intent-pipeline.js",
-    "docs/COLLAB_BUS.md"
+    "src/pet-service.js",
+    "src/world/chat-actions.js",
+    "scripts/test_dismiss_regression.mjs",
+    "docs/prompt-baseline.json"
   ],
   "prod_metrics": {
-    "refactor_summary": "4993 → 4600 行（提纯 393 行），四大管道独立封箱，死代码 100% 清零",
-    "bug_fixed": "领受差事不再夜半瞬移长街；新增 healInnerFamilyAtNight 夜半内眷自动归位东厢/西厢/正房",
-    "chat_replay": "16/16 逐字全绿（含 task-no-teleport、night-heal-wanning）",
-    "regression": "20/20 满血通过",
-    "supreme_rule": "相公最高指令白纸黑字入宪：凡新功能新分工必须新建独立模块文件，严禁往老文件塞代码"
+    "bug_fixed": "都各自回房/回房间睡觉误识为都各自人名已修复；芸娘/小翠催促质问已纳入意图解析；清除chat-actions重复送客，正房同寝正妻规制保护",
+    "chat_replay": "16/16 逐字全绿",
+    "prompt_snapshot": "4/4 满分通过",
+    "dismiss_regression": "送客/催促/内眷住处规制专项回归 100% 通过",
+    "regression": "20/20 满血通过"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "全量验收通过！审查官正在打包构建最新 update.tar.gz 供相公一键热更新"
+  "reviewer_action": "已打包发布 update.tar.gz 至 192.168.1.106:8089，相公一键热更新即可生效"
 }
 ```
 
