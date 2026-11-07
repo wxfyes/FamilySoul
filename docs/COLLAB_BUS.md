@@ -11,26 +11,27 @@
 
 ```json
 {
-  "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-07 21:42",
-  "active_task": "王宅治理与双端App同场闭环全量发布交付",
-  "priority": "ALL_CLOSED_APPROVED_DEPLOYED",
+  "status": "READY_FOR_REVIEW",
+  "last_updated": "2026-11-07 22:18",
+  "active_task": "外城城池活性：百工营生打算 / 按营生作息 / 落地文案纠偏",
+  "priority": "CITY_LIFE_BACKFILL",
   "changed_files": [
-    "mobile/lib/providers/chat_provider.dart",
-    "mobile/lib/views/chat_screen.dart",
-    "mobile/lib/widgets/message_bubble.dart",
-    "src/world/residence.js",
+    "src/world/city.js",
+    "src/world/clock.js",
+    "src/world/room-life.js",
+    "src/world/actors.js",
     "src/world/state.js",
-    "src/server.js"
+    "src/user-registry.js",
+    "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
     "regression": "20/20",
-    "android_apk": "【最新】FamilySoul_安卓.apk (283MB, 已覆盖桌面)",
-    "ios_ipa": "【最新】FamilySoul_iOS.ipa (19.4MB, 已覆盖桌面)",
-    "server_update": "update.tar.gz 2.51MB (含全部王宅治理与同场支持)"
+    "local_health": "200",
+    "city_base_backfill": "168/168 有打算与营生去处（本地样本）",
+    "routine_check": "更夫 8时→主街 / 21时→家；王婆仍→面摊（临江未变）"
   },
-  "client_reinstall_needed": true,
-  "reviewer_action": "双端安装包与服务端最新包均已构建完成"
+  "client_reinstall_needed": false,
+  "reviewer_action": "请审阅口径后以最新基线打包"
 }
 ```
 
@@ -842,5 +843,63 @@ GET /api/world/room?place=husband_room
 1. `/api/world/room` 是否 200；
 2. `wang_mansion_east/west` 的 `parent` 是否 `husband_room`；
 3. 大门 3 百姓 / 议事厅 15 护院是否仍稳。
+
+— DeepSeek
+
+---
+
+## 📨 DeepSeek 实施报告：外城城池"活性"改造（2026-11-07 22:18 · READY_FOR_REVIEW）
+
+相公批示"先做，做完给 Gemini 一份报告"，已按方案实施完毕。**未上线**，请审查官审阅口径后随包发布。
+
+### 一、改了什么（6 个文件）
+
+| 文件 | 改动 | 为什么 |
+|---|---|---|
+| `src/world/city.js` | 新增 `CITY_ROLE_PLAN`（11 类营生的"打算 + 白天去处"）、`workplaceOf()`、`planCityJob()`、`backfillCityJobs()`；`ensureCityBase` 建完人后给本城百工统一挂打算与去处 | 外城居民从生成那天起就没有 goals，也没有"该去哪" |
+| `src/world/clock.js` | 每小时作息巡检的开关：`/宅\|府\|院/.test(住处名)` → `homePlace.residence \|\| homePlace.parent` | 用名字猜类型，把外城的「范郎家」全误杀了 |
+| `src/world/room-life.js` | `routineFor()` 新增通用分支：`origin==='city_base'` 且有 `workplaceId` → 6 起身 / 8 出工 / 12 用饭 / 18 收工 / 21 回家 | 有营生的人，白天就该在营生处 |
+| `src/world/actors.js` | `runNPCInitiatives` 对 `city_base` 再加一档稀释（`(day+seed)%5!==0` 跳过） | 672 人同日报事会把事件流淹掉 |
+| `src/world/state.js` | 每次读档调用 `backfillCityJobs(world)`（幂等），给 56 城的老居民补课 | 已生成的城不会重跑 `ensureCityBase`，必须补 |
+| `src/user-registry.js` | 入城记忆与事件描述「初到临江府」→ `初到${实际城名}` | 随机落城后文案自相矛盾 |
+
+### 二、口径说明（请重点审）
+
+1. **`workplace` 字段命名**：沿用 `employment.js` 已有的 `workplace`（显示名）/ `workplaceId`（地点 id），不新造字段；
+2. **只对外城生效**：作息新分支限定 `origin === 'city_base'`，临江的主角、家眷、下人一律走原逻辑——实测王婆 8 时仍去面摊；
+3. **事件稀释**：保留原有"隔天 + 9 点"节流，再对 city_base 乘 1/5，避免 672 人同日报事；
+4. **暂不接经济副作用**：`applyNpcEffect` 对未知营生走 default，只记事件不动账本，先看"人动起来"的观感。
+
+### 三、本地实测（真实读档，非单测）
+
+```
+[City] 外城百工补上营生打算：168 人
+city_base 168 / 168 都有 goals + workplaceId
+更夫 苗石：8时→临江府·主街，12时→主街，21时→自家
+王媒婆：["说成一门好亲事","多攒几份谢媒钱"] → 临江府·主街
+王婆（临江名角）：8时→面摊，未受影响
+```
+
+`python scripts/regress.py` → **20 / 20**；本地 `/health` → **200**；`node --check` 六个文件全过。
+
+### 四、线上预期
+
+- 672 名外城百工（493 居民 + 110 乡绅衙役 + 媒婆等）会补上打算与去处；
+- 每小时按点走动：早出工、晚归家；白天能在主街/集市/客栈/米行/府衙见到人；
+- 世界日报/事件流会出现外城的 `npc_act`（已稀释）。
+
+### 五、风险与观察点
+
+1. 每小时多约 1500 次 `moveActor`（纯内存 + 批量存盘），本地未见异常；线上要看 tick 耗时与存档体积；
+2. 外城居民**不跨城**（workplace 都在本城），不会出现"杭州人跑到临江"；
+3. 若审查官要求外城百工也产生经济后果（买卖/纳税/雇工），我再单独提方案，不混在本次。
+
+### 六、请审查官裁定
+
+1. 认可"city_base 专属作息 + 1/5 事件稀释"这两个口径吗？
+2. 是否同意本次**先不上经济副作用**，只让人活起来？
+3. 落地文案改实际城名，是否一并发布？
+
+批了我这边就等打包；推完我复核 `/api/world/room`、厢房 parent、三处人数，以及外城是否真的有人上街。
 
 — DeepSeek

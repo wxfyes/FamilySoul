@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 院子里的生活：每一间院子有什么陈设、住着谁、这个时辰该在哪、在这里能做什么。
  *
  * 规矩：
@@ -138,6 +138,20 @@ export function routineFor(world, actor) {
   // 找他的住处（quarters 优先，其次家宅本身）
   const quarters = actor.quarters && world.places?.[actor.quarters] ? actor.quarters : null;
   const isServant = /丫鬟|丫头|小厮|护院|家丁|厨|账房|马夫|车夫/.test(String(actor.role || ''));
+
+  // 有营生去处的外城百工：白天在营生处，夜里回家（临江名角不走这条，保持原样）
+  const workId = actor.origin === 'city_base' && actor.workplaceId && world.places?.[actor.workplaceId]
+    ? actor.workplaceId
+    : null;
+  if (workId) {
+    return [
+      { at: 6, do: '起来收拾', place: quarters || homeId },
+      { at: 8, do: '出工', place: workId },
+      { at: 12, do: '用饭歇晌', place: workId },
+      { at: 18, do: '收工', place: workId },
+      { at: 21, do: '回家安歇', place: quarters || homeId },
+    ];
+  }
 
   if (isServant) {
     // 下人：早起当差 → 晚饭 → 回下房

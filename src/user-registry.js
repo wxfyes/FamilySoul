@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadState, saveState, worldDate } from './world/state.js';
@@ -167,7 +167,7 @@ export class UserRegistry {
     // 给天道主脑注入初见事实记忆，让 NPC 认识这位新面孔
     addMemory(world, {
       id: `mem_${Date.now().toString(36)}`,
-      text: `新面孔入城：【${rawName}】（${genderDesc}，春秋${numAge}，${roleName}），初到临江府，落脚在自家小院。`,
+      text: `新面孔入城：【${rawName}】（${genderDesc}，春秋${numAge}，${roleName}），初到${cityName || '临江府'}，落脚在自家小院。`,
       about: [actorId],
       visible: 'public',
       kind: 'notice',
@@ -184,7 +184,7 @@ export class UserRegistry {
         type: 'actor_arrival',
         actorId,
         actorName: rawName,
-        desc: `新面孔入城：【${rawName}】（${genderDesc}，${numAge}岁），初涉江湖，落脚自家小院。`,
+        desc: `新面孔入城：【${rawName}】（${genderDesc}，${numAge}岁），初到${cityName || '临江府'}，落脚自家小院。`,
       }) + '\n';
       fs.appendFileSync(this.eventsFile, eventRecord, 'utf8');
     } catch (_) {}

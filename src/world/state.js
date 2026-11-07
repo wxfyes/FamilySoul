@@ -13,7 +13,7 @@ import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters, demoteNestedMansions, linkSameHouseRooms } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
 import { evictOutsiders } from './privacy.js';
-import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, ensureShopStaff, streetOfCity } from './city.js';
+import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, ensureShopStaff, streetOfCity, backfillCityJobs } from './city.js';
 import { ensureMatchmaker, dailyMarriages, maybeOfferAlliance } from './marriage.js';
 import { fallbackName } from './migration.js';
 import { moneyCategory } from './ledger-rules.js';
@@ -1867,6 +1867,17 @@ export function migrateOwnership(world) {
     }
   } catch (e) {
     console.warn('[Residence] 院落挂回宅根失败：', e.message);
+  }
+
+  // 外城百工补课：给老存档补上"营生打算"与"白天去处"（每次读档跑，幂等）
+  try {
+    const n = backfillCityJobs(world);
+    if (n) {
+      console.log(`[City] 外城百工补上营生打算：${n} 人`);
+      world.__migratedDirty = true;
+    }
+  } catch (e) {
+    console.warn('[City] 外城百工补课失败：', e.message);
   }
 
   // 性别：天道衍生的人可能是 unknown，一律按名字与身份补

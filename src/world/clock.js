@@ -2012,7 +2012,9 @@ function advanceHour(world, events, nowMs) {
     for (const a of Object.values(world.actors || {})) {
       if (!a || a.dead || a.jailed || a.away) continue;
       if (!a.home || !world.places?.[a.home]) continue;
-      if (!/宅|府|院/.test(String(world.places[a.home].name || ''))) continue;
+      // 只看"住处是不是一座宅子/一间院子"（数据判定，不靠名字猜——外城的「XX家」也要能走）
+      const homePlace = world.places[a.home];
+      if (!homePlace.residence && !homePlace.parent) continue;
       const to = roomForHour(world, a, hourNow);
       if (!to || to === a.location) continue;
       const r = moveActor(world, a.id, to, 'world', '按作息走动');

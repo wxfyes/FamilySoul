@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 城市基底：一座城要先有"能活的地方"，人去了才不是流放。
  *
  * 规矩：
@@ -16,6 +16,77 @@ const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+
+/**
+ * 外城百工的营生与打算（按营生类别，不写死姓名）
+ *   goals：他为什么忙（runNPCInitiatives 据此排事）
+ *   post ：白天该在哪（workplaceId 的事实源）
+ */
+const CITY_ROLE_PLAN = {
+  摊贩: { post: 'market', goals: ['卖完这筐菜', '攒钱换副新担子'] },
+  伙计: { post: 'inn', goals: ['把差事做熟', '讨掌柜欢心'] },
+  跑堂: { post: 'inn', goals: ['把差事做熟', '讨掌柜欢心'] },
+  掌柜: { post: 'shop', goals: ['把铺子撑住', '攒钱盘下隔壁铺面'] },
+  更夫: { post: 'street', goals: ['夜里把更打准', '别撞见不该见的人'] },
+  绣娘: { post: 'street', goals: ['接一单大户的活计', '攒钱添副好针线'] },
+  货郎: { post: 'street', goals: ['走遍四乡八镇', '收一担时兴货'] },
+  厨娘: { post: 'shop', goals: ['练一道拿手菜', '让东家多给两成工钱'] },
+  脚夫: { post: 'street', goals: ['多扛两趟', '攒钱买双好鞋'] },
+  乡绅: { post: 'market', goals: ['守住城中体面', '让商会多分一杯羹'] },
+  衙役: { post: 'yamen', goals: ['把差事办稳', '少惹上头挑错'] },
+  媒婆: { post: 'street', goals: ['说成一门好亲事', '多攒几份谢媒钱'] },
+};
+
+/** 营生去处：先按城找对应铺面，找不到就回本城主街 */
+function workplaceOf(world, slug, post) {
+  const table = {
+    market: [`${slug}_market`, 'market'],
+    inn: [`${slug}_inn`, 'inn'],
+    shop: [`${slug}_rice`, `${slug}_market`, `${slug}_street`, 'street'],
+    street: [`${slug}_street`, 'street'],
+    yamen: [`${slug}_yamen`, 'yamen'],
+  }[post] || [`${slug}_street`];
+  for (const id of table) if (world.places?.[id]) return id;
+  return world.places?.street ? 'street' : null;
+}
+
+/** 这人属于哪座城（先看 id，再看住处） */
+function citySlugOf(actor) {
+  const m = String(actor?.id || '').match(/^([^_]+)_(?:local|notable|servant|gentry|house|shop)/)
+    || String(actor?.home || '').match(/^([^_]+)_/);
+  return m ? m[1] : '';
+}
+
+/** 给一名外城百工挂上营生打算与白天去处（幂等） */
+function planCityJob(world, actor, slug) {
+  if (!actor) return false;
+  const plan = CITY_ROLE_PLAN[String(actor.role || '').trim()];
+  if (!plan) return false;
+  let changed = false;
+  if (!Array.isArray(actor.goals) || actor.goals.length === 0) {
+    actor.goals = [...plan.goals];
+    changed = true;
+  }
+  const wp = workplaceOf(world, slug || citySlugOf(actor), plan.post);
+  if (wp && (!actor.workplaceId || !world.places?.[actor.workplaceId])) {
+    actor.workplaceId = wp;
+    actor.workplace = world.places?.[wp]?.name || wp;
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * 老存档补课：给已经造出来的外城百工补上"打算"与"营生去处"（每次读档跑，幂等）
+ */
+export function backfillCityJobs(world) {
+  let n = 0;
+  for (const a of Object.values(world?.actors || {})) {
+    if (!a || a.dead || a.origin !== 'city_base') continue;
+    if (planCityJob(world, a, citySlugOf(a))) n += 1;
+  }
+  return n;
+}
 
 function ensurePlace(world, id, name, extra = {}) {
   if (world.places?.[id]) return world.places[id];
@@ -187,6 +258,11 @@ export function ensureCityBase(world, cityName) {
       };
     }
   } catch { /* 忽略 */ }
+
+  // 给这座城的百工挂上"营生打算"与"白天去处"（本城居民、乡绅、衙役一视同仁）
+  for (const a of Object.values(world.actors || {})) {
+    if (a && !a.dead && a.origin === 'city_base' && citySlugOf(a) === slug) planCityJob(world, a, slug);
+  }
 
   world.flags.cityBase[city] = { at: Date.now(), streetId, marketId, innId, tier, people, jobs };
   console.log(`[City] ${city} 基底生成：街道/集市/客栈/米行 + ${people} 户人家`);

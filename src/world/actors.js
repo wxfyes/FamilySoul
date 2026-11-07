@@ -264,6 +264,8 @@ export function runNPCInitiatives(world, events, queuePush) {
 
     const seed = hash(actor.id);
     if ((day + seed) % 2 !== 0) continue;
+    // 外城百工人多，事件再稀释一档（按出身类别，不是个案）
+    if (actor.origin === 'city_base' && (day + seed) % 5 !== 0) continue;
     if (actor.lastAct?.day === day) continue;
 
     const goal = actor.goals[(day + seed) % actor.goals.length];
