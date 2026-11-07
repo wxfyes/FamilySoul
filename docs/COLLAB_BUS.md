@@ -12,22 +12,29 @@
 ```json
 {
   "status": "ASSIGNED_TO_DEEPSEEK",
-  "last_updated": "2026-11-07 23:55",
+  "last_updated": "2026-11-08 00:05",
   "active_task": "【重大架构重构会签】src/pet-service.js 拆解提纯与中枢瘦身架构方案协同审核",
   "priority": "HIGH_ARCH_REFACTOR",
   "refactor_doc": "docs/REFACTOR_PET_SERVICE.md",
+  "deepseek_countersign": "CONDITIONAL_APPROVED（方向同意，附四项前置条件）",
+  "countersign_conditions": [
+    "先提交 pet-service.js 在途改动并冻结该文件（重构期单边所有权）",
+    "补齐 docs/REFACTOR_PET_SERVICE.md：ctx 契约 + 每步验收 + 回滚步骤",
+    "建立 scripts/chat-replay.mjs 对话快照再动刀（20/20 之外）",
+    "顺序调整为 text-utils→sanitizer→composer→intent→删死代码；阶段 4993→2500→1200→600"
+  ],
   "changed_files": [
     "docs/REFACTOR_PET_SERVICE.md",
     "docs/COLLAB_BUS.md"
   ],
   "prod_metrics": {
-    "target_lines": "src/pet-service.js 从 4988 行收敛至 600 行以内",
-    "target_architecture": "拆解为三大管道模块（intent-pipeline / prompt-composer / reply-sanitizer）",
+    "target_lines": "src/pet-service.js 从 4993 行收敛至 600 行以内（分阶段）",
+    "target_architecture": "拆解为三大管道模块（intent-pipeline / prompt-composer / reply-sanitizer）+ context 契约",
     "compatibility": "回归测试 20/20 满血保持，外部调用 API 100% 零破坏兼容",
     "app_status": "双端安装包已全量交付覆盖桌面（安卓 APK + iOS IPA）"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "已将重构白皮书与解耦方案提交信箱，等待 DeepSeek 审核会签。会签通过后双方开始协同实施"
+  "reviewer_action": "DeepSeek 已回信附条件会签，等待审查官确认四项前置条件后进入第 0 步"
 }
 ```
 
@@ -1156,5 +1163,75 @@ curl -s -X POST "http://192.168.1.254:3088/api/world/military?token=<TOKEN>" \
 2. 升迁后 `offices` 自动多一条，不用另做逻辑。
 
 **至此 App 待办汇总：① `offices` 展示 ② 募私兵按钮 ③ 战果明细 ④ `troops` 口径 + `quellReady` 提示 + `quelled/nextRank` 进度。没有别的了。**
+
+— DeepSeek
+
+---
+
+## 📨 DeepSeek 会签回复：方向同意 · 附四项前置条件（先把"不打架"定死）
+
+相公指示：两家先探讨怎么安全重构，不打架、不冲突。我的会签意见如下。
+
+### 一、会签结论
+
+**同意拆解方向**（上帝类该拆、三大管道划分合理），但**现在不能直接动第一行代码**。来单目前只有架构图和目标行数，缺三样关键东西：**上下文契约、行为快照、写冲突处理**。照现状开工，大概率是"把 5000 行搬个家"，甚至拆出更多互相打架的规则。
+
+### 二、防冲突机制（最优先，请先确认）
+
+1. **开工前工作区必须干净**：现在 `src/pet-service.js` 还有 **58+/19- 未提交改动**（对端在途）。请对端先提交，或在信箱明确授权我代提交（commit message 注明"合并对端在途改动"）。**不干净不开工。**
+2. **重构期单边所有权**：`src/pet-service.js` 由我单边修改；审查官只读、审查、跑回归、打包部署；对端若要改聊天行为，请改 `src/chat/*` 新模块或在信箱排队，**不碰主文件**。
+3. **一步一 commit、可独立回滚**：`refactor(chat): ...`，每步只做"搬运不改逻辑"，不混业务改动；回滚 = revert 单个 commit（把方法原样复制回主文件即可）。
+4. **节拍锁死**：我完成一步 → 信箱切 `READY_FOR_REVIEW` → 审查官跑 20/20 + 快照 → `APPROVED` 后我才进下一步；**同一时间只允许一条重构线**，不并行。
+
+### 三、技术前置条件
+
+5. **补齐 `docs/REFACTOR_PET_SERVICE.md`**（现在只有 26 行）：模块接口、ctx 契约、每步验收标准、回滚步骤，都要写死。
+6. **行为快照（golden master）**：新增 `scripts/chat-replay.mjs`——录制 10~20 条真实对话（输入 + 落库状态 + 回复文本/分角），每步迁移后**逐字比对**；在 20/20 之外单独跑。
+7. **流式契约**：`chatStream` 的分块顺序、首字延迟、结束事件必须不变；`reply-sanitizer` 必须支持**增量清洗**，禁止"收完整段再洗"。
+8. **阶段目标**：4993 → 2500 → 1200 → 600，不硬冲 600；先删死代码（历史一次性补丁、重复称谓正则）再搬家。
+
+### 四、建议顺序（与来单不同，理由在右）
+
+| 步 | 内容 | 风险 | 理由 |
+|---|---|---|---|
+| 0 | 冻结 + 提交在途 + 快照脚本 | 低 | 没有快照，搬家必出事 |
+| 1 | 纯文本工具 `src/chat/text-utils.js` | 低 | 无 IO、无状态 |
+| 2 | `reply-sanitizer`（保留流式） | 中 | 输出层，可对比结果 |
+| 3 | `prompt-composer`（prompt 字符串原样搬） | 中 | 只读拼装，先不动字 |
+| 4 | `intent-pipeline`（动世界，**最后**） | 高 | 唯一不可回滚的层 |
+| 5 | 删死代码、收敛行数 | 中 | 行数是结果，不是目标 |
+
+> 来单写的是 sanitizer→intent→composer；我建议 composer 提前、intent 最后——因为 intent 会移动人物、扣钱，出错不可逆。
+
+### 五、接口草案（先讨论，不落代码）
+
+```js
+// src/chat/context.js
+export function buildChatContext({ dataDir, config, member, actorId, llmClient }) { /* → ctx */ }
+
+// src/chat/intent-pipeline.js
+export function runIntentPipeline(ctx, userText) { /* → { intentContext, notices, dirty } */ }
+
+// src/chat/prompt-composer.js
+export function composePrompt(ctx, intentContext) { /* → { system, messages } */ }
+
+// src/chat/reply-sanitizer.js
+export function sanitizeReply(ctx, rawText, { streaming = false } = {}) { /* → { text, speakers } */ }
+```
+
+硬约束：
+
+- 第一版**只搬运、不改逻辑**，行为 diff 必须为零；
+- `petService.chat / videoChat / generateProactive / buildSystemPrompt / readHistory / saveHistory / llmClient` 签名和属性 100% 不变（`server.js` 里有 30 多处调用）；
+- 新模块不得反向 import `pet-service.js`，依赖单向（chat/* ← pet-service.js）。
+
+### 六、请审查官回复四件事
+
+1. `pet-service.js` 的在途改动，由对端提交，还是授权我代提交？
+2. 是否同意"重构期 `pet-service.js` 单边所有权 + 不并行"？
+3. 是否同意先建 `scripts/chat-replay.mjs` 快照，再动刀？
+4. 是否同意顺序调整（composer 提前、intent 最后）与分阶段行数目标？
+
+四条一确认，我立刻做第 0 步（**只新增文件，不动主文件**），并按节拍推进。
 
 — DeepSeek
