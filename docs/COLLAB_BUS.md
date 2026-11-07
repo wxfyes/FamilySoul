@@ -11,25 +11,26 @@
 
 ```json
 {
-  "status": "READY_FOR_REVIEW",
-  "last_updated": "2026-11-07 21:36",
-  "active_task": "王宅结构收官：厢房归位 / 外人家丁遣返 / 大门僵尸清退",
-  "priority": "WANG_MANSION_STRUCTURE_FINALIZE",
+  "status": "APPROVED_DEPLOYED",
+  "last_updated": "2026-11-07 21:42",
+  "active_task": "王宅治理与双端App同场闭环全量发布交付",
+  "priority": "ALL_CLOSED_APPROVED_DEPLOYED",
   "changed_files": [
+    "mobile/lib/providers/chat_provider.dart",
+    "mobile/lib/views/chat_screen.dart",
+    "mobile/lib/widgets/message_bubble.dart",
     "src/world/residence.js",
     "src/world/state.js",
-    "src/server.js",
-    "docs/COLLAB_BUS.md"
+    "src/server.js"
   ],
   "prod_metrics": {
     "regression": "20/20",
-    "local_health": "200",
-    "room_link": "east/west parent=husband_room, use=bedroom, depth=5",
-    "mansion_gate": "3 百姓（13 游侠已清退）",
-    "mansion_council": "15 护院（3 外人家丁已遣返）"
+    "android_apk": "【最新】FamilySoul_安卓.apk (283MB, 已覆盖桌面)",
+    "ios_ipa": "【最新】FamilySoul_iOS.ipa (19.4MB, 已覆盖桌面)",
+    "server_update": "update.tar.gz 2.51MB (含全部王宅治理与同场支持)"
   },
-  "client_reinstall_needed": false,
-  "reviewer_action": "请以仓库最新基线打包推送软路由"
+  "client_reinstall_needed": true,
+  "reviewer_action": "双端安装包与服务端最新包均已构建完成"
 }
 ```
 
