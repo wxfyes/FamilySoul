@@ -749,6 +749,30 @@ function runPromiseDues(world, events, queuePush) {
   }
 }
 
+/** 差事到期：到日子还没回话，主动给东家递一条期限提醒（只提醒一次） */
+export function runTaskDues(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  for (const t of world.tasks || []) {
+    if (!t || t.status !== 'doing') continue;
+    const due = Number(t.dueDay) || 0;
+    if (!due || due > day) continue;
+    if (t.remindedDue) continue;
+    t.remindedDue = day;
+    const name = world.actors?.[t.actorId]?.name || t.name || '管事';
+    const short = String(t.what || '').slice(0, 40);
+    events.push(nextEvent(world, {
+      action: 'task_due', actor: t.actorId || null, place: null,
+      payload: { text: `${name}的差事「${short}」到期，尚无回话` }, isPublic: false,
+    }));
+    queuePush?.({
+      to: t.owner || 'husband', reason: 'task', speaker: '提示', type: 'proactive', isLetter: false,
+      facts: { 差事: short, 办差人: name, 期限: `第${due}日` },
+      fallback: `【差事期限】${name}那边的「${short}」今日到期，还没回话。`,
+      force: true,
+    });
+  }
+}
+
 /** 旧诺过期：非借款类承诺，过了到期日 1 天仍没办成，自动作废移出待办（保留备注，商单尾款绝不作废） */
 function runPromiseSweep(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -1754,6 +1778,11 @@ function onNewDay(world, events) {
     runPromiseDues(world, events, (o) => queueProactive(world, { type: 'promise', ...o }));
   } catch (err) {
     console.warn('[Promise] 到期上门失败：', err.message);
+  }
+  try {
+    runTaskDues(world, events, (o) => queueProactive(world, { type: 'task', ...o }));
+  } catch (err) {
+    console.warn('[Task] 差事到期提醒失败：', err.message);
   }
   try {
     runPromiseSweep(world, events);

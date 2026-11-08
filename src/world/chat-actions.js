@@ -186,8 +186,11 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   // 叫人来（单人 / 都来）
   const staffWords = /护院|家丁|当差|当值|门房/.test(say);
   const callAll = !staffWords && /(都|你们|大伙|全)[^。]{0,8}(来|过来|到.{0,4}(我|这)|回来)/.test(say);
-  const mCall = /(?:让|叫|请|唤)\s*([\u4e00-\u9fa5]{2,4})\s*(?:来|到|过来|上前)/.exec(say);
-  if (callAll || mCall) {
+  const mCall = /(?:让|叫|请|唤|去叫|去请|去喊|去把|把)\s*([\u4e00-\u9fa5]{2,4})\s*(?:叫来|请来|喊来|来|到|过来|上前)/.exec(say)
+    || /([\u4e00-\u9fa5]{2,4})\s*(?:叫来|请来|喊来|过来|上前)/.exec(say)
+    || /(?:去|让|叫|请|派)[^，。]{0,8}?(?:叫|请|喊)\s*([\u4e00-\u9fa5]{2,4})/.exec(say);
+  const callIsQuestion = /[吗呢]\s*[？?]?\s*$/.test(say.trim());
+  if (!callIsQuestion && (callAll || mCall)) {
     const hereName0 = String(world.places?.[me.location]?.name || '');
     const estate0 = hereName0.includes('·') ? hereName0.split('·').slice(0, 2).join('·') : '';
     const isMyKin = (a) => (String(a.spouse || '') === 'husband' && /正妻|如夫人|二房|侧室|妾|通房|丫鬟/.test(String(a.role || '')))
@@ -197,15 +200,18 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       ? Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && isMyKin(a)).slice(0, 8)
       : [findByName(world, mCall?.[1])].filter(Boolean);
     const names = [];
+    let triedMove = 0;
     for (const a of targets) {
       if (!a || a.location === me.location) continue;
       const dest = isOuterStaff(a) ? (hallOf(world) || me.location) : me.location;
       if (!dest) continue;
+      triedMove += 1;
       const mv = moveActor(world, a.id, dest, 'world', '叫到跟前');
       if (mv?.ok) names.push(isOuterStaff(a) ? `${a.name}（厅上）` : a.name);
     }
     if (names.length) notices.push(`${names.join('、')}都到了跟前。`);
     else if (callAll) notices.push('（内眷已经在跟前了。）');
+    else if (triedMove > 0) notices.push('（人没能到跟前；若是真人，只能去找她。）');
   }
 
 
