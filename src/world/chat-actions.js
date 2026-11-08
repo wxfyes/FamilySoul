@@ -60,6 +60,22 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   if (!me) return notices;
   const day = num(world.clock?.day) || 1;
 
+  // 暗号赴约：先说对了暗号，人才会来
+  for (const s of world.signals || []) {
+    if (!s || s.active === false || !s.signal || !say.includes(String(s.signal))) continue;
+    if (s.placeId && me.location !== s.placeId) continue;
+    const who = world.actors?.[s.actorId];
+    if (!who || who.dead) continue;
+    const mv = moveActor(world, who.id, me.location, 'world', '暗号赴约');
+    if (mv?.ok) {
+      s.active = false;
+      s.usedAt = { day, hour: num(world.clock?.hour) };
+      notices.push(`（${who.name}听见暗号，从${s.placeName || '后门'}进来了。）`);
+    } else {
+      notices.push(`（暗号对上了，${who.name}却没能过来。）`);
+    }
+  }
+
   // 买米 / 卖米
   const mBuy = new RegExp(`买\\s*(${NUM})\\s*([斗石])`).exec(say);
   if (mBuy) {

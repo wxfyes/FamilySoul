@@ -376,6 +376,53 @@ export function executeNarrativeTags({
       console.warn('[Place] 处理失败：', err.message);
     }
 
+    // 7.2 暗号约定：[[signal:谁|暗号|地点]] —— 说了暗号，引擎真的知道该叫谁来
+    try {
+      const signalMatches = [...reply.matchAll(/\[\[signal:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+      if (signalMatches.length > 0) {
+        const wS = loadState(dataDir);
+        for (const m of signalMatches) {
+          const rawTag = m[0];
+          const who = String(m[1]).trim();
+          const code = String(m[2]).trim();
+          const placeName = String(m[3]).trim();
+          const hitActor = Object.values(wS.actors || {}).find((a) => a && (a.name === who || a.id === who));
+          const hitPlace = Object.entries(wS.places || {}).find(([id, p]) => p && (p.name === placeName
+            || String(p.name || '').endsWith(`·${placeName}`)
+            || String(p.name || '').includes(placeName) || id === placeName));
+          if (!hitActor || !hitPlace || !code) {
+            reply = reply.replace(rawTag, '');
+            continue;
+          }
+          wS.flags = wS.flags || {};
+          wS.signals = Array.isArray(wS.signals) ? wS.signals : [];
+          const dup = wS.signals.find((s) => s && s.active !== false
+            && s.actorId === hitActor.id && s.signal === code && s.placeId === hitPlace[0]);
+          if (!dup) {
+            wS.flags.signalSeq = (Number(wS.flags.signalSeq) || 0) + 1;
+            wS.signals.push({
+              id: `sig_${wS.flags.signalSeq}`,
+              actorId: hitActor.id,
+              actorName: hitActor.name,
+              signal: code,
+              placeId: hitPlace[0],
+              placeName: hitPlace[1].name,
+              day: wS.clock?.day || 1,
+              active: true,
+            });
+            wS.notes = Array.isArray(wS.notes) ? wS.notes : [];
+            wS.notes.push({ day: wS.clock?.day, hour: wS.clock?.hour, text: `与${hitActor.name}约暗号「${code}」于${hitPlace[1].name}` });
+          }
+          reply = reply.replace(rawTag, `\n（【暗号约定】${hitActor.name}：${code}，在${hitPlace[1].name}）`);
+        }
+        wS.signals = (wS.signals || []).slice(-40);
+        wS.notes = (wS.notes || []).slice(-40);
+        saveState(dataDir, wS);
+      }
+    } catch (err) {
+      console.warn('[Signal] 处理失败：', err.message);
+    }
+
     // 军规：严禁在此粗暴正则偷听文字挂待付款，付款必须由 App 客户端交互或模型显式 [[pay:...]] 触发
 
     // 7.9 募兵/买军械：说了也要确认——挂待办单，等 App 点确认才真的花钱招人

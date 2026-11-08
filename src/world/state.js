@@ -2099,6 +2099,23 @@ export function migrateOwnership(world) {
       world.flags.staffHallFixV2 = { at: Date.now(), moved, target: gateId };
     }
   } catch (e) { console.warn('[Staff] 外院归位失败：', e.message); }
+  // 翟家货栈后门：一个真实能去的地方，暗号约定才有落点
+  try {
+    const gs = world.places?.goods_shop;
+    if (gs) {
+      if (!world.places['goods_shop__backdoor']) {
+        world.places['goods_shop__backdoor'] = {
+          id: 'goods_shop__backdoor', name: '翟家货栈·后门', parent: 'goods_shop',
+          use: 'gate', access: 'public_shop', exits: ['goods_shop', 'street'],
+        };
+      }
+      gs.rooms = gs.rooms || {};
+      if (!gs.rooms.backdoor) gs.rooms.backdoor = { id: 'goods_shop__backdoor', name: '后门', use: 'gate' };
+      const exits = Array.isArray(gs.exits) ? gs.exits : ['street'];
+      if (!exits.includes('goods_shop__backdoor')) exits.push('goods_shop__backdoor');
+      gs.exits = exits;
+    }
+  } catch { /* 忽略 */ }
   // 旧风评没写 reach（早期手推的对象），补成"全城已知"，别在街面风评里显示 0 人知
   try {
     for (const r of world.rumors || []) {

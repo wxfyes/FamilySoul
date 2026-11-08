@@ -101,7 +101,7 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
       || rootOf(fromId) === rootOf(toId)
       || rootOf(fromId) === toId
       || rootOf(toId) === fromId);
-    const proxyMove = /随行|领路|同行|跟随/.test(String(note || ''))
+    const proxyMove = /随行|领路|同行|跟随|暗号/.test(String(note || ''))
       && !isHumanOnline(actorId)
       && sameVenue;
     if (!proxyMove) return { ok: false, error: '真人角色不接受世界移动（离线仅限同场所同行）' };
