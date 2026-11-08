@@ -19,6 +19,11 @@ try {
     id: 'test_tycoon', name: '史郎', role: '富商', gender: 'male', age: 42,
     home: 'street', location: 'market', origin: 'city_class', money: 400,
   };
+  w.places.test_estate = { id: 'test_estate', name: '杭州·谢府', residence: true, exits: ['street'], rooms: {} };
+  w.actors.test_gentry = {
+    id: 'test_gentry', name: '谢承泽', role: '老爷', gender: 'male', age: 48,
+    home: 'test_estate', location: 'street', origin: 'city_class', money: 400,
+  };
   saveState(dir, w);
 
   const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-citylife2-'));
@@ -31,6 +36,8 @@ try {
   assert.ok(Array.isArray(poet.goals) && poet.goals.length > 0, '才女应有心愿');
   assert.ok(Array.isArray(tycoon.schedule) && tycoon.schedule.length >= 3, '富商应有作息');
   assert.ok(Array.isArray(tycoon.goals) && tycoon.goals.length > 0, '富商应心愿');
+  assert.strictEqual(got.actors.test_gentry.location, 'test_estate', '外城大户应归回本宅');
+  assert.strictEqual(got.actors.test_gentry.household, true, '本宅家人应标 household');
   console.log('✅ 心愿与作息已落，到点会自己走动');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });

@@ -9,6 +9,8 @@
  * 不点名、不钦定，谁和谁遇见由作息与地点自己碰出来。
  */
 
+import { moveActor } from './position.js';
+
 const GOALS = {
   富商: ['做成一笔大买卖', '摸清城里的行情', '给自家字号扬名'],
   才女: ['寻一个真懂诗的人', '攒钱刻自己的集子', '看看城外的山水'],
@@ -86,9 +88,17 @@ function scheduleOf(world, a) {
 
 export function ensureCityLife(world) {
   let made = 0;
+  let homed = 0;
   for (const a of Object.values(world?.actors || {})) {
-    if (!a || a.dead || a.id === 'husband' || a.servant) continue;
+    if (!a || a.dead || a.id === 'husband') continue;
     if (a.origin !== 'city_class' && !ROLE_KEYS.some((k) => String(a.role || '').includes(k))) continue;
+    // 城郊大户被历史漂移堆到临江长街的，先归回本城本宅
+    const home = world.places?.[a.home];
+    if (a.origin === 'city_class' && home && a.home !== 'street' && a.location === 'street' && !a.cityLifeHomed) {
+      if (/老爷|夫人|公子|小姐|丫鬟|家丁|护院/.test(String(a.role || '')) && home.residence) a.household = true;
+      const mv = moveActor(world, a.id, a.home, 'world', '归家');
+      if (mv?.ok) { a.cityLifeHomed = true; homed += 1; }
+    }
     let changed = false;
     if (!Array.isArray(a.goals) || a.goals.length === 0) {
       const goals = goalsOf(a.role);
@@ -100,6 +110,6 @@ export function ensureCityLife(world) {
     }
     if (changed) made += 1;
   }
-  if (made) console.log(`[CityLife] 给 ${made} 个城中人补上心愿与作息（本地规则，不耗模型）`);
-  return made;
+  if (made || homed) console.log(`[CityLife] 给 ${made} 个城中人补上心愿与作息，${homed} 人归回本城本宅（本地规则，不耗模型）`);
+  return made + homed;
 }
