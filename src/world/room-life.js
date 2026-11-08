@@ -184,6 +184,9 @@ export function roomForHour(world, actor, hour) {
   if (!routine.length) return null;
   // 内眷不按钟点搬：她去哪由天道（大模型）按心事/差事决定
   if (actor.household) return null;
+  // 只有背景人群与当差下人按钟点走（城里要有潮汐）；有名有姓的剧情人物一律交给天道
+  const isBackground = actor.origin === 'city_base' || actor.servant === true || /^(staff_|maid_)/.test(String(actor.id || ''));
+  if (!isBackground) return null;
 
   // 门房当值：白天守大门，夜里回下房
   if (actor?.duty?.post === 'gate') {
