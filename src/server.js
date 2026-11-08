@@ -4498,25 +4498,29 @@ const STARTED_AT = Date.now();
         if (isEscortIntent) {
           const wEsc = loadState(DATA_DIR);
           const meEsc = wEsc.actors?.[String(currentMember.actor || 'husband')] || wEsc.actors?.husband;
-          let partner = null;
-          const hist = petService.readHistory(currentMember.memberKey)?.messages || [];
-          for (let k = hist.length - 1; k >= 0; k--) {
-            if (hist[k].role === 'user') continue;
-            const m = String(hist[k].text || '').match(/【([^】\n]{1,16})】/);
-            if (m) {
+          const pickPartner = (t) => {
+            const text = String(t || '');
+            if (!text) return null;
+            const actors = Object.values(wEsc.actors || {}).filter((a) => a && !a.dead && a.id !== meEsc.id);
+            // 1) 相公话里点了谁/称呼了谁（名字、老板娘、掌柜……）
+            const named = actors.find((a) => (a.name && text.includes(a.name))
+              || (a.role && text.includes(a.role))
+              || (/老板娘/.test(text) && /老板娘/.test(String(a.role || '')))
+              || (/掌柜|东家/.test(text) && /掌柜|东家/.test(String(a.role || ''))));
+            if (named) return named;
+            // 2) 上一句是谁说的
+            const hist = petService.readHistory(currentMember.memberKey)?.messages || [];
+            for (let k = hist.length - 1; k >= 0; k--) {
+              if (hist[k].role === 'user') continue;
+              const m = String(hist[k].text || '').match(/【([^】\n]{1,16})】/);
+              if (!m) continue;
               const base = m[1].includes('·') ? m[1].split('·').pop().trim() : m[1].trim();
-              const a = Object.values(wEsc.actors || {}).find((x) => x && !x.dead && x.name === base);
-              if (a && a.id !== meEsc.id) { partner = a; break; }
+              const a = actors.find((x) => x.name === base);
+              if (a) return a;
             }
-          }
-          if (!partner && result.reply?.text) {
-            const m = String(result.reply.text).match(/【([^】\n]{1,16})】/);
-            if (m) {
-              const base = m[1].includes('·') ? m[1].split('·').pop().trim() : m[1].trim();
-              const a = Object.values(wEsc.actors || {}).find((x) => x && !x.dead && x.name === base);
-              if (a && a.id !== meEsc.id) partner = a;
-            }
-          }
+            return null;
+          };
+          let partner = pickPartner(sayText) || pickPartner(result.reply?.text);
 
           if (partner) {
             let targetRoomId = null;

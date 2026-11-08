@@ -2,9 +2,9 @@
   "meta": {
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
-    "seedHash": "175bbec7d93f",
-    "caseCount": 21,
-    "recordedAt": "2026-11-08T05:56:09.294Z"
+    "seedHash": "f161be1368fe",
+    "caseCount": 22,
+    "recordedAt": "2026-11-08T08:19:27.678Z"
   },
   "cases": [
     {
@@ -384,6 +384,30 @@
       "speakers": [
         "府中",
         "丫鬟·小翠"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_west",
+        "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
+        "silver": 14423849.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
+      }
+    },
+    {
+      "id": "give-not-name",
+      "input": "不是要给我泡茶喝嘛。",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“是，妾身这就去沏茶。”",
+      "speakers": [
+        "正妻·婉儿"
       ],
       "state": {
         "husband": "husband_room",

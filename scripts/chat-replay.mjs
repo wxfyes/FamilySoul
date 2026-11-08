@@ -83,6 +83,12 @@ const CASES = [
   { id: 'withdraw-silver', input: '取二十两银子来。', llm: '【沈婉儿】：“妾身这就去取。”' },
   { id: 'call-xiaocui', input: '小翠，沏壶茶来。', llm: '【小翠】：“奴婢这就去。”' },
   {
+    // "给我泡茶"是吩咐做事，不能把"我泡茶"当成人名去找
+    id: 'give-not-name',
+    input: '不是要给我泡茶喝嘛。',
+    llm: '【正妻·婉儿】：“是，妾身这就去沏茶。”',
+  },
+  {
     id: 'recruit-guards',
     input: '让婉儿去招两个护院。',
     llm: '【正妻·婉儿】：“是，相公，妾身这就吩咐管事去办。”',

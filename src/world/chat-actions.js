@@ -218,10 +218,13 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 给东西：给/赏/送 某人 某物
+  // 给东西：给/赏/送 某人 某物（"给我泡茶"是吩咐做事，不是把人名当收件人）
   {
     const mGive = /(?:给|赏|送|递)\s*([\u4e00-\u9fa5]{2,4})\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
-    if (mGive) {
+    const giveRecipient = mGive ? String(mGive[1]) : '';
+    const notARecipient = /^(?:我|你|您|他|她|它|咱|俺|我们|你们|他们|咱们)/.test(giveRecipient)
+      || /[泡倒斟烧做拿端递洗煮切]/.test(giveRecipient);
+    if (mGive && !notARecipient) {
       const who = findByName(world, mGive[1]);
       if (!who) {
         notices.push(`（没找到「${mGive[1]}」这个人。）`);
