@@ -128,29 +128,38 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 叫护院家丁（当差的）：从宅里各处提到议事厅
-  const isSummonQuestionOrChat = /(吗|呢|吧|？|\?|听说|有人来|怎么|为何|不见|查查)/.test(say);
-  if (!isSummonQuestionOrChat && /(护院|家丁|当差|当值|门房)/.test(say) && /(叫|传|提)[^。！？\n]{0,6}(进来|过来|上前|上厅|候令|答话)|(叫|唤|传|提)(护院|家丁|门房)/.test(say)) {
-    const hall = hallOf(world);
+  // 叫护院家丁（当差的）：从门房/宅里提到跟前/议事厅
+  const isSummonQuestionOrChat = /(不|别|莫|休|未|否|慢|暂|再议|以后|先不|免|算了吧|用不着|不用|吗|呢|吧|？|\?|听说|问问|怎么|为何|不见|查查)/.test(say);
+  const mStaff = /(?:进来|叫|唤|传|提|叫来|唤来|吩咐|命|来)\s*(\d+|[一二两三四五六七八九十]+)?\s*(?:个|位|名)?\s*(护院|家丁|门房|小厮)|(?:护院|家丁|门房|小厮)[^。！？\n]{0,6}(?:进来|过来|上前|上厅|候令|答话)/.exec(say);
+  if (!isSummonQuestionOrChat && mStaff) {
+    const wantCount = mStaff[1] ? cn2num(mStaff[1]) : 2;
+    const isRetainer = /护院/.test(say);
+    const targetPlace = me.location;
     const hereName = String(world.places?.[me.location]?.name || '');
-    const estate = hereName.includes('·') ? hereName.split('·').slice(0, 2).join('·') : '';
-    // 只提当值的这一班：最多 8 人，其余照旧守各处
+    const estate = hereName.includes('·') ? hereName.split('·').slice(0, 2).join('·') : '临江·王宅';
+
+    // 提当值的这一班：按相公吩咐的数量传唤
     const candidates = Object.values(world.actors || {}).filter((a) => {
       if (!a || a.dead || a.id === me.id) return false;
       if (!isOuterStaff(a)) return false;
-      if (a.location === hall) return false;
+      if (a.location === targetPlace) return false;
+      if (isRetainer && !/护院/.test(String(a.role || ''))) return false;
       const pn = String(world.places?.[a.location]?.name || '');
       const hn = String(world.places?.[a.home]?.name || '');
-      return pn.startsWith(estate) || hn.startsWith(estate);
-    }).slice(0, 8);
+      return pn.startsWith(estate) || hn.startsWith(estate) || a.location === 'husband_room__gate';
+    }).slice(0, Math.max(1, Math.min(8, wantCount)));
+
     const names = [];
     for (const a of candidates) {
-      const mv = hall ? moveActor(world, a.id, hall, 'world', '厅上候令') : { ok: false };
+      const mv = moveActor(world, a.id, targetPlace, 'world', '厅上候令');
       if (mv?.ok) names.push(a.name);
     }
-    notices.push(names.length
-      ? `${names.join('、')}共 ${names.length} 人到了议事厅候令（其余照旧守各处）。`
-      : '（宅里此刻没有当差的护院家丁。）');
+    if (names.length) {
+      const pName = world.places?.[targetPlace]?.name || '厅上';
+      notices.push(`${names.join('、')}躬身快步进了${pName}候令。`);
+    } else {
+      notices.push('（门房眼下没有空闲当差的护院家丁。）');
+    }
   }
 
   // 叫人来（单人 / 都来）
