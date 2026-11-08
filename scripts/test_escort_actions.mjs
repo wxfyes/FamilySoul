@@ -21,6 +21,16 @@ try {
   assert.strictEqual(w.actors.husband.location, 'goods_shop__office', '相公应在清静账房');
   assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop__office', '采云必须同行');
   console.log('✅ 两人一起进了清静账房');
+
+  // 真人角色不能被天道带着走：明确提示，不许硬搬
+  w.actors.husband.location = 'goods_shop';
+  w.actors.yangcaiyun.location = 'goods_shop';
+  w.actors.yangcaiyun.humanBound = true;
+  const n2 = applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去喝茶，老板娘' });
+  assert.ok(n2.some((n) => n.includes('真人角色')), '应提示她是真人角色');
+  assert.strictEqual(w.actors.husband.location, 'goods_shop', '相公不得被单独搬走');
+  assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop', '真人角色不得被搬动');
+  console.log('✅ 真人角色只提示、不硬搬');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }

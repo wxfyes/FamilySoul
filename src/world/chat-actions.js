@@ -197,11 +197,17 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     const here = Object.values(world.actors || {}).filter(
       (a) => a && !a.dead && a.id !== me.id && a.location === me.location,
     );
-    const partner = here.find((a) => a.name && say.includes(a.name))
+    let partner = here.find((a) => a.name && say.includes(a.name))
       || here.find((a) => (/老板娘/.test(say) && /老板娘/.test(String(a.role || '')))
         || (/掌柜|东家/.test(say) && /掌柜|东家/.test(String(a.role || ''))))
       || here.find((a) => !a.servant)
       || here[0];
+    // 真人角色只能自己动，天道不能替她搬家
+    if (partner && (partner.humanBound
+      || (Array.isArray(world.flags?.humanActors) && world.flags.humanActors.includes(partner.id)))) {
+      notices.push(`（${partner.name}是真人角色，不能由天道带着走；请她自己动身，或在后台解绑后再领路。）`);
+      partner = null;
+    }
     if (partner) {
       let target = null;
       let label = '';
