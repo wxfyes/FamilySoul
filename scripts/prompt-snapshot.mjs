@@ -28,11 +28,17 @@ function prepare() {
     const src = path.join(ROOT, 'data', 'world', f);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dir, 'world', f));
   }
-  // 固定世界时钟：只比提示词装配，不比"今天几点"
+  // 固定世界时钟与"府中"三人的位置，避免开发种子世界漂移导致快照误报
   try {
     const sf = path.join(dir, 'world', 'state.json');
     const w = JSON.parse(fs.readFileSync(sf, 'utf8'));
     w.clock = { ...(w.clock || {}), day: 600, hour: 0 };
+    for (const [id, loc] of [['waner', 'husband_room'], ['yunnia', 'husband_room'], ['xiaocui', 'husband_room']]) {
+      if (w.actors?.[id]) {
+        w.actors[id].location = loc;
+        if (!w.actors[id].home) w.actors[id].home = loc;
+      }
+    }
     fs.writeFileSync(sf, JSON.stringify(w));
   } catch { /* 忽略 */ }
   return dir;
