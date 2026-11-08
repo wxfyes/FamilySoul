@@ -53,7 +53,9 @@ function normalize(text) {
     // 真实系统时间会变"时辰"（子时/丑时…），只比装配内容，不比此刻几点
     .replace(/传统[子丑寅卯辰巳午未申酉戌亥]时/g, '传统<SHICHEN>')
     // "属于上午辰巳，日光融融，当下时令气候：…" 也是随时钟变的描述，整段掩掉
-    .replace(/（属于[^）]*）/g, '（属于<TIMECTX>）');
+    .replace(/（属于[^）]*）/g, '（属于<TIMECTX>）')
+    // 末尾多一个换行/空格不算提示词变化
+    .trim();
 }
 
 const SCENARIOS = [
@@ -115,7 +117,8 @@ if (mode === '--record') {
   const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
   const diffs = [];
   for (const id of Object.keys(base)) {
-    if (JSON.stringify(base[id]) !== JSON.stringify(current[id])) {
+    // 只比归一后的正文；length 是原始长度，末尾空白变化不算提示词变化
+    if (JSON.stringify(base[id]?.text) !== JSON.stringify(current[id]?.text)) {
       diffs.push({ id, base: base[id], now: current[id] });
     }
   }
