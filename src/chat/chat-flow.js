@@ -891,20 +891,23 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       }
 
       const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
-      const isHusbandInHome = HOME_MANSION.includes(hereP);
+      const isHusbandInHome = HOME_MANSION.includes(hereP)
+        || String(hereP || '').includes('wang_mansion')
+        || String(wP.places?.[hereP]?.name || '').includes('王宅');
 
       const allowed = Object.values(wP.actors || {})
         .filter((a) => {
           if (!a || !a.name || a.dead || a.id === 'husband') return false;
           if (a.location === hereP) return true;
-          // 主宅内院（正房、暖阁、茶坊）同属一家，相公在府内时妻妾仆从随时应声侍奉
-          if (isHusbandInHome && a.household && HOME_MANSION.includes(a.location)) return true;
+          // 主宅内院（正房、暖阁、茶坊、议事厅等王宅各处）同属一家，相公在府内时妻妾仆从随时应声侍奉
+          if (isHusbandInHome && a.household) return true;
           return false;
         })
         .flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name, a.label].filter(Boolean));
       // 相公本轮明确要请/叫的人，也放行
       for (const n of summonedNames) allowed.push(n);
-      if (partnerName && (isHusbandInHome || allowed.some((x) => partnerName.includes(x)))) allowed.push(partnerName);
+      // 上一轮对话对象（包含异地递信请示）放行，确保能承接相公的批复与回话
+      if (partnerName) allowed.push(partnerName);
       const res = svc.enforcePresence(reply, allowed);
       if (res.dropped.length > 0) {
         console.log(`[Scene] 已掐掉不在场的段落：${[...new Set(res.dropped)].join('、')}`);

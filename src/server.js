@@ -3588,6 +3588,8 @@ const STARTED_AT = Date.now();
         const world = loadState(DATA_DIR);
         const speaker = body.speaker || '老板娘·紫嫣';
         const text = body.text || '【老板娘·紫嫣】：相公，于家酒肆刚起了一坛桂花新酿，妾身特差小二给相公送去府上了。这几日城南酒肆都在打听咱们运河大酒楼的存酒呢，相公何时得空过来坐坐？';
+        const place = body.place || null;
+        const isLetter = body.isLetter !== undefined ? Boolean(body.isLetter) : Boolean(place);
         let audioKey = null;
         try {
           if (ttsService) {
@@ -3604,6 +3606,8 @@ const STARTED_AT = Date.now();
           type: 'proactive',
           to: 'husband',
           speaker,
+          place,
+          isLetter,
           text,
           fallback: text,
           audioKey,
@@ -4378,6 +4382,16 @@ const STARTED_AT = Date.now();
         const txt = String(result?.reply?.text || '');
         const wOut = loadState(DATA_DIR);
         const meId = currentMember.actor || 'husband';
+        let lastAssistantSpeaker = null;
+        try {
+          const hh = petService.readHistory(currentMember.memberKey)?.messages || [];
+          for (let k = hh.length - 1; k >= 0; k--) {
+            if (hh[k].role === 'user') continue;
+            const mm = String(hh[k].text || '').match(/^【([^】\n]{1,16})】/);
+            if (mm) { lastAssistantSpeaker = mm[1].trim(); break; }
+          }
+        } catch {}
+
         const segs = txt.split(/(?=【[^】\n]{1,12}】)/).filter(Boolean);
         const kept = [];
         const dropped = [];
@@ -4390,11 +4404,12 @@ const STARTED_AT = Date.now();
             continue;
           }
           const spk = m[1].trim();
-          // 服务端出口铁律：只在当前地点的人能开口（本人除外）
+          // 服务端出口铁律：只在当前地点的人能开口（本人除外）；但若上一轮为异地递信/请示，允许领命回执
           const baseName = spk.includes('·') ? spk.split('·').pop().trim() : spk;
           const meNow = wOut.actors?.[meId];
+          const isLetterPartner = lastAssistantSpeaker && (lastAssistantSpeaker.includes(baseName) || baseName.includes(lastAssistantSpeaker) || lastAssistantSpeaker.includes(spk) || spk.includes(lastAssistantSpeaker));
           const who = Object.values(wOut.actors || {}).find((a) => a && !a.dead && a.name === baseName);
-          if (who && who.id !== meId && who.location !== meNow?.location) {
+          if (who && who.id !== meId && who.location !== meNow?.location && !isLetterPartner) {
             console.log(`[Presence:出口] 剔除非在场发言：${spk}`);
             dropped.push(String(seg).replace(/^【[^】\n]{1,12}】/, '').trim());
             continue;
@@ -4410,8 +4425,11 @@ const STARTED_AT = Date.now();
         merged = merged.replace(/[（(]\s*$/g, '').replace(/\n{3,}/g, '\n\n').trim();
         // 引擎标签绝不能漏到戏里给相公看（[[spawn:柳婶|…]] 这类）
         merged = merged.replace(/\[\[[^\]\n]{1,60}\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
-        // 全被剔掉：把话留下、把人名去掉，改成旁白，绝不给他挂错名
-        if (!merged && dropped.length) merged = dropped.join(' ').replace(/^[：:]+/, '').trim();
+        // 全被剔掉：把话留下、把人名去掉，改成旁白，绝不可裸露无标签（防止客户端误标为"娘子"）
+        if (!merged && dropped.length) {
+          const content = dropped.join(' ').replace(/^[：:]+/, '').trim();
+          merged = content.startsWith('【') ? content : `【旁白】：${content}`;
+        }
         if (merged && merged !== txt) result.reply.text = merged;
         // 给客户端留的接口：把【提示】单独抽出来，App 可渲染成系统提示样式
         try {
