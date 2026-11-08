@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
+import 'roster_screen.dart';
 
 /// 我的世界：只显示"我自己"那一份
 /// —— 今夕何年、我在哪、我的家底、今日待办、线索、我的难关
@@ -223,6 +224,45 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
               return h.isNotEmpty ? h : '临江·王宅·正房';
             }()),
           ],
+        ),
+      ),
+
+      // 城中世情名录入口
+      _sectionTitle('世情羁绊'),
+      _cardShell(
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RosterScreen(api: widget.api)),
+            );
+          },
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF2E1065),
+                ),
+                child: const Icon(Icons.favorite_rounded, color: Color(0xFFF472B6), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('城中世情志 · 人物好感名录',
+                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 2),
+                    Text('分地区查阅全城人物 · 信任欲望怨怼心性与态度评语',
+                        style: TextStyle(color: _muted, fontSize: 11.5)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: _muted, size: 14),
+            ],
+          ),
         ),
       ),
 

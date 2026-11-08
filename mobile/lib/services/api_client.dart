@@ -59,6 +59,17 @@ class SurfCoreApiClient {
     return const [];
   }
 
+  /// 全城人物名录与好感羁绊（含城市分类、心性条、态度评语）
+  Future<Map<String, dynamic>?> fetchRelationships() async {
+    try {
+      final res = await _dio.get('/world/relationships', queryParameters: {'token': config.token.trim()});
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return res.data as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// 检查服务连通性与健康状态
   Future<bool> checkHealth() async {
     for (var attempt = 0; attempt < 2; attempt++) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
+import 'roster_screen.dart';
 
 /// 出门 · 找人 · 赴约 —— 现代国风微质感交互抽屉
 /// 彻底告别密密麻麻长列表：常驻快捷磁贴 + 圈子标签秒切 + 真实街市烟火标注
@@ -281,7 +282,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                   title: '去大酒楼',
                   subtitle: '运河三层',
                   color: const Color(0xFFFBBF24),
-                  onTap: () => _run(() => _goTo('运河码头三层大酒楼'), '（你来到运河大酒楼巡视。）'),
+                  onTap: _showRestaurantFloorPicker,
                 ),
                 _quickTile(
                   icon: Icons.local_cafe_rounded,
@@ -407,6 +408,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
         for (final h in homes) {
           final name = (h['name'] ?? '').toString();
           final income = h['income'] ?? 0;
+          final rooms = (h['rooms'] as List?)?.cast<Map>() ?? const [];
           list.add(_placeCard(
             name: name,
             subtitle: '日入 $income 两',
@@ -415,6 +417,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
             badgeColor: const Color(0xFFFBBF24),
             actionText: '过去',
             onTap: () => _run(() => _goTo(name), '（你走到了「$name」。）'),
+            subRooms: rooms,
           ));
         }
       }
@@ -483,6 +486,83 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     return Icons.location_on_rounded;
   }
 
+  void _showRestaurantFloorPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF171A21),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final floors = [
+          {'name': '一层大堂', 'desc': '一楼迎宾散座，青石铺地，伙计穿梭跑堂', 'icon': Icons.store_rounded},
+          {'name': '二层雅阁', 'desc': '临河雅座，茶香酒暖，过往客商饮酒议事', 'icon': Icons.table_restaurant_rounded},
+          {'name': '三层天字阁', 'desc': '至尊包席雅间，朱漆雕栏，饱览运河千帆', 'icon': Icons.stars_rounded},
+          {'name': '清幽雅间', 'desc': '独立清幽小筑，隔音极佳，专供拉人密谈私会', 'icon': Icons.meeting_room_rounded},
+          {'name': '内账房', 'desc': '清点银钱重地，周账房常年在此核对流水', 'icon': Icons.calculate_rounded},
+        ];
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('运河码头三层大酒楼 · 雅阁与单间', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text('整座三层酒楼皆为东家私产，请选定欲前往之雅阁单间：', style: TextStyle(color: Colors.white38, fontSize: 11.5)),
+                const SizedBox(height: 10),
+                ...floors.map((f) => InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    final fullName = '运河码头三层大酒楼·${f['name']}';
+                    _run(() => _goTo(fullName), '（你来到运河大酒楼「${f['name']}」。）');
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(f['icon'] as IconData, size: 20, color: const Color(0xFFFBBF24)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(f['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 2),
+                              Text(f['desc'] as String, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.white24),
+                      ],
+                    ),
+                  ),
+                )),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _placeCard({
     required String name,
     required String subtitle,
@@ -492,6 +572,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     bool hasPeople = false,
     required String actionText,
     required VoidCallback onTap,
+    List<Map> subRooms = const [],
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -503,76 +584,119 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
           color: hasPeople ? const Color(0xFFF59E0B).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: (hasPeople ? const Color(0xFFF59E0B) : const Color(0xFF8B5CF6)).withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 18, color: hasPeople ? const Color(0xFFFBBF24) : const Color(0xFFA78BFA)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (hasPeople ? const Color(0xFFF59E0B) : const Color(0xFF8B5CF6)).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: hasPeople ? const Color(0xFFFBBF24) : const Color(0xFFA78BFA)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: const TextStyle(fontSize: 13.5, color: Colors.white, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(fontSize: 13.5, color: Colors.white, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: (badgeColor ?? const Color(0xFF8B5CF6)).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              badge,
+                              style: TextStyle(fontSize: 10, color: badgeColor ?? const Color(0xFFDDD6FE)),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (badge != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: (badgeColor ?? const Color(0xFF8B5CF6)).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          badge,
-                          style: TextStyle(fontSize: 10, color: badgeColor ?? const Color(0xFFDDD6FE)),
-                        ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: hasPeople ? const Color(0xFFFBBF24) : Colors.white38,
+                        fontWeight: hasPeople ? FontWeight.w500 : FontWeight.normal,
                       ),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: hasPeople ? const Color(0xFFFBBF24) : Colors.white38,
-                    fontWeight: hasPeople ? FontWeight.w500 : FontWeight.normal,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+              ),
+              InkWell(
+                onTap: onTap,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.4)),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    actionText,
+                    style: const TextStyle(color: Color(0xFFDDD6FE), fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
-              child: Text(
-                actionText,
-                style: const TextStyle(color: Color(0xFFDDD6FE), fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
+            ],
           ),
+
+          // 如果该产业旗下有各个雅间、楼层、单间，直接呈现药丸直达条
+          if (subRooms.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            const Divider(height: 1, color: Colors.white10),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 5,
+              children: subRooms.map((r) {
+                final rName = (r['name'] ?? '').toString();
+                final fullTarget = '$name·$rName';
+                return InkWell(
+                  onTap: () => _run(() => _goTo(fullTarget), '（你来到$name「$rName」。）'),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E1065).withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.meeting_room_outlined, size: 11, color: Color(0xFFA78BFA)),
+                        const SizedBox(width: 4),
+                        Text(
+                          rName,
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFDDD6FE)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -617,6 +741,69 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
           ),
           const SizedBox(height: 12),
         ],
+
+        // 查阅城中人物名录与好感羁绊入口
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RosterScreen(
+                    api: widget.api,
+                    onActionMessage: (msg) {
+                      _run(() async => true, msg);
+                    },
+                  ),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF6D28D9).withValues(alpha: 0.35),
+                    const Color(0xFF1E1B4B).withValues(alpha: 0.5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.people_alt_rounded, size: 16, color: Color(0xFFDDD6FE)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '城中世情志 · 人物好感名录',
+                          style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          '按府县查阅全城人物 · 信任欲望怨怼心性与态度评语',
+                          style: TextStyle(fontSize: 10.5, color: Color(0xFFC4B5FD)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFFA78BFA)),
+                ],
+              ),
+            ),
+          ),
+        ),
 
         // 圈子分类胶囊
         SingleChildScrollView(

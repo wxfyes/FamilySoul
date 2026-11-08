@@ -15,6 +15,7 @@ import '../widgets/message_bubble.dart';
 import 'settings_screen.dart';
 import 'my_world_screen.dart';
 import 'out_and_about_sheet.dart';
+import 'roster_screen.dart';
 import 'army_sheet.dart';
 import 'video_call_screen.dart';
 import 'assistant_view.dart';
@@ -1548,6 +1549,26 @@ class _ChatScreenState extends State<ChatScreen> {
                     );
                   },
                 ),
+                const SizedBox(width: 8),
+                _buildTopQuickChip(
+                  icon: Icons.favorite_rounded,
+                  label: '世情好感',
+                  isDark: isDark,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => RosterScreen(
+                          api: provider.api,
+                          onActionMessage: (msg) {
+                            _refreshPlace();
+                          },
+                        ),
+                        fullscreenDialog: true,
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1965,6 +1986,23 @@ class _ChatScreenState extends State<ChatScreen> {
                     Navigator.pop(ctx);
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
+                    );
+                  },
+                ),
+                tile(
+                  icon: Icons.favorite_rounded, label: '世情好感', color: const Color(0xFFEC4899),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => RosterScreen(
+                          api: provider.api,
+                          onActionMessage: (msg) {
+                            _refreshPlace();
+                          },
+                        ),
+                        fullscreenDialog: true,
+                      ),
                     );
                   },
                 ),

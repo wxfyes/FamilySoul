@@ -302,7 +302,7 @@ export function healWorld(world) {
       restPlace.use = 'restaurant';
       restPlace.access = 'public_shop';
 
-      // 2. 真实实例化三层天字阁与二层雅阁物理房间
+      // 2. 真实实例化三层天字阁、二层雅阁、清幽雅间与内账房物理房间
       const f3Id = `${restPlaceId}__f3`;
       if (!world.places[f3Id]) {
         world.places[f3Id] = {
@@ -313,7 +313,7 @@ export function healWorld(world) {
           use: 'shop_floor',
           access: 'public_shop',
           desc: '三层最顶格至尊包席雅间，朱漆雕栏、红木八仙桌，凭窗饱览千里运河千帆竞渡，乃扬州盐商汪总商包席办寿宴之要所。',
-          exits: [restPlaceId],
+          exits: [restPlaceId, `${restPlaceId}__f2`],
         };
         fixes.push(`生成真实房间实体：${world.places[f3Id].name}`);
       }
@@ -328,9 +328,39 @@ export function healWorld(world) {
           use: 'shop_floor',
           access: 'public_shop',
           desc: '酒楼二层临河雅座，茶香酒暖，常有两淮过往客商在此饮酒议事。',
-          exits: [restPlaceId],
+          exits: [restPlaceId, `${restPlaceId}__f1`, f3Id],
         };
         fixes.push(`生成真实房间实体：${world.places[f2Id].name}`);
+      }
+
+      const privateId = `${restPlaceId}__private`;
+      if (!world.places[privateId]) {
+        world.places[privateId] = {
+          id: privateId,
+          name: '运河码头三层大酒楼·清幽雅间',
+          parent: restPlaceId,
+          floor: 2,
+          use: 'shop_floor',
+          access: 'public_shop',
+          desc: '酒楼二层深处独立清幽小筑，隔音极佳，珠帘半卷，焚有沉香，乃东家私会红颜、拉人单独密谈商道机要之雅间单间。',
+          exits: [restPlaceId, f2Id],
+        };
+        fixes.push(`生成真实房间实体：${world.places[privateId].name}`);
+      }
+
+      const officeId = `${restPlaceId}__office`;
+      if (!world.places[officeId]) {
+        world.places[officeId] = {
+          id: officeId,
+          name: '运河码头三层大酒楼·内账房',
+          parent: restPlaceId,
+          floor: 1,
+          use: 'shop_floor',
+          access: 'public_shop',
+          desc: '大酒楼一层内进账房重地，设红木算盘与账簿柜架，周账房常年在此核对席面银钱流水。',
+          exits: [restPlaceId],
+        };
+        fixes.push(`生成真实房间实体：${world.places[officeId].name}`);
       }
 
       const f1Id = `${restPlaceId}__f1`;
@@ -343,15 +373,33 @@ export function healWorld(world) {
           use: 'shop_floor',
           access: 'public_shop',
           desc: '一楼迎宾散座与柜台账房，青石铺地，伙计穿梭跑堂，热气腾腾。',
-          exits: [restPlaceId, 'dock'],
+          exits: [restPlaceId, 'dock', f2Id, officeId],
         };
         fixes.push(`生成真实房间实体：${world.places[f1Id].name}`);
       }
+
+      // 确保父建筑 exits 包含所有楼层与单间
+      restPlace.exits = Array.isArray(restPlace.exits) ? restPlace.exits : [];
+      for (const eid of ['dock', f1Id, f2Id, f3Id, privateId, officeId]) {
+        if (!restPlace.exits.includes(eid)) restPlace.exits.push(eid);
+      }
+
+      // 确保子房间 exits 互相连通
+      if (world.places[f1Id] && !world.places[f1Id].exits.includes(f2Id)) world.places[f1Id].exits.push(f2Id);
+      if (world.places[f2Id]) {
+        if (!world.places[f2Id].exits.includes(f1Id)) world.places[f2Id].exits.push(f1Id);
+        if (!world.places[f2Id].exits.includes(f3Id)) world.places[f2Id].exits.push(f3Id);
+        if (!world.places[f2Id].exits.includes(privateId)) world.places[f2Id].exits.push(privateId);
+      }
+      if (world.places[f3Id] && !world.places[f3Id].exits.includes(f2Id)) world.places[f3Id].exits.push(f2Id);
+      if (world.places[privateId] && !world.places[privateId].exits.includes(f2Id)) world.places[privateId].exits.push(f2Id);
 
       restPlace.rooms = restPlace.rooms || {};
       restPlace.rooms.f1 = { id: f1Id, name: '一层大堂', floor: 1, use: 'shop_floor', access: 'public_shop' };
       restPlace.rooms.f2 = { id: f2Id, name: '二层雅阁', floor: 2, use: 'shop_floor', access: 'public_shop' };
       restPlace.rooms.f3 = { id: f3Id, name: '三层天字阁', floor: 3, use: 'shop_floor', access: 'public_shop' };
+      restPlace.rooms.private = { id: privateId, name: '清幽雅间', floor: 2, use: 'shop_floor', access: 'public_shop' };
+      restPlace.rooms.office = { id: officeId, name: '内账房', floor: 1, use: 'shop_floor', access: 'public_shop' };
 
       // 3. 真实落地：账房先生（周有财）与扬州盐帮汪总商（汪德润）
       let hasAccountant = Object.values(world.actors).some(
