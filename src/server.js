@@ -35,7 +35,7 @@ import { ensureCities, ensureCourt, ensureTerrain, seedPersonalMoney, loadState 
 import { applyAction } from './world/apply.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
-import { moveActor } from './world/position.js';
+import { moveActor, isHumanBound } from './world/position.js';
 import { markHumanSeen } from './world/presence.js';
 import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
@@ -1587,6 +1587,20 @@ const STARTED_AT = Date.now();
         if (!her || her.dead) return sendJson(res, 404, { ok: false, error: '没有这个人' });
         if (id === 'husband' && actorId !== 'husband') {
           return sendJson(res, 200, { ok: false, error: '相公是真人，得你自己过去找他' });
+        }
+        // 真人角色可找不可召：找人=玩家走过去，不把她搬过来
+        if (isHumanBound(world, id)) {
+          const dest = her.location;
+          if (!dest || !world.places?.[dest]) {
+            return sendJson(res, 200, { ok: false, error: '她此刻行踪不明，找不着' });
+          }
+          const mv = moveActor(world, actorId, dest, 'ui', '去寻访');
+          saveState(DATA_DIR, world);
+          const destName = world.places?.[dest]?.name || dest;
+          return sendJson(res, 200, {
+            ok: true, applied: Boolean(mv?.ok), found: true, place: destName,
+            line: `（你到了「${destName}」。）`,
+          });
         }
         const hereName = world.places?.[me?.location]?.name || '';
         const intent = {
