@@ -2,9 +2,9 @@
   "meta": {
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
-    "seedHash": "631af59b2a18",
+    "seedHash": "175bbec7d93f",
     "caseCount": 21,
-    "recordedAt": "2026-11-08T03:04:57.288Z"
+    "recordedAt": "2026-11-08T05:48:24.524Z"
   },
   "cases": [
     {
@@ -430,15 +430,16 @@
       "input": "婉儿，去西厢把账本取来。",
       "ok": true,
       "error": "",
-      "reply": "【正妻·婉儿】：“是，妾身这就去西厢取。”\n（【沈婉儿去了临江·王宅·西厢房】）",
+      "reply": "【提示】小翠躬身告辞，各自退了出去。【正妻·婉儿】：“是，妾身这就去西厢取。”\n（【沈婉儿去了临江·王宅·西厢房】）",
       "speakers": [
+        "提示",
         "正妻·婉儿"
       ],
       "state": {
         "husband": "husband_room",
         "waner": "wang_mansion_west",
         "yunnia": "wang_mansion_west",
-        "xiaocui": "husband_room",
+        "xiaocui": "wang_mansion_west",
         "wanning": "wang_mansion_east",
         "silver": 14423849.29,
         "bandits": 3,
