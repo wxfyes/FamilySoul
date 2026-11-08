@@ -214,6 +214,22 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       } else if (/王宅|正房/.test(String(world.places?.[me.location]?.name || ''))) {
         target = 'husband_room__study';
         label = '临江·王宅·书斋';
+      } else {
+        // 通用场所：任何有院子的铺/栈/宅/店，优先找现成雅间，没有就现开一间
+        const cur = world.places?.[me.location];
+        const rootId = String(cur?.parent || me.location);
+        const root = world.places?.[rootId];
+        if (root && /货栈|酒楼|茶坊|客栈|宅|府|院|铺|店|楼/.test(String(root.name || ''))) {
+          const child = Object.entries(world.places || {}).find(([id, p]) => p && p.parent === rootId
+            && id !== me.location && /雅间|账房|书斋|内室|后堂|暖阁|雅阁/.test(String(p.name || '')));
+          target = child ? child[0] : `${rootId}__parlor`;
+          label = child ? String(child[1].name) : `${root.name}·雅间`;
+          if (!world.places[target]) {
+            world.places[target] = {
+              id: target, name: label, parent: rootId, use: 'room', access: 'private', exits: [rootId],
+            };
+          }
+        }
       }
       if (target) {
         if (!world.places[target]) {

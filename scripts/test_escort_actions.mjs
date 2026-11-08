@@ -23,6 +23,17 @@ try {
   assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop__office', '采云必须同行');
   console.log('✅ 两人一起进了清静账房');
 
+  // 通用场所：没有现成雅间就现开一间，不能只认货栈
+  w.places.test_inn = { id: 'test_inn', name: '同福客栈', exits: ['street'], use: 'place', access: 'public_shop' };
+  w.actors.husband.location = 'test_inn';
+  w.actors.yangcaiyun.location = 'test_inn';
+  w.actors.yangcaiyun.humanBound = false;
+  const nInn = applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去找个清静地方' });
+  assert.ok(nInn.some((n) => n.includes('同福客栈·雅间')), '通用场所应现开雅间');
+  assert.strictEqual(w.actors.husband.location, 'test_inn__parlor', '相公应在同福客栈雅间');
+  assert.strictEqual(w.actors.yangcaiyun.location, 'test_inn__parlor', '同伴应同行');
+  console.log('✅ 通用场所也能开雅间同行');
+
   // 离线真人：同一场所内允许同行
   w.actors.husband.location = 'goods_shop';
   w.actors.yangcaiyun.location = 'goods_shop';
