@@ -139,8 +139,24 @@ export function isMassDismiss(sayText) {
  * @param {string} name 人物名
  * @param {{includeWife?:boolean, hasServantRoom?:boolean, places?:object}} opts
  */
-export function homeRoomForName(name, { includeWife = false, hasServantRoom = false, places = null } = {}) {
+export function homeRoomForName(name, { includeWife = false, hasServantRoom = false, places = null, role = '' } = {}) {
   const n = String(name || '');
+  const r = String(role || '');
+
+  // 1. 外院当差仆从（家丁/护院/门房/小厮/马夫/车夫）：归宿必须是王宅外院门房/值房，绝不可进正房内室或留在议事厅
+  if (/家丁|护院|门房|小厮|马夫|车夫|仆役|下人/.test(r) || /常木|熊河|樊生|傅生|罗叔|盛哥|蓝郎|周山|尹木|阮汉|项郎/.test(n)) {
+    if (places && typeof places === 'object') {
+      const gate = Object.keys(places).find((k) => {
+        const nm = String(places[k]?.name || '');
+        if (!/朱漆大门|门房|外院|门头|大门|值房|下房|倒座/.test(nm)) return false;
+        return k.startsWith('husband_room') || /王宅/.test(nm);
+      });
+      if (gate) return gate;
+    }
+    return 'husband_room__gate';
+  }
+
+  // 2. 后宫内眷规制
   if (n.includes('婉宁')) return 'wang_mansion_east';
   if (n.includes('芸娘')) return 'wang_mansion_west';
   if (includeWife && n.includes('婉儿')) return 'husband_room';

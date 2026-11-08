@@ -880,11 +880,12 @@ export function executeNarrativeTags({
               } else if (/西厢/.test(targetWhere || '')) {
                 dest = 'wang_mansion_west';
               } else if (/房间|回房|屋|歇着|等我|候着|退下|出去|睡/.test(targetWhere || '')) {
-                // 王宅内眷规制（纯映射见 homeRoomForName）
+                // 王宅内眷与下人规制（纯映射见 homeRoomForName）
                 dest = homeRoomForName(who.name, {
                   includeWife: true,
                   hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
                   places: wF.places,
+                  role: who.role,
                 }) || who.quarters || who.home || null;
               }
 
@@ -921,7 +922,14 @@ export function executeNarrativeTags({
               let back = homeRoomForName(a.name, {
                 hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
                 places: wF.places,
+                role: a.role,
               }) || a.quarters || a.home;
+
+              // 外院下人防呆：若算出的住处仍是当前议事厅或内室，坚决归位到朱漆大门
+              const isOuter = /家丁|护院|门房|小厮|马夫|车夫|下人|仆/.test(String(a.role || ''));
+              if (isOuter && (back === a.location || back === 'husband_room' || /议事厅|正房/.test(String(wF.places?.[back]?.name || '')))) {
+                back = 'husband_room__gate';
+              }
 
               if (!back || !wF.places?.[back]) {
                 try { back = ensureDwelling(wF, a.id, a.name, 'street'); } catch { back = null; }

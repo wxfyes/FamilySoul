@@ -79,6 +79,19 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
     places: { 'cui_mansion__servant': { name: '崔府·下房' } },
   });
   assert.equal(cuiRoomOtherMansion, 'wang_mansion_west', '别家下房不算，小翠回西厢');
+
+  // 3. 当差下人（家丁/护院）归宿规制：退场回归外院门房大门，绝不许进正房内室或留在议事厅
+  const guardRoom = homeRoomForName('常木', {
+    role: '家丁',
+    places: {
+      'husband_room': { name: '临江·王宅·正房' },
+      'place_62': { name: '临江·王宅·议事厅' },
+      'husband_room__gate': { name: '临江·王宅·朱漆大门' },
+    },
+  });
+  assert.equal(guardRoom, 'husband_room__gate', '家丁退场必须回归外院大门/门房当差');
+  assert.notEqual(guardRoom, 'husband_room', '家丁绝不许进正房内室');
+  assert.notEqual(guardRoom, 'place_62', '家丁退场绝不许死锁在议事厅');
 }
 
 console.log('✅ 所有送客/回房意图解析与内眷规制测试全部通过！');

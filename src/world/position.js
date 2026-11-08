@@ -76,8 +76,13 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
       || String(destPlace?.parent || '') === homeId
     );
     if (outerStaff && !goingHome && isInnerRoom(destPlace) && !/当值|值房|通禀允入/.test(String(note || ''))) {
-      const hall = Object.keys(world.places || {}).find((id) => /议事厅/.test(String(world.places[id]?.name || '')));
-      if (hall) placeId = hall;
+      if (/离场|送客|退下|去忙|散了/.test(String(note || ''))) {
+        const gate = Object.keys(world.places || {}).find((id) => /朱漆大门|门房|外院|门头|大门/.test(String(world.places[id]?.name || '')));
+        if (gate) placeId = gate;
+      } else {
+        const hall = Object.keys(world.places || {}).find((id) => /议事厅/.test(String(world.places[id]?.name || '')));
+        if (hall) placeId = hall;
+      }
     }
   } catch { /* 忽略 */ }
   if (a.location === placeId) return { ok: true, moved: false };

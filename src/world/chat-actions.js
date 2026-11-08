@@ -129,7 +129,8 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   }
 
   // 叫护院家丁（当差的）：从宅里各处提到议事厅
-  if (/(护院|家丁|当差|当值|门房)/.test(say) && /(叫|来|进来|传|提|人呢)/.test(say)) {
+  const isSummonQuestionOrChat = /(吗|呢|吧|？|\?|听说|有人来|怎么|为何|不见|查查)/.test(say);
+  if (!isSummonQuestionOrChat && /(护院|家丁|当差|当值|门房)/.test(say) && /(叫|传|提)[^。！？\n]{0,6}(进来|过来|上前|上厅|候令|答话)|(叫|唤|传|提)(护院|家丁|门房)/.test(say)) {
     const hall = hallOf(world);
     const hereName = String(world.places?.[me.location]?.name || '');
     const estate = hereName.includes('·') ? hereName.split('·').slice(0, 2).join('·') : '';
@@ -311,15 +312,24 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     if (names.length) notices.push(`${names.join('、')}回府去了。`);
   }
 
-  // 招家丁/护院/丫鬟：聊天里吩咐即真办（引擎执行，不是嘴上说说）
-  if (/(招|募|添|雇|买)[^。！？\n]{0,8}(家丁|护院|丫鬟|婢女|人手)/.test(say)
+  // 招家丁/护院/丫鬟：聊天里吩咐即真办（严格排除否定与疑问句，且必须有人当面领命）
+  const isRecruitDenied = /(不|别|莫|休|未|否|慢|暂|再议|以后|先不|免|算了吧|用不着|不用|吗|呢|吧|？|\?)/.test(say);
+  if (!isRecruitDenied && /(招|募|添|雇|买)[^。！？\n]{0,8}(家丁|护院|丫鬟|婢女|人手)/.test(say)
     && !/(掌柜|伙计|跑堂|账房)/.test(say)) {
     const isMaid = /丫鬟|婢女/.test(say);
     const isRetainer = /护院/.test(say);
     const m = say.match(/(\d+|[一二两三四五六七八九十]+)\s*(?:个|人|名)/);
     const want = Math.max(1, Math.min(isMaid ? 12 : 50, m ? cn2num(m[1]) : (isMaid ? 2 : 4)));
     const city = (() => { const seg = String(world.places?.[me.location]?.name || '').split('·')[0]; return /府$|州$|县$/.test(seg) ? seg : '临江府'; })();
-    if (isMaid) {
+
+    const hereActors = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.location === me.location);
+    const hasWife = hereActors.some((a) => a.id === 'waner');
+    const hasStaff = hereActors.some((a) => isOuterStaff(a));
+    const agentName = hasWife ? '婉儿' : (hasStaff ? '在场管事' : null);
+
+    if (!agentName) {
+      notices.push('（相公须在府里当面吩咐大娘子婉儿或厅上管事，方好领银出门采办添置人手。）');
+    } else if (isMaid) {
       const cost = Math.round(want * 0.5 * 100) / 100;
       if ((Number(world.assets?.silver) || 0) < cost) {
         notices.push(`（银不够：买 ${want} 个丫鬟要 ${cost} 两。）`);
@@ -328,11 +338,11 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
         world.ledger.push({ day, hour: world.clock?.hour || 0, delta: -cost, title: `买丫鬟 ${want} 人`, by: 'husband', balance: world.assets.silver, category: '买丫鬟' });
         const made = spawnMaids(world, want);
-        notices.push(`婉儿应声去办：从人市领回 ${made} 个丫鬟，安家银共 ${cost.toFixed(2)} 两。`);
+        notices.push(`${agentName}应声去办：从人市领回 ${made} 个丫鬟，安家银共 ${cost.toFixed(2)} 两。`);
       }
     } else {
       const r = callToArms(world, 'wangjia', { city, max: want, kind: isRetainer ? 'retainer' : 'guard' });
-      if (r?.ok) notices.push(`婉儿应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，本次月饷共 ${r.camePay} 两/月（全军月饷 ${r.armyMonthlyPay ?? r.monthlyPay} 两/月）。`);
+      if (r?.ok) notices.push(`${agentName}应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，本次月饷共 ${r.camePay} 两/月（全军月饷 ${r.armyMonthlyPay ?? r.monthlyPay} 两/月）。`);
       else notices.push(`（${r?.error || '没招成'}）`);
     }
   }

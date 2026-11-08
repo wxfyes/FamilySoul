@@ -686,12 +686,27 @@ function runPromiseDues(world, events, queuePush) {
     const whoId = (Array.isArray(pr.about) ? pr.about : []).find((id) => world.actors?.[id] && !world.actors[id].dead) || null;
     const who = whoId ? world.actors[whoId] : null;
     const name = who?.name || '管事';
-    // 上门：同城才走，不跨城瞬移；到了就在相公眼前
+    // 上门礼法规制：同城才走，不跨城瞬移；外客访王宅绝不许直闯相公内室闺房！
+    let targetLoc = null;
+    let inInnerChamber = false;
     try {
       const hus = world.actors?.husband;
       if (who && hus && who.location !== hus.location) {
         const city = (id) => String(world.places?.[id]?.name || '').split('·')[0];
-        if (city(who.location) === city(hus.location)) moveActor(world, who.id, hus.location, 'world', '上门讨说法');
+        if (city(who.location) === city(hus.location)) {
+          targetLoc = hus.location;
+          const husPlace = world.places?.[hus.location];
+          const isHusInner = /正房|内室|卧室|闺房|卧房|后院/.test(String(husPlace?.name || ''))
+            || (husPlace?.parent && /正房/.test(String(world.places?.[husPlace.parent]?.name || '')));
+          if (isHusInner) {
+            inInnerChamber = true;
+            // 外客只能在议事厅、迎客小厅或朱漆大门候见
+            const hall = Object.keys(world.places || {}).find((id) => (id.startsWith('husband_room') || /王宅/.test(String(world.places[id]?.name || ''))) && /议事厅|迎客|中堂|大堂/.test(String(world.places[id]?.name || '')));
+            const gate = Object.keys(world.places || {}).find((id) => (id.startsWith('husband_room') || /王宅/.test(String(world.places[id]?.name || ''))) && /大门|门房/.test(String(world.places[id]?.name || '')));
+            targetLoc = hall || gate || hus.location;
+          }
+          moveActor(world, who.id, targetLoc, 'world', '上门讨说法');
+        }
       }
     } catch { /* 忽略 */ }
     const overdue = due < day;
@@ -703,10 +718,14 @@ function runPromiseDues(world, events, queuePush) {
       payload: { text: `${name}来问「${short}」${overdue ? '已过期' : '今日到期'}` },
       isPublic: false,
     }));
+    const placeName = String(world.places?.[targetLoc]?.name || '');
+    const fallbackText = inInnerChamber
+      ? `【门房通禀】：“东家，【${name}】在${placeName}候见，说您应下的「${short}」${overdue ? '已过了一日' : '今日到期'}，特来讨个示下。”`
+      : `【${name}】：“相公，您应下的「${short}」${overdue ? '已过了一日' : '今日到期'}，可还作数？”`;
     queuePush?.({
-      to: 'husband', reason: 'promise', speaker: name, type: 'promise', isLetter: false,
-      facts: { 承诺: short, 期限: overdue ? '已过一日' : '今日到期', 来人: name },
-      fallback: `【${name}】：相公，您应下的「${short}」${overdue ? '已过了一日' : '今日到期'}，可还作数？`,
+      to: 'husband', reason: 'promise', speaker: inInnerChamber ? '门房' : name, type: 'promise', isLetter: false,
+      facts: { 承诺: short, 期限: overdue ? '已过一日' : '今日到期', 来人: name, 所在: placeName },
+      fallback: fallbackText,
       force: true,
     });
   }

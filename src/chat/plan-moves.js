@@ -17,7 +17,8 @@ function wantedActors(world) {
     if (!a || a.dead || a.id === 'husband') continue;
     if (isHumanBound(a)) continue;
     if (a.origin === 'city_base') continue;
-    if (!(a.household || (Array.isArray(a.goals) && a.goals.length > 0))) continue;
+    const isStaffInHall = /家丁|护院/.test(String(a.role || '')) && /议事厅/.test(String(world.places?.[a.location]?.name || ''));
+    if (!(a.household || (Array.isArray(a.goals) && a.goals.length > 0) || isStaffInHall)) continue;
     // 只在临江（相公所在城）的人参与，避免跨城调度
     const city = String(world.places?.[a.location]?.name || '').split('·')[0];
     if (city && city !== '临江') continue;
@@ -31,7 +32,7 @@ function placeChoices(world) {
   for (const p of Object.values(world.places || {})) {
     const n = String(p?.name || '');
     if (!n) continue;
-    if (!/王宅|茶坊|酒楼|花园|账房|议事厅|书房|西厢|东厢|祠堂|厨房|正房/.test(n)) continue;
+    if (!/王宅|茶坊|酒楼|花园|账房|议事厅|书房|西厢|东厢|祠堂|厨房|正房|大门|门房|外院/.test(n)) continue;
     if (!names.includes(n)) names.push(n);
   }
   return names.slice(0, 24);
