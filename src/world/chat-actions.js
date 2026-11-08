@@ -192,6 +192,55 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   }
 
 
+  // 领路去私密处：在场的人跟着一起走，绝不只搬相公
+  if (/(带我去|领我去|领路|跟我来|随我去|去喝茶|去雅间|清静账房|找个没人的地方|换个地方)/.test(say)) {
+    const here = Object.values(world.actors || {}).filter(
+      (a) => a && !a.dead && a.id !== me.id && a.location === me.location,
+    );
+    const partner = here.find((a) => a.name && say.includes(a.name))
+      || here.find((a) => (/老板娘/.test(say) && /老板娘/.test(String(a.role || '')))
+        || (/掌柜|东家/.test(say) && /掌柜|东家/.test(String(a.role || ''))))
+      || here.find((a) => !a.servant)
+      || here[0];
+    if (partner) {
+      let target = null;
+      let label = '';
+      if (me.location === 'goods_shop' || partner.location === 'goods_shop') {
+        target = 'goods_shop__office';
+        label = '翟家货栈·清静账房';
+      } else if (me.location === 'place_44' || partner.location === 'place_44') {
+        target = 'place_44__f2';
+        label = '运河码头三层大酒楼·二层雅阁';
+      } else if (/王宅|正房/.test(String(world.places?.[me.location]?.name || ''))) {
+        target = 'husband_room__study';
+        label = '临江·王宅·书斋';
+      }
+      if (target) {
+        if (!world.places[target]) {
+          world.places[target] = {
+            id: target,
+            name: label,
+            parent: target.startsWith('goods_shop') ? 'goods_shop' : (target.startsWith('place_44') ? 'place_44' : 'husband_room'),
+            use: target.startsWith('goods_shop') ? 'office' : 'room',
+            access: 'private',
+            exits: [target.startsWith('goods_shop') ? 'goods_shop' : (target.startsWith('place_44') ? 'place_44' : 'husband_room')],
+          };
+        }
+        const fromMe = me.location;
+        const fromPartner = partner.location;
+        const mvMe = moveActor(world, me.id, target, 'world', '领路转场');
+        const mvPartner = moveActor(world, partner.id, target, 'world', '随行带路');
+        if (mvMe?.ok && mvPartner?.ok) {
+          notices.push(`（${partner.name}领相公到了「${label}」。）`);
+        } else {
+          if (mvMe?.ok && fromMe) moveActor(world, me.id, fromMe, 'world', '领路失败退回');
+          if (mvPartner?.ok && fromPartner) moveActor(world, partner.id, fromPartner, 'world', '领路失败退回');
+          notices.push('（同行没跟上，仍在原处。）');
+        }
+      }
+    }
+  }
+
   // 雇掌柜/伙计：东家出钱，掌柜管店
   if (/(雇|请|聘)(一个|个|一名|位)?\s*(掌柜|二掌柜|伙计|跑堂|账房)/.test(say)) {
     const want = /账房/.test(say) ? '账房' : (/掌柜/.test(say) ? '掌柜' : (/跑堂/.test(say) ? '跑堂' : '伙计'));
