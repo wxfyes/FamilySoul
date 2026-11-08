@@ -88,6 +88,20 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     return true;
   }
 
+  /// 找人专属寻访：真人调用 summon 直达精准房间，普通 NPC 传人名给 goTo 精准定位到人
+  Future<bool> _findPerson(Map p) async {
+    final id = (p['id'] ?? '').toString();
+    final name = (p['name'] ?? '').toString();
+    final canSummon = p['canSummon'] != false;
+    if (!canSummon) {
+      return await widget.api.summon(id);
+    }
+    final line = await widget.api.goTo(name.isNotEmpty ? name : (p['place'] ?? '').toString());
+    if (line == null) return false;
+    _serverLine = line;
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = _menu;
@@ -681,7 +695,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                               label: Text('去$he这'),
                               onPressed: () {
                                 Navigator.pop(context);
-                                _run(() => _goTo(placeName), '（你去找$name了。）');
+                                _run(() => _findPerson(p), '（你去找$name了。）');
                               },
                             ),
                           ),
@@ -905,7 +919,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   InkWell(
-                    onTap: placeName.isEmpty ? null : () => _run(() => _goTo(placeName), '（你去找$name了。）'),
+                    onTap: () => _run(() => _findPerson(p), '（你去找$name了。）'),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),

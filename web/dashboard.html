@@ -2695,7 +2695,7 @@ async function doRename() {
   const msg = $('renameMsg');
   if (!tk) { msg.textContent = '先保存令牌'; return; }
   if (!id || !to) { msg.textContent = '先选人物并填新名字'; return; }
-  if (!confirm(`把「${oldName}」改名为「${to}」？记忆、约定、事件、成员标题都会跟着改。`)) return;
+  if (!confirm(`把「${oldName}」改名为「${to}」？\n只改当前名字，以及按 id 挂的约定/差事/产业/引文；\n历史事件与旧记忆保留原话。`)) return;
   msg.textContent = '改中…';
   try {
     const r = await fetch(`/api/admin/actor/rename?token=${encodeURIComponent(tk)}`, {

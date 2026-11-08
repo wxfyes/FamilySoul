@@ -44,6 +44,15 @@ export function renameActor(world, actorId, newName, { by = 'husband' } = {}) {
     if (inv.to === actorId) inv.toName = nm;
     if (inv.from === actorId) inv.fromName = nm;
   }
+  // 还活着的约定：里面提到旧名的，跟着改成新名；已了结的旧事保持原话
+  for (const pr of world.promises || []) {
+    if (!pr || pr.done) continue;
+    const t = String(pr.text || '');
+    if (t.includes(oldName)) {
+      pr.text = t.split(oldName).join(nm);
+      touched += 1;
+    }
+  }
 
   world.notes = Array.isArray(world.notes) ? world.notes : [];
   world.notes.push({ day: world.clock?.day, hour: world.clock?.hour, text: `${oldName}改名为${nm}` });
