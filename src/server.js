@@ -3511,6 +3511,31 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.305 钱账调整：只给管理员修误扣/误加，必须落一条流水
+    if (req.method === 'POST' && pathname === '/api/admin/money/adjust') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const delta = Math.round(Number(body.delta) * 100) / 100;
+        if (!delta || Math.abs(delta) > 10000) return sendJson(res, 400, { ok: false, error: 'delta 不合法' });
+        const world = loadState(DATA_DIR);
+        world.assets = world.assets || {};
+        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + delta) * 100) / 100;
+        world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+        world.ledger.push({
+          day: world.clock?.day || 1, hour: world.clock?.hour || 0, delta,
+          title: String(body.note || '账目调整').slice(0, 24),
+          category: delta > 0 ? '进账' : '开销', by: 'husband', balance: world.assets.silver,
+        });
+        world.notes = Array.isArray(world.notes) ? world.notes : [];
+        world.notes.push({ day: world.clock?.day || 1, hour: world.clock?.hour || 0, text: String(body.note || '账目调整').slice(0, 40) });
+        saveState(DATA_DIR, world);
+        console.log(`[MoneyAdjust] ${delta > 0 ? '+' : ''}${delta} 两：${body.note || ''}；现银 ${world.assets.silver}`);
+        return sendJson(res, 200, { ok: true, silver: world.assets.silver });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.31 账本修复：清掉"只写流水、没进现银"的测试行；可补一条尾款债权
     if (req.method === 'POST' && pathname === '/api/admin/ledger/repair') {
       try {

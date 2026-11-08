@@ -469,7 +469,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   }
 
   // 招家丁/护院/丫鬟：聊天里吩咐即真办（严格排除否定与疑问句，且必须有人当面领命）
-  const isRecruitDenied = /(不|别|莫|休|未|否|慢|暂|再议|以后|先不|免|算了吧|用不着|不用|吗|呢|吧|？|\?)/.test(say);
+  const isRecruitDenied = /(不|别|莫|休|未|否|慢|暂|再议|以后|先不|免|算了吧|用不着|不用|吗|呢|？|\?)/.test(say);
   if (!isRecruitDenied && /(招|募|添|雇|买)[^。！？\n]{0,8}(家丁|护院|丫鬟|婢女|人手)/.test(say)
     && !/(掌柜|伙计|跑堂|账房)/.test(say)) {
     const isMaid = /丫鬟|婢女/.test(say);
@@ -498,7 +498,17 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       }
     } else {
       const r = callToArms(world, 'wangjia', { city, max: want, kind: isRetainer ? 'retainer' : 'guard' });
-      if (r?.ok) notices.push(`${agentName}应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，本次月饷共 ${r.camePay} 两/月（全军月饷 ${r.armyMonthlyPay ?? r.monthlyPay} 两/月）。`);
+      if (r?.ok) {
+        if (Number(r.cost) > 0) {
+          world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+          world.ledger.push({
+            day, hour: world.clock?.hour || 0, delta: -Number(r.cost),
+            title: `招${isRetainer ? '护院' : '家丁'} ${r.came} 人·安家银`,
+            by: 'husband', balance: world.assets.silver, category: '招兵',
+          });
+        }
+        notices.push(`${agentName}应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，本次月饷共 ${r.camePay} 两/月（全军月饷 ${r.armyMonthlyPay ?? r.monthlyPay} 两/月）。`);
+      }
       else notices.push(`（${r?.error || '没招成'}）`);
     }
   }

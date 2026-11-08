@@ -1115,6 +1115,11 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         if (!['guards', 'militia', 'army'].includes(field)) continue;
         const delta = Number(args.delta);
         if (!Number.isFinite(delta) || delta === 0) continue;
+        // 家丁/护院必须走正式招募（落籍、安家银、月饷、流水）；记账员不许只改数字
+        if (field === 'guards' && delta > 0) {
+          applied.push('招家丁/护院须走正式招募，未扣银');
+          continue;
+        }
         const who = String(args.who || 'husband');
         const f = forceOf(world, who);
         // 招兵要发饷：正兵 3 两/人，乡勇 1 两，护院 2 两
