@@ -14,7 +14,7 @@ import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { planNamedNpcMoves } from './chat/plan-moves.js';
-import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes } from './world/clock.js';
+import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes, queueProactive } from './world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState, appendEvents, nextEvent } from './world/state.js';
 import { beginStateBatch, endStateBatch, runInStateTurn } from './world/state.js';
@@ -1378,6 +1378,16 @@ const STARTED_AT = Date.now();
             }
           }
         }
+        // 目标若是尚未展开的房间 id（如 yang_mansion__hall），先落地；落不了就退回父地点
+        try {
+          if (target && !world.places?.[target] && String(target).includes('__')) {
+            const [parentId, roomKey] = String(target).split('__');
+            const { materializeRoom } = await import('./world/residence.js');
+            const made = materializeRoom(world, parentId, roomKey);
+            target = (made && world.places?.[made]) ? made : (world.places?.[parentId] ? parentId : target);
+            console.log(`[Go] 房间实体落地：${target}`);
+          }
+        } catch { /* 忽略 */ }
         const intent = {
           id: `ui_go_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           actor: actorId, verb: 'MOVE', target, companions: [],
@@ -1400,6 +1410,16 @@ const STARTED_AT = Date.now();
             return `${a.name}（在${actClean}）`;
           });
         const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
+        // 手动出门也在聊天里留一条"你到了某处"，不只靠顶部地点刷新
+        try {
+          if (res2?.applied) {
+            queueProactive(after, {
+              to: actorId, speaker: '提示', type: 'system', isLetter: false,
+              text: line, fallback: line, force: true,
+            });
+            saveState(DATA_DIR, after);
+          }
+        } catch { /* 忽略 */ }
         // 随行的护院/家丁跟着主人走
         try {
           const wEsc = loadState(DATA_DIR);
