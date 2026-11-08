@@ -8,6 +8,8 @@
  *   ④ 只生成一次（root.rooms 记着），以后只补不改。
  */
 
+import { moveActor } from './position.js';
+
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -102,6 +104,11 @@ const PREMISES = {
     { key: 'back', name: '后坊焙茶', use: 'workshop', floor: 0 },
     { key: 'room', name: '雅间', use: 'shop_floor', floor: 2 },
   ],
+  tavern: [
+    { key: 'front', name: '前堂酒座', use: 'shop_floor', floor: 1 },
+    { key: 'room', name: '后堂雅间', use: 'shop_floor', floor: 0 },
+    { key: 'kitchen', name: '后厨', use: 'kitchen', floor: 0 },
+  ],
   shop: [
     { key: 'front', name: '前店柜台', use: 'shop_floor', floor: 1 },
     { key: 'back', name: '后坊库房', use: 'workshop', floor: 0 },
@@ -121,7 +128,10 @@ const COURT = [
 /** 按名字判经营场所类型 */
 function premisesKind(name = '') {
   const s = String(name || '');
-  if (/酒楼|酒肆|饭庄/.test(s)) return 'restaurant';
+  // 三层/大酒楼才是三层楼；街边酒肆只有前堂、后堂与后厨
+  if (/三层|大酒楼|码头.*酒楼/.test(s)) return 'restaurant';
+  if (/酒肆|酒馆|小酒馆/.test(s)) return 'tavern';
+  if (/酒楼|饭庄/.test(s)) return 'restaurant';
   if (/茶坊|茶肆|茶楼|茶铺/.test(s)) return 'teahouse';
   if (/铺|坊|行|栈|号|店/.test(s)) return 'shop';
   return null;
@@ -643,9 +653,32 @@ export function buildPremises(world) {
   if (Object.keys(places).length > 4000) return 0;
   for (const [pid, p] of Object.entries(places)) {
     if (!p || p.parent || String(pid).includes('__')) continue;
-    if (p.rooms && Object.keys(p.rooms).length) continue;
     const kind = premisesKind(p.name);
     if (!kind) continue;
+    // 街边酒肆不是三层酒楼：清掉历史误建的二层/三层，并把楼上的人请回前堂
+    if (kind === 'tavern' && p.rooms) {
+      const baseName = String(p.name || '酒肆').split('·').slice(0, 2).join('·');
+      for (const key of ['f2', 'f3']) {
+        const rec = p.rooms[key];
+        if (!rec) continue;
+        const rid = rec.id;
+        if (rid) {
+          for (const a of Object.values(world.actors || {})) {
+            if (a && a.location === rid) {
+              try { moveActor(world, a.id, pid, 'world', '酒肆不是三层楼'); } catch { /* 忽略 */ }
+            }
+          }
+          if (world.places?.[rid]) delete world.places[rid];
+        }
+        delete p.rooms[key];
+      }
+      if (p.rooms.f1) {
+        p.rooms.f1.name = '前堂酒座';
+        const rp = world.places?.[p.rooms.f1.id];
+        if (rp) rp.name = `${baseName}·前堂酒座`;
+      }
+    }
+    if (p.rooms && Object.keys(p.rooms).length) continue;
     // 已有房间也要进来（补缺 + 改名），不能直接跳过
     // 有名有姓的铺子都给它把前店后坊补上（野摊不建）
 
