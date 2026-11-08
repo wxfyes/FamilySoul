@@ -181,6 +181,16 @@ export function executeNarrativeTags({
             wD.notes = Array.isArray(wD.notes) ? wD.notes : [];
             wD.notes.push({ day: wD.clock?.day, hour: wD.clock?.hour, text: `${t.name}办完了：${result}` });
           }
+          // 差事办完，顺带勾掉包含同一片段的旧诺（模型常忘了写 [[deal]]）
+          if (frag.length >= 2) {
+            for (const pr of wD.promises || []) {
+              if (!pr || pr.done || pr.loan) continue;
+              if (!String(pr.text || '').includes(frag)) continue;
+              pr.done = true;
+              pr.doneDay = wD.clock?.day || 1;
+              pr.doneByTask = true;
+            }
+          }
           const cnTag = `\n（【差事了结】${result}）`;
           reply = reply.replace(rawTag, cnTag);
         }

@@ -674,6 +674,27 @@ function runLoanDues(world, events, queuePush) {
   }
 }
 
+/** 旧诺过期：非借款类承诺，过了到期日 1 天仍没办成，自动作废移出待办（保留备注） */
+function runPromiseSweep(world, events) {
+  const day = Number(world.clock?.day) || 1;
+  let expired = 0;
+  for (const pr of world.promises || []) {
+    if (!pr || pr.done || pr.loan) continue;
+    const due = Number(pr.due) || 0;
+    if (!due || day <= due + 1) continue;
+    pr.done = true;
+    pr.doneDay = day;
+    pr.expired = true;
+    world.notes = Array.isArray(world.notes) ? world.notes : [];
+    world.notes.push({ day, hour: world.clock?.hour || 0, text: `旧诺过期：${String(pr.text || '').slice(0, 30)}` });
+    expired += 1;
+  }
+  if (expired > 0) {
+    world.notes = world.notes.slice(-60);
+    events.push(nextEvent(world, { action: 'promise_expired', actor: 'husband', place: null, payload: { text: `${expired} 条旧诺过了日子，悄悄作废` }, isPublic: false }));
+  }
+}
+
 /**
  * 国库与粮仓：钱和粮都有来处、有去处。
  *  收：朝廷占的城按税率上缴
@@ -1611,6 +1632,11 @@ function onNewDay(world, events) {
     runLoanDues(world, events, (o) => queueProactive(world, { type: 'loan', ...o }));
   } catch (err) {
     console.warn('[Loan] 借还款结算失败：', err.message);
+  }
+  try {
+    runPromiseSweep(world, events);
+  } catch (err) {
+    console.warn('[Promise] 过期清扫失败：', err.message);
   }
   try {
     runCourtReaction(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
