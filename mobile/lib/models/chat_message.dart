@@ -132,19 +132,21 @@ class ChatMessage {
     // 普通对话绝不瞎猜异地！当面说话绝不是递信！
     if (!isLetter) return null;
     final spk = effectiveSpeaker ?? '';
-    // 府内女眷与家眷（芸娘、婉儿、小翠、婉宁），家在正房，绝不能推成外面商铺
-    if (spk.contains('芸娘') ||
-        spk.contains('婉儿') ||
+    // 府内女眷与家眷（婉儿、小翠、婉宁、护院），家在王宅，绝不能推成外面商铺
+    if (spk.contains('婉儿') ||
         spk.contains('小翠') ||
         spk.contains('婉宁') ||
         spk.contains('护院')) {
       return null;
     }
+    if (spk.contains('大酒楼') || spk.contains('酒楼') || spk.contains('账房')) return '运河码头三层大酒楼';
     if (spk.contains('紫嫣') || spk.contains('酒肆')) return '于家酒肆';
     if (spk.contains('静儿') || spk.contains('县衙')) return '县衙';
     if (spk.contains('采云') || spk.contains('货栈')) return '翟家货栈';
     if (spk.contains('孙进') || spk.contains('客栈')) return '临江客栈';
     if (spk.contains('鲁青') || spk.contains('窑厂')) return '城南窑厂';
+    if (spk.contains('茶山') || spk.contains('紫阳山')) return '紫阳茶山';
+    if (spk.contains('茶坊')) return '临江茶坊老店';
     return null;
   }
 

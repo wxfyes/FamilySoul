@@ -842,7 +842,7 @@ class MessageBubble extends StatelessWidget {
         targetName.contains('捕快') ||
         targetName.contains('知府') ||
         targetName.contains('老汉');
-    final actionLabel = (targetName.contains('伙计') || targetName.contains('小厮') || targetName.contains('小二'))
+    final actionLabel = (targetName.contains('伙计') || targetName.contains('小厮') || targetName.contains('小二') || targetName.contains('账房') || targetName.contains('管事'))
         ? '动身前往「$targetPlace」'
         : '动身前往「$targetPlace」${isMale ? '找他' : '找她'}';
 

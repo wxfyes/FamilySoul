@@ -124,5 +124,12 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   assert.equal(parseSummonTarget('让小翠到跟前来'), '小翠');
 }
 
+// 4. 点名离场精确性回归：点名不在场人绝不误杀在场无关者；通令离场下人准确退回大门
+{
+  const rAbsent = parseDismissIntent('让芸娘退下');
+  assert.equal(rAbsent.isDismiss, true);
+  assert.equal(rAbsent.targetName, '芸娘');
+}
+
 console.log('✅ 所有送客/回房意图解析与内眷规制测试全部通过！');
 

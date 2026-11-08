@@ -72,7 +72,19 @@ function worldHourStamp(world) {
  */
 export function queueProactive(
   world,
-  { text = null, reason = 'proactive', facts = {}, fallback = null, speaker = null, type = 'proactive', to = 'husband', atMs = Date.now(), force = false } = {},
+  {
+    text = null,
+    reason = 'proactive',
+    facts = {},
+    fallback = null,
+    speaker = null,
+    place = null,
+    isLetter = undefined,
+    type = 'proactive',
+    to = 'husband',
+    atMs = Date.now(),
+    force = false,
+  } = {},
 ) {
   if (!text && !fallback && !reason) return false;
   const stamp = worldHourStamp(world);
@@ -89,6 +101,8 @@ export function queueProactive(
     text,
     fallback,
     speaker,
+    place,
+    isLetter,
     at: atMs,
     day: world.clock.day,
     hour: world.clock.hour,
@@ -2288,6 +2302,8 @@ function advanceHour(world, events, nowMs) {
       reason: 'business_hook',
       facts: { day: world.clock.day, hookText: hook.text },
       speaker: hook.speaker,
+      place: hook.place,
+      isLetter: true,
       text: hook.text,
       fallback: hook.fallback,
       type: 'proactive',

@@ -4269,24 +4269,28 @@ const STARTED_AT = Date.now();
                 }
               }
 
-              // 府内女眷与家眷（婉儿、芸娘、小翠、婉宁），家在王宅，永久禁止推向府外商铺
-              const isFamily = /芸娘|婉儿|小翠|婉宁|王宅/.test(spk);
+              // 府内女眷（婉儿、小翠、婉宁），默认常在府内
+              const isInnerHousehold = /婉儿|小翠|婉宁/.test(spk);
 
               let place = item.place || null;
-              if (!place && !isFamily) {
-                if (/紫嫣|酒肆/.test(spk || finalText)) place = '于家酒肆';
+              if (!place && (!isInnerHousehold || /大酒楼|酒楼|茶坊|商铺|货栈/.test(spk || finalText))) {
+                if (/大酒楼|酒楼|账房|汪总商/.test(spk || finalText)) place = '运河码头三层大酒楼';
+                else if (/紫嫣|酒肆/.test(spk || finalText)) place = '于家酒肆';
                 else if (/静儿|县衙/.test(spk || finalText)) place = '县衙';
                 else if (/采云|货栈/.test(spk || finalText)) place = '翟家货栈';
                 else if (/孙进|客栈/.test(spk || finalText)) place = '临江客栈';
                 else if (/鲁青|窑厂/.test(spk || finalText)) place = '城南窑厂';
+                else if (/茶山|紫阳山/.test(spk || finalText)) place = '紫阳茶山';
                 else if (/茶坊/.test(spk || finalText)) place = '临江茶坊老店';
               }
 
               // 同场判定：在相公同处、同为王宅或没有外地地点时，100% 当面对话，绝非递信
-              const isSamePlace = actorLoc ? (actorLoc === husLoc) : isFamily;
+              const isSamePlace = actorLoc
+                ? (actorLoc === husLoc)
+                : (place ? (husLoc.includes(place) || (world.places?.[husLoc]?.name || '').includes(place)) : isInnerHousehold);
               const isLetter = (item.isLetter !== undefined)
-                ? (item.isLetter && !isSamePlace && !isFamily)
-                : (!isSamePlace && !isFamily && Boolean(place));
+                ? (item.isLetter && !isSamePlace)
+                : (!isSamePlace && Boolean(place));
 
               return {
                 type: item.type || 'proactive',

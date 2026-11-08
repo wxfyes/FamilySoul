@@ -870,10 +870,7 @@ export function executeNarrativeTags({
             } else if (matched.length === 1) {
               matchedWho = matched[0];
             } else {
-              console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
-              if (isMassDismiss(sayStr)) {
-                targetName = null; // 只有在本身是通令逐客指令时，无人匹配才回落至通令送客
-              }
+              console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀与无辜清场`);
             }
           }
 
@@ -917,8 +914,8 @@ export function executeNarrativeTags({
                 console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
               }
             }
-          } else if (hereActors.length === 1 || isMassDismiss(sayStr)) {
-            // 未点特定人名（或点名在场无人匹配）：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
+          } else if (!targetName && (hereActors.length === 1 || isMassDismiss(sayStr))) {
+            // 未点特定人名：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
             // 现场所有人（除相公，及正房同寝的正妻沈婉儿外），全部依规制退回住处与值守大门！
             const names = [];
             for (const a of hereActors) {
