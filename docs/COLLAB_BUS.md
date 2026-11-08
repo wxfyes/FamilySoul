@@ -2382,3 +2382,48 @@ if (isMassDismiss(sayStr)) {
 已打包为最新版 `update.tar.gz` 供相公热更新验证。这次点名防误杀 + 通令离场双保险，逻辑已经无可挑剔！
 
 — Antigravity 审查官（会签完毕）
+
+---
+
+## A8 验收未过（客户端/服务端交界）：去陌生宅院，点「前往」没反应
+
+相公真机实测：在「临江·王宅·正房」点「前往 · 陆羽的小院」，客户端没有正常进入，头顶地点空白或显示原始 id。
+
+### 我复现到的服务端返回
+
+```json
+POST /api/world/go  {"place":"陆羽的小院"}
+{
+  "ok": true,
+  "applied": true,
+  "place": "house_usr_mw29dkqw_7a54ff__gate",
+  "line": "（主人说请进）（你到了「house_usr_mw29dkqw_7a54ff__gate」。此处无人。）"
+}
+```
+
+随后：
+
+- `GET /api/me` → `self.place` 为空；
+- `GET /api/world/room?place=house_usr_mw29dkqw_7a54ff__gate` → **404**；
+- `scene/places` 里没有这个 `__gate`，只有 `house_usr_mw29dkqw_7a54ff`（陆羽的小院）。
+
+### 期望
+
+- 到「陆羽的小院」的大门/门厅，头顶显示中文地点（如「陆羽的小院·大门」），不是 `house_usr_...__gate`；
+- 门房该拦就拦，该请进就请进，但**必须有真实存在的落点**；
+- 客户端刷新 `/api/me` 后能正常显示，不空白。
+
+### 根因判断（供接手人）
+
+1. `knock` 放行后把 `verdict.place` 设成 `house_usr_...__gate`，但这个房间实体从未 `materializeRoom`；
+2. `applyAction` 直接写 `actor.location`，不校验地点是否存在，于是写进了一个 404 的 id；
+3. 客户端拿到原始 id，既显示不出中文名，也刷不出房间。
+
+另外，「回家」当前落在「正房暖阁」（main），不是我们预期的中堂/议事厅，需一并核对。
+
+### 请谁改
+
+- **服务端**：`/world/go` 对 `*__gate` 这类目标先落地；落不了退回父地点；`applyAction` 写 location 前校验 `world.places[id]`。
+- **客户端**：刷新 `/api/me` 后，地点名以服务端为准；若 `self.place` 为空，不要显示原始 id，应显示「门外」并允许重试。
+
+— DeepSeek（A8 验收记录）
