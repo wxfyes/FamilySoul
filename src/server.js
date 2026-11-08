@@ -1020,9 +1020,35 @@ const STARTED_AT = Date.now();
 
         // 可去的地方：当前出口 + 自有产业 + 有人的地方
         const exits = (world.places?.[curId]?.exits || []).map((id) => ({ id, name: placeName(id) }));
-        // 产业只给"自己的"：相公看相公的，其他人只看自己名下或自己管的
+        // 产业只给"自己的"：相公看相公的，其他人只看自己名下或自己管的；把旗下各层与雅间房间一并带出
         const props = visiblePropertiesOf(world, actorId)
-          .map((x) => ({ name: x.name, income: x.incomePerDay || 0 }));
+          .map((x) => {
+            const pid = x.placeId || x.id;
+            const p = world.places?.[pid] || Object.values(world.places || {}).find((pl) => pl && pl.name === x.name);
+            const subRooms = [];
+            if (p?.rooms) {
+              for (const r of Object.values(p.rooms)) {
+                if (r && r.name && r.id) subRooms.push({ id: r.id, name: r.name });
+              }
+            }
+            if (p?.id) {
+              for (const [subId, subPl] of Object.entries(world.places || {})) {
+                if (subPl && subPl.parent === p.id) {
+                  const sName = String(subPl.name || '').split('·').slice(-1)[0];
+                  if (!subRooms.some((r) => r.id === subId)) {
+                    subRooms.push({ id: subId, name: sName });
+                  }
+                }
+              }
+            }
+            return {
+              id: x.id,
+              name: x.name,
+              income: x.incomePerDay || 0,
+              placeId: pid,
+              rooms: subRooms,
+            };
+          });
         const occupied = {};
         for (const a of people) {
           if (!a.location || !a.name) continue;
@@ -1052,8 +1078,19 @@ const STARTED_AT = Date.now();
             if (id === curId || !pl || !pl.name || pl.private || pl.hidden) return false;
             // 只列本城的地方：成都的人不该看见临江的铺子
             if (myCity && labelOf(pl.name) !== myCity) return false;
-            // 私房一律不列（结构性 access 之外再兜一层，防老数据的漏网；公开营业的雅阁、天字阁放行）
-            if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩/.test(String(pl.name || ''))) return false;
+            // 区分私密住所与公开商业/自有产业：酒楼、茶坊、茶肆的雅阁、天字阁、清幽雅间、单间、内账房全部放行
+            const par = pl.parent ? world.places?.[pl.parent] : null;
+            const isCommercialOrMine = Boolean(
+              pl.owner === 'husband' ||
+              pl.access === 'public_shop' ||
+              (par && (
+                par.owner === 'husband' ||
+                par.use === 'restaurant' ||
+                par.use === 'shop' ||
+                /酒楼|酒肆|茶坊|茶肆|货栈|客栈/.test(String(par.name || ''))
+              ))
+            );
+            if (!isCommercialOrMine && /后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩/.test(String(pl.name || ''))) return false;
             if (pl.parent) {
               // 只列公开的地方：前堂、门厅、院子；后厨库房雅间卧房一律不列
               const pubAccess = pl.access === 'public_outer' || pl.access === 'guest_main' || pl.access === 'guest_outer' || pl.access === 'public_shop';
@@ -1101,7 +1138,13 @@ const STARTED_AT = Date.now();
                 const pCity = /府$|州$|县$/.test(seg0) ? seg0 : '临江府';
                 if (pCity !== myCity) continue;
               }
-              if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩/.test(fullName)) continue;
+              const isCommOrMine = Boolean(
+                parent?.owner === 'husband' ||
+                parent?.use === 'restaurant' ||
+                parent?.use === 'shop' ||
+                /酒楼|酒肆|茶坊|茶肆|货栈|客栈/.test(String(parent?.name || ''))
+              );
+              if (!isCommOrMine && /后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩/.test(fullName)) continue;
               const acc = String(rec.access || '');
               if (acc && !['public_outer', 'guest_main', 'guest_outer', 'public_shop'].includes(acc)) continue;
               places.push({
@@ -1266,6 +1309,159 @@ const STARTED_AT = Date.now();
           places, homes: props, people: peopleOut, todos,
           clock: { day: world.clock?.day, hour: world.clock?.hour },
           brief,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // GET /api/world/relationships  → 全城世情人物名录与好感羁绊（含城市分类、心性条、态度评语，给 App 展现）
+    if (req.method === 'GET' && matchRoute('/world/relationships')) {
+      try {
+        const world = peek(DATA_DIR);
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const actorId = member.actor || 'husband';
+        const me = world.actors?.[actorId] || world.actors?.husband;
+        const curLocation = me?.location || 'husband_room';
+
+        const placeName = (id) => world.places?.[id]?.name || id;
+        const citiesList = Object.keys(world.cities || {});
+
+        const cityOf = (a) => {
+          if (a.city) return a.city;
+          const pName = placeName(a.location || '');
+          const text = `${pName} ${a.role || ''} ${a.name || ''}`;
+          for (const c of citiesList) {
+            if (text.includes(c)) return c;
+          }
+          for (const c of citiesList) {
+            const s = c.replace(/府|州|县/, '');
+            if (s.length >= 2 && text.includes(s)) return c;
+          }
+          return '临江府';
+        };
+
+        const attitudeOf = (a) => {
+          const r = a.relations?.husband || {};
+          const d = Number(r.desire) || 0;
+          const t = Number(r.trust) || 0;
+          const g = Number(r.grievance) || 0;
+          if (a.servant) {
+            if (g >= 60) return '心里有气，但不敢违拗';
+            if (t >= 60) return a.gender === 'male' ? '忠心办事的伙计，最得力' : '贴心的丫头，最得力';
+            return a.gender === 'male' ? '府里的伙计，听你差遣' : '府里的丫头，听你差遣';
+          }
+          if (a.gender === 'male' && a.household) {
+            if (g >= 60) return '心里有气，但不敢违拗';
+            if (t >= 60) return '忠心办事的伙计，最得力';
+            return '府里的伙计，听你差遣';
+          }
+          if (a.gender === 'male') {
+            if (g >= 60) return '对你有敌意，见面就要生事';
+            if (g >= 30) return '心里有疙瘩，面上还应酬';
+            if (t >= 60) return '称兄道弟，未必真心';
+            return '点头之交，各怀算盘';
+          }
+          if (a.household) {
+            if (g >= 60) return '心里有气，会闹一场、要哄';
+            if (d >= 60) return '心里有你，主动迎合';
+            if (d >= 30) return '愿意服侍，会撒撒娇';
+            return '虽有些倦，仍会应下';
+          }
+          if (g >= 60) return '心里有怨，轻易不松口';
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1;
+          if (isCons) return d >= 50 ? '已是相好，嘴上推拒身子应' : '已是相好，脸皮薄';
+          if (d >= 70 && t >= 55) return '心里已有你，半推半就';
+          if (d >= 45) return '有点意动，要给由头';
+          if (t >= 45) return '可信的人，但到此为止';
+          if (d <= 20 && t <= 30) return '只是相识，第一次必拒';
+          return '点头之交，各怀算盘';
+        };
+
+        const intimacyOf = (a) => {
+          if (a.gender !== 'female') return '—';
+          if (a.pregnancy && !a.pregnancy.born) {
+            const days = Number(a.pregnancy.days || 0);
+            const months = Math.floor(days / 30);
+            return months >= 1 ? `有孕·${months}个月` : `有孕·${days}天`;
+          }
+          if (a.menses?.on || a.onPeriod) return '月事中';
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好';
+          if (isCons) {
+            if (/正妻/.test(String(a.role || ''))) return '琴瑟和鸣';
+            if (/如夫人|二房|妾/.test(String(a.role || ''))) return '雨意云情';
+            if (a.household) return '承欢侍寝';
+            return '红颜相好';
+          }
+          return a.household ? '端庄' : '守礼';
+        };
+
+        const categoryOf = (a) => {
+          if (a.household) return 'house';
+          const isLove = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(a.relations?.husband?.intimate) === 1;
+          if (isLove) return 'love';
+          if (/官|府尹|知府|通判|同知|县令|提点|总督|尚书|侍郎|主簿|捕头|衙役/.test(String(a.role || ''))) return 'court';
+          return 'all';
+        };
+
+        const cityCounts = {};
+        const actorsList = [];
+
+        for (const [id, a] of Object.entries(world.actors || {})) {
+          if (!a || a.dead) continue;
+          if (id === 'husband') continue;
+          const c = cityOf(a);
+          cityCounts[c] = (cityCounts[c] || 0) + 1;
+          const r = a.relations?.husband || {};
+          const isHere = a.location === curLocation;
+          actorsList.push({
+            id,
+            name: a.name || id,
+            city: c,
+            role: a.role || '市井百姓',
+            marital: maritalTextOf(a, a.spouse ? (world.actors?.[a.spouse]?.name || '') : ''),
+            place: placeName(a.location || ''),
+            locationId: a.location || '',
+            money: typeof a.money === 'number' ? Number(a.money.toFixed(1)) : 0,
+            debt: Number(a.debt) || 0,
+            trust: Math.max(0, Math.min(100, Number(r.trust) || 0)),
+            desire: Math.max(0, Math.min(100, Number(r.desire) || 0)),
+            grievance: Math.max(0, Math.min(100, Number(r.grievance) || 0)),
+            attitude: attitudeOf(a),
+            intimacy: intimacyOf(a),
+            category: categoryOf(a),
+            gender: a.gender || 'female',
+            here: isHere,
+            household: Boolean(a.household),
+            canSummon: id !== 'husband',
+          });
+        }
+
+        actorsList.sort((a, b) => {
+          const rank = (x) => {
+            if (x.household) return 0;
+            if (x.category === 'love' || x.trust >= 50) return 1;
+            return 2;
+          };
+          const ra = rank(a), rb = rank(b);
+          if (ra !== rb) return ra - rb;
+          if (a.here !== b.here) return a.here ? -1 : 1;
+          return b.trust - a.trust;
+        });
+
+        const sortedCities = Object.keys(cityCounts).sort((x, y) => cityCounts[y] - cityCounts[x]);
+        const cities = [
+          { name: '全部', count: actorsList.length },
+          ...sortedCities.map((c) => ({ name: c, count: cityCounts[c] }))
+        ];
+
+        return sendJson(res, 200, {
+          ok: true,
+          total: actorsList.length,
+          cities,
+          actors: actorsList,
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
@@ -3310,6 +3506,56 @@ const STARTED_AT = Date.now();
         saveState(DATA_DIR, world);
         console.log(`[Admin] 改人物：${a.name} ${JSON.stringify(changed)}`);
         return sendJson(res, 200, { ok: true, actor: { id: a.id, name: a.name, age: a.age, gender: a.gender, role: a.role, money: a.money } });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.31 账本修复：清掉"只写流水、没进现银"的测试行；可补一条尾款债权
+    if (req.method === 'POST' && pathname === '/api/admin/ledger/repair') {
+      try {
+        const body = await parseJsonBody(req, 128 * 1024);
+        const world = loadState(DATA_DIR);
+        const day = Number(body.day) || Number(world.clock?.day) || 1;
+        const delta = Number(body.delta);
+        const keepBalance = Number(body.keepBalance);
+        const titleRe = body.titlePattern ? new RegExp(String(body.titlePattern)) : null;
+        if (!delta || !Number.isFinite(keepBalance)) {
+          return sendJson(res, 400, { ok: false, error: '需要 delta 与 keepBalance' });
+        }
+        const before = Array.isArray(world.ledger) ? world.ledger.length : 0;
+        const removed = [];
+        world.ledger = (world.ledger || []).filter((e) => {
+          if (!e) return false;
+          const match = Number(e.day) === day && Number(e.delta) === delta
+            && (!titleRe || titleRe.test(String(e.title || '')))
+            && Math.abs(Number(e.balance) - keepBalance) > 0.005;
+          if (match) { removed.push({ title: e.title, delta: e.delta, balance: e.balance }); return false; }
+          return true;
+        });
+        let promise = null;
+        const p = body.promise;
+        if (p && p.text && Number(p.due) > 0 && Number(p.amount) > 0) {
+          const exists = (world.promises || []).some((x) => x && !x.done && x.orderBalance && String(x.text || '').includes(String(p.text).slice(0, 12)));
+          if (!exists) {
+            promise = {
+              id: `pr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+              text: String(p.text).slice(0, 80),
+              due: Number(p.due),
+              at: Number(world.clock?.day) || 1,
+              done: false, about: [], owner: 'husband',
+              orderBalance: Math.round(Number(p.amount) * 100) / 100,
+            };
+            world.promises = Array.isArray(world.promises) ? world.promises : [];
+            world.promises.push(promise);
+          }
+        }
+        world.notes = Array.isArray(world.notes) ? world.notes : [];
+        world.notes.push({ day, hour: world.clock?.hour || 0, text: `账本修复：清 ${removed.length} 条无现银流水${promise ? '，补尾款债权' : ''}` });
+        world.notes = world.notes.slice(-80);
+        saveState(DATA_DIR, world);
+        console.log(`[LedgerRepair] 清 ${removed.length} 条 day=${day} delta=${delta}，保留 balance=${keepBalance}`);
+        return sendJson(res, 200, { ok: true, removed, before, after: world.ledger.length, promise });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
