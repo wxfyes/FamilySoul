@@ -2116,6 +2116,15 @@ export function migrateOwnership(world) {
       gs.exits = exits;
     }
   } catch { /* 忽略 */ }
+  // 暗号约定：已用过的留三十天，没用过的九十天过期；最多存四十条，不无限长
+  try {
+    const d = Number(world.clock?.day) || 1;
+    world.signals = (world.signals || []).filter((s) => {
+      if (!s) return false;
+      const age = d - (Number(s.day) || d);
+      return s.active === false ? age < 30 : age < 90;
+    }).slice(-40);
+  } catch { /* 忽略 */ }
   // 旧风评没写 reach（早期手推的对象），补成"全城已知"，别在街面风评里显示 0 人知
   try {
     for (const r of world.rumors || []) {

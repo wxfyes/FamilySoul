@@ -297,12 +297,14 @@ export function executeNarrativeTags({
         const meB = viewerActorId ? wB.actors?.[viewerActorId] : wB.actors?.husband;
         const builtToday = Number(wB.flags?.buildDay || 0);
         let builtCount = builtToday === (wB.clock?.day || 1) ? (Number(wB.flags?.buildCount) || 0) : 0;
+        const dynamicCount = Object.keys(wB.dynamicPlaces || {}).length;
         for (const m of buildMatches) {
           const rawTag = m[0];
           const rawName = String(m[1] || '').replace(/\s/g, '');
           const parentName = String(m[2] || '').trim();
-          if (builtCount >= 5) {
-            reply = reply.replace(rawTag, '');
+          // 每天最多三处；全城动态地点三百处封顶，先复用再新造
+          if (builtCount >= 3 || dynamicCount + builtCount >= 300) {
+            reply = reply.replace(rawTag, '\n（【舆图已满】这处先不新辟，沿用现有地点。）');
             continue;
           }
           const verdict = isPlaceName(rawName);
@@ -310,8 +312,10 @@ export function executeNarrativeTags({
             reply = reply.replace(rawTag, '');
             continue;
           }
-          if (Object.values(wB.places || {}).some((pl) => pl && pl.name === rawName)) {
-            reply = reply.replace(rawTag, '');
+          const existingPlace = Object.entries(wB.places || {}).find(([, pl]) => pl
+            && (pl.name === rawName || String(pl.name || '').endsWith(`·${rawName}`)));
+          if (existingPlace) {
+            reply = reply.replace(rawTag, `\n（【旧处】${existingPlace[1].name}）`);
             continue;
           }
           let parentId = null;
@@ -320,6 +324,13 @@ export function executeNarrativeTags({
             parentId = hit ? hit[0] : (meB?.location || 'street');
           } else {
             parentId = meB?.location || 'street';
+          }
+          // 父地点里已有同类房间（后门/雅间/账房/暗室/地窖/耳房）就复用，绝不再造一个同名的
+          const roomKey = ({ 后门: 'backdoor', 雅间: 'room', 账房: 'office', 暗室: 'secret', 地窖: 'cellar', 耳房: 'ear' })[rawName];
+          const reusedRoom = roomKey ? wB.places?.[parentId]?.rooms?.[roomKey] : null;
+          if (reusedRoom?.id && wB.places?.[reusedRoom.id]) {
+            reply = reply.replace(rawTag, `\n（【旧处】${wB.places[reusedRoom.id].name || rawName}）`);
+            continue;
           }
           wB.flags = wB.flags || {};
           wB.flags.placeSeq = (Number(wB.flags.placeSeq) || 0) + 1;
