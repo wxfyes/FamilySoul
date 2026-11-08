@@ -41,6 +41,16 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   const r8 = parseDismissIntent('都给我退下');
   assert.equal(r8.targetName, null);
   assert.equal(isMassDismiss('都给我退下'), true);
+
+  // 议事厅对家丁护院说"各自散了"：必须全员清场，不能当人名
+  const r9 = parseDismissIntent('让他们各自散了');
+  assert.equal(r9.isDismiss, true, '让他们各自散了 应识别为离场');
+  assert.equal(r9.targetName, null, '各自 不是人名');
+  assert.equal(isMassDismiss('让他们各自散了'), true);
+
+  const r10 = parseDismissIntent('家丁护院都散了吧');
+  assert.equal(r10.isDismiss, true, '家丁护院都散了吧 应识别为离场');
+  assert.equal(r10.targetName, null);
 }
 
 // 2. 内眷住处规制映射回归
