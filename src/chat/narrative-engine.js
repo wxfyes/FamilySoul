@@ -910,9 +910,9 @@ export function executeNarrativeTags({
             } else {
               console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
             }
-          } else if (isMassDismiss(sayStr)) {
-            // 无主语的一句"还不走？"不在这里清场：宁可不动作，也不误把一屋人赶走
-            // 全员清场：仅限在场的客人与侍从（不含相公），各自回各自住处
+          } else if (hereActors.length === 1 || isMassDismiss(sayStr)) {
+            // 未点特定人名：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
+            // 现场所有人（除相公，及正房同寝的正妻沈婉儿外），全部依规制退回住处与值守大门！
             const names = [];
             for (const a of hereActors) {
               // 正房同寝规制保护：相公在正房睡觉/安歇时，沈婉儿是正妻，默认同房安歇，绝不能作为客侍扫地出门！

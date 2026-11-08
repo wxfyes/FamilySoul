@@ -57,6 +57,27 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   assert.equal(r11.isDismiss, true);
   assert.equal(r11.targetName, null, '都散了 不是人名');
   assert.equal(isMassDismiss('各自都散了，去忙你们的事情吧'), true);
+
+  // 实测相公高频日常打发指令：走吧 / 先不用了，没事了，出去干活吧 / 行了，去忙吧
+  const r12 = parseDismissIntent('走吧');
+  assert.equal(r12.isDismiss, true, '单纯说"走吧"必须识别为离场意图');
+  assert.equal(r12.targetName, null);
+  assert.equal(isMassDismiss('走吧'), true);
+
+  const r13 = parseDismissIntent('先不用了，没事了，出去干活吧');
+  assert.equal(r13.isDismiss, true, '先不用了，没事了，出去干活吧 必须识别为离场意图');
+  assert.equal(r13.targetName, null);
+  assert.equal(isMassDismiss('先不用了，没事了，出去干活吧'), true);
+
+  const r14 = parseDismissIntent('行了，去忙吧');
+  assert.equal(r14.isDismiss, true, '行了，去忙吧 必须识别为离场意图');
+  assert.equal(r14.targetName, null);
+  assert.equal(isMassDismiss('行了，去忙吧'), true);
+
+  const r15 = parseDismissIntent('没事了，退下吧');
+  assert.equal(r15.isDismiss, true, '没事了，退下吧 必须识别为离场意图');
+  assert.equal(r15.targetName, null);
+  assert.equal(isMassDismiss('没事了，退下吧'), true);
 }
 
 // 2. 内眷住处规制映射回归

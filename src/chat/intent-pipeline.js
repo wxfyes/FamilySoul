@@ -83,15 +83,28 @@ export function pickSummonActor(world, targetName, selfId = 'husband') {
  */
 export function parseDismissIntent(sayText) {
   const say = String(sayText || '').trim();
+  // 1. 第一人称自己走动（如"我回家了"、"我回房了"、"我走了"）：是相公台词，绝不是打发送客！
+  if (/^(?:我|咱|俺|为夫|老子|本掌柜|少掌柜|本少爷)[^。！？\n]{0,8}(?:走|回|去|睡|歇)/.test(say)) {
+    return { isDismiss: false, targetName: null, targetWhere: null };
+  }
+
+  // 2. 排除明确否定与商榷挽留句（如"要不要退下"、"能不能走"、"别走"、"不要走"、"先别走"）
+  const isQuestionOrNegation = /(?:要不要|能不能|可否|别走|不要走|先别走|暂且别|不用退|别退|先不走|先不退|走不走|退不退)/.test(say);
+  if (isQuestionOrNegation) {
+    return { isDismiss: false, targetName: null, targetWhere: null };
+  }
+
   const isDismiss =
     /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|睡觉|[\u4e00-\u9fa5]{2,6})/.test(say)
     || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间|去睡)/.test(say)
-    || /^(?:你|你们|都|先)?\s*(?:走|回去吧|回吧|退下|下去|散了|去吧|出门吧|慢走|送客|睡吧|安歇吧)[。！!~…\s]*$/.test(say)
-    || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋|各自回|回房间睡觉|回屋睡|去睡吧|回房睡|都走吧/.test(say)
+    || /^(?:你|你们|都|先)?\s*(?:走(?:吧|啦)?|回去(?:吧)?|回吧|退下(?:吧)?|下去(?:吧)?|散了(?:吧)?|去吧|出门吧|慢走|送客|睡吧|安歇吧)[。！!~…\s]*$/.test(say)
+    || /送客|你回吧|你走吧|退下吧|都散了吧|各自回房|都回屋|各自回|回房间睡觉|回屋睡|去睡吧|回房睡|都走吧|走吧|走啦|退出去|退下吧/.test(say)
     || /(?:怎么|为何)?还不(?:走|退|回去|回房|歇|动身|出去)/.test(say)
     || /都[^。]{0,6}(出去|退下|散了|退出去|回去|回房|睡觉|走)/.test(say)
     || /(?:让|叫|命|打发|请)?[^。！？\n]{0,8}各自[^。！？\n]{0,4}(散|忙去|去忙|回房|回屋)/.test(say)
-    || /(?:都|全|大伙|诸位|你们|他们)[^。！？\n]{0,6}(散了|散了吧|下去吧|退下吧|忙去)/.test(say);
+    || /(?:都|全|大伙|诸位|你们|他们)[^。！？\n]{0,6}(散了|散了吧|下去吧|退下吧|忙去|干活)/.test(say)
+    || /(?:出去|去|退下|退出去|回门房)?\s*(?:干活|忙去|去忙|当差|巡视)(?:去)?(?:吧)?[。！!~…\s]*$/.test(say)
+    || /(?:不用了|没事了|行了|好了|去吧)[^。！？\n]{0,8}(?:走吧|退下|下去|出去|干活|去忙|忙去)/.test(say);
 
   let targetName = null;
   let targetWhere = null;
@@ -116,10 +129,10 @@ export function parseDismissIntent(sayText) {
     }
   }
 
-  // 2.5 名字清洗：解析可能把"都散了，"这种动词短语误当人名
+  // 2.5 名字清洗：解析可能把"都散了，"、"没事了，"这种动词或语气助词短语误当人名
   if (targetName) {
     targetName = String(targetName).replace(/[，。！？、；：\s]+/g, '');
-    if (!targetName || /散|忙|走|退|去|回|各自|大家|他们|你们/.test(targetName)) {
+    if (!targetName || /散|忙|走|退|去|回|各自|大家|他们|你们|事|了|用|没|好|行|干|活|罢|吧/.test(targetName)) {
       targetName = null;
       targetWhere = null;
     }
@@ -134,9 +147,12 @@ export function parseDismissIntent(sayText) {
   return { isDismiss, targetName, targetWhere };
 }
 
-/** 是否"全员清场"（都出去/全退下/散了/各自回房…） */
+/** 是否"全员/通令清场"（都出去/全退下/散了/各自回房/走吧/出去干活…） */
 export function isMassDismiss(sayText) {
-  return /都|全|大伙|诸位|退下|散了|各自|大家|所有人|众人/.test(String(sayText || '').trim());
+  const say = String(sayText || '').trim();
+  // 排除单纯代词催促（如"你怎么还不走"、"她怎么还不走"不是全员通令清场）
+  if (/(?:怎么|为何)?还不(?:走|退|回去|回房)/.test(say)) return false;
+  return /都|全|大伙|诸位|退下|散了|各自|大家|所有人|众人|走吧|走啦|出去干活|去干活|干活去|去忙|忙去|出去忙|下去吧/.test(say);
 }
 
 /**
