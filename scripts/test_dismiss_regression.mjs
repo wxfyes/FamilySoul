@@ -78,6 +78,11 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   assert.equal(r15.isDismiss, true, '没事了，退下吧 必须识别为离场意图');
   assert.equal(r15.targetName, null);
   assert.equal(isMassDismiss('没事了，退下吧'), true);
+
+  const r16 = parseDismissIntent('出去干活吧');
+  assert.equal(r16.isDismiss, true, '出去干活吧 必须识别为离场意图');
+  assert.equal(r16.targetName, null, '绝不能把"出"当成人名！');
+  assert.equal(isMassDismiss('出去干活吧'), true);
 }
 
 // 2. 内眷住处规制映射回归

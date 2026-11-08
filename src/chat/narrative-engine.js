@@ -851,13 +851,13 @@ export function executeNarrativeTags({
           // 1. 是否是点名某人？（解析结果来自 parseDismissIntent）
           let targetName = dismissName;
           let targetWhere = dismissWhere;
+          let matchedWho = null;
 
           if (targetName) {
             // 在【当前在场的人】中精确或模糊匹配
             const matched = hereActors.filter((a) => {
               if (a.name === targetName) return true;
               if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName))) return true;
-              if (targetName.length === 1 && a.name.includes(targetName)) return true;
               return false;
             });
 
@@ -868,50 +868,57 @@ export function executeNarrativeTags({
               const firstN = matched[0].name;
               reply = `（${firstN}神情微怔，有些拿不准，轻声问道：“相公唤的是妾身，还是哪位妹妹？”）\n` + String(reply || '');
             } else if (matched.length === 1) {
-              // 精准锁定唯一在场角色
-              const who = matched[0];
-              let dest = null;
-
-              if (/铺子/.test(targetWhere || '')) {
-                const prop = (wF.assets?.properties || []).find((x) => x && (String(x.keeper || '') === String(who.id) || String(x.owner || '') === String(who.id)) && x.place);
-                dest = prop?.place || null;
-              } else if (/东厢/.test(targetWhere || '')) {
-                dest = 'wang_mansion_east';
-              } else if (/西厢/.test(targetWhere || '')) {
-                dest = 'wang_mansion_west';
-              } else if (/房间|回房|屋|歇着|等我|候着|退下|出去|睡/.test(targetWhere || '')) {
-                // 王宅内眷与下人规制（纯映射见 homeRoomForName）
-                dest = homeRoomForName(who.name, {
-                  includeWife: true,
-                  hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
-                  places: wF.places,
-                  role: who.role,
-                }) || who.quarters || who.home || null;
-              }
-
-              if (!dest) {
-                dest = resolvePlaceTarget(wF, targetWhere, { nearId: meF?.location, actor: who });
-              }
-              if (!dest) dest = who.quarters || who.home || null;
-              if (!dest || !wF.places?.[dest]) {
-                try { dest = ensureDwelling(wF, who.id, who.name, 'street'); } catch { dest = null; }
-              }
-
-              if (dest && wF.places?.[dest] && dest !== who.location) {
-                const mv = moveActor(wF, who.id, dest, 'world', '听命离场');
-                if (mv?.ok) {
-                  who.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
-                  saveState(dataDir, wF);
-                  const destName = wF.places[dest].name;
-                  reply = `\n【提示】${who.name}应声告退，去了${destName}。` + String(reply || '').replace(new RegExp(`【提示】${who.name}[^\\n]*\\n?`, 'g'), '');
-                  console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
-                }
-              }
+              matchedWho = matched[0];
             } else {
               console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀`);
+              if (isMassDismiss(sayStr)) {
+                targetName = null; // 只有在本身是通令逐客指令时，无人匹配才回落至通令送客
+              }
+            }
+          }
+
+          if (matchedWho) {
+            // 精准锁定唯一在场角色
+            const who = matchedWho;
+            let dest = null;
+
+            if (/铺子/.test(targetWhere || '')) {
+              const prop = (wF.assets?.properties || []).find((x) => x && (String(x.keeper || '') === String(who.id) || String(x.owner || '') === String(who.id)) && x.place);
+              dest = prop?.place || null;
+            } else if (/东厢/.test(targetWhere || '')) {
+              dest = 'wang_mansion_east';
+            } else if (/西厢/.test(targetWhere || '')) {
+              dest = 'wang_mansion_west';
+            } else if (/房间|回房|屋|歇着|等我|候着|退下|出去|睡/.test(targetWhere || '')) {
+              // 王宅内眷与下人规制（纯映射见 homeRoomForName）
+              dest = homeRoomForName(who.name, {
+                includeWife: true,
+                hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                places: wF.places,
+                role: who.role,
+              }) || who.quarters || who.home || null;
+            }
+
+            if (!dest) {
+              dest = resolvePlaceTarget(wF, targetWhere, { nearId: meF?.location, actor: who });
+            }
+            if (!dest) dest = who.quarters || who.home || null;
+            if (!dest || !wF.places?.[dest]) {
+              try { dest = ensureDwelling(wF, who.id, who.name, 'street'); } catch { dest = null; }
+            }
+
+            if (dest && wF.places?.[dest] && dest !== who.location) {
+              const mv = moveActor(wF, who.id, dest, 'world', '听命离场');
+              if (mv?.ok) {
+                who.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
+                saveState(dataDir, wF);
+                const destName = wF.places[dest].name;
+                reply = `\n【提示】${who.name}应声告退，去了${destName}。` + String(reply || '').replace(new RegExp(`【提示】${who.name}[^\\n]*\\n?`, 'g'), '');
+                console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
+              }
             }
           } else if (hereActors.length === 1 || isMassDismiss(sayStr)) {
-            // 未点特定人名：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
+            // 未点特定人名（或点名在场无人匹配）：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
             // 现场所有人（除相公，及正房同寝的正妻沈婉儿外），全部依规制退回住处与值守大门！
             const names = [];
             for (const a of hereActors) {

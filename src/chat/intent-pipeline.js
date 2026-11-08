@@ -129,10 +129,16 @@ export function parseDismissIntent(sayText) {
     }
   }
 
-  // 2.5 名字清洗：解析可能把"都散了，"、"没事了，"这种动词或语气助词短语误当人名
+  // 2.5 名字清洗：解析可能把"都散了，"、"没事了，"、"出去"这种动词或语气助词短语误当人名
+  // 古风人名至少 2 字（如"罗叔"、"沈婉儿"），单字绝不可作为独立点名人名
   if (targetName) {
     targetName = String(targetName).replace(/[，。！？、；：\s]+/g, '');
-    if (!targetName || /散|忙|走|退|去|回|各自|大家|他们|你们|事|了|用|没|好|行|干|活|罢|吧/.test(targetName)) {
+    if (
+      !targetName
+      || targetName.length < 2
+      || /散|忙|走|退|去|回|出|进|入|到|往|来|各自|大家|他们|你们|事|了|用|没|好|行|干|活|罢|吧/.test(targetName)
+      || NOT_A_NAME.test(targetName)
+    ) {
       targetName = null;
       targetWhere = null;
     }
