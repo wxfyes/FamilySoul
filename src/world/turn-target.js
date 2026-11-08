@@ -18,10 +18,13 @@ export function actorSeniority(a) {
   }
   // 5. 贴身大丫鬟
   if (/贴身|大丫鬟/.test(role) || a.id === 'xiaocui') return 500;
+  // 5.5 大厨/厨子
+  if (/厨子|大厨|主厨/.test(role) || /厨/.test(title)) return 450 + (Number(a.age) || 30);
   // 6. 普通护院/家丁（长者为尊）
   if (/护院/.test(role)) return 400 + (Number(a.age) || 20);
   if (/家丁|门房/.test(role)) return 300 + (Number(a.age) || 20);
   if (/丫鬟|婢女/.test(role)) return 200 + (Number(a.age) || 16);
+  if (/伙计|跑堂|小二/.test(role)) return 150 + (Number(a.age) || 18);
   return 100 + (Number(a.age) || 20);
 }
 

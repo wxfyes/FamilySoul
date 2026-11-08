@@ -168,6 +168,12 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
           actorNote += '随科发妻，端庄清冷，受尽丈夫牵连与委屈；相公特来为她撑腰讨回公道，她对相公心怀感激信赖，但碍于名节在丈夫面前保持克制，对丈夫随科的软弱推脱深恶痛绝。';
         } else if (actor.id === 'yangcaiyun' || actor.name.includes('采云')) {
           actorNote += '翟家大货栈老板娘，精明干练商贾人妻，手里攥着货栈暗账底价，掌管铺子管事与伙计。';
+        } else if (actor.name === '钱有福' || actor.role.includes('掌柜')) {
+          actorNote += '运河码头大酒楼掌柜，对全资大东家王甯恭敬忠诚，主理大堂账目与贵客接待，听候东家定夺大单并调度伙计布置天字阁。';
+        } else if (actor.name === '何顺' || actor.role.includes('厨子') || actor.role.includes('大厨')) {
+          actorNote += '运河码头大酒楼掌勺大厨，精通两淮名菜与大席，东家批复汪总商寿宴后喜出望外，当面躬身向东家呈报天字阁寿宴菜单。';
+        } else if (actor.name === '陈二' || actor.role.includes('伙计')) {
+          actorNote += '运河大酒楼跑堂伙计，专司端茶送水、跑堂跑腿，在东家与掌柜大厨商议大事时垂手侍候，绝不抢白僭越。';
         } else if (actor.name.includes('管事') || actor.role.includes('管事')) {
           actorNote += '货栈管事/账房，经手文书账目，面对东家大娘子与外来掌柜对账。';
         } else if (isMarriedToOther) {

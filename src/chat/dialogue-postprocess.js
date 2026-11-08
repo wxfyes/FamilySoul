@@ -110,6 +110,15 @@ export function normalizeSpeakers(text, dataDir) {
       const hit = map.get(String(name).trim());
       return hit ? `【${hit}】` : whole;
     });
+    // 治理【姓名·姓名】重复的缺陷（如【陈二·陈二】 -> 【伙计·陈二】）
+    res = res.replace(/【([^·】\n]{1,6})[·・]\1】/g, (m0, dupName) => {
+      const a = Object.values(world.actors || {}).find((x) => x && (x.name === dupName || x.name?.endsWith(dupName)));
+      if (a) {
+        const r = cleanRoleLabel(a.role || a.title) || '伙计';
+        return `【${r}·${dupName}】`;
+      }
+      return `【${dupName}】`;
+    });
     // 容错：如果模型输出 "张三：“台词”" 而漏了方括号，自动补齐 "【张三】：“台词”"
     for (const [name, label] of map.entries()) {
       if (name.length >= 2) {

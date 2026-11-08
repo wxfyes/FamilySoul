@@ -91,11 +91,11 @@ const LAYOUTS = {
 /** 经营场所的立体空间：前店后坊、三层酒楼带地窖——同样定死，不递归 */
 const PREMISES = {
   restaurant: [
-    { key: 'f1', name: '一层大堂', use: 'shop_floor', floor: 1 },
-    { key: 'f2', name: '二层雅阁', use: 'shop_floor', floor: 2 },
-    { key: 'f3', name: '三层天字阁', use: 'shop_floor', floor: 3 },
-    { key: 'kitchen', name: '后厨', use: 'kitchen', floor: 0 },
-    { key: 'cellar', name: '后院酒窖', use: 'store', floor: -1 },
+    { key: 'f1', name: '一层大堂', use: 'shop_floor', floor: 1, access: 'public_shop' },
+    { key: 'f2', name: '二层雅阁', use: 'shop_floor', floor: 2, access: 'public_shop' },
+    { key: 'f3', name: '三层天字阁', use: 'shop_floor', floor: 3, access: 'public_shop' },
+    { key: 'kitchen', name: '后厨', use: 'kitchen', floor: 0, access: 'servant_utility' },
+    { key: 'cellar', name: '后院酒窖', use: 'store', floor: -1, access: 'servant_utility' },
   ],
   teahouse: [
     { key: 'front', name: '临街茶堂', use: 'shop_floor', floor: 1 },

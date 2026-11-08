@@ -1050,8 +1050,8 @@ const STARTED_AT = Date.now();
             if (id === curId || !pl || !pl.name || pl.private || pl.hidden) return false;
             // 只列本城的地方：成都的人不该看见临江的铺子
             if (myCity && labelOf(pl.name) !== myCity) return false;
-            // 私房一律不列（结构性 access 之外再兜一层，防老数据的漏网）
-            if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩|雅阁|天字阁/.test(String(pl.name || ''))) return false;
+            // 私房一律不列（结构性 access 之外再兜一层，防老数据的漏网；公开营业的雅阁、天字阁放行）
+            if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩/.test(String(pl.name || ''))) return false;
             if (pl.parent) {
               // 只列公开的地方：前堂、门厅、院子；后厨库房雅间卧房一律不列
               const pubAccess = pl.access === 'public_outer' || pl.access === 'guest_main' || pl.access === 'guest_outer' || pl.access === 'public_shop';
@@ -1099,7 +1099,7 @@ const STARTED_AT = Date.now();
                 const pCity = /府$|州$|县$/.test(seg0) ? seg0 : '临江府';
                 if (pCity !== myCity) continue;
               }
-              if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩|雅阁|天字阁/.test(fullName)) continue;
+              if (/后坊|库房|后厨|酒窖|雅间|上房|暖阁|厢房|卧房|下房|值房|账房|书房|祠堂|仓房|柴房|马厩/.test(fullName)) continue;
               const acc = String(rec.access || '');
               if (acc && !['public_outer', 'guest_main', 'guest_outer', 'public_shop'].includes(acc)) continue;
               places.push({
