@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseDismissIntent, isMassDismiss, homeRoomForName } from '../src/chat/intent-pipeline.js';
+import { parseDismissIntent, isMassDismiss, homeRoomForName, parseSummonTarget } from '../src/chat/intent-pipeline.js';
 
 console.log('🧪 运行送客/回房意图解析与住处规制回归测试...');
 
@@ -63,8 +63,7 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
 {
   assert.equal(homeRoomForName('崔婉宁'), 'wang_mansion_east', '婉宁住东厢');
   assert.equal(homeRoomForName('林芸娘'), 'wang_mansion_west', '芸娘住西厢');
-  assert.equal(homeRoomForName('沈婉儿', { includeWife: false }), null, '全员送客时婉儿默认不映射外室');
-  assert.equal(homeRoomForName('沈婉儿', { includeWife: true }), 'husband_room', '指名婉儿回房映射正房');
+  assert.equal(homeRoomForName('沈婉儿'), 'husband_room', '婉儿正妻归宿为正房');
   
   // 小翠绝对不允许映射到正房 husband_room
   const cuiRoom = homeRoomForName('小翠', { hasServantRoom: false });
@@ -92,6 +91,11 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   assert.equal(guardRoom, 'husband_room__gate', '家丁退场必须回归外院大门/门房当差');
   assert.notEqual(guardRoom, 'husband_room', '家丁绝不许进正房内室');
   assert.notEqual(guardRoom, 'place_62', '家丁退场绝不许死锁在议事厅');
+  // 实测 bug：把"进来两个护院"误当传唤"进"，导致把临江客栈掌柜孙进抓来
+  assert.equal(parseSummonTarget('进来两个护院'), null, '进来两个护院绝不能解析为人名');
+  assert.equal(parseSummonTarget('叫两个家丁进来'), null);
+  assert.equal(parseSummonTarget('唤芸娘过来'), '芸娘');
+  assert.equal(parseSummonTarget('让小翠到跟前来'), '小翠');
 }
 
 console.log('✅ 所有送客/回房意图解析与内眷规制测试全部通过！');

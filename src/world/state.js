@@ -2079,6 +2079,10 @@ export function migrateOwnership(world) {
         : Object.keys(world.places || {}).find((k) => /朱漆大门|门房|外院|大门/.test(String(world.places[k]?.name || ''))) || null;
       let moved = 0;
       if (gateId) {
+        if (world.actors?.waner) {
+          world.actors.waner.home = 'husband_room';
+          world.actors.waner.quarters = 'husband_room';
+        }
         for (const a of Object.values(world.actors || {})) {
           if (!a || a.dead) continue;
           const isStaff = String(a.id || '').startsWith('staff_') || /家丁|护院|门房|小厮/.test(String(a.role || ''));

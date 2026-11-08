@@ -8,7 +8,7 @@
  *   ④ 依赖单向：chat/* ← pet-service.js。
  */
 
-const NOT_A_NAME = /^(你|你们|都|大伙|大家|全)$/;
+const NOT_A_NAME = /^(你|你们|都|大伙|大家|全|进|来|进来|出去|退下|上门|两个|几个|一人|二人|门房|家丁|护院|下人|伙计|掌柜|东家|店家|客栈|酒楼|茶坊)$/;
 // 代词：整句只有这些词时，不是具体人名（她/他/它 也必须排除，避免"她怎么还不走"被当成人）
 const PRONOUNS = /^(?:你|您|你们|我|我们|他|她|它|他们|她们|它们|大家|大伙|大家伙|诸位|各位|众人|所有人)$/;
 // 群体称呼：只认"整体就是群体词"（可带 都/们/给我/一起/全 等语气尾巴），
@@ -29,17 +29,23 @@ export function parseSummonTarget(rawText, recentMessages = []) {
   const say = text.trim();
   let targetName = null;
 
-  const m1 = /(?:让|叫|命|请|唤|打发|派人叫|把)?\s*([^去回到往先来叫让请过\s]{1,4})\s*(?:叫|请|唤)?\s*(?:过来|过来吧|来|来吧|来一趟|来一下|来正房|到这来|到这里|到跟前|来伺候)/.exec(say);
-  const m2 = /(?:叫|唤|请|传)\s*([^去回到往先来叫让请过\s]{1,4})\s*(?:来吧|过来|到跟前来)/.exec(say);
+  // 严格排除动词与方位词（如"进来两个护院"、"叫护院进来"）
+  const m1 = /(?:让|叫|命|请|唤|打发|派人叫|把)?\s*([^去回到往先来叫让请过进出入退走\s]{2,4})\s*(?:叫|请|唤)?\s*(?:过来|过来吧|来|来吧|来一趟|来一下|来正房|到这来|到这里|到跟前|来伺候)/.exec(say);
+  const m2 = /(?:叫|唤|请|传)\s*([^去回到往先来叫让请过进出入退走\s]{2,4})\s*(?:来吧|过来|到跟前来|进屋|进厅)/.exec(say);
   if (m1 && !NOT_A_NAME.test(m1[1])) targetName = m1[1];
   else if (m2 && !NOT_A_NAME.test(m2[1])) targetName = m2[1];
+
+  if (targetName) {
+    targetName = targetName.replace(/[，。！？、；：\s\d个名位两]+/g, '').trim();
+    if (targetName.length < 2 || NOT_A_NAME.test(targetName)) targetName = null;
+  }
 
   // 承接上一轮：若相公说"叫来吧/叫她来/快叫来/催催"，回溯上一轮相公呼唤的名字
   if (!targetName && /^(?:叫|唤|请|传)?\s*(?:来吧|叫来吧|叫她来吧|唤她来|快叫来|快唤来|催催|那就叫来|快去叫)[。！!~…\s]*$/.test(say)) {
     const hist = Array.isArray(recentMessages) ? recentMessages.slice(-4) : [];
     const prevUserMsg = hist.reverse().find((m) => m.role === 'user' && m.text !== text)?.text || '';
-    const mPrev = /(?:让|叫|命|请|唤|打发|把)?\s*([^去回到往先来叫让请过\s]{1,4})\s*(?:叫|请|唤)?\s*(?:过来|过来吧|来|来吧|来一趟|来一下|来正房|到这来|到这里|到跟前|来伺候)/.exec(prevUserMsg);
-    if (mPrev && !/^(你|你们|都|大伙)$/.test(mPrev[1])) targetName = mPrev[1];
+    const mPrev = /(?:让|叫|命|请|唤|打发|把)?\s*([^去回到往先来叫让请过进出入退走\s]{2,4})\s*(?:叫|请|唤)?\s*(?:过来|过来吧|来|来吧|来一趟|来一下|来正房|到这来|到这里|到跟前|来伺候)/.exec(prevUserMsg);
+    if (mPrev && !NOT_A_NAME.test(mPrev[1])) targetName = mPrev[1];
   }
 
   return targetName;
@@ -54,12 +60,11 @@ export function parseSummonTarget(rawText, recentMessages = []) {
  * @returns {object|null}
  */
 export function pickSummonActor(world, targetName, selfId = 'husband') {
-  if (!targetName) return null;
+  if (!targetName || targetName.length < 2) return null;
   const cands = Object.values(world?.actors || {}).filter((a) => {
     if (!a || a.dead || a.id === selfId) return false;
     if (a.name === targetName) return true;
     if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName))) return true;
-    if (targetName.length === 1 && a.name.includes(targetName)) return true;
     return false;
   });
   if (!cands.length) return null;
@@ -156,10 +161,10 @@ export function homeRoomForName(name, { includeWife = false, hasServantRoom = fa
     return 'husband_room__gate';
   }
 
-  // 2. 后宫内眷规制
+  // 2. 后宫内眷规制：沈婉儿正妻居正房，林芸娘二房居西厢（东跨院为崔婉宁所居）
   if (n.includes('婉宁')) return 'wang_mansion_east';
   if (n.includes('芸娘')) return 'wang_mansion_west';
-  if (includeWife && n.includes('婉儿')) return 'husband_room';
+  if (n.includes('婉儿')) return 'husband_room';
   if (n.includes('小翠')) {
     if (places && typeof places === 'object') {
       // 只认王宅自己的下房/后罩房/耳房，绝不把丫鬟送进别家宅院
