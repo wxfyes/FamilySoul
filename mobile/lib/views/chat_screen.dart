@@ -613,8 +613,18 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted || d == null) return;
       final self = (d['self'] is Map) ? d['self'] as Map : const {};
       final date = (d['date'] is Map) ? d['date'] as Map : const {};
-      final place = (self['place'] ?? '').toString();
-      if (place.isEmpty) return;
+      final homeName2 = (self['homeName'] ?? '').toString();
+      final locRaw = (self['location'] ?? '').toString();
+
+      String place = (self['place'] ?? '').toString().trim();
+      // 容错与兜底：若 place 为空或为原始英文 id（如 house_...__gate），规范化为中文「门外」，绝不留白或裸露 id
+      if (place.isEmpty || place.contains('house_') || place.contains('__gate') || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(place)) {
+        if (place.contains('__gate') || locRaw.contains('__gate')) {
+          place = homeName2.isNotEmpty ? '$homeName2·门外' : '宅院门外';
+        } else if (place.isEmpty || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(place)) {
+          place = homeName2.isNotEmpty ? homeName2 : '门外';
+        }
+      }
       // 同行的人
       List<String> names = const [];
       final party = d['party'];
@@ -639,7 +649,6 @@ class _ChatScreenState extends State<ChatScreen> {
       // 同步给 ChatProvider，让所有消息气泡精准感知同场状态（严禁同场面对面还当面递信）
       provider0?.updatePresence(place, here);
 
-      final homeName2 = (self['homeName'] ?? '').toString();
       final pend = (d['pendingAction'] is Map) ? d['pendingAction'] as Map : null;
       if (place != _placeName || day != _worldDay || hour != _worldHour
           || here.join(',') != _hereNames.join(',')
@@ -806,11 +815,18 @@ class _ChatScreenState extends State<ChatScreen> {
                               future: provider.api.fetchMyWorld(),
                               builder: (context, snap) {
                                 final self = (snap.data?['self'] is Map) ? snap.data!['self'] as Map : const {};
-                                final place = (self['place'] ?? '').toString();
+                                final homeName = (self['homeName'] ?? '').toString();
+                                final locRaw = (self['location'] ?? '').toString();
+                                String place = (self['place'] ?? '').toString().trim();
+                                if (place.isEmpty || place.contains('house_') || place.contains('__gate') || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(place)) {
+                                  if (place.contains('__gate') || locRaw.contains('__gate')) {
+                                    place = homeName.isNotEmpty ? '$homeName·门外' : '宅院门外';
+                                  } else if (place.isEmpty || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(place)) {
+                                    place = homeName.isNotEmpty ? homeName : '门外';
+                                  }
+                                }
                                 final day = (snap.data?['date'] is Map) ? snap.data!['date'] as Map : const {};
-                                final txt = place.isEmpty
-                                    ? '正在确认你在哪儿…'
-                                    : '$place · 第${day['day'] ?? '-'}日 ${day['hour'] ?? '-'}时';
+                                final txt = '$place · 第${day['day'] ?? '-'}日 ${day['hour'] ?? '-'}时';
                                 return Text(txt, style: const TextStyle(color: Colors.white54, fontSize: 12));
                               },
                             ),

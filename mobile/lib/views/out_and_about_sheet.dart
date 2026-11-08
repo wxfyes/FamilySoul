@@ -56,8 +56,12 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
-      final text = (_serverLine != null && _serverLine!.isNotEmpty) ? _serverLine! : okText;
+      String text = (_serverLine != null && _serverLine!.isNotEmpty) ? _serverLine! : okText;
       _serverLine = null;
+      // 治理服务端未落地房间透传出来的裸露英文 ID，净化为中文雅称
+      text = text.replaceAll(RegExp(r'house_[a-zA-Z0-9_]+__gate'), '大门外')
+                 .replaceAll(RegExp(r'house_[a-zA-Z0-9_]+'), '宅院')
+                 .replaceAll(RegExp(r'place_\d+'), '市井');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(text),
@@ -87,7 +91,10 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final d = _menu;
-    final where = (d?['where'] is Map) ? (d!['where'] as Map)['name']?.toString() ?? '' : '';
+    String where = (d?['where'] is Map) ? (d!['where'] as Map)['name']?.toString() ?? '' : '';
+    if (where.isEmpty || where.contains('house_') || where.contains('__gate') || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(where)) {
+      where = where.contains('__gate') ? '宅院门外' : (where.isEmpty ? '门外' : where);
+    }
     final clock = (d?['clock'] is Map) ? d!['clock'] as Map : const {};
     final kb = MediaQuery.of(context).viewInsets.bottom;
     final screenH = MediaQuery.of(context).size.height;
