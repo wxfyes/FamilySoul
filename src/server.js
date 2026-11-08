@@ -2649,6 +2649,54 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.26f2 批量裁撤家丁/护院/丫鬟，并把兵账与真人对齐 POST /api/admin/staff/trim {guard,retainer,maid}
+    if (req.method === 'POST' && pathname === '/api/admin/staff/trim') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = peek(DATA_DIR);
+        const spec = [
+          { role: '家丁', target: body.guard != null ? Math.max(0, Number(body.guard) || 0) : null },
+          { role: '护院', target: body.retainer != null ? Math.max(0, Number(body.retainer) || 0) : null },
+          { role: '丫鬟', target: body.maid != null ? Math.max(0, Number(body.maid) || 0) : null },
+        ];
+        const removed = [];
+        for (const { role, target } of spec) {
+          if (target == null) continue;
+          const list = Object.entries(world.actors || {})
+            .filter(([, a]) => a && !a.dead && String(a.role || '') === role)
+            .sort((x, y) => String(x[0]).localeCompare(String(y[0]))); // 老的留下，新的裁掉
+          while (list.length > target) {
+            const [id, a] = list.pop();
+            delete world.actors[id];
+            if (world.npcArcs) delete world.npcArcs[id];
+            removed.push(`${a.name}(${role})`);
+          }
+        }
+        // 兵账与真人对齐：家丁/护院/私兵按真实人数重算，私兵营兵不再虚高
+        const f = world.factions?.wangjia;
+        let counts = null;
+        if (f) {
+          const countRole = (re) => Object.values(world.actors || {}).filter((a) => a && !a.dead && re.test(String(a.role || ''))).length;
+          f.kinds = f.kinds && typeof f.kinds === 'object' ? f.kinds : {};
+          f.kinds.guard = countRole(/^家丁$/);
+          f.kinds.retainer = countRole(/^护院$/);
+          f.kinds.army = countRole(/私兵/);
+          const sum = Math.round((Number(f.kinds.guard) || 0) + (Number(f.kinds.retainer) || 0) + (Number(f.kinds.army) || 0));
+          f.stationed = { 临江府: sum };
+          f.troops = sum;
+          f.army = sum;
+          f.guards = f.kinds.guard;
+          f.fresh = Math.min(Number(f.fresh) || 0, sum);
+          counts = { ...f.kinds, troops: sum };
+        }
+        saveState(DATA_DIR, world);
+        console.log(`[Staff] 裁撤 ${removed.length} 人；兵账对齐：${JSON.stringify(counts)}`);
+        return sendJson(res, 200, { ok: true, removed: removed.length, names: removed.slice(0, 40), counts });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.26g 把某人挪到某处（没有就建）POST /api/admin/actor/move {id, place}
     if (req.method === 'POST' && pathname === '/api/admin/actor/move') {
       try {
