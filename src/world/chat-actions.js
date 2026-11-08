@@ -200,34 +200,49 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     let partner = here.find((a) => a.name && say.includes(a.name))
       || here.find((a) => (/老板娘/.test(say) && /老板娘/.test(String(a.role || '')))
         || (/掌柜|东家/.test(say) && /掌柜|东家/.test(String(a.role || ''))))
+      || here.find((a) => a.household)
       || here.find((a) => !a.servant)
       || here[0];
     if (partner) {
       let target = null;
       let label = '';
-      if (me.location === 'goods_shop' || partner.location === 'goods_shop') {
-        target = 'goods_shop__office';
-        label = '翟家货栈·清静账房';
-      } else if (me.location === 'place_44' || partner.location === 'place_44') {
-        target = 'place_44__f2';
-        label = '运河码头三层大酒楼·二层雅阁';
-      } else if (/王宅|正房/.test(String(world.places?.[me.location]?.name || ''))) {
-        target = 'husband_room__study';
-        label = '临江·王宅·书斋';
-      } else {
-        // 通用场所：任何有院子的铺/栈/宅/店，优先找现成雅间，没有就现开一间
-        const cur = world.places?.[me.location];
-        const rootId = String(cur?.parent || me.location);
-        const root = world.places?.[rootId];
-        if (root && /货栈|酒楼|茶坊|客栈|宅|府|院|铺|店|楼/.test(String(root.name || ''))) {
-          const child = Object.entries(world.places || {}).find(([id, p]) => p && p.parent === rootId
-            && id !== me.location && /雅间|账房|书斋|内室|后堂|暖阁|雅阁/.test(String(p.name || '')));
-          target = child ? child[0] : `${rootId}__parlor`;
-          label = child ? String(child[1].name) : `${root.name}·雅间`;
-          if (!world.places[target]) {
-            world.places[target] = {
-              id: target, name: label, parent: rootId, use: 'room', access: 'private', exits: [rootId],
-            };
+      // 1) 先认"带我去某处"里的地名；说得出地名就去那儿，不再自作主张开雅间
+      const destMatch = /(?:带我去|领我去|去|到|往)\s*([^，。！？\n]{2,12})/.exec(say);
+      const destName = destMatch ? destMatch[1].replace(/(?:吧|啊|呀|嘛|一趟|走走|坐坐)$/g, '').trim() : '';
+      if (destName) {
+        const hit = Object.entries(world.places || {}).find(([, p]) => p
+          && (p.name === destName || (destName.length >= 2 && String(p.name || '').includes(destName))));
+        if (hit) {
+          target = hit[0];
+          label = String(hit[1].name || destName);
+        }
+      }
+      // 2) 没点名地名，才按当前场所找私密房间
+      if (!target) {
+        if (me.location === 'goods_shop' || partner.location === 'goods_shop') {
+          target = 'goods_shop__office';
+          label = '翟家货栈·清静账房';
+        } else if (me.location === 'place_44' || partner.location === 'place_44') {
+          target = 'place_44__f2';
+          label = '运河码头三层大酒楼·二层雅阁';
+        } else if (/王宅|正房/.test(String(world.places?.[me.location]?.name || ''))) {
+          target = 'husband_room__study';
+          label = '临江·王宅·书斋';
+        } else {
+          // 通用场所：任何有院子的铺/栈/宅/店，优先找现成雅间，没有就现开一间
+          const cur = world.places?.[me.location];
+          const rootId = String(cur?.parent || me.location);
+          const root = world.places?.[rootId];
+          if (root && /货栈|酒楼|茶坊|客栈|宅|府|院|铺|店|楼/.test(String(root.name || ''))) {
+            const child = Object.entries(world.places || {}).find(([id, p]) => p && p.parent === rootId
+              && id !== me.location && /雅间|账房|书斋|内室|后堂|暖阁|雅阁/.test(String(p.name || '')));
+            target = child ? child[0] : `${rootId}__parlor`;
+            label = child ? String(child[1].name) : `${root.name}·雅间`;
+            if (!world.places[target]) {
+              world.places[target] = {
+                id: target, name: label, parent: rootId, use: 'room', access: 'private', exits: [rootId],
+              };
+            }
           }
         }
       }

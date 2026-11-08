@@ -34,6 +34,15 @@ try {
   assert.strictEqual(w.actors.yangcaiyun.location, 'test_inn__parlor', '同伴应同行');
   console.log('✅ 通用场所也能开雅间同行');
 
+  // 点名"去茶坊"：必须去茶坊，不能被"王宅"通用逻辑带进书斋
+  w.actors.husband.location = 'husband_room__study';
+  w.actors.waner.location = 'husband_room__study';
+  const nTea = applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去茶坊，婉儿' });
+  assert.ok(nTea.some((n) => n.includes('茶坊')), '应提示到了茶坊');
+  assert.strictEqual(w.actors.husband.location, 'tea_house', '相公应到茶坊');
+  assert.strictEqual(w.actors.waner.location, 'tea_house', '婉儿应同行到茶坊');
+  console.log('✅ 点名去茶坊，不会被书斋截走');
+
   // 离线真人：同一场所内允许同行
   w.actors.husband.location = 'goods_shop';
   w.actors.yangcaiyun.location = 'goods_shop';
