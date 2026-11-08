@@ -39,8 +39,9 @@ try {
   w.actors.waner.location = 'husband_room__study';
   const nTea = applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去茶坊，婉儿' });
   assert.ok(nTea.some((n) => n.includes('茶坊')), '应提示到了茶坊');
-  assert.strictEqual(w.actors.husband.location, 'tea_house', '相公应到茶坊');
-  assert.strictEqual(w.actors.waner.location, 'tea_house', '婉儿应同行到茶坊');
+  assert.ok(String(w.actors.husband.location).startsWith('tea_house'), '相公应到茶坊，实际：' + w.actors.husband.location);
+  assert.ok(String(w.actors.waner.location).startsWith('tea_house'), '婉儿应同行到茶坊');
+  assert.ok(/茶/.test(String(w.places?.[w.actors.husband.location]?.name || '')), '落点应是茶坊的公共茶堂');
   console.log('✅ 点名去茶坊，不会被书斋截走');
 
   // 离线真人：同一场所内允许同行

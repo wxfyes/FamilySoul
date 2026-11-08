@@ -14,6 +14,7 @@ import { fallbackName } from './migration.js';
 import { quellBandits } from './bandits.js';
 import { callToArms, spawnMaids } from './warfare.js';
 import { actorSeniority } from './turn-target.js';
+import { materializeRoom } from './residence.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -206,10 +207,38 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     if (partner) {
       let target = null;
       let label = '';
+      const wantPrivate = /(雅间|清静|没人的地方|私下|单独|包房|暖阁)/.test(say);
+      // 出门去某类场所：默认去"大堂/前堂/正厅"，不是卧室/私房
+      const publicRoomOf = (pid) => {
+        const keys = pid === 'husband_room' ? ['hall', 'council', 'gate'] : ['front', 'f1', 'hall', 'main'];
+        for (const key of keys) {
+          const rec = world.places?.[pid]?.rooms?.[key];
+          if (!rec) continue;
+          let id = rec.id;
+          if (!world.places?.[id]) {
+            try { id = materializeRoom(world, pid, key) || id; } catch { /* 忽略 */ }
+          }
+          if (world.places?.[id]) return id;
+        }
+        return null;
+      };
+      const venueAliases = [
+        [/回家|回府|回宅|王宅/, 'husband_room'],
+        [/茶坊|茶楼|茶肆|老店/, 'tea_house'],
+        [/酒肆|酒馆/, 'wine_shop'],
+        [/大酒楼|酒楼/, world.places?.place_44 ? 'place_44' : 'canal_restaurant'],
+        [/客栈/, 'inn'],
+      ];
+      for (const [re, pid] of venueAliases) {
+        if (!re.test(say) || !world.places?.[pid]) continue;
+        target = (wantPrivate ? null : publicRoomOf(pid)) || pid;
+        label = String(world.places?.[target]?.name || pid);
+        break;
+      }
       // 1) 先认"带我去某处"里的地名；说得出地名就去那儿，不再自作主张开雅间
       const destMatch = /(?:带我去|领我去|去|到|往)\s*([^，。！？\n]{2,12})/.exec(say);
       const destName = destMatch ? destMatch[1].replace(/(?:吧|啊|呀|嘛|一趟|走走|坐坐)$/g, '').trim() : '';
-      if (destName) {
+      if (!target && destName) {
         const hit = Object.entries(world.places || {}).find(([, p]) => p
           && (p.name === destName || (destName.length >= 2 && String(p.name || '').includes(destName))));
         if (hit) {

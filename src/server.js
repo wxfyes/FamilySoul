@@ -1283,17 +1283,19 @@ const STARTED_AT = Date.now();
         // 没令牌就是外人：绝不允许"空令牌默认当相公"（否则任何人都能把王甯挪走）
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
         const actorId = member.actor || 'husband';
-        // 说"回家/回府"：回自己的正房，不是大门
+        // 说"回家/回府"：先到正厅/议事厅/大门；只有"回房/回屋"才进卧室
         if (/回家|回府|回宅|回房|回屋/.test(target)) {
           const meH = world.actors?.[actorId];
           const homeId = meH?.home || 'husband_room';
           const homeP = world.places?.[homeId];
-          const mainId = homeP?.rooms?.main?.id;
-          if (mainId) {
+          const wantBedroom = /回房|回屋|睡觉|安歇/.test(target);
+          const keys = wantBedroom ? ['main'] : ['hall', 'council', 'gate', 'main'];
+          const roomKey = keys.find((k) => homeP?.rooms?.[k]);
+          if (roomKey) {
             try {
               const { materializeRoom } = await import('./world/residence.js');
-              target = materializeRoom(world, homeId, 'main') || homeId;
-            } catch { target = mainId; }
+              target = materializeRoom(world, homeId, roomKey) || homeId;
+            } catch { target = homeP.rooms[roomKey].id || homeId; }
           } else {
             target = homeId;
           }
