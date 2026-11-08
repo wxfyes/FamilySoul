@@ -1,9 +1,37 @@
 import assert from 'node:assert';
 import { queueProactive } from '../src/world/clock.js';
+import { healWorld } from '../src/world/heal.js';
 
-console.log('🧪 运行主动请示事件、递信标牌与动身按钮数据流回归测试...');
+console.log('🧪 运行主动请示事件、天字阁房间实例化、人物落地与动身数据流测试...');
 
-// 1. 测试 queueProactive 对 place 和 isLetter 的正确收录与持久化
+// 1. 测试 healWorld 自动消除 canal_restaurant 幽灵空壳、实例化天字阁与落地周有财、汪德润
+const worldToHeal = {
+  places: {
+    place_44: {
+      id: 'place_44',
+      name: '运河码头大酒楼',
+      exits: ['dock'],
+    },
+    canal_restaurant: {
+      id: 'canal_restaurant',
+      name: '运河码头大酒楼',
+      exits: ['market_street'],
+    },
+  },
+  actors: {
+    husband: { id: 'husband', name: '王甯', location: 'place_44' },
+  },
+};
+
+const fixes = healWorld(worldToHeal);
+assert.strictEqual(worldToHeal.places['canal_restaurant'], undefined, 'canal_restaurant 幽灵空壳必须被彻底清理');
+assert.strictEqual(worldToHeal.places['place_44'].exits.includes('market_street'), true, '原本 canal_restaurant 的出口必须并入 place_44');
+assert.strictEqual(worldToHeal.places['place_44__f3']?.name, '运河码头三层大酒楼·三层天字阁', '必须生成三层天字阁真实房间');
+assert.strictEqual(worldToHeal.actors['npc_accountant_zhou']?.name, '周有财', '必须生成账房先生周有财');
+assert.strictEqual(worldToHeal.actors['wang_zongshang']?.name, '汪德润', '必须生成扬州盐帮汪总商汪德润');
+assert.strictEqual(worldToHeal.actors['wang_zongshang']?.location, 'place_44__f3', '汪总商必须真实身处三层天字阁');
+
+// 2. 测试 queueProactive 对 actorId, placeId, place, isLetter 的正确收录与持久化
 const mockWorld = {
   clock: { day: 20, hour: 14 },
   flags: {},
@@ -13,7 +41,9 @@ const mockWorld = {
 const ok = queueProactive(mockWorld, {
   reason: 'business_hook',
   speaker: '运河大酒楼·账房',
+  actorId: 'npc_accountant_zhou',
   place: '运河码头三层大酒楼',
+  placeId: 'place_44',
   isLetter: true,
   text: '【运河大酒楼·账房】：东家，扬州盐帮汪总商派人送来五十两定金，要包下明儿整座天字阁办寿宴，大厨特遣小的来请示东家意下如何？',
   fallback: '【运河大酒楼·账房】：请东家定夺！',
@@ -24,6 +54,8 @@ const ok = queueProactive(mockWorld, {
 assert.strictEqual(ok, true, 'queueProactive 应入队成功');
 assert.strictEqual(mockWorld.proactive.length, 1);
 const queued = mockWorld.proactive[0];
+assert.strictEqual(queued.actorId, 'npc_accountant_zhou', '必须保留 actorId 字段');
+assert.strictEqual(queued.placeId, 'place_44', '必须保留 placeId 字段');
 assert.strictEqual(queued.place, '运河码头三层大酒楼', '必须保留 place 字段');
 assert.strictEqual(queued.isLetter, true, '必须保留 isLetter 字段');
 assert.strictEqual(queued.speaker, '运河大酒楼·账房');
@@ -68,3 +100,4 @@ const shouldShowGoButton = !isUser &&
 assert.strictEqual(shouldShowGoButton, true, '客户端必须判定展示【动身前往「运河码头三层大酒楼」】按钮！');
 
 console.log('✅ 主动请示事件、递信标牌与动身按钮数据流回归测试全部通过！');
+

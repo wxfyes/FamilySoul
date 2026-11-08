@@ -79,6 +79,8 @@ export function queueProactive(
     fallback = null,
     speaker = null,
     place = null,
+    actorId = null,
+    placeId = null,
     isLetter = undefined,
     type = 'proactive',
     to = 'husband',
@@ -102,6 +104,8 @@ export function queueProactive(
     fallback,
     speaker,
     place,
+    actorId,
+    placeId,
     isLetter,
     at: atMs,
     day: world.clock.day,
@@ -745,12 +749,12 @@ function runPromiseDues(world, events, queuePush) {
   }
 }
 
-/** 旧诺过期：非借款类承诺，过了到期日 1 天仍没办成，自动作废移出待办（保留备注） */
+/** 旧诺过期：非借款类承诺，过了到期日 1 天仍没办成，自动作废移出待办（保留备注，商单尾款绝不作废） */
 function runPromiseSweep(world, events) {
   const day = Number(world.clock?.day) || 1;
   let expired = 0;
   for (const pr of world.promises || []) {
-    if (!pr || pr.done || pr.loan) continue;
+    if (!pr || pr.done || pr.loan || pr.orderBalance) continue;
     const due = Number(pr.due) || 0;
     if (!due || day <= due + 1) continue;
     pr.done = true;
@@ -763,6 +767,48 @@ function runPromiseSweep(world, events) {
   if (expired > 0) {
     world.notes = world.notes.slice(-60);
     events.push(nextEvent(world, { action: 'promise_expired', actor: 'husband', place: null, payload: { text: `${expired} 条旧诺过了日子，悄悄作废` }, isPublic: false }));
+  }
+}
+
+/** 商单尾款结算：酒楼/货栈大单，到期席面办妥当日，对方如数结清尾款入公账 */
+function runOrderBalances(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  for (const pr of world.promises || []) {
+    if (!pr || pr.done || !pr.orderBalance) continue;
+    const due = Number(pr.due) || 0;
+    if (!due || day < due) continue; // 席面办妥当日结清
+    const amount = Number(pr.orderBalance) || 0;
+    if (amount <= 0) continue;
+    pr.done = true;
+    pr.doneDay = day;
+    const title = pr.text || '大单尾款结清';
+    world.assets = world.assets || {};
+    world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + amount) * 100) / 100;
+    world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+    world.ledger.push({
+      day,
+      hour: world.clock?.hour || 0,
+      delta: amount,
+      title: `${title}入库`,
+      category: 'business',
+      by: 'husband',
+      balance: world.assets.silver,
+    });
+    events.push(nextEvent(world, { action: 'order_balance_settled', actor: pr.from || 'merchant', place: 'place_44', payload: { text: `${title}，如数结清 ${amount} 两入库` }, isPublic: true }));
+    queuePush?.({
+      to: 'husband',
+      speaker: '运河大酒楼·掌柜',
+      place: '运河码头三层大酒楼',
+      actorId: 'npc_1794031464988_603',
+      placeId: 'place_44',
+      isLetter: true,
+      reason: 'order_settled',
+      facts: { title, amount },
+      text: `【运河大酒楼·掌柜】：东家大喜！寿宴席面已圆满办妥，汪总商对天字阁席面赞不绝口，一百一十两尾款已如数结清入库！`,
+      fallback: `【运河大酒楼·掌柜】：东家，汪总商尾款一百一十两已如数结清入库！`,
+      force: true,
+    });
+    console.log(`[Ledger] 商单尾款自动结清到账：${title} +${amount}两（现银结余 ${world.assets.silver}两）`);
   }
 }
 
@@ -1715,6 +1761,11 @@ function onNewDay(world, events) {
     console.warn('[Promise] 过期清扫失败：', err.message);
   }
   try {
+    runOrderBalances(world, events, (o) => queueProactive(world, { type: 'order_balance', ...o }));
+  } catch (err) {
+    console.warn('[OrderBalance] 商单尾款结算失败：', err.message);
+  }
+  try {
     runCourtReaction(world, events, (o) => queueProactive(world, { type: 'court', ...o }));
   } catch (err) {
     console.warn('[Court] 朝堂反应失败：', err.message);
@@ -2275,24 +2326,32 @@ function advanceHour(world, events, nowMs) {
       {
         speaker: '运河大酒楼·账房',
         place: '运河码头三层大酒楼',
+        actorId: 'npc_accountant_zhou',
+        placeId: 'place_44',
         text: '【运河大酒楼·账房】：东家，扬州盐帮汪总商派人送来五十两定金，要包下明儿整座天字阁办寿宴，大厨特遣小的来请示东家意下如何？',
         fallback: '【运河大酒楼·账房】：东家，扬州盐商汪总商要包办天字阁寿宴，掌柜特请东家定夺！',
       },
       {
-        speaker: '运河大酒楼·管事',
+        speaker: '运河大酒楼·掌柜',
         place: '运河码头三层大酒楼',
-        text: '【运河大酒楼·管事】：东家，知府衙门差官今儿来订席，后日按察司大员抵临江，要在大酒楼设官宴，点名配于家酒肆的桂花酿，掌柜问东家可要亲自过目菜单？',
-        fallback: '【运河大酒楼·管事】：东家，知府衙门订下后日大酒楼官席，请东家过目！',
+        actorId: 'npc_1794031464988_603',
+        placeId: 'place_44',
+        text: '【运河大酒楼·掌柜】：东家，知府衙门差官今儿来订席，后日按察司大员抵临江，要在大酒楼设官宴，点名配于家酒肆的桂花酿，掌柜问东家可要亲自过目菜单？',
+        fallback: '【运河大酒楼·掌柜】：东家，知府衙门订下后日大酒楼官席，请东家过目！',
       },
       {
         speaker: '二娘子·芸娘',
         place: '临江茶坊老店',
+        actorId: 'wife_secondary',
+        placeId: 'tea_shop',
         text: '【二娘子·芸娘】：相公，今日茶坊老店新蒸的龙井茶糕一出笼便被抢光了，好些老茶客说明日给他们留两盒，相公晚些得空来尝尝新出炉的热茶糕吗？',
         fallback: '【二娘子·芸娘】：相公，老店茶糕极好卖，相公晚些回房来尝尝鲜么？',
       },
       {
         speaker: '货栈总管·采云',
         place: '翟家货栈',
+        actorId: 'yang_caiyun',
+        placeId: 'warehouse',
         text: '【货栈总管·采云】：东家，水路上刚靠泊了徽州大茶船，客商要以大宗匀咱们一批紫阳春茶，掌柜请东家拿个定夺！',
         fallback: '【货栈总管·采云】：东家，两淮大茶船靠岸，客商大宗求购，请东家定夺！',
       },
@@ -2303,6 +2362,8 @@ function advanceHour(world, events, nowMs) {
       facts: { day: world.clock.day, hookText: hook.text },
       speaker: hook.speaker,
       place: hook.place,
+      actorId: hook.actorId,
+      placeId: hook.placeId,
       isLetter: true,
       text: hook.text,
       fallback: hook.fallback,

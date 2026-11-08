@@ -240,11 +240,14 @@ export function buildContextHints(svc, { say, recent, summonedNames, contextHint
       /* 忽略 */
     }
 
-    // 相公亲口说了「日入 N 两」，直接落账（这是事实，不该由模型猜）
+    // 相公亲口说了「日入 N 两」或批复了「定金收条」，直接落账（这是事实，不该由模型猜）
     if (!svc._viewerActorId) {
       try {
         const ledger = svc.applyStatedIncome(say);
         if (ledger.length > 0) console.log(`[Ledger] 已落账：${ledger.join("、")}`);
+        const lastAssistantMsg = (recent || []).slice().reverse().find((m) => m && m.role === 'assistant')?.content || '';
+        const dep = svc.applyStatedDeposit?.(say, lastAssistantMsg);
+        if (dep && dep.length > 0) console.log(`[Ledger] 定金已落账：${dep.join("、")}`);
       } catch {
         /* 忽略 */
       }

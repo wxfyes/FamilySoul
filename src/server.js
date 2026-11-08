@@ -1296,6 +1296,20 @@ const STARTED_AT = Date.now();
             target = homeId;
           }
         }
+
+        // 运河大酒楼及各楼层雅阁/天字阁专属归一映射（彻底消除幽灵空壳 canal_restaurant，直达真实实体 place_44 及其房间）
+        if (/天字阁/.test(target)) {
+          if (world.places?.['place_44__f3']) target = 'place_44__f3';
+          else if (world.places?.['place_44']) target = 'place_44';
+        } else if (/雅阁/.test(target)) {
+          if (world.places?.['place_44__f2']) target = 'place_44__f2';
+          else if (world.places?.['place_44']) target = 'place_44';
+        } else if (/大堂/.test(target) && /酒楼/.test(target)) {
+          if (world.places?.['place_44__f1']) target = 'place_44__f1';
+          else if (world.places?.['place_44']) target = 'place_44';
+        } else if (/运河.*酒楼|大酒楼|canal_restaurant/.test(target)) {
+          if (world.places?.['place_44']) target = 'place_44';
+        }
         // 说的是哪座城：先到那座城的主街（没有基底就现铺一座）
         try {
           for (const cn of Object.keys(world.cities || {})) {
@@ -4301,6 +4315,8 @@ const STARTED_AT = Date.now();
                 text: finalText,
                 speaker: spk || null,
                 place: isLetter ? place : null,
+                actorId: item.actorId || null,
+                placeId: item.placeId || null,
                 isLetter: Boolean(isLetter),
                 audioKey: item.audioKey || null,
                 messageId: `push_${now}_${i}`,
@@ -4474,6 +4490,73 @@ const STARTED_AT = Date.now();
           }
         }
       } catch (errK) { console.log('[Knock] 叩门异常：', errK.message); }
+
+      // 双向合意领路转场与私密独处（找没人的地方/去账房/去雅阁/带我去）
+      try {
+        const sayText = String(body.text || '');
+        const isEscortIntent = /(?:带我去|领我去|领路|跟我来|随我去|去后头|找个没人的地方|清静账房|去账房|去雅间|换个地方|没人的地方|私下说|到了吗)/.test(sayText);
+        if (isEscortIntent) {
+          const wEsc = loadState(DATA_DIR);
+          const meEsc = wEsc.actors?.[String(currentMember.actor || 'husband')] || wEsc.actors?.husband;
+          let partner = null;
+          const hist = petService.readHistory(currentMember.memberKey)?.messages || [];
+          for (let k = hist.length - 1; k >= 0; k--) {
+            if (hist[k].role === 'user') continue;
+            const m = String(hist[k].text || '').match(/【([^】\n]{1,16})】/);
+            if (m) {
+              const base = m[1].includes('·') ? m[1].split('·').pop().trim() : m[1].trim();
+              const a = Object.values(wEsc.actors || {}).find((x) => x && !x.dead && x.name === base);
+              if (a && a.id !== meEsc.id) { partner = a; break; }
+            }
+          }
+          if (!partner && result.reply?.text) {
+            const m = String(result.reply.text).match(/【([^】\n]{1,16})】/);
+            if (m) {
+              const base = m[1].includes('·') ? m[1].split('·').pop().trim() : m[1].trim();
+              const a = Object.values(wEsc.actors || {}).find((x) => x && !x.dead && x.name === base);
+              if (a && a.id !== meEsc.id) partner = a;
+            }
+          }
+
+          if (partner) {
+            let targetRoomId = null;
+            let targetRoomName = '';
+            if (partner.location === 'goods_shop' || meEsc.location === 'goods_shop' || /货栈|采云/.test(partner.name || '')) {
+              targetRoomId = 'goods_shop__office';
+              targetRoomName = '翟家货栈·清静账房';
+              if (!wEsc.places[targetRoomId]) {
+                wEsc.places[targetRoomId] = {
+                  id: targetRoomId,
+                  name: targetRoomName,
+                  parent: 'goods_shop',
+                  use: 'office',
+                  access: 'private',
+                  desc: '货栈深处清静账房，两重货架隔开市井喧嚣，门一掩，外头听不见里头说话。',
+                  exits: ['goods_shop'],
+                };
+              }
+            } else if (partner.location === 'place_44' || meEsc.location === 'place_44' || /酒楼/.test(partner.name || '')) {
+              targetRoomId = 'place_44__f2';
+              targetRoomName = '运河码头三层大酒楼·二层雅阁';
+            } else if (/王宅|正房/.test(wEsc.places?.[meEsc.location]?.name || '')) {
+              targetRoomId = 'husband_room__study';
+              targetRoomName = '临江·王宅·书斋';
+            }
+
+            if (targetRoomId && wEsc.places[targetRoomId]) {
+              moveActor(wEsc, meEsc.id, targetRoomId, 'world', '领路转场');
+              moveActor(wEsc, partner.id, targetRoomId, 'world', '随行带路');
+              saveState(DATA_DIR, wEsc);
+
+              const escortHint = `【提示】你随${partner.name}避开外人，到了「${targetRoomName}」。此处只有你与${partner.name}二人，清静私密。\n`;
+              result.reply.text = escortHint + String(result.reply.text || '');
+              result.reply.place = targetRoomName;
+              result.reply.placeId = targetRoomId;
+              console.log(`[Escort] 双向领路转场成功：相公与 ${partner.name} 进入 ${targetRoomName}`);
+            }
+          }
+        }
+      } catch (errEsc) { console.warn('[Escort] 领路转场失败：', errEsc.message); }
 
       // 出口：说话的人若不在跟前，把实情补一句（不搬人，只说实话）
       try {

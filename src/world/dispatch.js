@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 天道回执（World Tags）—— 让「一句话改变命运」真正落账
  *
  * 铁律：**谁发生了什么事，由天道（大模型）自己申报**，引擎只负责记账。
@@ -17,6 +17,7 @@ import { propagateMood, easeBonds } from './bonds.js';
 import { moveActor } from './position.js';
 import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
 import { addMemory } from './memory.js';
+import { appendLedger } from './ledger.js';
 
 
 function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number(n) || 0)); }
@@ -213,9 +214,22 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         const delta = Number(args.delta);
         if (!Number.isFinite(delta)) continue;
         const targetActor = String(args.who || (selfId !== 'husband' ? selfId : 'husband'));
+        const reasonTitle = String(args.reason || (delta > 0 ? '产业大单进账' : '公账开销')).slice(0, 24);
         if (targetActor === 'husband') {
+          // 防重锁：定金/寿宴等大单，单日同额定金只许落账一次，绝不允许连续多轮对话重复叠加
+          if (delta > 0 && /(?:定金|定银|寿宴|大单)/.test(reasonTitle)) {
+            const recent = Array.isArray(world.ledger) ? world.ledger.slice(-12) : [];
+            const duplicate = recent.some(
+              (e) => e && e.day === world.clock?.day && Math.abs(e.delta - delta) < 0.01 && /(?:定金|定银|寿宴|大单)/.test(e.title || '')
+            );
+            if (duplicate) {
+              applied.push(`忽略重复定金（${reasonTitle}已入账）`);
+              continue;
+            }
+          }
           world.assets.silver = round2((world.assets.silver || 0) + delta);
-          applied.push(`公账银两${delta >= 0 ? '+' : ''}${delta}`);
+          try { appendLedger(world, { delta, title: reasonTitle, by: 'husband' }); } catch {}
+          applied.push(`公账银两${delta >= 0 ? '+' : ''}${delta}（${reasonTitle}）`);
         } else {
           world.wallets = world.wallets || {};
           world.wallets[targetActor] = round2((Number(world.wallets[targetActor]) || 0) + delta);

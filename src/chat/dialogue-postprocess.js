@@ -7,6 +7,7 @@
 import { cleanSpeakerLabel, cleanRoleLabel, cnNum } from './text-utils.js';
 import { loadState, saveState } from '../world/state.js';
 import { parseWorldTags, applyWorldTags } from '../world/dispatch.js';
+import { appendLedger } from '../world/ledger.js';
 
 /**
  * 校验回复中涉及的发音人是否在场，剔除不在场的人说的台词
@@ -63,7 +64,7 @@ export function enforcePresence(text, allowedNames, knownNames = []) {
  */
 export function normalizeSpeakers(text, dataDir) {
   try {
-    const world = loadState(dataDir);
+    const world = (dataDir && typeof dataDir === 'object' && dataDir.actors) ? dataDir : loadState(dataDir);
     const map = new Map();
 
     for (const a of Object.values(world.actors || {})) {
@@ -118,6 +119,12 @@ export function normalizeSpeakers(text, dataDir) {
         return `【${r}·${dupName}】`;
       }
       return `【${dupName}】`;
+    });
+    // 治理残缺括号头衔（如【跑商路）·勋柱】 -> 【掌柜·勋柱】）
+    res = res.replace(/【[^】\n]*?[)）]\s*[·・]?\s*([^】\n]{1,6})】/g, (m0, actName) => {
+      const a = Object.values(world.actors || {}).find((x) => x && (x.name === actName || x.name?.endsWith(actName)));
+      const r = cleanRoleLabel(a?.role || a?.title) || '掌柜';
+      return `【${r}·${actName}】`;
     });
     // 容错：如果模型输出 "张三：“台词”" 而漏了方括号，自动补齐 "【张三】：“台词”"
     for (const [name, label] of map.entries()) {
@@ -208,6 +215,74 @@ export function applyStatedIncome(userText, dataDir) {
 }
 
 /**
+ * 掌柜/账房递定金收条，相公批复时真实入账进流水
+ */
+export function applyStatedDeposit(userText, lastMsgText, { dataDir } = {}) {
+  try {
+    const say = String(userText || '').trim();
+    const prev = String(lastMsgText || '').trim();
+    if (!/(?:好|好的|成|妥|行|准|准了|收下|好嘞|知道了|办妥|结清|准奏|阅|允|行吧)/.test(say)) return [];
+
+    const applied = [];
+    const world = loadState(dataDir);
+
+    // 提取业务标题
+    let title = '产业大单定金';
+    if (/汪总商|汪老夫人|天字阁|寿宴/.test(prev)) title = '运河大酒楼·汪总商寿宴定金';
+    else if (/知府|衙门|官宴/.test(prev)) title = '运河大酒楼·官席定金';
+    else if (/茶|货栈/.test(prev)) title = '茶坊货栈大宗定金';
+
+    // 1. 定金落账：只在"还欠/尾款"之前找定金金额，别把尾款又当定金收一遍
+    const head = prev.split(/(?:还欠|尾款|余款|尚欠)/)[0];
+    const m = head.match(/([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两(?:纹银)?\s*(?:的)?\s*(?:定金|订金|货款)/)
+      || head.match(/(?:定金|订金|货款)[^0-9一二三四五六七八九十百千]{0,16}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/);
+    if (m) {
+      const amount = /^[0-9]/.test(String(m[1])) ? Number(m[1]) : cnNum(m[1]);
+      if (amount > 0) {
+        const ledger = Array.isArray(world.ledger) ? world.ledger : [];
+        const already = ledger.slice(-12).some((e) => e && Math.abs(e.delta - amount) < 0.01 && e.day === world.clock?.day && /(?:定金|定银|寿宴|大单)/.test(e.title || ''));
+        if (!already) {
+          world.assets = world.assets || {};
+          world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + amount) * 100) / 100;
+          appendLedger(world, { delta: amount, title, by: 'husband' });
+          applied.push(`${title}+${amount}两`);
+          console.log(`[Ledger] 定金真实落账入库：${title} +${amount}两（现银结余 ${world.assets.silver}两）`);
+        }
+      }
+    }
+
+    // 2. 尾款债权字据立项（不受定金是否已入限制）
+    const mBal = prev.match(/(?:还欠|尾款|余款)[^0-9一二三四五六七八九十百千]{0,16}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/);
+    if (mBal) {
+      const balAmt = /^[0-9]/.test(String(mBal[1])) ? Number(mBal[1]) : cnNum(mBal[1]);
+      if (balAmt > 0) {
+        world.promises = Array.isArray(world.promises) ? world.promises : [];
+        const hasBal = world.promises.some((p) => p && !p.done && p.orderBalance === balAmt);
+        if (!hasBal) {
+          world.promises.push({
+            id: `bal_${Date.now()}`,
+            text: `${title}余款`,
+            orderBalance: balAmt,
+            from: 'wang_zongshang',
+            due: (Number(world.clock?.day) || 20) + 1,
+            at: Number(world.clock?.day) || 20,
+            done: false,
+          });
+          applied.push(`${title}余款字据${balAmt}两`);
+          console.log(`[Ledger] 商单尾款字据立项：${title}余款 ${balAmt} 两，约定办妥结清`);
+        }
+      }
+    }
+
+    if (applied.length > 0) saveState(dataDir, world);
+    return applied;
+  } catch (err) {
+    console.warn('[Ledger] 定金与商单尾款落账失败：', err.message);
+    return [];
+  }
+}
+
+/**
  * 记忆压缩归档
  */
 export async function compactMemories(batch, { llmClient, dataDir } = {}) {
@@ -293,6 +368,7 @@ export async function extractReceipt({
       '基建：[[world:infra name=granary delta=1]]（roads 路 / granary 粮仓 / dock 码头 / workshop 匠作坊 / school 学堂 / clinic 药堂）',
       '攻城：[[world:siege city="临江府"]] —— 只有相公明确下令攻城时才记；兵不够/没粮时不许记成功。',
       '花销与付款：对话仅为戏内商议，严禁在此输出 spend 直接扣除相公银两（付款全由相公在 App 客户端交互手动确认）。',
+      '大单定金与商海进账：掌柜/账房向相公呈递定金收条、客商定金、商海大单银两，相公批复同意（如"好的/可以/收下/成/准了"）时，必须记 [[world:asset delta=+金额 reason="某某定金/货款"]]，让银两真实入公账与流水！',
       '借钱：[[world:loan to=liuwenxia amount=20 due=第40日]] —— 相公答应借钱给别人时用这个，钱会真的转过去；不记就等于空口许诺。',
       '还钱：[[world:repay who=liuwenxia amount=20]] —— 借的人还钱时用它，钱回到出借人手里。',
       '免债：[[world:forgive who=liuwenxia]] —— 相公说"那钱不用还了/算我送她"时用它：钱不收回，凭证作废。',

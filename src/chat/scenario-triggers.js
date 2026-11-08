@@ -94,10 +94,10 @@ export function matchScenarioTrigger({
     try {
       const wLive = loadState(dataDir);
       const husLoc = wLive.actors?.husband?.location;
-      const isAtRestaurant = husLoc && (husLoc === 'canal_restaurant' || husLoc === 'place_44' || String(wLive.places?.[husLoc]?.name || '').includes('酒楼'));
+      const isAtRestaurant = husLoc && (husLoc === 'canal_restaurant' || husLoc === 'place_44' || husLoc.startsWith('place_44__') || String(wLive.places?.[husLoc]?.name || '').includes('酒楼'));
       if (isAtRestaurant) {
         currentEpoch = 'ancient';
-        contextHint = `（【天道商海·东家王甯亲临运河大酒楼现场】：\n相公是运河码头三层大酒楼的全资大老板/大东家，此刻亲临酒楼！（相公指示：“${say}”）！\n【现场主从尊卑与商海闭环铁律】：\n1. 【大厨·何顺】与【掌柜·钱有福】在场主答！针对扬州盐帮汪总商定金五十两包下【三层天字阁】办寿宴，大厨何顺大喜，躬身呈请八冷八热硬席与金桂酿配酒菜单；掌柜钱有福妥善收纳定金入账、指挥伙计打扫布置天字阁！\n2. 【伙计·陈二】只在后头垂手端茶听差，绝不抢白！所有人必须围绕汪总商天字阁寿宴与酒楼大单展开，绝对严禁失忆扯东扯西！）`;
+        contextHint = `（【天道商海·东家王甯亲临运河大酒楼现场】：\n相公是运河码头三层大酒楼的全资大老板/大东家，此刻亲临酒楼！（相公指示：“${say}”）！\n【现场主从尊卑与商海闭环铁律】：\n1. 【大厨·何顺】、【账房·周有财】与【掌柜·钱有福】在场主答！针对扬州盐帮汪总商送来五十两定金包下【三层天字阁】办寿宴一事，账房周有财核验清点五十两纹银定金入柜立账，大厨何顺大喜、躬身呈请八冷八热两淮硬席与金桂酿配酒菜单，掌柜钱有福妥善统筹打点天字阁陈设！\n2. 【伙计·陈二】只在后头垂手端茶听差，绝不抢白！所有人必须围绕汪总商天字阁寿宴与酒楼大单展开，绝对严禁失忆扯东扯西！）`;
       }
     } catch (_) {}
   }

@@ -1,4 +1,4 @@
-﻿import { trimMemories } from './memory.js';
+import { trimMemories } from './memory.js';
 ﻿import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
@@ -69,7 +69,7 @@ export function healWorld(world) {
     }
   }
 
-  // ⑤ 重名地点合并
+  // ⑤ 重名地点合并（保留有 rooms、出口更全或有人员资产的真实实体，合并 exits）
   const byName = new Map();
   for (const [id, p] of Object.entries(world.places || {})) {
     const nm = String(p?.name || '');
@@ -78,12 +78,28 @@ export function healWorld(world) {
       byName.set(nm, id);
       continue;
     }
-    const keep = byName.get(nm);
-    for (const a of Object.values(world.actors || {})) {
-      if (a?.location === id) a.location = keep;
+    const oldId = byName.get(nm);
+    const oldPl = world.places[oldId];
+    // 智能选择保留哪个：优先保留有 rooms、有较多 exits 的实体
+    const oldScore = (oldPl?.rooms ? 10 : 0) + (Array.isArray(oldPl?.exits) ? oldPl.exits.length : 0);
+    const newScore = (p?.rooms ? 10 : 0) + (Array.isArray(p?.exits) ? p.exits.length : 0);
+    const keep = newScore > oldScore ? id : oldId;
+    const drop = newScore > oldScore ? oldId : id;
+    const keepPl = world.places[keep];
+    const dropPl = world.places[drop];
+
+    if (keepPl) {
+      keepPl.exits = Array.isArray(keepPl.exits) ? keepPl.exits : [];
+      for (const ex of (dropPl?.exits || [])) {
+        if (!keepPl.exits.includes(ex) && ex !== keep) keepPl.exits.push(ex);
+      }
     }
-    delete world.places[id];
-    fixes.push(`重名地点「${nm}」合并`);
+    for (const a of Object.values(world.actors || {})) {
+      if (a?.location === drop) a.location = keep;
+    }
+    delete world.places[drop];
+    byName.set(nm, keep);
+    fixes.push(`重名地点「${nm}」合并（保留 ${keep}，合并清理 ${drop}）`);
   }
 
   // ⑤.5 非法/口语误伤地点清理（如"就行"、"不行"、"什么铺"等）
@@ -260,6 +276,128 @@ export function healWorld(world) {
       }
     }
   } catch { /* 忽略 */ }
+
+  // ⑮ 运河大酒楼单一真实地点自愈、天字阁房间实例化与真实人物落地
+  try {
+    world.places = world.places || {};
+    world.actors = world.actors || {};
+
+    // 1. 确立 place_44 为大酒楼唯一真实物理实体，彻底清理幽灵空壳 canal_restaurant
+    const p44 = world.places['place_44'];
+    const pCanal = world.places['canal_restaurant'];
+    if (p44 && pCanal) {
+      // 将 canal_restaurant 的出入口与引用并入 place_44
+      for (const ex of (pCanal.exits || [])) {
+        if (!p44.exits.includes(ex) && ex !== 'place_44') p44.exits.push(ex);
+      }
+      delete world.places['canal_restaurant'];
+      fixes.push('彻底清理运河码头大酒楼幽灵空壳 canal_restaurant，统归真实实体 place_44');
+    }
+
+    const restPlaceId = p44 ? 'place_44' : 'canal_restaurant';
+    const restPlace = world.places[restPlaceId];
+    if (restPlace) {
+      restPlace.name = '运河码头三层大酒楼';
+      restPlace.owner = 'husband';
+      restPlace.use = 'restaurant';
+      restPlace.access = 'public_shop';
+
+      // 2. 真实实例化三层天字阁与二层雅阁物理房间
+      const f3Id = `${restPlaceId}__f3`;
+      if (!world.places[f3Id]) {
+        world.places[f3Id] = {
+          id: f3Id,
+          name: '运河码头三层大酒楼·三层天字阁',
+          parent: restPlaceId,
+          floor: 3,
+          use: 'shop_floor',
+          access: 'public_shop',
+          desc: '三层最顶格至尊包席雅间，朱漆雕栏、红木八仙桌，凭窗饱览千里运河千帆竞渡，乃扬州盐商汪总商包席办寿宴之要所。',
+          exits: [restPlaceId],
+        };
+        fixes.push(`生成真实房间实体：${world.places[f3Id].name}`);
+      }
+
+      const f2Id = `${restPlaceId}__f2`;
+      if (!world.places[f2Id]) {
+        world.places[f2Id] = {
+          id: f2Id,
+          name: '运河码头三层大酒楼·二层雅阁',
+          parent: restPlaceId,
+          floor: 2,
+          use: 'shop_floor',
+          access: 'public_shop',
+          desc: '酒楼二层临河雅座，茶香酒暖，常有两淮过往客商在此饮酒议事。',
+          exits: [restPlaceId],
+        };
+        fixes.push(`生成真实房间实体：${world.places[f2Id].name}`);
+      }
+
+      const f1Id = `${restPlaceId}__f1`;
+      if (!world.places[f1Id]) {
+        world.places[f1Id] = {
+          id: f1Id,
+          name: '运河码头三层大酒楼·一层大堂',
+          parent: restPlaceId,
+          floor: 1,
+          use: 'shop_floor',
+          access: 'public_shop',
+          desc: '一楼迎宾散座与柜台账房，青石铺地，伙计穿梭跑堂，热气腾腾。',
+          exits: [restPlaceId, 'dock'],
+        };
+        fixes.push(`生成真实房间实体：${world.places[f1Id].name}`);
+      }
+
+      restPlace.rooms = restPlace.rooms || {};
+      restPlace.rooms.f1 = { id: f1Id, name: '一层大堂', floor: 1, use: 'shop_floor', access: 'public_shop' };
+      restPlace.rooms.f2 = { id: f2Id, name: '二层雅阁', floor: 2, use: 'shop_floor', access: 'public_shop' };
+      restPlace.rooms.f3 = { id: f3Id, name: '三层天字阁', floor: 3, use: 'shop_floor', access: 'public_shop' };
+
+      // 3. 真实落地：账房先生（周有财）与扬州盐帮汪总商（汪德润）
+      let hasAccountant = Object.values(world.actors).some(
+        (a) => a && !a.dead && a.location === restPlaceId && /账房/.test(String(a.role || ''))
+      );
+      if (!hasAccountant) {
+        world.actors['npc_accountant_zhou'] = {
+          id: 'npc_accountant_zhou',
+          name: '周有财',
+          role: '账房先生',
+          title: '账房',
+          gender: 'male',
+          age: 42,
+          location: restPlaceId,
+          home: restPlaceId,
+          origin: 'hired',
+          goals: ['精打细算核清酒楼流水', '为东家打理两淮商海进项', '将汪总商五十两寿宴定金妥善入库'],
+          relations: { husband: { trust: 80, desire: 0, fear: 10, grievance: 0 } },
+          money: 5.2,
+          desc: '运河大酒楼当值账房先生，长衫算盘，为人精明稳重，专司核对大席银钱。',
+        };
+        fixes.push('生成真实人物实体：运河大酒楼·账房先生·周有财');
+      }
+
+      if (!world.actors['wang_zongshang']) {
+        world.actors['wang_zongshang'] = {
+          id: 'wang_zongshang',
+          name: '汪德润',
+          role: '扬州盐帮总商',
+          title: '汪总商',
+          gender: 'male',
+          age: 49,
+          location: f3Id, // 人就真实坐在三层天字阁里
+          home: 'inn_room',
+          origin: 'merchant',
+          goals: ['在运河大酒楼三层天字阁办五十两寿宴', '结识江南茶商大东家王甯', '打通两淮运河商道'],
+          relations: { husband: { trust: 55, desire: 0, fear: 0, grievance: 0 } },
+          money: 8000,
+          desc: '两淮盐帮总商，家资巨万，富甲一方，今在运河大酒楼天字阁连包两日大办寿宴。',
+        };
+        fixes.push('生成真实人物实体：扬州盐帮汪总商·汪德润（位于三层天字阁）');
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 酒楼天字阁与人物落地失败：', err.message);
+  }
 
   return fixes;
 }

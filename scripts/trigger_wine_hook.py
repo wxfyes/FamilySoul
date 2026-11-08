@@ -25,3 +25,4 @@ def trigger_wine_hook():
 
 if __name__ == "__main__":
     trigger_wine_hook()
+

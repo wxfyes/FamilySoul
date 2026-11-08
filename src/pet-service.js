@@ -1,6 +1,6 @@
 import { matchScenarioTrigger } from './chat/scenario-triggers.js';
 import { buildEnvironmentHints } from './chat/environment-hints.js';
-import { enforcePresence, normalizeSpeakers, applyStatedIncome, compactMemories, extractReceipt } from './chat/dialogue-postprocess.js';
+import { enforcePresence, normalizeSpeakers, applyStatedIncome, applyStatedDeposit, compactMemories, extractReceipt } from './chat/dialogue-postprocess.js';
 import { executeNarrativeTags } from './chat/narrative-engine.js';
 import { resolveVoiceCasting } from './world/voice-casting.js';
 import fs from 'node:fs';
@@ -326,6 +326,10 @@ export class PetService {
 
   applyStatedIncome(userText) {
     return applyStatedIncome(userText, this.dataDir);
+  }
+
+  applyStatedDeposit(userText, lastMsgText) {
+    return applyStatedDeposit(userText, lastMsgText, { dataDir: this.dataDir });
   }
 
   async compactMemories(batch) {
