@@ -163,13 +163,19 @@ export function routineFor(world, actor) {
       { at: 21, do: '回下房安歇', place: quarters || homeId },
     ];
   }
-  // 主人家眷：晨起正房、白天厅堂/花园、夜里回房
+  // 主人家眷：晨起梳洗 → 账房理事 → 厅堂用饭 → 花园走走 → 夜里回房
+  // 住处若是单间（如西厢），借正院（七进大宅）的账房/厅堂/花园作白天理事处
+  const base = (home.rooms && Object.keys(home.rooms).length) ? home : (world.places?.husband_room || home);
+  const rooms = base.rooms || {};
+  const officeId = rooms.account?.id || rooms.study?.id || homeId;
+  const hallId = rooms.hall?.id || homeId;
+  const gardenId = rooms.garden?.id || homeId;
   return [
     { at: 7, do: '起身梳洗', place: quarters || homeId },
-    { at: 9, do: '在中堂理事', place: homeId },
-    { at: 12, do: '用饭', place: homeId },
-    { at: 15, do: '在后花园走走', place: homeId },
-    { at: 19, do: '掌灯用饭', place: homeId },
+    { at: 9, do: '去账房核账', place: officeId },
+    { at: 12, do: '在厅堂用饭', place: hallId },
+    { at: 15, do: '在后花园走走', place: gardenId },
+    { at: 19, do: '掌灯用饭', place: hallId },
     { at: 22, do: '回房安歇', place: quarters || homeId },
   ];
 }
@@ -181,16 +187,6 @@ export function routineFor(world, actor) {
 export function roomForHour(world, actor, hour) {
   const routine = routineFor(world, actor);
   if (!routine.length) return null;
-  // 活人不按钟点搬：作息只作参考，去哪由她自己的打算决定
-  if (actor.household) return null;
-
-  // 主人家眷白天不锁死在屋里：只有夜里（21 时后）才回房，白天随她在府里走动
-  const isHousehold = Boolean(actor.household);
-  const hh = num(hour);
-  if (isHousehold && hh >= 8 && hh < 21) {
-    const home = world?.places?.[actor.home];
-    if (home && actor.location && String(world.places?.[actor.location]?.parent || '') === String(home.id)) return null;
-  }
 
   // 门房当值：白天守大门，夜里回下房
   if (actor?.duty?.post === 'gate') {

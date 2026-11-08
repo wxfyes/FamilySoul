@@ -26,7 +26,7 @@ import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
 import { runAging } from './aging.js';
 import { runMigration, settleMigrants } from './migration.js';
 import { evictTrespassers } from './dwelling.js';
-import { roomForHour } from './room-life.js';
+import { roomForHour, routineFor } from './room-life.js';
 import { advanceWorldTick } from './tick.js';
 import { reconcileMoney } from './ledger.js';
 import { pruneForeignRooms, buildPremises, buildCourts, settleItinerants } from './residence.js';
@@ -2069,11 +2069,15 @@ function advanceHour(world, events, nowMs) {
       if (!a.home || !world.places?.[a.home]) continue;
       // 只看"住处是不是一座宅子/一间院子"（数据判定，不靠名字猜——外城的「XX家」也要能走）
       const homePlace = world.places[a.home];
-      if (!homePlace.residence && !homePlace.parent) continue;
+      // 内眷即使住处记成单间/街面，也要按作息走（否则永远钉在正房）
+      if (!homePlace?.residence && !homePlace?.parent && !a.household) continue;
       const to = roomForHour(world, a, hourNow);
       if (!to || to === a.location) continue;
       const r = moveActor(world, a.id, to, 'world', '按作息走动');
-      if (r?.ok) a.activity = { text: '在自己宅里走动', at: hourNow, day: world.clock?.day || 1 };
+      if (r?.ok) {
+        const slot = routineFor(world, a).filter((s) => Number(s.at) <= hourNow).pop();
+        a.activity = { text: slot?.do || '在自己宅里走动', at: hourNow, day: world.clock?.day || 1 };
+      }
     }
   } catch (err) {
     console.warn('[RoomLife] 作息失败：', err.message);
