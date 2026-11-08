@@ -1412,7 +1412,7 @@ const STARTED_AT = Date.now();
         try {
           if (res2?.applied) {
             queueProactive(after, {
-              to: actorId, speaker: '提示', type: 'system', isLetter: false,
+              to: actorId, speaker: '提示', type: 'proactive', isLetter: false,
               text: line, fallback: line, force: true,
             });
             saveState(DATA_DIR, after);
