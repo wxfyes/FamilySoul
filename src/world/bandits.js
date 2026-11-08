@@ -11,6 +11,7 @@
 import { factionOf, factionStrength, syncWangjiaToMilitary } from './factions.js';
 import { changeCityOwner, troopsAt, setWarEventSink } from './warfare.js';
 import { addFame } from './reputation.js';
+import { addRumor } from './rumors.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -309,6 +310,14 @@ export function quellBandits(world, banditId, troops, fromCity) {
     };
     appoint = '，知府感念忠勇，授「临江府乡勇团练使」';
   }
+
+  // 全城通报：剿平当日就传遍街面（不等第二天慢慢扩散）
+  try {
+    addRumor(world, {
+      text: `王家剿平「${b.name}」，缴获颇丰，城中人心大定`,
+      tone: 1, weight: 6, reach: 60,
+    });
+  } catch { /* 忽略 */ }
 
   // 累功：剿平股数 + 升迁判定（守备→都司→参将→副总兵）
   world.flags = world.flags || {};

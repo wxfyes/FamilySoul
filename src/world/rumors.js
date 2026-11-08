@@ -18,7 +18,7 @@ function hashId(s) {
   return Math.abs(h);
 }
 
-export function addRumor(world, { text, about = [], tone = 0, weight = 3 } = {}) {
+export function addRumor(world, { text, about = [], tone = 0, weight = 3, reach = 0 } = {}) {
   const t = String(text || '').trim().slice(0, 60);
   if (!t) return null;
   world.rumors = Array.isArray(world.rumors) ? world.rumors : [];
@@ -32,7 +32,7 @@ export function addRumor(world, { text, about = [], tone = 0, weight = 3 } = {})
     tone: Math.max(-1, Math.min(1, Number(tone) || 0)),
     weight: Math.max(1, Math.min(10, Number(weight) || 3)),
     day: world.clock?.day || 1,
-    reach: 0,
+    reach: Math.max(0, Math.min(60, Number(reach) || 0)),
     heardBy: [],
   };
   world.rumors.push(r);

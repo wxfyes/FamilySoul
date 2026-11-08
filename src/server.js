@@ -711,8 +711,6 @@ const STARTED_AT = Date.now();
                 isPublic: true,
               });
               appendEvents(DATA_DIR, [ev]);
-              world.rumors = Array.isArray(world.rumors) ? world.rumors : [];
-              world.rumors.push({ text: `王家剿平「${result.name || '匪帮'}」，缴获颇丰，城中人心大定`, day: world.clock?.day || 1, weight: 4, tone: 1, heardBy: [] });
             } else if (result?.ok && !result.win) {
               const ev = nextEvent(world, {
                 action: 'bandit_failed', actor: 'husband', place: result.city || '临江府',

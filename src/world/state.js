@@ -2099,6 +2099,12 @@ export function migrateOwnership(world) {
       world.flags.staffHallFixV2 = { at: Date.now(), moved, target: gateId };
     }
   } catch (e) { console.warn('[Staff] 外院归位失败：', e.message); }
+  // 旧风评没写 reach（早期手推的对象），补成"全城已知"，别在街面风评里显示 0 人知
+  try {
+    for (const r of world.rumors || []) {
+      if (r && !Number.isFinite(Number(r.reach))) r.reach = 60;
+    }
+  } catch { /* 忽略 */ }
   try { ensureMarket(world); } catch { /* 忽略 */ }
   try { ensureFame(world); } catch { /* 忽略 */ }
   // 性格生成：缺性格的人补一副稳定的脾气（已有的一律不动）
