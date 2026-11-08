@@ -4548,15 +4548,24 @@ const STARTED_AT = Date.now();
             }
 
             if (targetRoomId && wEsc.places[targetRoomId]) {
-              moveActor(wEsc, meEsc.id, targetRoomId, 'world', '领路转场');
-              moveActor(wEsc, partner.id, targetRoomId, 'world', '随行带路');
-              saveState(DATA_DIR, wEsc);
-
-              const escortHint = `【提示】你随${partner.name}避开外人，到了「${targetRoomName}」。此处只有你与${partner.name}二人，清静私密。\n`;
-              result.reply.text = escortHint + String(result.reply.text || '');
-              result.reply.place = targetRoomName;
-              result.reply.placeId = targetRoomId;
-              console.log(`[Escort] 双向领路转场成功：相公与 ${partner.name} 进入 ${targetRoomName}`);
+              const fromMe = meEsc.location;
+              const fromPartner = partner.location;
+              const mvMe = moveActor(wEsc, meEsc.id, targetRoomId, 'world', '领路转场');
+              const mvPartner = moveActor(wEsc, partner.id, targetRoomId, 'world', '随行带路');
+              if (!mvMe?.ok || !mvPartner?.ok) {
+                // 同行没跟上，就不许把相公一个人搬进去：原地退回，避免"人不在跟前却能说话"
+                if (mvMe?.ok && fromMe) moveActor(wEsc, meEsc.id, fromMe, 'world', '领路失败退回');
+                if (mvPartner?.ok && fromPartner) moveActor(wEsc, partner.id, fromPartner, 'world', '领路失败退回');
+                saveState(DATA_DIR, wEsc);
+                console.log(`[Escort] 同行失败，已退回：${partner.name} ${mvPartner?.error || ''}`);
+              } else {
+                saveState(DATA_DIR, wEsc);
+                const escortHint = `【提示】你随${partner.name}避开外人，到了「${targetRoomName}」。此处只有你与${partner.name}二人，清静私密。\n`;
+                result.reply.text = escortHint + String(result.reply.text || '');
+                result.reply.place = targetRoomName;
+                result.reply.placeId = targetRoomId;
+                console.log(`[Escort] 双向领路转场成功：相公与 ${partner.name} 进入 ${targetRoomName}`);
+              }
             }
           }
         }
