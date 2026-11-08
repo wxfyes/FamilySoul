@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { loadState } from '../src/world/state.js';
 import { applyChatActions } from '../src/world/chat-actions.js';
+import { markHumanSeen, clearHumanSeen } from '../src/world/presence.js';
 
 console.log('🧪 领路必须两人同行（含 awayUntil 中的老板娘）...');
 
@@ -22,15 +23,26 @@ try {
   assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop__office', '采云必须同行');
   console.log('✅ 两人一起进了清静账房');
 
-  // 真人角色不能被天道带着走：明确提示，不许硬搬
+  // 离线真人：同一场所内允许同行
   w.actors.husband.location = 'goods_shop';
   w.actors.yangcaiyun.location = 'goods_shop';
   w.actors.yangcaiyun.humanBound = true;
+  clearHumanSeen('yangcaiyun');
   const n2 = applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去喝茶，老板娘' });
-  assert.ok(n2.some((n) => n.includes('真人角色')), '应提示她是真人角色');
+  assert.ok(n2.some((n) => n.includes('清静账房')), '离线真人应能同场所同行');
+  assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop__office', '采云必须同行');
+  console.log('✅ 离线真人可同场所同行');
+
+  // 在线真人：不许代走，只提示去找她
+  w.actors.husband.location = 'goods_shop';
+  w.actors.yangcaiyun.location = 'goods_shop';
+  markHumanSeen('yangcaiyun');
+  const n3 = applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去喝茶，老板娘' });
+  assert.ok(n3.some((n) => n.includes('真人')), '在线真人应提示不能同行');
   assert.strictEqual(w.actors.husband.location, 'goods_shop', '相公不得被单独搬走');
-  assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop', '真人角色不得被搬动');
-  console.log('✅ 真人角色只提示、不硬搬');
+  assert.strictEqual(w.actors.yangcaiyun.location, 'goods_shop', '在线真人不得被搬动');
+  clearHumanSeen('yangcaiyun');
+  console.log('✅ 在线真人只提示、不代走');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }

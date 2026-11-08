@@ -36,6 +36,7 @@ import { applyAction } from './world/apply.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
 import { moveActor } from './world/position.js';
+import { markHumanSeen } from './world/presence.js';
 import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
 import { getMoney, setMoney, spendMoney, syncMoney } from './world/money.js';
@@ -229,6 +230,7 @@ function resolveMember(req, url) {
   for (const [memberKey, profile] of Object.entries(family)) {
     if (profile.token && profile.token === clientToken) {
       touchMember(memberKey);
+      if (profile.actor) markHumanSeen(profile.actor);
       return { ...profile, memberKey };
     }
   }
@@ -237,6 +239,7 @@ function resolveMember(req, url) {
   const locked = getLockedToken();
   if (!locked && !config.token) {
     lockHusbandToken(clientToken);
+    markHumanSeen('husband');
     return { ...family.husband, token: clientToken, memberKey: 'husband' };
   }
 
@@ -245,6 +248,7 @@ function resolveMember(req, url) {
     const regUser = userRegistry.getUserByToken(clientToken);
     if (regUser) {
       touchMember(regUser.actorId);
+      markHumanSeen(regUser.actorId);
       return {
         memberKey: regUser.actorId,
         actor: regUser.actorId,
@@ -1897,7 +1901,12 @@ const STARTED_AT = Date.now();
               .map((a) => ({
                 name: a.name,
                 role: a.role || '',
-                status: a.pregnancy && !a.pregnancy.born ? `有孕${Number(a.pregnancy.days) || 0}月` : (a.quarters ? '在府' : ''),
+                status: a.pregnancy && !a.pregnancy.born
+                  ? (() => {
+                      const d = Number(a.pregnancy.days) || 0;
+                      return d < 30 ? `有孕${d}天` : `有孕${Math.floor(d / 30)}月（${d}天）`;
+                    })()
+                  : (a.quarters ? '在府' : ''),
               }));
             return {
               day,

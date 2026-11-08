@@ -10,6 +10,7 @@
  */
 
 import { isInnerRoom } from './privacy.js';
+import { isHumanOnline } from './presence.js';
 
 export const MOVE_REASONS = new Set(['ui', 'world']);
 
@@ -92,7 +93,18 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   // 自己的打算、自己的走动、主人当面送客——都算"自己走"，真人绑定也放行
   const selfMove = /办自己的事|自己走动|送客|通禀允入/.test(String(note || ''));
   if (isHumanBound(world, actorId) && reason !== 'ui' && !selfMove) {
-    return { ok: false, error: '真人角色不接受世界移动' };
+    // 真人离线时，允许"同一场所内同行"（货栈→货栈雅间）；在线或跨场所一律拒绝
+    const rootOf = (id) => String(world.places?.[id]?.parent || '') || String(id || '');
+    const fromId = String(a.location || '');
+    const toId = String(placeId || '');
+    const sameVenue = fromId && toId && (fromId === toId
+      || rootOf(fromId) === rootOf(toId)
+      || rootOf(fromId) === toId
+      || rootOf(toId) === fromId);
+    const proxyMove = /随行|领路|同行|跟随/.test(String(note || ''))
+      && !isHumanOnline(actorId)
+      && sameVenue;
+    if (!proxyMove) return { ok: false, error: '真人角色不接受世界移动（离线仅限同场所同行）' };
   }
 
   // 刚被主人请走的人：几个时辰内不许自己回来（送客本人除外）

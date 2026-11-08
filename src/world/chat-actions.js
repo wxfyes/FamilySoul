@@ -202,12 +202,6 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         || (/掌柜|东家/.test(say) && /掌柜|东家/.test(String(a.role || ''))))
       || here.find((a) => !a.servant)
       || here[0];
-    // 真人角色只能自己动，天道不能替她搬家
-    if (partner && (partner.humanBound
-      || (Array.isArray(world.flags?.humanActors) && world.flags.humanActors.includes(partner.id)))) {
-      notices.push(`（${partner.name}是真人角色，不能由天道带着走；请她自己动身，或在后台解绑后再领路。）`);
-      partner = null;
-    }
     if (partner) {
       let target = null;
       let label = '';
@@ -241,7 +235,9 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         } else {
           if (mvMe?.ok && fromMe) moveActor(world, me.id, fromMe, 'world', '领路失败退回');
           if (mvPartner?.ok && fromPartner) moveActor(world, partner.id, fromPartner, 'world', '领路失败退回');
-          notices.push('（同行没跟上，仍在原处。）');
+          notices.push(partner.humanBound
+            ? `（${partner.name}是真人：在线或跨场所时只能去找她，不能同行。）`
+            : '（同行没跟上，仍在原处。）');
         }
       }
     }
