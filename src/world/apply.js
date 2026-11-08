@@ -203,6 +203,26 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
         }
       } catch { /* 忽略 */ }
 
+      // 落点必须真实存在：未展开的房间先落地，落不了退回父地点/自家/长街
+      try {
+        if (finalTargetId && !world.places?.[finalTargetId]) {
+          const raw = String(finalTargetId);
+          if (raw.includes('__')) {
+            const [pid, key] = raw.split('__');
+            const made = materializeRoom(world, pid, key);
+            if (made && world.places?.[made]) finalTargetId = made;
+            else if (world.places?.[pid]) finalTargetId = pid;
+          }
+        }
+        if (finalTargetId && !world.places?.[finalTargetId]) {
+          const fallback = world.places?.[actor.home] ? actor.home : (world.places?.street ? 'street' : null);
+          if (fallback) {
+            console.log(`[Move] 落点不存在，${actor.name}退回 ${world.places?.[fallback]?.name || fallback}`);
+            finalTargetId = fallback;
+          }
+        }
+      } catch { /* 忽略 */ }
+
       // 移动发起者
       const oldLoc = actor.location;
       if (actor.location !== finalTargetId) {
