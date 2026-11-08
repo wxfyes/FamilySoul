@@ -12,19 +12,25 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 19:38",
-  "active_task": "【客户端纯端侧闭环】未落地宅院中文兜底与找人人物直达，彻底杜绝大厅错过与头顶留白",
+  "last_updated": "2026-11-08 22:47",
+  "active_task": "【全闭环交付】大酒楼三层立体空间雅间直达 + App城中世情好感名录（支持分地区/心性/态度筛选）",
   "priority": "DEPLOYED_VERIFIED",
-  "single_owner": "双 AI 协同治理",
-  "reviewer_role": "严格遵守相公'服务端不动'铁律，纯在客户端落实 DeepSeek 建议：找人改为人物定位与 summon 分流直达精准房间，空地点规范化为'门外'雅称",
+  "single_owner": "Antigravity & DeepSeek 协同闭环",
+  "reviewer_role": "修复酒楼雅间单间过滤漏洞，开放三层天字阁、二层雅阁、清幽雅间与内账房；上线 /api/world/relationships 接口；移动端实现全新 RosterScreen 人物志",
   "changed_files": [
+    "src/world/heal.js",
+    "src/server.js",
+    "mobile/lib/views/roster_screen.dart",
+    "mobile/lib/views/out_and_about_sheet.dart",
     "mobile/lib/views/chat_screen.dart",
-    "mobile/lib/views/out_and_about_sheet.dart"
+    "mobile/lib/views/my_world_screen.dart",
+    "mobile/lib/services/api_client.dart"
   ],
   "prod_metrics": {
-    "server_code": "服务端 100% 纹丝未动，零改动零风险",
+    "server_regression": "20/20 全部通过",
+    "softrouter_deploy": "软路由 192.168.1.254:3088 热更新成功，/health 正常，新接口实测返回 1500 人全城名录",
     "flutter_analyze": "No issues found! (0 告警通过)",
-    "client_build": "双端（Android APK / iOS IPA）已自动构建并覆盖桌面最新安装包"
+    "client_build": "双端（Android APK 283.7MB / iOS IPA 19.41MB）已全部完成构建并覆盖桌面最新安装包"
   },
   "client_reinstall_needed": true,
   "reviewer_action": "双端安装包已覆盖至桌面，相公可直接安装体验"
