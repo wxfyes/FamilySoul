@@ -51,6 +51,12 @@ console.log('🧪 运行送客/回房意图解析与住处规制回归测试...'
   const r10 = parseDismissIntent('家丁护院都散了吧');
   assert.equal(r10.isDismiss, true, '家丁护院都散了吧 应识别为离场');
   assert.equal(r10.targetName, null);
+
+  // 实测 bug：把"都散了，"当成姓名，导致走了"点名"分支，全员清场失效
+  const r11 = parseDismissIntent('各自都散了，去忙你们的事情吧');
+  assert.equal(r11.isDismiss, true);
+  assert.equal(r11.targetName, null, '都散了 不是人名');
+  assert.equal(isMassDismiss('各自都散了，去忙你们的事情吧'), true);
 }
 
 // 2. 内眷住处规制映射回归

@@ -111,6 +111,15 @@ export function parseDismissIntent(sayText) {
     }
   }
 
+  // 2.5 名字清洗：解析可能把"都散了，"这种动词短语误当人名
+  if (targetName) {
+    targetName = String(targetName).replace(/[，。！？、；：\s]+/g, '');
+    if (!targetName || /散|忙|走|退|去|回|各自|大家|他们|你们/.test(targetName)) {
+      targetName = null;
+      targetWhere = null;
+    }
+  }
+
   // 3. 代词/群体称呼清洗：只清"整体就是代词或群体词"的，
   //    绝不按"名字里含全/都/各"误杀（全叔、都管仍是正常人名）
   if (targetName && (PRONOUNS.test(targetName) || GROUP_WORDS.test(targetName))) {
