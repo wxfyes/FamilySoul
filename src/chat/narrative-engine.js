@@ -80,6 +80,7 @@ export function executeNarrativeTags({
       const relMatches = [...reply.matchAll(/\[\[(?:world\s*:\s*)?relation(?:\s*who=([^\s\]]+)\s*field=([^\s\]]+)\s*delta=([+-]?\d+)|:\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*\|\s*([+-]?\d+))[^\]]*\]\]/gi)];
       if (relMatches.length > 0) {
         const wRel = loadState(dataDir);
+        let relChanged = false;
         for (const m of relMatches) {
           const rawTag = m[0];
           const whoRaw = m[1] || m[4];
@@ -102,9 +103,20 @@ export function executeNarrativeTags({
             if (fieldRaw === 'desire') mood = '情愫暗生';
             else if (fieldRaw === 'grievance') mood = '心生芥蒂';
           }
+          // 标签不是只改一句展示——关系账本要真的动
+          if (who && deltaRaw) {
+            const relKey = viewerActorId || 'husband';
+            who.relations = who.relations || {};
+            const mine = (who.relations[relKey] = who.relations[relKey] || { trust: 30, desire: 0, fear: 0, grievance: 0 });
+            const fieldKey = ['trust', 'desire', 'grievance', 'fear'].includes(fieldRaw) ? fieldRaw : 'trust';
+            mine[fieldKey] = Math.max(0, Math.min(100, Math.round(((Number(mine[fieldKey]) || 0) + deltaRaw) * 10) / 10));
+            relChanged = true;
+            console.log(`[RelationTag] ${who.name} ${fieldKey} ${sign} → ${mine[fieldKey]}`);
+          }
           const cnTag = `\n（【${mood} · ${whoName}】${cnField} ${sign}）`;
           reply = reply.replace(rawTag, cnTag);
         }
+        if (relChanged) saveState(dataDir, wRel);
       }
     } catch (err) {
       console.warn('[RelationTag] 转换失败：', err.message);
@@ -678,19 +690,29 @@ export function executeNarrativeTags({
         if (who && amt > 0) gifts.push({ who, amt });
       }
       let changed = false;
+      const intimate = /(?:亲吻|吻|拥抱|抱住|搂|依偎|侍寝|宽衣|解衣|同床|云雨|行房|肌肤之亲|亲我|亲你|亲她|亲一下|亲一口)/.test(`${sayText || ''} ${reply || ''}`);
       for (const id of touched) {
         const a = wR.actors[id];
         const rel = (a.relations = a.relations || {});
         const mine = (rel[meR0.id] = rel[meR0.id] || {});
         const today = Number(wR.clock?.day) || 1;
         if (Number(a.lastTalkDay) !== today) { a.lastTalkDay = today; a.talkToday = 0; }
-        if (Number(a.talkToday || 0) >= 5) continue;
         // 初次打交道：先有"一面之缘"的底子，再涨这一分
         if (mine.trust == null) mine.trust = 5;
         if (mine.desire == null) mine.desire = 0;
-        mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 1) * 10) / 10);
-        a.talkToday = Number(a.talkToday || 0) + 1;
-        changed = true;
+        if (Number(a.talkToday || 0) < 5) {
+          mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 1) * 10) / 10);
+          a.talkToday = Number(a.talkToday || 0) + 1;
+          changed = true;
+        }
+        // 亲密进展：情愫不能只写在台词里，每天至少动一次
+        if (intimate && Number(a.intimacyDay) !== today) {
+          mine.desire = Math.min(100, Math.round(((Number(mine.desire) || 0) + 3) * 10) / 10);
+          mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 1) * 10) / 10);
+          a.intimacyDay = today;
+          changed = true;
+          reply += `\n（${a.name}与你的情愫更深了一层。）`;
+        }
       }
       for (const g of gifts) {
         const purse = meR0.id === 'husband' ? Number(wR.assets.silver) || 0 : Number(meR0.money) || 0;
