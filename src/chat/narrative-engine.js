@@ -235,6 +235,51 @@ export function executeNarrativeTags({
       console.warn('[Deal] 处理失败：', err.message);
     }
 
+    // 5.5 天道安排行止：[[go:谁|哪处]] —— 内眷/仆从由大模型按心事、差事自行走动，不由钟点硬搬
+    try {
+      const goMatches = [...reply.matchAll(/\[\[go:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+      if (goMatches.length > 0) {
+        const wGo = loadState(dataDir);
+        for (const m of goMatches) {
+          const rawTag = m[0];
+          const whoRaw = String(m[1]).trim();
+          const placeRaw = String(m[2]).trim();
+          const actor = Object.values(wGo.actors || {}).find((a) => a && !a.dead
+            && (a.id === whoRaw || a.name === whoRaw || (a.name && a.name.includes(whoRaw))));
+          if (!actor) continue;
+          // 相公只由他自己的位置条走动；真人绑定角色也不许被台词搬
+          if (actor.id === 'husband' || isHumanBound(actor)) { reply = reply.replace(rawTag, ''); continue; }
+          const q = placeRaw.replace(/\s/g, '');
+          let to = wGo.places?.[q] ? q : null;
+          if (!to) to = Object.keys(wGo.places || {}).find((id) => wGo.places[id]?.name === q);
+          if (!to) {
+            const roots = [wGo.places?.[actor.home], wGo.places?.husband_room].filter(Boolean);
+            for (const root of roots) {
+              for (const [k, r] of Object.entries(root.rooms || {})) {
+                if (!r?.id || !wGo.places[r.id]) continue;
+                if (k === q || r.name === q || String(r.name || '').includes(q) || String(wGo.places[r.id].name || '').includes(q)) { to = r.id; break; }
+              }
+              if (to) break;
+            }
+          }
+          if (!to) to = Object.keys(wGo.places || {}).find((id) => String(wGo.places[id]?.name || '').includes(q));
+          if (!to) continue;
+          // 不跨城瞬移：同一城，或王宅之内
+          const cityOf = (id) => String(wGo.places?.[id]?.name || '').split('·')[0];
+          if (cityOf(actor.location) !== cityOf(to) && !String(wGo.places?.[to]?.name || '').includes('王宅')) continue;
+          const r = moveActor(wGo, actor.id, to, 'world', '天道安排行止');
+          if (r?.ok || actor.location === to) {
+            const toName = wGo.places[to]?.name || q;
+            actor.activity = { text: `去了${toName}`, at: wGo.clock?.hour || 0, day: wGo.clock?.day || 1 };
+            reply = reply.replace(rawTag, `（【${actor.name}去了${toName}】）`);
+          }
+        }
+        saveState(dataDir, wGo);
+      }
+    } catch (err) {
+      console.warn('[Go] 行止处理失败：', err.message);
+    }
+
     // 6. 新辟地名：[[build:地名|父地点]]
     try {
       const buildMatches = [...reply.matchAll(/\[\[build:\s*(.+?)(?:\s*\|\s*([^\]]+?))?\s*\]\]/g)];

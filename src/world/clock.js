@@ -2069,8 +2069,7 @@ function advanceHour(world, events, nowMs) {
       if (!a.home || !world.places?.[a.home]) continue;
       // 只看"住处是不是一座宅子/一间院子"（数据判定，不靠名字猜——外城的「XX家」也要能走）
       const homePlace = world.places[a.home];
-      // 内眷即使住处记成单间/街面，也要按作息走（否则永远钉在正房）
-      if (!homePlace?.residence && !homePlace?.parent && !a.household) continue;
+      if (!homePlace?.residence && !homePlace?.parent) continue;
       const to = roomForHour(world, a, hourNow);
       if (!to || to === a.location) continue;
       const r = moveActor(world, a.id, to, 'world', '按作息走动');
