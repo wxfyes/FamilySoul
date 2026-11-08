@@ -94,8 +94,11 @@ export function ensureCityLife(world) {
     if (a.origin !== 'city_class' && !ROLE_KEYS.some((k) => String(a.role || '').includes(k))) continue;
     // 城郊大户被历史漂移堆到临江长街的，先归回本城本宅
     const home = world.places?.[a.home];
+    // 外城大户不是王宅的人，绝不能借 household 混进相公文书/内宅名单
+    if (a.origin === 'city_class' && a.household && !String(a.home || '').startsWith('husband_room')) {
+      delete a.household;
+    }
     if (a.origin === 'city_class' && home && a.home !== 'street' && a.location === 'street' && !a.cityLifeHomed) {
-      if (/老爷|夫人|公子|小姐|丫鬟|家丁|护院/.test(String(a.role || '')) && home.residence) a.household = true;
       const mv = moveActor(world, a.id, a.home, 'world', '归家');
       if (mv?.ok) { a.cityLifeHomed = true; homed += 1; }
     }

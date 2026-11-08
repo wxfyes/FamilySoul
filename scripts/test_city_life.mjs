@@ -37,7 +37,7 @@ try {
   assert.ok(Array.isArray(tycoon.schedule) && tycoon.schedule.length >= 3, '富商应有作息');
   assert.ok(Array.isArray(tycoon.goals) && tycoon.goals.length > 0, '富商应心愿');
   assert.strictEqual(got.actors.test_gentry.location, 'test_estate', '外城大户应归回本宅');
-  assert.strictEqual(got.actors.test_gentry.household, true, '本宅家人应标 household');
+  assert.ok(!got.actors.test_gentry.household, '外城大户不能混进王宅 household');
   console.log('✅ 心愿与作息已落，到点会自己走动');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
