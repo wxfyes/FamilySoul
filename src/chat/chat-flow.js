@@ -711,6 +711,19 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       }
     }
 
+    // 0.8 世界动作优先落地：传唤/清场/雇工等物理动作必须在 LLM 生成前落地，LLM 才能感知最新在场者
+    try {
+      const wAct = loadState(svc.dataDir);
+      const ns = applyChatActions({ world: wAct, viewerId: svc._viewerActorId || 'husband', sayText: say });
+      if (ns && ns.length) {
+        saveState(svc.dataDir, wAct);
+        svc._turnNotices = (svc._turnNotices || []).concat(ns);
+        console.log(`[Actions] ${ns.length} 条前置动作已落地并记账`);
+      }
+    } catch (err) {
+      console.warn('[Actions] 前置执行失败：', err.message);
+    }
+
     // 目标发言人调度路由：彻底解决同场抢话打岔、离场幽灵插嘴与冷场
     let turnDirective = '';
     let turnTarget = null;
@@ -744,11 +757,18 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
           const wifeCompanions = companions.filter((a) => a.household || ['waner', 'yunnia'].includes(a.id));
           const companionNames = wifeCompanions.map((a) => a.label || a.name).join('、');
+          const isStaff = /掌柜|管事|头领|领头|护院|家丁|门房|伙计/.test(String(tActor.role || '')) || /罗叔/.test(tName);
           if (companionNames) {
             turnDirective = `\n（【现场多人在场发言调度 · 妻妾同堂】：\n` +
               `1. 本轮首位开口者必须是掌事正主【${tName}】（以【${tLabel}】开头），主持表态；\n` +
               `2. 同在现场的家眷【${companionNames}】随后温婉附和、行礼接话或递茶侍候，营造自然和睦的家室氛围；\n` +
               `3. 丫鬟小翠听差不抢主子话头；不在场的人绝不许出声！）`;
+          } else if (isStaff && companions.length > 0) {
+            const compNames = companions.map((a) => a.label || a.name).join('、');
+            turnDirective = `\n（【现场主从尊卑调度 · 领头人回话】：\n` +
+              `1. 主仆礼制：由在场领头人/长者【${tName}】（以【${tLabel}】开头）率先上前躬身回话，答复相公；\n` +
+              `2. 现场随从跟班【${compNames}】只许垂手肃立，绝不可越过头领抢白！若开腔只许在后附和应诺（如抱拳称"是！"）；\n` +
+              `3. 不在场者绝不出声！）`;
           } else {
             turnDirective = `\n（【现场发言权调度】：\n` +
               `1. 本轮首位开口发言者由场景正主【${tName}】（以【${tLabel}】开头）接话；\n` +
@@ -841,6 +861,10 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
               if (hit) {
                 const short = hit.name && hit.name.length > 2 ? hit.name.slice(-2) : hit.name;
                 reply = `【${hit.label || hit.name || short}】：${reply}`;
+              } else {
+                // 现场除相公外空无一人，且大模型生成的是纯环境描写/叙述：
+                // 坚决不可裸露无标签（防止客户端误标为"娘子"），必须打上【旁白】
+                reply = `【旁白】：${reply}`;
               }
             }
           }
@@ -1802,17 +1826,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
 
     const __t1 = Date.now();
     reply = svc.processNarrativeTags(reply, say);
-    // 世界动作走单一入口：执行完把【提示】拼回最终回复
-    try {
-      const wAct = loadState(svc.dataDir);
-      const ns = applyChatActions({ world: wAct, viewerId: svc._viewerActorId || 'husband', sayText: say });
-      if (ns && ns.length) {
-        saveState(svc.dataDir, wAct);
-        // 不在中途拼正文（会被后面的整段重写吃掉），留到出口统一拼
-        svc._turnNotices = (svc._turnNotices || []).concat(ns);
-        console.log(`[Actions] ${ns.length} 条提示已记账，出口统一拼`);
-      }
-    } catch (err) { console.warn('[Actions] 执行失败：', err.message); }
+    // 前置动作提示已在 LLM 生成前由 0.8 步执行并存入 svc._turnNotices，此处无需重复执行
 
     // 相公一句"你们各自去忙吧"：让天道当场安排行止（模型决定去哪，代码只执行）
     if (/(各自|都).{0,6}(去忙|忙去|该干嘛|干活)/.test(say)) {

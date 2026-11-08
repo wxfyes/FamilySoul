@@ -13,6 +13,7 @@ import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
 import { quellBandits } from './bandits.js';
 import { callToArms, spawnMaids } from './warfare.js';
+import { actorSeniority } from './turn-target.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -147,10 +148,13 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       const pn = String(world.places?.[a.location]?.name || '');
       const hn = String(world.places?.[a.home]?.name || '');
       return pn.startsWith(estate) || hn.startsWith(estate) || a.location === 'husband_room__gate';
-    }).slice(0, Math.max(1, Math.min(8, wantCount)));
+    });
+    // 古风尊卑位次：领头人/长者优先被传唤走在最前
+    candidates.sort((x, y) => actorSeniority(y) - actorSeniority(x));
+    const picked = candidates.slice(0, Math.max(1, Math.min(8, wantCount)));
 
     const names = [];
-    for (const a of candidates) {
+    for (const a of picked) {
       const mv = moveActor(world, a.id, targetPlace, 'world', '厅上候令');
       if (mv?.ok) names.push(a.name);
     }
