@@ -674,6 +674,44 @@ function runLoanDues(world, events, queuePush) {
   }
 }
 
+/** 承诺到期：对方真的会找上门来讨说法（同城/同宅才走过去，不跨城瞬移） */
+function runPromiseDues(world, events, queuePush) {
+  const day = Number(world.clock?.day) || 1;
+  for (const pr of world.promises || []) {
+    if (!pr || pr.done || pr.loan) continue;
+    const due = Number(pr.due) || 0;
+    if (!due || due > day || due < day - 1) continue; // 到期当天，或过期一日内
+    if (pr.remindedDay === day) continue;
+    pr.remindedDay = day;
+    const whoId = (Array.isArray(pr.about) ? pr.about : []).find((id) => world.actors?.[id] && !world.actors[id].dead) || null;
+    const who = whoId ? world.actors[whoId] : null;
+    const name = who?.name || '管事';
+    // 上门：同城才走，不跨城瞬移；到了就在相公眼前
+    try {
+      const hus = world.actors?.husband;
+      if (who && hus && who.location !== hus.location) {
+        const city = (id) => String(world.places?.[id]?.name || '').split('·')[0];
+        if (city(who.location) === city(hus.location)) moveActor(world, who.id, hus.location, 'world', '上门讨说法');
+      }
+    } catch { /* 忽略 */ }
+    const overdue = due < day;
+    const short = String(pr.text || '').slice(0, 40);
+    events.push(nextEvent(world, {
+      action: 'promise_due',
+      actor: whoId,
+      place: world.actors?.[whoId]?.location || null,
+      payload: { text: `${name}来问「${short}」${overdue ? '已过期' : '今日到期'}` },
+      isPublic: false,
+    }));
+    queuePush?.({
+      to: 'husband', reason: 'promise', speaker: name, type: 'promise', isLetter: false,
+      facts: { 承诺: short, 期限: overdue ? '已过一日' : '今日到期', 来人: name },
+      fallback: `【${name}】：相公，您应下的「${short}」${overdue ? '已过了一日' : '今日到期'}，可还作数？`,
+      force: true,
+    });
+  }
+}
+
 /** 旧诺过期：非借款类承诺，过了到期日 1 天仍没办成，自动作废移出待办（保留备注） */
 function runPromiseSweep(world, events) {
   const day = Number(world.clock?.day) || 1;
@@ -1632,6 +1670,11 @@ function onNewDay(world, events) {
     runLoanDues(world, events, (o) => queueProactive(world, { type: 'loan', ...o }));
   } catch (err) {
     console.warn('[Loan] 借还款结算失败：', err.message);
+  }
+  try {
+    runPromiseDues(world, events, (o) => queueProactive(world, { type: 'promise', ...o }));
+  } catch (err) {
+    console.warn('[Promise] 到期上门失败：', err.message);
   }
   try {
     runPromiseSweep(world, events);
