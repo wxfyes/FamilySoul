@@ -2110,11 +2110,14 @@ export function migrateOwnership(world) {
       const text = `${a.name || ''} ${a.role || ''}`;
       if (a.gender === 'female' && maleRole.test(text) && !femaleRole.test(text)) {
         a.gender = 'male';
+        genderFixed += 1;
+      }
+      // 男性无论什么时候都不该带月事字段（历史纠正过的也要清干净）
+      if (a.gender === 'male') {
         delete a.onPeriod;
         delete a.cycleDay;
         delete a.periodStart;
         delete a.periodLen;
-        genderFixed += 1;
       }
     }
     world.marriages = Array.isArray(world.marriages) ? world.marriages : [];
