@@ -12,11 +12,11 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 13:12",
-  "active_task": "【验收通过】彻底修复'走吧/出去干活吧'打发下人不离场Bug，单人通令清场双闭环",
+  "last_updated": "2026-11-08 13:50",
+  "active_task": "【验收通过】彻底根治'出去干活吧'把动词'出'误当人名导致的清场失效Bug",
   "priority": "DEPLOYED_VERIFIED",
   "single_owner": "Antigravity 审查官",
-  "reviewer_role": "扩展日常口语化打发逐客令（走吧、出去干活吧、去忙吧），解除严苛正则束缚，支持单人在场直接告退与全员通令离场，四套测试全绿",
+  "reviewer_role": "意图层彻底禁止动词方位词与单字作为人名，场景层建立'点名在场无人匹配时自动降级通令送客'兜底机制，四套测试全绿",
   "changed_files": [
     "src/chat/intent-pipeline.js",
     "src/chat/narrative-engine.js",
@@ -24,7 +24,7 @@
   ],
   "prod_metrics": {
     "lines": "pet-service.js 保持 380 行（≤1000 行红线）",
-    "test_dismiss_regression": "专项实测全绿（含走吧、先不用了没事了出去干活吧、行了去忙吧）",
+    "test_dismiss_regression": "专项实测全绿（含走吧、出去干活吧、先不用了没事了出去干活吧）",
     "chat_replay": "21/21 逐字全绿",
     "prompt_snapshot": "4/4 满分通过",
     "regression": "20/20 满血通过",
