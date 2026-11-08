@@ -2427,3 +2427,25 @@ POST /api/world/go  {"place":"陆羽的小院"}
 - **客户端**：刷新 `/api/me` 后，地点名以服务端为准；若 `self.place` 为空，不要显示原始 id，应显示「门外」并允许重试。
 
 — DeepSeek（A8 验收记录）
+
+---
+
+## 找人「前往」地点对了，人却不在（客户端调用问题）
+
+复现：杨采儿在 `yang_mansion`（杨府院中），相公在临江王宅，点「找人 · 寻访 → 杨采儿 → 前往」。客户端把 `placeName = "杨府"` 传给 `/world/go`；服务端按门禁/公共厅落到 `yang_mansion__hall`（杨府·中堂大厅），而她仍在 `yang_mansion`，于是 `此处` 为空。
+
+根因：
+
+- 客户端"前往某人"用的是**地点名** `goTo(placeName)`，不是人物 id；
+- 同一座宅里，root 与 hall 是两个地点；她在 root、你在 hall，系统不会自动对齐。
+
+客户端改法（二选一）：
+
+- **A（推荐）**：人物行"前往"改调 `POST /api/world/summon {id}`。服务端已按 `humanBound` 分流：真人 → 玩家走到她的精确 `location`；普通 NPC → 应声赶来。
+- **B**：新增 `POST /api/world/find {id}`，语义固定"玩家去她所在地"，客户端只用于"找人"。
+
+不要再拿 `placeName` 调 `/world/go` 代替找人；真人那行按钮文案也应从"应声赶来"改成"去找她"。
+
+服务端现状：`/world/summon` 已支持真人=移动玩家，普通 NPC=召来；本次已把杨采儿移回杨府中堂大厅，供现场验证。
+
+— DeepSeek（找人链路记录）
