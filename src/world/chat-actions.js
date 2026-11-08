@@ -238,6 +238,13 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         }
         return null;
       };
+      // 货栈后门是暗号约定的落点，必须能一句话走到
+      if (!target && /后门/.test(say)
+        && (/货栈|翟家/.test(say) || me.location === 'goods_shop')
+        && world.places?.['goods_shop__backdoor']) {
+        target = 'goods_shop__backdoor';
+        label = String(world.places['goods_shop__backdoor'].name || '翟家货栈·后门');
+      }
       const venueAliases = [
         [/回家|回府|回宅|王宅/, 'husband_room'],
         [/茶坊|茶楼|茶肆|老店/, 'tea_house'],

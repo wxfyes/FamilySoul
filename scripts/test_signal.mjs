@@ -13,6 +13,10 @@ try {
   fs.copyFileSync('data/world/state.json', path.join(dir, 'world', 'state.json'));
   const w = loadState(dir);
   assert.ok(w.places['goods_shop__backdoor'], '货栈后门必须是真实地点');
+  w.actors.husband.location = 'goods_shop';
+  w.actors.yangcaiyun.location = 'goods_shop';
+  applyChatActions({ world: w, viewerId: 'husband', sayText: '带我去货栈后门' });
+  assert.strictEqual(w.actors.husband.location, 'goods_shop__backdoor', '说“货栈后门”应能走到后门');
   w.actors.husband.location = 'goods_shop__backdoor';
   w.actors.yangcaiyun.location = 'goods_shop';
   w.actors.yangcaiyun.humanBound = false;
