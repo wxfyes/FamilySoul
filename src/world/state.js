@@ -23,7 +23,7 @@ import { refreshTitles } from './occupation.js';
 import { ensureStalls } from './stalls.js';
 import { ensureFame } from './reputation.js';
 import { ensurePersonalities } from './personality.js';
-import { ensureCityLife } from './city-life.js';
+import { ensureCityLife, ensureCityPopulation } from './city-life.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
 import { syncMoney } from './money.js';
@@ -2179,9 +2179,10 @@ export function migrateOwnership(world) {
   } catch { /* 忽略 */ }
   try { ensureMarket(world); } catch { /* 忽略 */ }
   try { ensureFame(world); } catch { /* 忽略 */ }
+  // 城市人口：先按城等级补市井人，再补性格/心愿/作息；纯本地规则
+  try { ensureCityPopulation(world); } catch { /* 忽略 */ }
   // 性格生成：缺性格的人补一副稳定的脾气（已有的一律不动）
   try { ensurePersonalities(world); } catch { /* 忽略 */ }
-  // 城市生活：大户/富商/才女/公子/乡绅补心愿与作息，纯本地规则
   try { ensureCityLife(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }
   // 待办归属：老数据没写 owner 的，一律算相公的（那是当时唯一的主角）
