@@ -332,7 +332,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       }
     } else {
       const r = callToArms(world, 'wangjia', { city, max: want, kind: isRetainer ? 'retainer' : 'guard' });
-      if (r?.ok) notices.push(`婉儿应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，月饷 ${r.monthlyPay} 两/月。`);
+      if (r?.ok) notices.push(`婉儿应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，本次月饷共 ${r.camePay} 两/月（全军月饷 ${r.armyMonthlyPay ?? r.monthlyPay} 两/月）。`);
       else notices.push(`（${r?.error || '没招成'}）`);
     }
   }

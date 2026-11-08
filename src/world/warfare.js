@@ -98,7 +98,14 @@ export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) 
   } catch (err) { console.log('[Staff] 落籍失败：', err.message); }
 
   fire(world, { action: 'recruit', actor: f.leader, place: town, payload: { text: `${f.name}在${town}一呼百应，来投 ${come} 人` } });
-  return { ok: true, came: come, asked: max, troops: totalTroops(world, f), city: town, cost, monthlyPay: round2(totalTroops(world, f) * MONTHLY_PAY) };
+  return {
+    ok: true, came: come, asked: max, troops: totalTroops(world, f), city: town, cost,
+    // 本次来投者的月饷（不是全军月饷，避免"2 人月饷 75 两"这种误解）
+    camePay: round2(come * k.pay),
+    // 兼容旧字段：招募回执里的"月饷"指本次新人；全军月饷另给 armyMonthlyPay
+    monthlyPay: round2(come * k.pay),
+    armyMonthlyPay: round2(totalTroops(world, f) * MONTHLY_PAY),
+  };
 }
 
 /** 外院当差的住哪：优先门房/外院/值房/后罩房，绝不塞正房内室 */
