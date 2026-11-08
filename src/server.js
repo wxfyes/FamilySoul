@@ -2042,20 +2042,27 @@ const STARTED_AT = Date.now();
           }
         })(),
         items: itemsOf(world, actorId || 'husband').map((it) => ({ id: it.id, name: it.name, kind: it.kind })),
-        military: troops > 0 ? { guards: f.guards || 0, militia: f.militia || 0, army: f.army || 0,
-          // 家丁 / 护院 / 私兵 分列（账上兵额 + 府里真人）
-          kinds: (f.kinds && Object.keys(f.kinds).length) ? f.kinds : {},   // 空则由下面真人数据反推
-          retainers: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '护院') n += 1; } return n; })(),
-          houseGuards: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '家丁') n += 1; } return n; })(),
-          privateArmy: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && /私兵/.test(String(a.role || ''))) n += 1; } return n; })(),
-          troops: Number(f.troops) || Number(f.army) || 0,
-          // 可带去剿匪的总人手：营兵 + 府里的护院/家丁（平民也能带家丁护院打匪）
-          quellReady: (Number(f.troops) || Number(f.army) || 0)
-            + Math.round(Number(f.kinds?.guard) || 0) + Math.round(Number(f.kinds?.retainer) || 0),
-          // 武勋升迁：累计剿平股数 + 下一阶要求（差多少）
-          quelled: Number(world.flags?.quelledTotal) || 0,
-          nextRank: (() => { try { return nextPromotion(world); } catch { return null; } })(),
-          supplies: f.supplies || 0 } : null,
+        military: (() => {
+          // 兵额以 factions.wangjia 为准（真人与账对齐后的唯一账本）；world.military 只是旧镜像
+          const wf = world.factions?.wangjia || null;
+          const kinds = (wf?.kinds && Object.keys(wf.kinds).length) ? wf.kinds : (f.kinds || {});
+          const total = Number(wf?.troops) || Number(wf?.army) || Number(f.troops) || Number(f.army) || 0;
+          if (!(total > 0)) return null;
+          return {
+            guards: Math.round(Number(kinds.guard) || 0),
+            militia: Number(wf?.militia) || Number(f.militia) || 0,
+            army: total,
+            kinds,
+            retainers: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '护院') n += 1; } return n; })(),
+            houseGuards: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && a.role === '家丁') n += 1; } return n; })(),
+            privateArmy: (() => { let n = 0; for (const a of Object.values(world.actors || {})) { if (a && !a.dead && /私兵/.test(String(a.role || ''))) n += 1; } return n; })(),
+            troops: total,
+            quellReady: total,
+            quelled: Number(world.flags?.quelledTotal) || 0,
+            nextRank: (() => { try { return nextPromotion(world); } catch { return null; } })(),
+            supplies: Number(wf?.grain) || Number(f.supplies) || 0,
+          };
+        })(),
         standing: { reputation: world.reputation ?? 50, wanted: world.wanted ?? 0 },
         // 官职/衔头：剿匪授的团练使这类"朝廷给的位子"，客户端看板直接读这里
         offices: (() => {
@@ -2688,6 +2695,16 @@ const STARTED_AT = Date.now();
           f.guards = f.kinds.guard;
           f.fresh = Math.min(Number(f.fresh) || 0, sum);
           counts = { ...f.kinds, troops: sum };
+          // 旧镜像一并同步，避免别的页面还读 world.military / forces 的旧数
+          world.military = world.military || {};
+          world.military.guards = f.kinds.guard;
+          world.military.army = sum;
+          world.military.militia = 0;
+          if (world.forces?.husband) {
+            world.forces.husband.guards = f.kinds.guard;
+            world.forces.husband.army = sum;
+            world.forces.husband.militia = 0;
+          }
         }
         saveState(DATA_DIR, world);
         console.log(`[Staff] 裁撤 ${removed.length} 人；兵账对齐：${JSON.stringify(counts)}`);

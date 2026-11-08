@@ -1825,6 +1825,17 @@ function render(w){
     milHtml += `<div class="row"><span>私兵（账上兵额）</span><span class="num">${totalWangTroops} 人</span></div>`;
     milHtml += `<div class="row"><span>随军粮草储备</span><span class="num good">${grain.toFixed(1)} 石</span></div>`;
 
+    // 每月公共花销：兵饷（按兵种）+ 军粮（每人每日 0.03 石 × 30 天）
+    const kinds = wf.kinds || {};
+    const monthlyPay = (Number(kinds.guard) || 0) * 0.6
+      + (Number(kinds.retainer) || 0) * 0.9
+      + (Number(kinds.army) || 0) * 1.5;
+    const monthlyGrain = totalWangTroops * 0.03 * 30;
+    const grainMonths = monthlyGrain > 0 ? grain / monthlyGrain : 0;
+    milHtml += `<div class="row"><span>月饷（全军）</span><span class="num" style="color:#f59e0b">${monthlyPay.toFixed(1)} 两/月</span></div>`;
+    milHtml += `<div class="row"><span>月耗军粮</span><span class="num" style="color:#f59e0b">${monthlyGrain.toFixed(1)} 石/月</span></div>`;
+    milHtml += `<div class="row"><span>存粮可支撑</span><span class="num ${grainMonths < 1 ? 'bad' : grainMonths < 3 ? 'warn' : 'good'}">${monthlyGrain > 0 ? grainMonths.toFixed(1) + ' 个月' : '—'}</span></div>`;
+
     // 驻扎分布
     const stationed = Object.entries(wf.stationed || {});
     if (stationed.length > 0) {

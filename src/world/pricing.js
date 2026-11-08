@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 物价：按史料定，不靠谁随口说。
  *
  * 单位：两（银）。参照明代中后期物价（1 石米 ≈ 0.6 两）。
@@ -26,6 +26,21 @@ export const PRICES = {
   // 大件（买产业/宅子用，天道报价时夹在这里）
   shop: { min: 50, max: 3000, typical: 400, unit: '处', name: '一间铺面' },
   mansion: { min: 200, max: 3000, typical: 450, unit: '处', name: '一座宅院' },
+
+  // 日用杂货：油盐酱醋、针线柴炭（明代市价，按斤/担/份）
+  salt: { min: 0.008, max: 0.03, typical: 0.015, unit: '斤', name: '盐' },
+  oil: { min: 0.015, max: 0.06, typical: 0.03, unit: '斤', name: '油' },
+  sauce: { min: 0.008, max: 0.03, typical: 0.015, unit: '斤', name: '酱' },
+  vinegar: { min: 0.005, max: 0.02, typical: 0.01, unit: '斤', name: '醋' },
+  cloth: { min: 0.08, max: 0.5, typical: 0.2, unit: '匹', name: '布' },
+  needlework: { min: 0.003, max: 0.02, typical: 0.008, unit: '份', name: '针线' },
+  firewood: { min: 0.005, max: 0.03, typical: 0.012, unit: '担', name: '柴' },
+  charcoal: { min: 0.01, max: 0.05, typical: 0.025, unit: '担', name: '炭' },
+  vegetable: { min: 0.002, max: 0.012, typical: 0.005, unit: '斤', name: '青菜' },
+  meat: { min: 0.015, max: 0.06, typical: 0.03, unit: '斤', name: '肉' },
+  egg: { min: 0.001, max: 0.006, typical: 0.003, unit: '个', name: '蛋' },
+  sugar: { min: 0.015, max: 0.06, typical: 0.03, unit: '斤', name: '糖' },
+  medicine: { min: 0.03, max: 0.3, typical: 0.1, unit: '副', name: '药' },
 };
 
 /** 把"天道随口报的价"夹回人间 */

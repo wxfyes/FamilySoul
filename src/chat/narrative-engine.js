@@ -426,6 +426,20 @@ export function executeNarrativeTags({
           const clampKey = (label) => {
             const s2 = String(label || '');
             if (/房|宿|住/.test(s2)) return 'inn_room';
+            // 日用杂货先认，别被"菜/油"这种大类吞掉
+            if (/盐/.test(s2)) return 'salt';
+            if (/酱油|酱/.test(s2)) return 'sauce';
+            if (/醋/.test(s2)) return 'vinegar';
+            if (/油/.test(s2)) return 'oil';
+            if (/布|绸|缎/.test(s2)) return 'cloth';
+            if (/针线|针|线/.test(s2)) return 'needlework';
+            if (/炭/.test(s2)) return 'charcoal';
+            if (/柴|薪/.test(s2)) return 'firewood';
+            if (/肉/.test(s2)) return 'meat';
+            if (/蛋/.test(s2)) return 'egg';
+            if (/糖/.test(s2)) return 'sugar';
+            if (/药/.test(s2)) return 'medicine';
+            if (/青菜|蔬菜|白菜|萝卜|瓜/.test(s2)) return 'vegetable';
             if (/饭|菜|食/.test(s2)) return 'meal';
             if (/酒/.test(s2)) return 'wine';
             if (/马/.test(s2)) return 'horse';
