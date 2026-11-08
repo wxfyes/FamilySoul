@@ -2099,6 +2099,48 @@ export function migrateOwnership(world) {
       world.flags.staffHallFixV2 = { at: Date.now(), moved, target: gateId };
     }
   } catch (e) { console.warn('[Staff] 外院归位失败：', e.message); }
+  // 性别与名分自检：老丈/鳏居不许来月事；侧室必须有婚书名分
+  try {
+    const maleRole = /老丈|鳏居|鳏夫|老翁|伯|叔|公|爷|郎|哥|公子|少爷|先生|掌柜|账房|护院|家丁|门房|更夫|货郎|船夫|脚夫|屠/;
+    const femaleRole = /婆|嫂|娘|姑|姐|妹|妇|母|女|夫人|小姐|丫鬟|千金|才女|闺秀|侧室|妾|如夫人/;
+    let genderFixed = 0;
+    let marriageFixed = 0;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead) continue;
+      const text = `${a.name || ''} ${a.role || ''}`;
+      if (a.gender === 'female' && maleRole.test(text) && !femaleRole.test(text)) {
+        a.gender = 'male';
+        delete a.onPeriod;
+        delete a.cycleDay;
+        delete a.periodStart;
+        delete a.periodLen;
+        genderFixed += 1;
+      }
+    }
+    world.marriages = Array.isArray(world.marriages) ? world.marriages : [];
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead || a.spouse) continue;
+      const role = String(a.role || '');
+      if (!/侧室|妾|如夫人|二房|通房|正妻|大娘子/.test(role)) continue;
+      if (!String(a.location || '').startsWith('husband_room') && !String(a.home || '').startsWith('husband_room')) continue;
+      a.spouse = 'husband';
+      a.marital = /正妻|大娘子/.test(role) ? 'married' : 'concubine';
+      a.household = true;
+      if (!world.marriages.some((m) => m && (m.who === a.id || m.id === a.id))) {
+        world.marriages.push({
+          id: a.id, who: a.id, name: a.name,
+          rank: /正妻|大娘子/.test(role) ? '正妻·大娘子' : '侧室',
+          location: a.location, placeName: world.places?.[a.location]?.name || '',
+          pregnancy: a.pregnancy || null, children: [], intimacy: a.intimacy || {},
+          day: a.createdDay || world.clock?.day || 1,
+        });
+      }
+      marriageFixed += 1;
+    }
+    if (genderFixed || marriageFixed) {
+      console.log(`[Sanity] 性别纠正 ${genderFixed} 人，补婚书名分 ${marriageFixed} 人`);
+    }
+  } catch (e) { console.warn('[Sanity] 性别/名分自检失败：', e.message); }
   // 翟家货栈后门：一个真实能去的地方，暗号约定才有落点
   try {
     const gs = world.places?.goods_shop;
