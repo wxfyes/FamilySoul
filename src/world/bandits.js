@@ -313,6 +313,14 @@ export function quellBandits(world, banditId, troops, fromCity) {
   // 累功：剿平股数 + 升迁判定（守备→都司→参将→副总兵）
   world.flags = world.flags || {};
   world.flags.quelledTotal = Math.round(Number(world.flags.quelledTotal) || 0) + 1;
+  // 剿匪叙功：朝中关系缓慢积累（都司/参将要看它，不能永远卡在 0）
+  try {
+    world.factions = world.factions || {};
+    world.factions.court = world.factions.court || {};
+    world.factions.court.relations = world.factions.court.relations || {};
+    const cr = Number(world.factions.court.relations.wangjia) || 0;
+    world.factions.court.relations.wangjia = Math.min(100, cr + 2);
+  } catch { /* 忽略 */ }
   const promo = maybePromote(world);
   if (promo) appoint += promo;
 

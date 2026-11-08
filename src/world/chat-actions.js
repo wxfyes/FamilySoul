@@ -11,7 +11,7 @@ import { startTradeRun, startNightMarket, drainBizNotices } from './business.js'
 import { ensureItems, itemsOf, findItem, giveItem } from './items.js';
 import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
-import { detachmentStrength } from './factions.js';
+import { quellBandits } from './bandits.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -310,39 +310,19 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     if (names.length) notices.push(`${names.join('、')}回府去了。`);
   }
 
-  // 剿匪：带出来的人 + 私兵一起打
+  // 剿匪：与界面「出兵」走同一个权威入口，战果/缴获/降卒/升迁/事件全部一致
   if (/(剿匪|打匪|清剿|平匪)/.test(say)) {
     const city = (() => { const seg = String(world.places?.[me.location]?.name || '').split('·')[0]; return /府$|州$|县$/.test(seg) ? seg : '临江府'; })();
     const bt = world.bandits?.[city] || Object.values(world.bandits || {}).find((x) => x && (
       x.city === city || x.homeCity === city || String(x.id || '').includes(city)
     ) && Number(x.strength) > 0);
-    const strength = Number(bt?.strength || bt?.power || 0);
-    const followers = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.following === me.id && /护院|家丁/.test(String(a.role || '')));
-    const troops = Number(world.factions?.wangjia?.troops) || 0;
-    if (!bt || strength <= 0) {
+    if (!bt) {
       notices.push(`（${city}眼下没有成股的匪患。）`);
     } else {
-      // 与界面"出兵"同一把尺：按势力战力折算，随行护院另算
-      const fw = world.factions?.wangjia;
-      const total = Object.values(fw?.stationed || {}).reduce((s2, x) => s2 + (Number(x) || 0), 0);
-      const send = Math.min(total, Math.max(1, Number(troops) || total));
-      const power = detachmentStrength(world, fw, send) + followers.length * 3;
-      const foe = strength * (bt.tier >= 3 ? 1.3 : bt.tier === 2 ? 1.1 : 1);
-      const win = power * (0.85 + Math.random() * 0.4) > foe;
-      if (win) {
-        bt.strength = Math.max(0, Math.round(strength * (0.2 + Math.random() * 0.3)));
-        const loot = Math.round((2 + Math.random() * 8) * 100) / 100;
-        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + loot) * 100) / 100;
-        world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
-        world.ledger.push({ day, hour: world.clock?.hour || 0, delta: loot, title: '剿匪缴获', by: 'husband', balance: world.assets.silver });
-        notices.push(`匪众被打散，缴获 ${loot.toFixed(2)} 两；带出去的 ${followers.length} 人俱在。`);
-      } else {
-        const hurt = followers.filter(() => Math.random() < 0.5);
-        const died = hurt.filter(() => Math.random() < 0.25);
-        for (const d of died) { d.dead = true; d.deathDay = day; d.deathCause = '剿匪阵亡'; d.following = null; }
-        for (const h of hurt) { if (!h.dead) { h.woundedUntil = { day: day + 3 }; h.following = null; } }
-        notices.push(`匪势凶悍，这趟没讨到好：${hurt.map((x) => x.name).join('、') || '随行'}受伤${died.length ? `，${died.map((x) => x.name).join('、')}没能回来` : ''}。`);
-      }
+      const troops = Number(world.factions?.wangjia?.troops) || 0;
+      const res = quellBandits(world, bt.id, troops, city);
+      if (res?.ok) notices.push(res.text);
+      else notices.push(`（${res?.error || '剿匪未成'}）`);
     }
   }
 

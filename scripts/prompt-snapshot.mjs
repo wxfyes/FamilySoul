@@ -38,7 +38,9 @@ function normalize(text) {
     .replace(/\d{1,2}:\d{2}(:\d{2})?/g, '<TIME>')
     .replace(/\d{4}-\d{2}-\d{2}T[^\s，。]+/g, '<ISO>')
     // 真实系统时间会变"时辰"（子时/丑时…），只比装配内容，不比此刻几点
-    .replace(/传统[子丑寅卯辰巳午未申酉戌亥]时/g, '传统<SHICHEN>');
+    .replace(/传统[子丑寅卯辰巳午未申酉戌亥]时/g, '传统<SHICHEN>')
+    // "属于上午辰巳，日光融融，当下时令气候：…" 也是随时钟变的描述，整段掩掉
+    .replace(/（属于[^）]*）/g, '（属于<TIMECTX>）');
 }
 
 const SCENARIOS = [

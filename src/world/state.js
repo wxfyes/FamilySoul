@@ -2068,6 +2068,28 @@ export function migrateOwnership(world) {
       world.flags.quelledTotal = 1;
     }
   } catch { /* 忽略 */ }
+
+  // 一次性：外院当差的（家丁/护院）被旧招募逻辑塞进正房的，请回门房/外院
+  try {
+    world.flags = world.flags || {};
+    if (!world.flags.staffHomeFixV1) {
+      const gateId = world.places?.['husband_room__gate']
+        ? 'husband_room__gate'
+        : Object.keys(world.places || {}).find((k) => /门房|外院|大门/.test(String(world.places[k]?.name || ''))) || null;
+      let moved = 0;
+      if (gateId) {
+        for (const a of Object.values(world.actors || {})) {
+          if (!a || a.dead || !String(a.id || '').startsWith('staff_')) continue;
+          if (String(a.location || '') !== 'husband_room') continue;
+          a.home = gateId;
+          a.quarters = gateId;
+          if (a.duty && typeof a.duty === 'object') a.duty.home = gateId;
+          try { const r = moveActor(world, a.id, gateId, 'world', '外院当差'); if (r?.ok) moved += 1; } catch { /* 忽略 */ }
+        }
+      }
+      world.flags.staffHomeFixV1 = { at: Date.now(), moved, target: gateId };
+    }
+  } catch (e) { console.warn('[Staff] 外院归位失败：', e.message); }
   try { ensureMarket(world); } catch { /* 忽略 */ }
   try { ensureFame(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }

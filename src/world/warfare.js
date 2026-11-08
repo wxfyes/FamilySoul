@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 兵权与夺城（v2）：兵有驻地，粮有仓，路要通，仗要打几天。
  *
  * 规则：
@@ -101,10 +101,24 @@ export function callToArms(world, fid, { city, max = 60, kind = 'guard' } = {}) 
   return { ok: true, came: come, asked: max, troops: totalTroops(world, f), city: town, cost, monthlyPay: round2(totalTroops(world, f) * MONTHLY_PAY) };
 }
 
+/** 外院当差的住哪：优先门房/外院/值房/后罩房，绝不塞正房内室 */
+function staffHomePlace(world, homeId) {
+  const home = world.places?.[homeId];
+  const roomIds = Object.values(home?.rooms || {})
+    .map((r) => r && r.id)
+    .filter((id) => id && world.places?.[id]);
+  const hit = roomIds.find((id) => /门房|外院|值房|后罩|下房|倒座|大门/.test(String(world.places[id]?.name || '')));
+  if (hit) return hit;
+  const global = Object.keys(world.places || {}).find((id) => (id.startsWith(`${homeId}__`) || id === `${homeId}__gate`)
+    && /门房|外院|值房|后罩|下房|倒座|大门/.test(String(world.places[id]?.name || '')));
+  return global || roomIds[0] || homeId;
+}
+
 /** 把招募来的人真的立进世界（家丁/护院），返回立了几人 */
 export function spawnHouseholdStaff(world, count, kind = 'guard', homeId = 'husband_room') {
   const home = world.places?.[homeId];
   if (!home) return 0;
+  const staffHome = staffHomePlace(world, homeId);
   const want = Math.max(0, Math.min(24, Number(count) || 0));
   let made = 0;
   for (let i = 0; i < want; i++) {
@@ -118,11 +132,11 @@ export function spawnHouseholdStaff(world, count, kind = 'guard', homeId = 'husb
       role: kind === 'guard' ? '家丁' : '护院',
       title: kind === 'guard' ? '家丁' : '护院',
       age: 20 + Math.floor(Math.random() * 15),
-      home: homeId,
-      quarters: home.rooms?.barracks?.id || home.rooms?.servant?.id || null,
-      location: home.rooms?.barracks?.id || home.rooms?.gate?.id || homeId,
+      home: staffHome,
+      quarters: staffHome,
+      location: staffHome,
       servant: true,
-      duty: { post: 'guard', home: homeId },
+      duty: { post: 'guard', home: staffHome },
       relations: { husband: { trust: 45, desire: 0 } },
     };
     made += 1;
