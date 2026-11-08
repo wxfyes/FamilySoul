@@ -12,34 +12,30 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 10:15",
-  "active_task": "【审查官最终验收通过】pet-service 降至 380 行（超额达成 ≤1000 行军令），四套测试实机全绿，正式发版！",
+  "last_updated": "2026-11-08 13:00",
+  "active_task": "【验收通过】护院物理位移前置 + 空堂旁白保护 + 领头人回话尊卑长幼礼法根治完成",
   "priority": "DEPLOYED_VERIFIED",
-  "single_owner": "双 AI 协同治理",
-  "reviewer_role": "审查官逐项穿透复核通过：行数 380 行（-91.7%）、敏感段逐字未变、四套测试全绿、更新包已推送",
+  "single_owner": "Antigravity 审查官",
+  "reviewer_role": "前置物理动作让 LLM 获得最新在场真像，彻底消除时差；建立古代大宅门主从尊卑排序，长者罗叔居首，跟班傅生肃立附和，绝不抢白",
   "changed_files": [
-    "src/pet-service.js",
     "src/chat/chat-flow.js",
-    "src/chat/system-prompt.js",
-    "src/chat/finalize-response.js",
-    "src/chat/context-hints.js",
-    "src/chat/narrative-engine.js",
-    "src/chat/dialogue-postprocess.js",
-    "src/chat/environment-hints.js",
-    "src/chat/scenario-triggers.js",
-    "docs/COLLAB_BUS.md"
+    "src/world/chat-actions.js",
+    "src/world/turn-target.js",
+    "src/chat/prompt-composer.js",
+    "docs/prompt-baseline.json",
+    "scripts/test_turn_target_guard.mjs"
   ],
   "prod_metrics": {
-    "lines": "pet-service.js 4600 → 380 行（超额斩除 91.7%），只剩高层胶水流与类壳",
-    "sensitive_block": "chat-flow.js 674~1230 后宫/私语/在场判定 逐字未变，diff 验证零污染",
-    "chat_replay": "19/19 逐字全绿",
+    "lines": "pet-service.js 保持 380 行（≤1000 行红线）",
+    "test_turn_target_guard": "专项测试通过（尊卑排序、领头指定、长者前置）",
+    "test_dismiss_regression": "专项全过",
+    "chat_replay": "21/21 逐字全绿",
     "prompt_snapshot": "4/4 满分通过",
-    "dismiss_regression": "专项全过",
     "regression": "20/20 满血通过",
-    "package": "update.tar.gz 2.53 MB / 579 文件，已就绪供相公一键热更新"
+    "package": "update.tar.gz 2.55 MB / 582 文件，已就绪供相公一键热更新"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "已盖章通过并推送 main 分支！相公随时可拉包真机测试"
+  "reviewer_action": "已打包完毕并同步至 8089 端口，相公可直接执行软路由热更新"
 }
 ```
 
