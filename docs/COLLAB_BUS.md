@@ -12,30 +12,26 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 13:00",
-  "active_task": "【验收通过】护院物理位移前置 + 空堂旁白保护 + 领头人回话尊卑长幼礼法根治完成",
+  "last_updated": "2026-11-08 13:12",
+  "active_task": "【验收通过】彻底修复'走吧/出去干活吧'打发下人不离场Bug，单人通令清场双闭环",
   "priority": "DEPLOYED_VERIFIED",
   "single_owner": "Antigravity 审查官",
-  "reviewer_role": "前置物理动作让 LLM 获得最新在场真像，彻底消除时差；建立古代大宅门主从尊卑排序，长者罗叔居首，跟班傅生肃立附和，绝不抢白",
+  "reviewer_role": "扩展日常口语化打发逐客令（走吧、出去干活吧、去忙吧），解除严苛正则束缚，支持单人在场直接告退与全员通令离场，四套测试全绿",
   "changed_files": [
-    "src/chat/chat-flow.js",
-    "src/world/chat-actions.js",
-    "src/world/turn-target.js",
-    "src/chat/prompt-composer.js",
-    "docs/prompt-baseline.json",
-    "scripts/test_turn_target_guard.mjs"
+    "src/chat/intent-pipeline.js",
+    "src/chat/narrative-engine.js",
+    "scripts/test_dismiss_regression.mjs"
   ],
   "prod_metrics": {
     "lines": "pet-service.js 保持 380 行（≤1000 行红线）",
-    "test_turn_target_guard": "专项测试通过（尊卑排序、领头指定、长者前置）",
-    "test_dismiss_regression": "专项全过",
+    "test_dismiss_regression": "专项实测全绿（含走吧、先不用了没事了出去干活吧、行了去忙吧）",
     "chat_replay": "21/21 逐字全绿",
     "prompt_snapshot": "4/4 满分通过",
     "regression": "20/20 满血通过",
     "package": "update.tar.gz 2.55 MB / 582 文件，已就绪供相公一键热更新"
   },
   "client_reinstall_needed": false,
-  "reviewer_action": "已打包完毕并同步至 8089 端口，相公可直接执行软路由热更新"
+  "reviewer_action": "更新包已同步至 8089 端口，相公直接热更新即可"
 }
 ```
 
