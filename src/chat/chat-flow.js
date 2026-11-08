@@ -4,6 +4,7 @@ import { enforcePresence, normalizeSpeakers, applyStatedIncome, compactMemories,
 import { buildContextHints } from './context-hints.js';
 import { finalizeResponse } from './finalize-response.js';
 import { executeNarrativeTags } from './narrative-engine.js';
+import { planNamedNpcMoves } from './plan-moves.js';
 import { resolveVoiceCasting } from '../world/voice-casting.js';
 import fs from 'node:fs';
 import { personFacts } from '../world/person-facts.js';
@@ -1812,6 +1813,16 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         console.log(`[Actions] ${ns.length} 条提示已记账，出口统一拼`);
       }
     } catch (err) { console.warn('[Actions] 执行失败：', err.message); }
+
+    // 相公一句"你们各自去忙吧"：让天道当场安排行止（模型决定去哪，代码只执行）
+    if (/(各自|都).{0,6}(去忙|忙去|该干嘛|干活)/.test(say)) {
+      try {
+        const moved = await planNamedNpcMoves(svc, { force: true });
+        if (moved.length) {
+          svc._turnNotices = (svc._turnNotices || []).concat([`（【行止】${moved.map((m) => `${m.name}去了${m.toName}`).join('；')}）`]);
+        }
+      } catch (err) { console.warn('[Plan] 指令调度失败：', err.message); }
+    }
     console.log(`[stage] 叙事标签处理 ${Date.now() - __t1}ms`);
 
     // 给每个发言人补身份前缀（帮工/掌柜/正妻/丫鬟…），由账上 role 推，不写死

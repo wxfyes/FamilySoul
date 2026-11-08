@@ -13,6 +13,7 @@ import { LlmClient } from './llm-client.js';
 import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
+import { planNamedNpcMoves } from './chat/plan-moves.js';
 import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes } from './world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState, appendEvents, nextEvent } from './world/state.js';
@@ -5536,6 +5537,12 @@ server.listen(PORT, '0.0.0.0', () => {
         await generateCase();
         await judgeCases();
         await resolveMemorials();
+        // 上午 9 时 / 下午 16 时：让天道替有名有姓的人安排一次行止
+        try {
+          const wPlan = peek(DATA_DIR);
+          const hh = Number(wPlan.clock?.hour) || 0;
+          if (hh === 9 || hh === 16) await planNamedNpcMoves(petService);
+        } catch (err) { console.warn('[Plan] 定时调度失败：', err.message); }
       },
     });
   } catch (err) {
