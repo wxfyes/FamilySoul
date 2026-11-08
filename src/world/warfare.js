@@ -144,6 +144,31 @@ export function spawnHouseholdStaff(world, count, kind = 'guard', homeId = 'husb
   return made;
 }
 
+/** 买丫鬟：立进内宅下房/后罩房，绝不进正房主卧 */
+export function spawnMaids(world, count, homeId = 'husband_room') {
+  const home = world.places?.[homeId];
+  if (!home) return 0;
+  const servantId = home.rooms?.servant?.id || home.rooms?.gatehouse?.id || staffHomePlace(world, homeId);
+  const place = world.places?.[servantId] ? servantId : staffHomePlace(world, homeId);
+  const want = Math.max(0, Math.min(12, Number(count) || 0));
+  let made = 0;
+  for (let i = 0; i < want; i++) {
+    const name = fallbackName(world, 'female');
+    if (!name) continue;
+    const id = `maid_${Date.now()}_${Math.floor(Math.random() * 10000)}_${i}`;
+    world.actors[id] = {
+      id, name, role: '丫鬟', title: '丫鬟',
+      age: 14 + Math.floor(Math.random() * 10),
+      gender: 'female',
+      home: place, quarters: place, location: place,
+      servant: true,
+      relations: { husband: { trust: 40, desire: 0 } },
+    };
+    made += 1;
+  }
+  return made;
+}
+
 /** 这个势力每月该发多少饷（按兵种构成算） */
 export function monthlyPayOf(f) {
   if (!f) return 0;

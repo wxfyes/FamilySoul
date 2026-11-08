@@ -12,6 +12,7 @@ import { ensureItems, itemsOf, findItem, giveItem } from './items.js';
 import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
 import { quellBandits } from './bandits.js';
+import { callToArms, spawnMaids } from './warfare.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -308,6 +309,32 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       if (mv?.ok) names.push(g.name);
     }
     if (names.length) notices.push(`${names.join('、')}回府去了。`);
+  }
+
+  // 招家丁/护院/丫鬟：聊天里吩咐即真办（引擎执行，不是嘴上说说）
+  if (/(招|募|添|雇|买)[^。！？\n]{0,8}(家丁|护院|丫鬟|婢女|人手)/.test(say)
+    && !/(掌柜|伙计|跑堂|账房)/.test(say)) {
+    const isMaid = /丫鬟|婢女/.test(say);
+    const isRetainer = /护院/.test(say);
+    const m = say.match(/(\d+|[一二两三四五六七八九十]+)\s*(?:个|人|名)/);
+    const want = Math.max(1, Math.min(isMaid ? 12 : 50, m ? cn2num(m[1]) : (isMaid ? 2 : 4)));
+    const city = (() => { const seg = String(world.places?.[me.location]?.name || '').split('·')[0]; return /府$|州$|县$/.test(seg) ? seg : '临江府'; })();
+    if (isMaid) {
+      const cost = Math.round(want * 0.5 * 100) / 100;
+      if ((Number(world.assets?.silver) || 0) < cost) {
+        notices.push(`（银不够：买 ${want} 个丫鬟要 ${cost} 两。）`);
+      } else {
+        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - cost) * 100) / 100;
+        world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+        world.ledger.push({ day, hour: world.clock?.hour || 0, delta: -cost, title: `买丫鬟 ${want} 人`, by: 'husband', balance: world.assets.silver, category: '买丫鬟' });
+        const made = spawnMaids(world, want);
+        notices.push(`婉儿应声去办：从人市领回 ${made} 个丫鬟，安家银共 ${cost.toFixed(2)} 两。`);
+      }
+    } else {
+      const r = callToArms(world, 'wangjia', { city, max: want, kind: isRetainer ? 'retainer' : 'guard' });
+      if (r?.ok) notices.push(`婉儿应声去办：一呼百应，${isRetainer ? '护院' : '家丁'}来投 ${r.came} 人，安家银 ${r.cost} 两，月饷 ${r.monthlyPay} 两/月。`);
+      else notices.push(`（${r?.error || '没招成'}）`);
+    }
   }
 
   // 剿匪：与界面「出兵」走同一个权威入口，战果/缴获/降卒/升迁/事件全部一致

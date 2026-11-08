@@ -2,9 +2,9 @@
   "meta": {
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
-    "seedHash": "637503d70cc5",
-    "caseCount": 19,
-    "recordedAt": "2026-11-08T02:12:58.304Z"
+    "seedHash": "631af59b2a18",
+    "caseCount": 20,
+    "recordedAt": "2026-11-08T02:41:19.221Z"
   },
   "cases": [
     {
@@ -25,7 +25,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -46,7 +49,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -68,7 +74,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -90,7 +99,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -112,7 +124,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -134,7 +149,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -156,7 +174,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -178,7 +199,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -199,7 +223,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -221,7 +248,10 @@
         "silver": 14423849.24,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -243,7 +273,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 1,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -264,7 +297,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -285,7 +321,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -306,7 +345,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -327,7 +369,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -349,7 +394,35 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
+      }
+    },
+    {
+      "id": "recruit-guards",
+      "input": "让婉儿去招两个护院。",
+      "ok": true,
+      "error": "",
+      "reply": "【正妻·婉儿】：“是，相公，妾身这就吩咐管事去办。”\n【提示】婉儿应声去办：一呼百应，护院来投 2 人，安家银 1 两，月饷 75 两/月。",
+      "speakers": [
+        "正妻·婉儿",
+        "提示"
+      ],
+      "state": {
+        "husband": "husband_room",
+        "waner": "husband_room",
+        "yunnia": "wang_mansion_west",
+        "xiaocui": "husband_room",
+        "wanning": "wang_mansion_east",
+        "silver": 14423848.29,
+        "bandits": 3,
+        "tasks": 0,
+        "quelledTotal": 0,
+        "staff": 2,
+        "maids": 0,
+        "troops": 75
       }
     },
     {
@@ -371,7 +444,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -393,7 +469,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     },
     {
@@ -412,7 +491,10 @@
         "silver": 14423849.29,
         "bandits": 3,
         "tasks": 0,
-        "quelledTotal": 0
+        "quelledTotal": 0,
+        "staff": 0,
+        "maids": 0,
+        "troops": 73
       }
     }
   ]

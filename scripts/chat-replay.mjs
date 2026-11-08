@@ -83,6 +83,11 @@ const CASES = [
   { id: 'withdraw-silver', input: '取二十两银子来。', llm: '【沈婉儿】：“妾身这就去取。”' },
   { id: 'call-xiaocui', input: '小翠，沏壶茶来。', llm: '【小翠】：“奴婢这就去。”' },
   {
+    id: 'recruit-guards',
+    input: '让婉儿去招两个护院。',
+    llm: '【正妻·婉儿】：“是，相公，妾身这就吩咐管事去办。”',
+  },
+  {
     id: 'summon-again',
     input: '叫来吧。',
     // 承接上一轮：上一轮相公叫的是"芸娘"，这一轮只说"叫来吧"
@@ -145,6 +150,11 @@ function normalizeSeed(dir, c) {
       const wn = Object.values(w.actors || {}).find((a) => a && !a.dead && a.name === '崔婉宁');
       if (wn) { wn.location = 'husband_room'; delete wn.away; delete wn.awayUntil; }
     }
+    // 军需/招募用例需要一点底粮，否则只会走"粮不够"分支
+    if (w.factions?.wangjia) {
+      w.factions.wangjia.grain = Math.max(Number(w.factions.wangjia.grain) || 0, 50);
+      w.factions.wangjia.morale = Math.max(Number(w.factions.wangjia.morale) || 0, 60);
+    }
     if (w.actors?.husband) delete w.actors.husband.activity;
     fs.writeFileSync(file, JSON.stringify(w));
   } catch { /* 种子坏了就让用例自己报错 */ }
@@ -183,6 +193,9 @@ function snapshotState(world) {
     bandits: Object.keys(world?.bandits || {}).length,
     tasks: Array.isArray(world?.tasks) ? world.tasks.length : 0,
     quelledTotal: Number(world?.flags?.quelledTotal) || 0,
+    staff: Object.values(world?.actors || {}).filter((a) => a && !a.dead && String(a.id || '').startsWith('staff_')).length,
+    maids: Object.values(world?.actors || {}).filter((a) => a && !a.dead && String(a.id || '').startsWith('maid_')).length,
+    troops: Number(world?.factions?.wangjia?.troops) || 0,
   };
 }
 
