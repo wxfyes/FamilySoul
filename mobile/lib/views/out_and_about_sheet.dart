@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
-import 'trade_sheet.dart';
 
-/// 出门 · 找人 · 赴约 —— 底部抽屉（三个 tab，点一下就执行）
-/// 走的是服务端同一套管道（/api/world/menu|go|summon|todo），不碰聊天逻辑。
+/// 出门 · 找人 · 赴约 —— 现代国风微质感交互抽屉
+/// 彻底告别密密麻麻长列表：常驻快捷磁贴 + 圈子标签秒切 + 真实街市烟火标注
 class OutAndAboutSheet extends StatefulWidget {
   const OutAndAboutSheet({super.key, required this.api, this.onChanged});
 
@@ -22,6 +21,10 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
   bool _loading = true;
   bool _busy = false;
   String _query = '';
+
+  // 场景分类与人物圈子过滤
+  String _placeFilter = 'all'; // all, hot, estate, market, court
+  String _peopleFilter = 'all'; // all, family, manager, confidant, official
 
   @override
   void initState() {
@@ -56,7 +59,12 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
       final text = (_serverLine != null && _serverLine!.isNotEmpty) ? _serverLine! : okText;
       _serverLine = null;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(text), duration: const Duration(milliseconds: 2200), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: Text(text),
+          duration: const Duration(milliseconds: 2200),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF1E2230),
+        ),
       );
       widget.onChanged?.call();
       await _load();
@@ -65,13 +73,10 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
 
   String? _serverLine;
 
-  /// 行程动作：去做 / 改天 / 推掉
   Future<bool> _todo(String id, String action) async {
-    final ok = await widget.api.todoAction(id, action);
-    return ok;
+    return await widget.api.todoAction(id, action);
   }
 
-  /// 去某地：把服务端的"到达提示"接住
   Future<bool> _goTo(String place) async {
     final line = await widget.api.goTo(place);
     if (line == null) return false;
@@ -86,105 +91,140 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     final clock = (d?['clock'] is Map) ? d!['clock'] as Map : const {};
     final kb = MediaQuery.of(context).viewInsets.bottom;
     final screenH = MediaQuery.of(context).size.height;
-    final sheetH = ((screenH - kb) * 0.80).clamp(240.0, screenH);
+    final sheetH = ((screenH - kb) * 0.86).clamp(320.0, screenH);
+
     return Padding(
       padding: EdgeInsets.only(bottom: kb),
       child: SafeArea(
-      child: Container(
-        height: sheetH,
-        padding: const EdgeInsets.only(top: 10),
-        decoration: const BoxDecoration(
-          color: Color(0xFF11131A),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: Container(
+          height: sheetH,
+          decoration: const BoxDecoration(
+            color: Color(0xFF10121A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
           child: Column(
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  const Icon(Icons.explore_outlined, size: 18, color: Color(0xFF8B5CF6)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      where.isEmpty ? '出门 · 找人 · 赴约' : '你在「$where」 · 第${clock['day'] ?? '-'}日 ${clock['hour'] ?? '-'}时',
-                      style: const TextStyle(fontSize: 13.5, color: Colors.white70),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    onPressed: _load,
-                    tooltip: '刷新',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 18),
-                    onPressed: () => Navigator.pop(context),
-                    tooltip: '关闭',
-                  ),
-                ],
+            children: [
+              // 顶部拖动条与状态栏
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(top: 8, bottom: 6),
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-              child: TextField(
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: '搜地方、搜人（如：货栈 / 采云）',
-                  hintStyle: const TextStyle(color: Colors.white24, fontSize: 12.5),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 17, color: Colors.white38),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 15, color: Colors.white38),
-                          onPressed: () => setState(() => _query = ''),
-                        ),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.06),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide.none),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.explore_rounded, size: 16, color: Color(0xFFA78BFA)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        where.isEmpty ? '临江市井 · 闲逛漫步' : '此刻身在「$where」 · 第${clock['day'] ?? '-'}日 ${clock['hour'] ?? '-'}时',
+                        style: const TextStyle(fontSize: 13, color: Colors.white70, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white54),
+                      onPressed: _load,
+                      tooltip: '刷新',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white54),
+                      onPressed: () => Navigator.pop(context),
+                      tooltip: '关闭',
+                    ),
+                  ],
                 ),
-                onChanged: (v) => setState(() => _query = v.trim()),
               ),
-            ),
-            TabBar(
-              controller: _tab,
-              labelColor: const Color(0xFF8B5CF6),
-              unselectedLabelColor: Colors.white54,
-              indicatorColor: const Color(0xFF8B5CF6),
-              tabs: const [Tab(text: '去哪儿'), Tab(text: '找人'), Tab(text: '待办')],
-            ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  : TabBarView(
-                      controller: _tab,
-                      children: [
-                        _places(d),
-                        _people(d),
-                        _todos(d),
-                      ],
-                    ),
-            ),
-          ],
+
+              // 搜索栏（精简轻量）
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+                child: TextField(
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: '搜地方、搜人名（如：酒楼、长街、采云）',
+                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search_rounded, size: 16, color: Colors.white38),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 14, color: Colors.white38),
+                            onPressed: () => setState(() => _query = ''),
+                          ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                ),
+              ),
+
+              // Tab 切换条
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: TabBar(
+                  controller: _tab,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.5)),
+                  ),
+                  labelColor: const Color(0xFFDDD6FE),
+                  unselectedLabelColor: Colors.white54,
+                  labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  tabs: const [
+                    Tab(text: '去哪儿 · 漫步'),
+                    Tab(text: '找人 · 寻访'),
+                    Tab(text: '待办 · 契约'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)))
+                    : TabBarView(
+                        controller: _tab,
+                        children: [
+                          _buildPlacesTab(d),
+                          _buildPeopleTab(d),
+                          _todos(d),
+                        ],
+                      ),
+              ),
+            ],
+          ),
         ),
-        ),
-      ),
       ),
     );
   }
 
-  Widget _places(Map<String, dynamic>? d) {
+  // ─────────────────────────────────────────────────────────────
+  // 1. 去哪儿 TAB（快捷磁贴 + 热门市井 + 场景分类）
+  // ─────────────────────────────────────────────────────────────
+
+  Widget _buildPlacesTab(Map<String, dynamic>? d) {
+    final places = ((d?['places'] as List?) ?? const []).cast<Map>();
+    final homes = ((d?['homes'] as List?) ?? const []).cast<Map>();
+
     bool hit(Map m) {
       if (_query.isEmpty) return true;
       final q = _query;
@@ -192,152 +232,719 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
       return hay.contains(q);
     }
 
-    final places = ((d?['places'] as List?) ?? const []).where((x) => x is Map && hit(x)).toList();
-    final homes = ((d?['homes'] as List?) ?? const []).where((x) => x is Map && hit(x)).toList();
-    if (places.isEmpty && homes.isEmpty) {
-      return Center(child: Text(_query.isEmpty ? '没有可去的地方' : '没搜到「$_query」', style: const TextStyle(color: Colors.white54)));
-    }
+    final filteredPlaces = places.where(hit).toList();
+    final filteredHomes = homes.where(hit).toList();
+
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8, top: 2),
-          child: Row(children: [
-            InkWell(
-              onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => TradeSheet(api: widget.api),
-                );
-              },
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0B252).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFE0B252).withValues(alpha: 0.45)),
+        // 顶部常用快捷磁贴（一键回宅 / 去大酒楼 / 赴茶坊 / 上街溜达）
+        if (_query.isEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(left: 2, bottom: 6),
+            child: Text('常驻捷径 · 一键直达', style: TextStyle(fontSize: 11.5, color: Colors.white38)),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _quickTile(
+                  icon: Icons.home_rounded,
+                  title: '回王宅',
+                  subtitle: '正房内寝',
+                  color: const Color(0xFFC084FC),
+                  onTap: () => _run(() => _goTo('临江·王宅（七进大宅）'), '（你步入七进大宅正房。）'),
                 ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.storefront_rounded, size: 14, color: Color(0xFFE0B252)),
-                  SizedBox(width: 6),
-                  Text('商货行栈', style: TextStyle(color: Color(0xFFE0B252), fontSize: 12.5, fontWeight: FontWeight.w600)),
-                ]),
-              ),
+                _quickTile(
+                  icon: Icons.storefront_rounded,
+                  title: '去大酒楼',
+                  subtitle: '运河三层',
+                  color: const Color(0xFFFBBF24),
+                  onTap: () => _run(() => _goTo('运河码头三层大酒楼'), '（你来到运河大酒楼巡视。）'),
+                ),
+                _quickTile(
+                  icon: Icons.local_cafe_rounded,
+                  title: '临江茶坊',
+                  subtitle: '祖传老店',
+                  color: const Color(0xFF34D399),
+                  onTap: () => _run(() => _goTo('临江茶坊老店'), '（你踱步回祖传茶坊柜台。）'),
+                ),
+                _quickTile(
+                  icon: Icons.directions_walk_rounded,
+                  title: '上街溜达',
+                  subtitle: '繁华市井',
+                  color: const Color(0xFF60A5FA),
+                  onTap: () => _run(() => _goTo('临江长街'), '（你信步来到市井长街，看两旁人来人往。）'),
+                ),
+              ],
             ),
-          ]),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // 场景分类胶囊条
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _filterChip('all', '全部街市', Icons.explore_outlined),
+              _filterChip('hot', '🔥 有人气的街肆', Icons.local_fire_department_rounded),
+              _filterChip('estate', '💼 我的产业', Icons.account_balance_wallet_outlined),
+              _filterChip('market', '🏮 市井勾栏', Icons.nightlife_rounded),
+              _filterChip('court', '🏛️ 衙署名胜', Icons.account_balance_outlined),
+            ],
+          ),
         ),
-        if (homes.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 6, top: 2),
-            child: Text('我的产业', style: TextStyle(fontSize: 12, color: Colors.white38)),
-          ),
-          ...homes.map((h) => _row(
-                title: (h['name'] ?? '').toString(),
-                subtitle: '日入 ${h['income'] ?? 0} 两',
-                action: TextButton(
-                  onPressed: () => _run(() => _goTo((h['name'] ?? '').toString()), '（你走到了「${h['name']}」。）'),
-                  child: const Text('过去'),
-                ),
-              )),
-          const SizedBox(height: 6),
-        ],
-        if (places.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 6, top: 6),
-            child: Text('有人气的地方', style: TextStyle(fontSize: 12, color: Colors.white38)),
-          ),
-          ...places.map((p) => _row(
-                title: (p['name'] ?? '').toString(),
-                subtitle: ((p['names'] as List?) ?? const []).join('、'),
-                action: TextButton(
-                  onPressed: () => _run(() => _goTo((p['name'] ?? '').toString()), '（你走到了「${p['name']}」。）'),
-                  child: const Text('过去'),
-                ),
-              )),
-        ],
+        const SizedBox(height: 10),
+
+        // 按分类渲染列表
+        ..._renderPlaceSections(filteredHomes, filteredPlaces),
       ],
     );
   }
 
-  Widget _people(Map<String, dynamic>? d) {
+  Widget _quickTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 96,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, color: color),
+              const SizedBox(height: 4),
+              Text(title, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10.5)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String key, String label, IconData icon) {
+    final active = _placeFilter == key;
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        onTap: () => setState(() => _placeFilter = key),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF8B5CF6).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: active ? const Color(0xFF8B5CF6).withValues(alpha: 0.6) : Colors.white12,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: active ? const Color(0xFFDDD6FE) : Colors.white54),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: active ? const Color(0xFFDDD6FE) : Colors.white70,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _renderPlaceSections(List<Map> homes, List<Map> places) {
+    final list = <Widget>[];
+
+    // 1. 如果选了产业
+    if (_placeFilter == 'estate' || _placeFilter == 'all') {
+      if (homes.isNotEmpty) {
+        list.add(const Padding(
+          padding: EdgeInsets.only(left: 2, top: 4, bottom: 6),
+          child: Text('💼 旗下名产（自有产业）', style: TextStyle(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.w500)),
+        ));
+        for (final h in homes) {
+          final name = (h['name'] ?? '').toString();
+          final income = h['income'] ?? 0;
+          list.add(_placeCard(
+            name: name,
+            subtitle: '日入 $income 两',
+            icon: Icons.account_balance_wallet_rounded,
+            badge: '我的产业',
+            badgeColor: const Color(0xFFFBBF24),
+            actionText: '过去',
+            onTap: () => _run(() => _goTo(name), '（你走到了「$name」。）'),
+          ));
+        }
+      }
+    }
+
+    // 2. 筛选公共地点
+    List<Map> filteredPlaces = places;
+    if (_placeFilter == 'hot') {
+      // 只要有人在的地方
+      filteredPlaces = places.where((p) => ((p['names'] as List?)?.isNotEmpty ?? false)).toList();
+    } else if (_placeFilter == 'market') {
+      // 勾栏市井：客栈、赌坊、青楼、糖铺、衣庄等
+      final re = RegExp(r'楼|坊|肆|客栈|赌|糖|庄|店|铺|长街|市井');
+      filteredPlaces = places.where((p) => re.hasMatch((p['name'] ?? '').toString())).toList();
+    } else if (_placeFilter == 'court') {
+      // 衙署名胜：府衙、县衙、巡检、书院、庙、码头、茶山
+      final re = RegExp(r'衙|院|庙|山|司|码头|渡口');
+      filteredPlaces = places.where((p) => re.hasMatch((p['name'] ?? '').toString())).toList();
+    }
+
+    if (_placeFilter != 'estate' && filteredPlaces.isNotEmpty) {
+      final title = _placeFilter == 'hot'
+          ? '🔥 人气市井（有人在街上晃悠）'
+          : (_placeFilter == 'market' ? '🏮 市井勾栏名铺' : (_placeFilter == 'court' ? '🏛️ 衙署名胜古刹' : '🚶 市井名胜各地'));
+      list.add(Padding(
+        padding: const EdgeInsets.only(left: 2, top: 8, bottom: 6),
+        child: Text(title, style: const TextStyle(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.w500)),
+      ));
+
+      for (final p in filteredPlaces) {
+        final name = (p['name'] ?? '').toString();
+        final names = (p['names'] as List?)?.cast<String>() ?? [];
+        final hasPeople = names.isNotEmpty;
+        final icon = _inferPlaceIcon(name);
+
+        list.add(_placeCard(
+          name: name,
+          subtitle: hasPeople ? '${names.join('、')} 在此' : '市井清静',
+          icon: icon,
+          hasPeople: hasPeople,
+          actionText: '前往',
+          onTap: () => _run(() => _goTo(name), '（你走到了「$name」。）'),
+        ));
+      }
+    }
+
+    if (list.isEmpty) {
+      list.add(const Padding(
+        padding: EdgeInsets.symmetric(vertical: 36),
+        child: Center(child: Text('没有符合条件的去处', style: TextStyle(color: Colors.white38, fontSize: 13))),
+      ));
+    }
+
+    return list;
+  }
+
+  IconData _inferPlaceIcon(String name) {
+    if (name.contains('茶')) return Icons.local_cafe_rounded;
+    if (RegExp(r'酒|肆|宴|楼').hasMatch(name)) return Icons.storefront_rounded;
+    if (RegExp(r'街|巷|市').hasMatch(name)) return Icons.directions_walk_rounded;
+    if (RegExp(r'码头|渡|河|船').hasMatch(name)) return Icons.sailing_rounded;
+    if (RegExp(r'衙|司|署').hasMatch(name)) return Icons.account_balance_rounded;
+    if (RegExp(r'书院|堂|学').hasMatch(name)) return Icons.menu_book_rounded;
+    if (RegExp(r'庙|观|寺').hasMatch(name)) return Icons.temple_buddhist_rounded;
+    if (RegExp(r'客栈|邸').hasMatch(name)) return Icons.hotel_rounded;
+    return Icons.location_on_rounded;
+  }
+
+  Widget _placeCard({
+    required String name,
+    required String subtitle,
+    required IconData icon,
+    String? badge,
+    Color? badgeColor,
+    bool hasPeople = false,
+    required String actionText,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: hasPeople ? 0.06 : 0.035),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasPeople ? const Color(0xFFF59E0B).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (hasPeople ? const Color(0xFFF59E0B) : const Color(0xFF8B5CF6)).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: hasPeople ? const Color(0xFFFBBF24) : const Color(0xFFA78BFA)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: const TextStyle(fontSize: 13.5, color: Colors.white, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (badge != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: (badgeColor ?? const Color(0xFF8B5CF6)).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          badge,
+                          style: TextStyle(fontSize: 10, color: badgeColor ?? const Color(0xFFDDD6FE)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: hasPeople ? const Color(0xFFFBBF24) : Colors.white38,
+                    fontWeight: hasPeople ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                actionText,
+                style: const TextStyle(color: Color(0xFFDDD6FE), fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2. 找人 TAB（亲眷快捷圆圈 + 圈子标签秒切 + 行踪定位）
+  // ─────────────────────────────────────────────────────────────
+
+  Widget _buildPeopleTab(Map<String, dynamic>? d) {
+    final people = ((d?['people'] as List?) ?? const []).cast<Map>();
+
     bool hitP(Map m) {
       if (_query.isEmpty) return true;
       final q = _query;
       return '${m['name'] ?? ''}${m['role'] ?? ''}${m['place'] ?? ''}'.contains(q);
     }
 
-    final people = ((d?['people'] as List?) ?? const []).where((x) => x is Map && hitP(x)).toList();
-    if (people.isEmpty) {
-      return Center(child: Text(_query.isEmpty ? '世上没别人' : '没搜到「$_query」', style: const TextStyle(color: Colors.white54)));
-    }
-    final groups = <String, List>{};
-    for (final p in people) {
-      final g = (p['group'] ?? '其他人').toString();
-      groups.putIfAbsent(g, () => []).add(p);
-    }
-    // 按服务端给的视角分组渲染（相公：府内/相好/其他人；她：我的人/王家/其他人）
-    final order = ['我的人', '府内', '王家', '相好', '常来往', '其他人'];
-    final names = groups.keys.toList()
-      ..sort((a, b) {
-        final ia = order.indexOf(a), ib = order.indexOf(b);
-        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-      });
-    final children = <Widget>[];
-    for (final g in names) {
-      final list = groups[g];
-      if (list == null || list.isEmpty) continue;
-      children.add(Padding(
-        padding: const EdgeInsets.only(left: 4, top: 8, bottom: 4),
-        child: Text(g, style: const TextStyle(fontSize: 12, color: Colors.white38)),
-      ));
-      for (final p in list.take(g == '其他人' ? 8 : 12)) {
-        final here = p['here'] == true;
-        final canSummon = p['canSummon'] != false;
-        final isMale = (p['gender'] ?? '') == 'male';
-        final he = isMale ? '他' : '她';
-        final placeName = (p['place'] ?? '').toString();
-        children.add(_row(
-          title: (p['name'] ?? '').toString(),
-          subtitle: '${p['role'] ?? ''} · ${here ? '就在跟前' : placeName}',
-          action: here
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('在场', style: TextStyle(fontSize: 12, color: Color(0xFF22C55E))),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 过去找她/他
-                    TextButton(
-                      onPressed: placeName.isEmpty
-                          ? null
-                          : () => _run(() => _goTo(placeName), '（你去找${p['name']}了。）'),
-                      child: Text('去$he这'),
-                    ),
-                    // 叫她/他来（真人不给这个）
-                    if (canSummon)
-                      TextButton(
-                        onPressed: () => _run(() => widget.api.summon((p['id'] ?? '').toString()), '（${p['name']}应声赶来。）'),
-                        child: Text('叫$he来'),
-                      ),
-                  ],
-                ),
-        ));
-      }
-    }
-    return ListView(padding: const EdgeInsets.symmetric(horizontal: 12), children: children);
+    final filtered = people.where(hitP).toList();
+
+    // 常用核心亲眷（沈婉儿、林芸娘、小翠、崔婉宁、杨采云等）
+    final coreRe = RegExp(r'婉儿|芸娘|小翠|婉宁|采云|紫嫣|映雪|有福');
+    final corePeople = people.where((p) {
+      final n = (p['name'] ?? '').toString();
+      return coreRe.hasMatch(n);
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
+      children: [
+        // 顶部核心内眷红颜快捷头像栏
+        if (_query.isEmpty && corePeople.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(left: 2, bottom: 6),
+            child: Text('常伴左右 · 亲眷挚友', style: TextStyle(fontSize: 11.5, color: Colors.white38)),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: corePeople.map((p) => _avatarTile(p)).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // 圈子分类胶囊
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _peopleFilterChip('all', '全部人物'),
+              _peopleFilterChip('family', '内眷妻妾'),
+              _peopleFilterChip('manager', '得力掌柜'),
+              _peopleFilterChip('confidant', '红颜知交'),
+              _peopleFilterChip('official', '官商士绅'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // 人员列表
+        ..._renderPeopleList(filtered),
+      ],
+    );
   }
+
+  Widget _avatarTile(Map p) {
+    final name = (p['name'] ?? '').toString();
+    final shortName = name.length > 2 ? name.substring(name.length - 1) : name;
+    final here = p['here'] == true;
+    final role = (p['role'] ?? '').toString();
+    final placeName = (p['place'] ?? '').toString();
+    final isMale = (p['gender'] ?? '') == 'male';
+    final he = isMale ? '他' : '她';
+
+    Color ringColor = const Color(0xFFC084FC);
+    if (role.contains('正妻')) {
+      ringColor = const Color(0xFFFBBF24);
+    } else if (RegExp(r'二房|妾|如夫人').hasMatch(role)) {
+      ringColor = const Color(0xFFF472B6);
+    } else if (role.contains('丫鬟')) {
+      ringColor = const Color(0xFF34D399);
+    } else if (role.contains('掌柜')) {
+      ringColor = const Color(0xFF60A5FA);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: () {
+          if (here) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('（$name 就在跟前相伴。）'), duration: const Duration(seconds: 1)),
+            );
+          } else {
+            // 弹出轻量菜单
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: const Color(0xFF1E2230),
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+              builder: (_) => SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('$name · $role', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text('此刻在：$placeName', style: const TextStyle(color: Colors.white54, fontSize: 12.5)),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF8B5CF6),
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(Icons.directions_walk_rounded, size: 16),
+                              label: Text('去$he这'),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _run(() => _goTo(placeName), '（你去找$name了。）');
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          if (p['canSummon'] != false)
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFDDD6FE),
+                                  side: const BorderSide(color: Color(0xFF8B5CF6)),
+                                ),
+                                icon: const Icon(Icons.call_made_rounded, size: 16),
+                                label: Text('叫$he来'),
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _run(() => widget.api.summon((p['id'] ?? '').toString()), '（$name应声赶来。）');
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(30),
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: ringColor.withValues(alpha: 0.15),
+                    border: Border.all(color: ringColor, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      shortName,
+                      style: TextStyle(color: ringColor, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                if (here)
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF10121A), width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              name,
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+            Text(
+              here ? '在跟前' : (placeName.split('·').last.replaceAll('（七进大宅）', '')),
+              style: TextStyle(
+                color: here ? const Color(0xFF22C55E) : Colors.white38,
+                fontSize: 9.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _peopleFilterChip(String key, String label) {
+    final active = _peopleFilter == key;
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        onTap: () => setState(() => _peopleFilter = key),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF8B5CF6).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: active ? const Color(0xFF8B5CF6).withValues(alpha: 0.6) : Colors.white12,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: active ? const Color(0xFFDDD6FE) : Colors.white70,
+              fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _renderPeopleList(List<Map> people) {
+    List<Map> list = people;
+
+    if (_peopleFilter == 'family') {
+      final re = RegExp(r'妻|妾|房|丫鬟|王宅|正房|夫人');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['group']}')).toList();
+    } else if (_peopleFilter == 'manager') {
+      final re = RegExp(r'掌柜|账房|大厨|跑堂|伙计|茶坊|酒楼|货栈');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']}')).toList();
+    } else if (_peopleFilter == 'confidant') {
+      final re = RegExp(r'知己|相好|客卿|乐师|采云|紫嫣|映雪');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']} ${p['group']}')).toList();
+    } else if (_peopleFilter == 'official') {
+      final re = RegExp(r'知府|县令|巡检|大人|漕帮|总商|士绅|官');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']}')).toList();
+    }
+
+    if (list.isEmpty) {
+      return [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 36),
+          child: Center(child: Text('没有该分类下的人物', style: TextStyle(color: Colors.white38, fontSize: 13))),
+        ),
+      ];
+    }
+
+    return list.map((p) {
+      final here = p['here'] == true;
+      final canSummon = p['canSummon'] != false;
+      final isMale = (p['gender'] ?? '') == 'male';
+      final he = isMale ? '他' : '她';
+      final placeName = (p['place'] ?? '').toString();
+      final name = (p['name'] ?? '').toString();
+      final role = (p['role'] ?? '').toString();
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: here ? 0.06 : 0.035),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: here ? const Color(0xFF22C55E).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+              ),
+              child: Center(
+                child: Text(
+                  name.isNotEmpty ? name.substring(0, 1) : '人',
+                  style: const TextStyle(color: Color(0xFFDDD6FE), fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(name, style: const TextStyle(fontSize: 13.5, color: Colors.white, fontWeight: FontWeight.w600)),
+                      if (role.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(role, style: const TextStyle(fontSize: 10, color: Colors.white60)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    here ? '✨ 就在跟前' : '📍 $placeName',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: here ? const Color(0xFF22C55E) : Colors.white38,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (here)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('在跟前', style: TextStyle(fontSize: 11.5, color: Color(0xFF22C55E), fontWeight: FontWeight.w600)),
+              )
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: placeName.isEmpty ? null : () => _run(() => _goTo(placeName), '（你去找$name了。）'),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.35)),
+                      ),
+                      child: Text('去$he这', style: const TextStyle(color: Color(0xFFDDD6FE), fontSize: 11.5, fontWeight: FontWeight.w500)),
+                    ),
+                  ),
+                  if (canSummon) ...[
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => _run(() => widget.api.summon((p['id'] ?? '').toString()), '（$name应声赶来。）'),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Text('叫$he来', style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w500)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 3. 待办 TAB
+  // ─────────────────────────────────────────────────────────────
 
   Widget _todos(Map<String, dynamic>? d) {
     final todos = (d?['todos'] as List?) ?? const [];
     if (todos.isEmpty) {
-      return const Center(child: Text('没有约定与承诺', style: TextStyle(color: Colors.white54)));
+      return const Center(child: Text('暂无约定与承诺字据', style: TextStyle(color: Colors.white38, fontSize: 13)));
     }
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       children: todos.map((x) {
         final id = (x['id'] ?? '').toString();
         final place = (x['placeName'] ?? '').toString();
@@ -347,23 +954,49 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
           (x['text'] ?? '').toString(),
           if (overdue) '（已过期）',
         ].where((e) => e.isNotEmpty).join(' · ');
-        return _row(
-          title: '${x['kind']} · ${x['when'] ?? ''} ${x['who'] ?? ''}',
-          subtitle: sub,
-          action: Row(
-            mainAxisSize: MainAxisSize.min,
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
             children: [
-              TextButton(
-                onPressed: () => _run(() => _todo(id, 'do'), '（办了。）'),
-                child: const Text('去做'),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${x['kind']} · ${x['when'] ?? ''} ${x['who'] ?? ''}',
+                      style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      style: const TextStyle(fontSize: 11, color: Colors.white38),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              TextButton(
-                onPressed: () => _run(() => _todo(id, 'later'), '（改天了。）'),
-                child: const Text('改天', style: TextStyle(color: Colors.white54)),
-              ),
-              TextButton(
-                onPressed: () => _run(() => _todo(id, 'drop'), '（推了。）'),
-                child: const Text('推掉', style: TextStyle(color: Colors.white38)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () => _run(() => _todo(id, 'do'), '（办了。）'),
+                    child: const Text('去做', style: TextStyle(fontSize: 12)),
+                  ),
+                  TextButton(
+                    onPressed: () => _run(() => _todo(id, 'later'), '（改天。）'),
+                    child: const Text('改天', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  ),
+                  TextButton(
+                    onPressed: () => _run(() => _todo(id, 'drop'), '（推了。）'),
+                    child: const Text('推掉', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  ),
+                ],
               ),
             ],
           ),
@@ -371,34 +1004,4 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
       }).toList(),
     );
   }
-
-  Widget _row({required String title, required String subtitle, required Widget action}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.only(left: 12, right: 4, top: 6, bottom: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
-                if (subtitle.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Colors.white38), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-            ),
-          ),
-          action,
-        ],
-      ),
-    );
-  }
 }
-
