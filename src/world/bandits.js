@@ -319,7 +319,8 @@ export function quellBandits(world, banditId, troops, fromCity) {
     world.factions.court = world.factions.court || {};
     world.factions.court.relations = world.factions.court.relations || {};
     const cr = Number(world.factions.court.relations.wangjia) || 0;
-    world.factions.court.relations.wangjia = Math.min(100, cr + 2);
+    // 一股 +5：都司（6 股/朝中10）约两股可达，参将/副总兵也都有台阶
+    world.factions.court.relations.wangjia = Math.min(100, cr + 5);
   } catch { /* 忽略 */ }
   const promo = maybePromote(world);
   if (promo) appoint += promo;

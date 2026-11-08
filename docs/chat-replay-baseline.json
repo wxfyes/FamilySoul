@@ -2,9 +2,9 @@
   "meta": {
     "version": 1,
     "note": "pet-service.js 重构行为快照；--record 生成，--check 逐字比对。不要手改。",
-    "seedHash": "22cf4c52db98",
+    "seedHash": "637503d70cc5",
     "caseCount": 19,
-    "recordedAt": "2026-11-07T17:28:10.362Z"
+    "recordedAt": "2026-11-08T02:12:58.304Z"
   },
   "cases": [
     {

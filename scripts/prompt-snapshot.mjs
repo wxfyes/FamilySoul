@@ -28,6 +28,13 @@ function prepare() {
     const src = path.join(ROOT, 'data', 'world', f);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dir, 'world', f));
   }
+  // 固定世界时钟：只比提示词装配，不比"今天几点"
+  try {
+    const sf = path.join(dir, 'world', 'state.json');
+    const w = JSON.parse(fs.readFileSync(sf, 'utf8'));
+    w.clock = { ...(w.clock || {}), day: 600, hour: 0 };
+    fs.writeFileSync(sf, JSON.stringify(w));
+  } catch { /* 忽略 */ }
   return dir;
 }
 

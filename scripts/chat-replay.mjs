@@ -127,6 +127,8 @@ function normalizeSeed(dir, c) {
   const file = path.join(dir, 'world', 'state.json');
   try {
     const w = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // 固定世界时钟：快照只比行为，不比"今天几点"（夜半自愈/作息按夜间跑）
+    w.clock = { ...(w.clock || {}), day: 600, hour: 0 };
     const put = (id, loc) => {
       const a = w.actors?.[id];
       if (!a) return;
