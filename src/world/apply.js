@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Apply 唯一结算层 —— 七层管道的第五层
  * 
  * 职责：
@@ -208,16 +208,6 @@ export function applyAction({ dataDir, world, intent, verdict = {}, gate = null 
       if (actor.location !== finalTargetId) {
         actor.location = finalTargetId;
         stateChanged = true;
-      }
-
-      // 若为外人找相公且相公在私密内宅，相公闻讯同步移步到【临江茶坊】相见
-      if (intent.params?.meetHusbandAtTeaHouse && world.actors?.husband) {
-        const hus = world.actors.husband;
-        if (['husband_room', 'backyard'].includes(hus.location)) {
-          hus.location = 'tea_house';
-          stateChanged = true;
-          console.log(`[Apply:${intent.id}] 相公王甯闻讯移步至【临江茶坊】与【${actor.name || actorId}】相见`);
-        }
       }
 
       // 同行伴侣同步位移（支持正向相公带女眷、反向女眷带相公）
