@@ -2104,15 +2104,17 @@ export function runBusinessTraffic(world) {
       continue;
     }
 
-    // 开门：掌柜伙计到前堂当值
-    for (const sid of p.staffIds || []) {
-      const staff = world.actors?.[sid];
-      if (!staff || staff.dead || staff.location === floor) continue;
-      const inHouse = staff.location === p.placeId
-        || String(world.places?.[staff.location]?.parent || '') === p.placeId;
-      if (inHouse) {
-        try { moveActor(world, staff.id, floor, 'world', '当值上堂'); } catch { /* 忽略 */ }
-      }
+    // 开门：掌柜伙计到前堂当值（不只看 staffIds，老产业的人也要上堂）
+    const staffRoster = Object.values(world.actors || {}).filter((a) => a && !a.dead
+      && (a.location === p.placeId || String(world.places?.[a.location]?.parent || '') === String(p.placeId))
+      && /掌柜|伙计|跑堂|账房|头牌|花魁|琴师|歌女|厨子|护院/.test(String(a.role || ''))
+      && (String(a.workplaceId || '') === String(p.placeId)
+        || String(a.home || '') === String(p.placeId)
+        || String(a.quarters || '') === String(p.placeId)
+        || (Array.isArray(p.staffIds) && p.staffIds.includes(a.id))));
+    for (const staff of staffRoster) {
+      if (staff.location === floor) continue;
+      try { moveActor(world, staff.id, floor, 'world', '当值上堂'); } catch { /* 忽略 */ }
     }
 
     // 客人：白天从街市找；晚上允许本地世家公子从家里出来吃酒听曲

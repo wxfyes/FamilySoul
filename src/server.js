@@ -14,7 +14,7 @@ import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { planNamedNpcMoves } from './chat/plan-moves.js';
-import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes, queueProactive } from './world/clock.js';
+import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes, queueProactive, runBusinessTraffic } from './world/clock.js';
 import {
   listCorrespondence, getCorrespondence, markCorrespondence, appendCorrespondence,
   setCorrespondenceStatus,
@@ -1599,6 +1599,8 @@ const STARTED_AT = Date.now();
         };
         const res2 = applyAction({ dataDir: DATA_DIR, world, intent, verdict: { companionConsented: true } });
         const after = peek(DATA_DIR);
+        // 人走进铺子时立刻补客流/当值，不等下一个世界小时，避免进门先看到空楼
+        try { runBusinessTraffic(after); saveState(DATA_DIR, after); } catch { /* 忽略 */ }
         const me2 = after.actors?.[actorId] || after.actors?.husband;
         const placeName2 = after.places?.[me2?.location]?.name || me2?.location || '';
         const hereList = Object.values(after.actors || {})

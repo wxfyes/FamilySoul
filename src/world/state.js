@@ -2414,7 +2414,10 @@ export function migrateOwnership(world) {
         const had = Array.isArray(prop.staffIds) ? prop.staffIds : [];
         const merged = new Set([...had.filter((id) => dutyIds.has(id))]);
         for (const a of onDuty) {
-          if (String(a.workplaceId || '') === String(prop.placeId) && /掌柜|伙计|跑堂|账房|头牌|花魁|琴师|歌女|厨子|护院/.test(String(a.role || ''))) {
+          const worksHere = String(a.workplaceId || '') === String(prop.placeId)
+            || String(a.home || '') === String(prop.placeId)
+            || String(a.quarters || '') === String(prop.placeId);
+          if (worksHere && /掌柜|伙计|跑堂|账房|头牌|花魁|琴师|歌女|厨子|护院/.test(String(a.role || ''))) {
             merged.add(a.id);
           }
         }
