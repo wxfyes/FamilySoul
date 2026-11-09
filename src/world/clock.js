@@ -2196,10 +2196,15 @@ function fireAppointments(world, events) {
 
     const actor =
       (ap.actorId && world.actors?.[ap.actorId]) ||
+      world.actors?.[ap.name] ||
       Object.values(world.actors || {}).find((a) => a && a.name === ap.name);
 
-    // 到点了：相公是否真在那个地方？
-    const meetPlace = ap.place || world.actors?.husband?.location;
+    // 到点了：相公是否真在那个地方？（老数据可能存的是地名而非地点 id）
+    let meetPlace = ap.place || world.actors?.husband?.location;
+    if (meetPlace && !world.places?.[meetPlace]) {
+      const hit = Object.keys(world.places || {}).find((id) => String(world.places[id]?.name || '') === String(meetPlace));
+      if (hit) meetPlace = hit;
+    }
     const husbandThere = !meetPlace || world.actors?.husband?.location === meetPlace;
     // 她按时去了约定的地方（不管相公来没来）
     if (actor && meetPlace) moveActor(world, actor.id, meetPlace, 'world', '赴约');
