@@ -3695,6 +3695,9 @@ const STARTED_AT = Date.now();
           prop.staff = prop.staffIds.length;
           actor.home = prop.placeId;
           actor.quarters = prop.placeId;
+          actor.workplace = prop.name;
+          actor.workplaceId = prop.placeId;
+          actor.schedule = [];
           actor.duty = { ...(actor.duty || {}), home: prop.placeId, place: prop.placeId };
           if (/掌柜/.test(role)) { prop.keeper = actor.id; prop.keeperName = actor.name; }
         }

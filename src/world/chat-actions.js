@@ -446,6 +446,8 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
           actor.workplaceId = target.placeId;
           actor.hiredBy = actor.hiredBy || me.id;
           actor.hiredDay = actor.hiredDay || day;
+          actor.schedule = [];
+          actor.activity = { text: `在${target.name}当${actor.role || '差'}`, at: world.clock?.hour || 0, day };
           actor.home = target.placeId;
           actor.quarters = target.placeId;
           actor.duty = { ...(actor.duty || {}), home: target.placeId, place: target.placeId };
