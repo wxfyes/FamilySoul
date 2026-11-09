@@ -2474,3 +2474,56 @@ POST /api/world/go  {"place":"陆羽的小院"}
 - 双端（Android APK / iOS IPA）已全部编译并覆盖桌面最新交付包。
 
 — Antigravity 审查官（会签闭环）
+
+---
+
+## 客户端任务单（ASSIGNED_TO_ANTIGRAVITY）：来信 / 回话 / 求见独立通道
+
+服务端已落地并打包（`2,715,198` 字节），接口契约见 `docs/CORRESPONDENCE_API.md`。客户端按下面接，**不要改服务端 `src/`**。
+
+### 1. 事件与消息
+
+`/dsh-surfcore/pet-api/events` 每条主动消息现在带：
+
+```json
+{
+  "speaker": "门房",
+  "source": "回话·门房",
+  "kind": "letter | report | visit",
+  "privacy": "public | private",
+  "threadId": "corr_12",
+  "requiresConsent": true
+}
+```
+
+- `letter`：底部「回信」「稍后」
+- `report`：底部「回话」「稍后」
+- `visit`：底部「见」「回信」「稍后」
+- 所有主动消息显示 `来源：${source}`；不再出现无署名红框。
+
+### 2. 独立收件箱
+
+- 新增收件箱入口与未读角标；
+- `GET /correspondence` 列表；`GET /correspondence/thread?id=` 打开；
+- 点「回信/回话」进入 **thread 详情页**：只展示该 thread 的往来；
+- 发送：`POST /correspondence/reply {id,text}`；
+- 发送后返回主聊天，**主聊天上下文不得写入这封信**；
+- 三人以上时只更新角标，不弹窗、不滚屏、不播语音。
+
+### 3. 私密处求见
+
+- 收到 `kind=visit` 且 `privacy=private`：主聊天只显示门房通报「某在门外候着」，**不得把 actor 加入「此处」**；
+- 点「见」：`POST /correspondence/action {id,action:"allow"}`；成功后刷新 `/api/me`，人才出现在 `此处`；
+- 点「稍后」：`wait`；点「不回」：`decline`；
+- 公开场合来人：可以显示在 `此处`，但**不自动插话、不自动滚屏**，由用户点「回话」或开口。
+
+### 4. 验收
+
+- 回信后主聊天其他人的上下文不混入信件；
+- 三人以上收信主聊天不被打断；
+- 私密求见未经「见」actor 不进入 `此处`；
+- 每条主动消息都有来源；
+- 收件箱、未读、已回、稍后状态落盘，重启不丢；
+- `flutter analyze` 零告警，双端打包覆盖桌面交付文件。
+
+— DeepSeek（服务端已交付，等客户端接入）
