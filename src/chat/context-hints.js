@@ -170,7 +170,11 @@ export function buildContextHints(svc, { say, recent, summonedNames, contextHint
           .filter((x) => x.step)
           .slice(0, 4);
         if (own.length) {
-          bits.push(`他们各自正碰上：${own.map((x) => `${x.name}——${x.step}`).join('；')}（他们说话时会带着这桩心事，别装作没事）`);
+          bits.push(`他们各自正碰上：${own.map((x) => `${x.name}——${x.step}`).join('；')}（这些只是背景；相公问起才说，不问就先办相公当前的事，绝不许把话题拖回自己的心事）`);
+        }
+        const focus = wHere.flags?.playerFocus;
+        if (focus?.text) {
+          bits.push(`【相公当前要办】${String(focus.text).slice(0, 100)}（先接这件事；旧事、旧案、婚约、自己的差事都只作背景，相公不问就不许主动提）`);
         }
         if (hereNames.length) bits.push('玩家点了谁的名字，就必须由那个人开口应声，不许沉默、不许换别人答');
         try {

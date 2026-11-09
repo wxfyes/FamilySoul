@@ -363,6 +363,28 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       }
     } catch { /* 忽略 */ }
 
+    // 相公明确换话题/要去办自己的事：记住这轮的当前目的，旧主线只能当背景
+    try {
+      const switchFocus = /(先不说|不聊这个|别提|换个话题|岔开|先办|先做|我要|我想|帮我|听我说|现在去|去办|去查)/.test(String(say || ''));
+      const oldTopic = /(婉儿|静儿|柳如烟|紫嫣|旧案|底档|和离|婚|报仇|翻案)/.test(String(say || ''));
+      const wFocus = loadState(svc.dataDir);
+      if (switchFocus) {
+        wFocus.flags = wFocus.flags || {};
+        wFocus.flags.playerFocus = {
+          text: String(say || '').slice(0, 120),
+          day: wFocus.clock?.day || 1,
+          hour: wFocus.clock?.hour || 0,
+          at: Date.now(),
+        };
+        saveState(svc.dataDir, wFocus);
+        console.log('[Focus] 相公当前目的已记下，旧主线降为背景');
+      } else if (oldTopic && wFocus.flags?.playerFocus) {
+        delete wFocus.flags.playerFocus;
+        saveState(svc.dataDir, wFocus);
+        console.log('[Focus] 相公主动回到旧话题，解除当前目的锁');
+      }
+    } catch { /* 忽略 */ }
+
     const _hintRes = buildContextHints(svc, { say, recent, summonedNames, contextHint, profileKey });
     contextHint = _hintRes.contextHint;
     const lastAssistantMsg = _hintRes.lastAssistantMsg;
