@@ -928,14 +928,46 @@ export function executeNarrativeTags({
 
         console.log(`[Departure] 单一入口判定：在场 ${hereActors.length} 人，say="${sayStr.slice(0, 30)}"`);
 
+        let preDismissed = false;
         if (hereActors.length > 0) {
+          // 先按"正文里真实出现的在场人名"抓：婉儿芸娘都回家吧 → 两个名字都要走
+          const namedHere = hereActors.filter((a) => a.name && (
+            String(sayStr).includes(a.name)
+            || (a.name.length > 2 && String(sayStr).includes(a.name.slice(-2)))
+          ));
+          if (namedHere.length >= 2) {
+            const names = [];
+            for (const who of namedHere) {
+              let dest = homeRoomForName(who.name, {
+                includeWife: true,
+                hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                places: wF.places,
+                role: who.role,
+              }) || who.quarters || who.home;
+              if (/家丁|护院|门房|小厮|马夫|车夫|脚夫/.test(String(who.role || ''))) dest = 'husband_room__gate';
+              if (dest && wF.places?.[dest] && dest !== who.location) {
+                const mv = moveActor(wF, who.id, dest, 'world', '听命离场');
+                if (mv?.ok) names.push(who.name);
+              }
+            }
+            if (names.length) {
+              saveState(dataDir, wF);
+              reply = `\n【提示】${names.join('、')}应声告退，各自回家去了。` + String(reply || '');
+              console.log(`[Departure] 正文多人点名离场：${names.join('、')}`);
+            }
+            preDismissed = true;
+          } else if (namedHere.length === 1 && !dismissName) {
+            dismissName = namedHere[0].name;
+            dismissWhere = '回房';
+          }
+
           // 1. 是否是点名某人？（解析结果来自 parseDismissIntent）
           let targetName = dismissName;
           let targetWhere = dismissWhere;
           let matchedWho = null;
           let multiDismissed = false;
 
-          if (targetName) {
+          if (!preDismissed && targetName) {
             // 连写两个名字："芸娘婉宁退出去" → 拆成在场的人，逐个请走
             const contained = targetName.length >= 4
               ? hereActors.filter((a) => a.name && targetName.includes(a.name))
@@ -987,7 +1019,7 @@ export function executeNarrativeTags({
             }
           }
 
-          if (!multiDismissed && matchedWho) {
+          if (!preDismissed && !multiDismissed && matchedWho) {
             // 精准锁定唯一在场角色
             const who = matchedWho;
             let dest = null;
@@ -1027,7 +1059,7 @@ export function executeNarrativeTags({
                 console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
               }
             }
-          } else if (!multiDismissed && !targetName && (hereActors.length === 1 || isMassDismiss(sayStr))) {
+          } else if (!preDismissed && !multiDismissed && !targetName && (hereActors.length === 1 || isMassDismiss(sayStr))) {
             // 未点特定人名：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
             // 说“家眷留下”时，妻妾丫鬟全部留下；没这句话则仍按原规矩清场。
             const names = [];
