@@ -14,6 +14,7 @@ try {
   w.actors.zhangbo_test = {
     id: 'zhangbo_test', name: '张伯', role: '邻家老丈', gender: 'female',
     location: 'street', home: 'street', onPeriod: true, cycleDay: 3,
+    menses: { on: true, cycleDay: 3 },
   };
   w.places.wang_mansion_east = { id: 'wang_mansion_east', name: '临江·王宅·东跨院', exits: ['husband_room'] };
   w.actors.cui_test = {
@@ -29,6 +30,7 @@ try {
   const got = loadState(dir2);
   assert.strictEqual(got.actors.zhangbo_test.gender, 'male', '老丈应纠正为男');
   assert.ok(!got.actors.zhangbo_test.onPeriod, '男性不得有月事');
+  assert.ok(!got.actors.zhangbo_test.menses, '男性不得保留 menses 周期');
   assert.strictEqual(got.actors.cui_test.spouse, 'husband', '侧室应记 spouse');
   assert.strictEqual(got.actors.cui_test.marital, 'concubine', '侧室名分应为妾');
   assert.ok((got.marriages || []).some((m) => m && m.who === 'cui_test'), '侧室应进婚书');
