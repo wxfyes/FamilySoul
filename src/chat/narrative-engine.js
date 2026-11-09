@@ -933,29 +933,61 @@ export function executeNarrativeTags({
           let targetName = dismissName;
           let targetWhere = dismissWhere;
           let matchedWho = null;
+          let multiDismissed = false;
 
           if (targetName) {
+            // 连写两个名字："芸娘婉宁退出去" → 拆成在场的人，逐个请走
+            const contained = targetName.length >= 4
+              ? hereActors.filter((a) => a.name && targetName.includes(a.name))
+              : [];
+            if (contained.length > 1) {
+              const names = [];
+              for (const who of contained) {
+                let dest = homeRoomForName(who.name, {
+                  includeWife: true,
+                  hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                  places: wF.places,
+                  role: who.role,
+                }) || who.quarters || who.home;
+                if (/家丁|护院|门房|小厮|马夫|车夫|脚夫/.test(String(who.role || ''))) dest = 'husband_room__gate';
+                if (dest && wF.places?.[dest] && dest !== who.location) {
+                  const mv = moveActor(wF, who.id, dest, 'world', '听命离场');
+                  if (mv?.ok) {
+                    who.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
+                    names.push(who.name);
+                  }
+                }
+              }
+              if (names.length) {
+                saveState(dataDir, wF);
+                reply = `\n【提示】${names.join('、')}应声告退，各自退了出去。` + String(reply || '');
+                console.log(`[Departure] 连写点名离场：${names.join('、')}`);
+              }
+              multiDismissed = true;
+              targetName = null;
+            }
+
             // 在【当前在场的人】中精确或模糊匹配
-            const matched = hereActors.filter((a) => {
+            const matched = multiDismissed ? [] : hereActors.filter((a) => {
               if (a.name === targetName) return true;
               if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName))) return true;
               return false;
             });
 
-            if (matched.length > 1) {
+            if (!multiDismissed && matched.length > 1) {
               // 人性化设计：当场有不同姓氏的同名角色（如两个婉宁同场）！
               // 严禁一股脑全赶走，由其中一位自然反问，明确相公到底叫谁！
               console.log(`[Departure] 在场存在重名歧义：${matched.map((a) => a.name).join('、')}，触发自然反问`);
               const firstN = matched[0].name;
               reply = `（${firstN}神情微怔，有些拿不准，轻声问道：“相公唤的是妾身，还是哪位妹妹？”）\n` + String(reply || '');
-            } else if (matched.length === 1) {
+            } else if (!multiDismissed && matched.length === 1) {
               matchedWho = matched[0];
-            } else {
+            } else if (!multiDismissed) {
               console.log(`[Departure] 在场无人匹配点名「${targetName}」，不执行异地误杀与无辜清场`);
             }
           }
 
-          if (matchedWho) {
+          if (!multiDismissed && matchedWho) {
             // 精准锁定唯一在场角色
             const who = matchedWho;
             let dest = null;
@@ -995,11 +1027,15 @@ export function executeNarrativeTags({
                 console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
               }
             }
-          } else if (!targetName && (hereActors.length === 1 || isMassDismiss(sayStr))) {
+          } else if (!multiDismissed && !targetName && (hereActors.length === 1 || isMassDismiss(sayStr))) {
             // 未点特定人名：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
-            // 现场所有人（除相公，及正房同寝的正妻沈婉儿外），全部依规制退回住处与值守大门！
+            // 说“家眷留下”时，妻妾丫鬟全部留下；没这句话则仍按原规矩清场。
             const names = [];
+            const keepFamily = /家眷|女眷|家小|夫人留下|妻妾留下/.test(sayStr);
             for (const a of hereActors) {
+              const isFamily = a.household || a.spouse === 'husband'
+                || /正妻|大娘子|如夫人|二房|侧室|妾|通房/.test(String(a.role || ''));
+              if (keepFamily && isFamily) continue;
               // 正房同寝规制保护：相公在正房睡觉/安歇时，沈婉儿是正妻，默认同房安歇，绝不能作为客侍扫地出门！
               if (meF?.location === 'husband_room' && /睡|歇|安歇|休|卧/.test(sayStr) && a.id === 'waner') {
                 continue;

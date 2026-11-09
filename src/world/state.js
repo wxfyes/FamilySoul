@@ -12,7 +12,7 @@ import { repairTrespassHomes } from './dwelling.js';
 import { linkCouples } from './couples.js';
 import { buildAllResidences, relinkResidence, upgradeResidence, settleItinerants, buildPremises, buildCourts, pruneForeignRooms, pruneRemoteCourts, collapseRoomPlaces, assignStaffQuarters, demoteNestedMansions, linkSameHouseRooms } from './residence.js';
 import { ensureGatekeeper } from './posts.js';
-import { evictOutsiders } from './privacy.js';
+import { evictOutsiders, isInnerRoom } from './privacy.js';
 import { ensureCityBase, ensureAllCityBases, ensureCityExtras, ensureCityClasses, ensureShopStaff, streetOfCity, backfillCityJobs } from './city.js';
 import { ensureMatchmaker, dailyMarriages, maybeOfferAlliance } from './marriage.js';
 import { fallbackName } from './migration.js';
@@ -2131,6 +2131,30 @@ export function migrateOwnership(world) {
       world.flags.staffHallFixV2 = { at: Date.now(), moved, target: gateId };
     }
   } catch (e) { console.warn('[Staff] 外院归位失败：', e.message); }
+  // 外院当差的住处/落点巡检：home 绝不能在正房/内院，否则 moveActor 的 "回自己家" 会放行
+  try {
+    const gate = world.places?.['husband_room__gate'] ? 'husband_room__gate'
+      : Object.keys(world.places || {}).find((id) => /朱漆大门|门房|外院|大门/.test(String(world.places[id]?.name || '')));
+    let fixed = 0;
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead || !/家丁|护院|门房|小厮|马夫|车夫|脚夫/.test(String(a.role || ''))) continue;
+      if (!gate) continue;
+      const homePlace = world.places?.[a.home];
+      const locPlace = world.places?.[a.location];
+      const homeInner = homePlace && (isInnerRoom(homePlace) || /正房|后花园|厢房|暖阁|内室/.test(String(homePlace.name || '')));
+      const locInner = locPlace && (isInnerRoom(locPlace) || /正房|后花园|厢房|暖阁|内室/.test(String(locPlace.name || '')));
+      if (homeInner || a.home === 'husband_room') {
+        a.home = gate;
+        a.quarters = gate;
+        fixed += 1;
+      }
+      if (locInner) {
+        try { moveActor(world, a.id, gate, 'world', '外院归位'); } catch { /* 忽略 */ }
+        fixed += 1;
+      }
+    }
+    if (fixed) console.log(`[Staff] 外院当差归位 ${fixed} 处（住处/落点）`);
+  } catch (e) { console.warn('[Staff] 外院住处巡检失败：', e.message); }
   // 性别与名分自检：老丈/鳏居不许来月事；侧室必须有婚书名分
   try {
     const maleRole = /老丈|鳏居|鳏夫|老翁|伯|叔|公|爷|郎|哥|公子|少爷|先生|掌柜|账房|护院|家丁|门房|更夫|货郎|船夫|脚夫|屠/;
