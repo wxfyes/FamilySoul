@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../models/chat_message.dart';
 import '../providers/chat_provider.dart';
 import '../services/offline_asr_service.dart';
 import '../services/theme_controller.dart';
@@ -63,9 +65,17 @@ class _ChatScreenState extends State<ChatScreen> {
   String _liveWords = ''; // 实时识别文字
   DateTime? _voiceStartTime;
 
+  // 快捷胶囊拖拽排序与本地持久化
+  static const List<String> _defaultCapsuleKeys = ['out', 'today', 'army', 'world', 'roster'];
+  List<String> _capsuleOrder = List.from(_defaultCapsuleKeys);
+
+  // 正在同屏提笔回信的信函/差事
+  ChatMessage? _replyingCorrespondence;
+
   @override
   void initState() {
     super.initState();
+    _loadCapsuleOrder();
     // 键盘弹出/收起后，若本来就在底部，自动贴到最新一条
     _inputFocus.addListener(() {
       if (_inputFocus.hasFocus) {
@@ -92,6 +102,46 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       _initSpeech();
     }
+  }
+
+  Future<void> _loadCapsuleOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('quick_capsules_order');
+      if (list != null && list.isNotEmpty) {
+        final valid = list.where((k) => _defaultCapsuleKeys.contains(k)).toList();
+        for (final k in _defaultCapsuleKeys) {
+          if (!valid.contains(k)) valid.add(k);
+        }
+        if (mounted) setState(() => _capsuleOrder = valid);
+      }
+    } catch (_) {}
+  }
+
+  void _onCapsuleReorder(int oldIndex, int newIndex) async {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      if (oldIndex < newIndex) newIndex -= 1;
+      final item = _capsuleOrder.removeAt(oldIndex);
+      _capsuleOrder.insert(newIndex, item);
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('quick_capsules_order', _capsuleOrder);
+    } catch (_) {}
+  }
+
+  void _handleActionCorrespondence(String messageId, String action) async {
+    final provider = context.read<ChatProvider>();
+    await provider.api.actionCorrespondence(messageId, action);
+    if (action == 'allow') {
+      provider.updateMessageCorrespondenceStatus(messageId, 'approved');
+      provider.addLocalNarrative('（相公吩咐请门外之人进门叙话。）');
+    } else {
+      provider.updateMessageCorrespondenceStatus(messageId, 'dismissed');
+      provider.addLocalNarrative('（门房回禀：东家此刻正忙，改日再叙。）');
+    }
+    _refreshPlace();
   }
 
   Future<void> _initSpeech() async {
@@ -474,6 +524,20 @@ class _ChatScreenState extends State<ChatScreen> {
     final textToSend = _liveWords.trim();
     if (textToSend.isNotEmpty) {
       final provider = context.read<ChatProvider>();
+      if (_replyingCorrespondence != null) {
+        final target = _replyingCorrespondence!;
+        setState(() => _replyingCorrespondence = null);
+        provider.addLocalUserReply(textToSend);
+        final ok = await provider.api.replyCorrespondence(target.threadId ?? target.id, textToSend);
+        if (ok) {
+          provider.addLocalNarrative('（信使收下手书，快马折返向「${target.speaker ?? '对方'}」呈递。）');
+        } else {
+          provider.addLocalNarrative('（回信未送达，稍后可重试。）');
+        }
+        if (mounted) _refreshPlace();
+        _scrollToBottom(force: true);
+        return;
+      }
       await provider.sendMessage(textToSend);
       if (mounted) _refreshPlace();
       _scrollToBottom();
@@ -718,6 +782,23 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     _textController.clear();
+
+    if (_replyingCorrespondence != null) {
+      final target = _replyingCorrespondence!;
+      setState(() => _replyingCorrespondence = null);
+      provider.addLocalUserReply(text);
+      final ok = await provider.api.replyCorrespondence(target.threadId ?? target.id, text);
+      if (ok) {
+        provider.addLocalNarrative('（信使收下手书，快马折返向「${target.speaker ?? '对方'}」呈递。）');
+      } else {
+        provider.addLocalNarrative('（回信未送达，稍后可重试。）');
+      }
+      if (mounted) _refreshPlace();
+      _scrollToBottom(force: true);
+      _refocusInput();
+      return;
+    }
+
     await provider.sendMessage(text);
     if (mounted) _refreshPlace();
     _scrollToBottom(force: true);
@@ -1338,6 +1419,11 @@ class _ChatScreenState extends State<ChatScreen> {
                             return MessageBubble(
                               message: msg,
                               characterName: characterName,
+                              onReplyCorrespondence: (target) {
+                                setState(() => _replyingCorrespondence = target);
+                                _refocusInput();
+                              },
+                              onActionCorrespondence: _handleActionCorrespondence,
                             );
                           },
                         ),
@@ -1482,96 +1568,72 @@ class _ChatScreenState extends State<ChatScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 豆包同款上方轻量快捷胶囊条（横向滑动，一触即达）
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(bottom: 8.0, left: 2.0, right: 2.0),
-            child: Row(
-              children: [
-                _buildTopQuickChip(
-                  icon: Icons.explore_outlined,
-                  label: '出门转场',
-                  hasArrow: true,
-                  isDark: isDark,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                  isDismissible: false,
-                      builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
-                    ).then((_) => _refreshPlace());
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildTopQuickChip(
-                  icon: Icons.today_outlined,
-                  label: '今日',
-                  isDark: isDark,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => DigestSheet(api: provider.api),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildTopQuickChip(
-                  icon: Icons.shield_outlined,
-                  label: '随身家兵',
-                  isDark: isDark,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => ArmySheet(
-                        api: provider.api,
-                        onChanged: () => setState(() {}),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildTopQuickChip(
-                  icon: Icons.public_rounded,
-                  label: '我的世界',
-                  isDark: isDark,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildTopQuickChip(
-                  icon: Icons.favorite_rounded,
-                  label: '世情好感',
-                  isDark: isDark,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => RosterScreen(
-                          api: provider.api,
-                          onActionMessage: (msg) {
-                            _refreshPlace();
-                          },
-                        ),
-                        fullscreenDialog: true,
-                      ),
-                    );
-                  },
-                ),
-              ],
+          // 1. 快捷胶囊条（支持长按左右拖动互换位置，自动持久化记住顺序）
+          SizedBox(
+            height: 38,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                canvasColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              child: ReorderableListView.builder(
+                scrollDirection: Axis.horizontal,
+                buildDefaultDragHandles: false,
+                itemCount: _capsuleOrder.length,
+                onReorder: _onCapsuleReorder,
+                itemBuilder: (ctx, index) {
+                  final key = _capsuleOrder[index];
+                  return ReorderableDelayedDragStartListener(
+                    key: ValueKey(key),
+                    index: index,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: _buildCapsuleWidget(key, isDark, provider),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
+          const SizedBox(height: 6),
+
+          // 2. 同屏提笔回信指示条（若正在回复信函/差事）
+          if (_replyingCorrespondence != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2A2318) : const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Text('✍️ ', style: TextStyle(fontSize: 13)),
+                  Expanded(
+                    child: Text(
+                      '提笔手书回复「${_replyingCorrespondence!.speaker ?? '对方'}」：${_replyingCorrespondence!.displayCleanText.replaceAll('\n', ' ')}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() => _replyingCorrespondence = null),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2.0),
+                      child: Icon(Icons.close_rounded, size: 16, color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // 2. 豆包同款一体化大圆角胶囊输入框（左相机 · 中输入/按住说话 · 右声波与加号/发送）
           AnimatedContainer(
@@ -1775,6 +1837,94 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildCapsuleWidget(String key, bool isDark, ChatProvider provider) {
+    switch (key) {
+      case 'out':
+        return _buildTopQuickChip(
+          icon: Icons.explore_outlined,
+          label: '出门转场',
+          hasArrow: true,
+          isDark: isDark,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              isDismissible: false,
+              builder: (_) => OutAndAboutSheet(api: provider.api, onChanged: _refreshPlace),
+            ).then((_) => _refreshPlace());
+          },
+        );
+      case 'today':
+        return _buildTopQuickChip(
+          icon: Icons.today_outlined,
+          label: '今日',
+          isDark: isDark,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => DigestSheet(api: provider.api),
+            );
+          },
+        );
+      case 'army':
+        return _buildTopQuickChip(
+          icon: Icons.shield_outlined,
+          label: '随身家兵',
+          isDark: isDark,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => ArmySheet(
+                api: provider.api,
+                onChanged: () => setState(() {}),
+              ),
+            );
+          },
+        );
+      case 'world':
+        return _buildTopQuickChip(
+          icon: Icons.public_rounded,
+          label: '我的世界',
+          isDark: isDark,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => MyWorldScreen(api: provider.api), fullscreenDialog: true),
+            );
+          },
+        );
+      case 'roster':
+      default:
+        return _buildTopQuickChip(
+          icon: Icons.favorite_rounded,
+          label: '世情好感',
+          isDark: isDark,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => RosterScreen(
+                  api: provider.api,
+                  onActionMessage: (msg) {
+                    _refreshPlace();
+                  },
+                ),
+                fullscreenDialog: true,
+              ),
+            );
+          },
+        );
+    }
   }
 
   /// 豆包同款上方轻量快捷胶囊按钮

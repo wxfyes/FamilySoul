@@ -12,11 +12,15 @@ import 'compare_card.dart';
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final String characterName;
+  final void Function(ChatMessage message)? onReplyCorrespondence;
+  final void Function(String messageId, String action)? onActionCorrespondence;
 
   const MessageBubble({
     super.key,
     required this.message,
     this.characterName = 'AI',
+    this.onReplyCorrespondence,
+    this.onActionCorrespondence,
   });
 
   /// 谁说这句话就显示谁的名字：分角剧本角色优先，其次从正文推导发言人，否则用当前主角色
@@ -173,7 +177,7 @@ class MessageBubble extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (shouldShowLetterBadge)
+                        if (message.kind == 'errand' || message.kind == 'petition' || message.kind == 'letter' || shouldShowLetterBadge)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -187,12 +191,21 @@ class MessageBubble extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('💌', style: TextStyle(fontSize: 9.5)),
+                                Text(
+                                  message.kind == 'petition'
+                                      ? '🚪'
+                                      : (message.kind == 'errand' ? '📜' : '💌'),
+                                  style: const TextStyle(fontSize: 9.5),
+                                ),
                                 const SizedBox(width: 3),
                                 Text(
-                                  message.inferredPlace != null
-                                      ? '${message.inferredPlace}·递信'
-                                      : '差人递信',
+                                  message.kind == 'petition'
+                                      ? '门外求见'
+                                      : (message.kind == 'errand'
+                                          ? '差事回禀'
+                                          : (message.inferredPlace != null
+                                              ? '${message.inferredPlace}·递信'
+                                              : '飞鸽手书')),
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w500,
@@ -286,6 +299,19 @@ class MessageBubble extends StatelessWidget {
                                 meta.name.isNotEmpty ? meta.name : characterName,
                                 isDark,
                               ),
+                            // 信函 / 差事汇报 / 门外求见专属交互操作
+                            if (!isUser && !message.isPending) ...[
+                              if (message.kind == 'petition' || message.requiresConsent)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: _buildPetitionActionBar(context, isDark),
+                                )
+                              else if (message.kind == 'letter' || message.kind == 'errand' || message.isLetter)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: _buildReplyLetterButton(context, isDark),
+                                ),
+                            ],
                           ],
                         ),
                 ),
@@ -897,6 +923,105 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+  Widget _buildReplyLetterButton(BuildContext context, bool isDark) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onReplyCorrespondence?.call(message);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2A2318) : const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('✍️', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 4),
+              Text(
+                '提笔回信',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.keyboard_arrow_right_rounded,
+                  size: 14, color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPetitionActionBar(BuildContext context, bool isDark) {
+    final status = message.correspondenceStatus;
+    if (status == 'approved') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF065F46).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Text('✓ 已吩咐请进门叙话', style: TextStyle(fontSize: 11, color: Color(0xFF10B981))),
+      );
+    }
+    if (status == 'dismissed') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Text('已暂缓求见', style: TextStyle(fontSize: 11, color: Colors.grey)),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      children: [
+        ElevatedButton.icon(
+          onPressed: () {
+            HapticFeedback.mediumImpact();
+            onActionCorrespondence?.call(message.id, 'allow');
+          },
+          icon: const Icon(Icons.meeting_room_outlined, size: 14),
+          label: const Text('请进门', style: TextStyle(fontSize: 11.5)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        OutlinedButton(
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            onActionCorrespondence?.call(message.id, 'dismiss');
+          },
+          style: OutlinedButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            side: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: Text('改日再见', style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54)),
+        ),
+      ],
     );
   }
 }

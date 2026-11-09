@@ -1029,17 +1029,21 @@ const STARTED_AT = Date.now();
           .map((x) => {
             const pid = x.placeId || x.id;
             const p = world.places?.[pid] || Object.values(world.places || {}).find((pl) => pl && pl.name === x.name);
+            const parentKey = (p && p.id) || pid || (p ? Object.keys(world.places || {}).find((k) => world.places[k] === p) : null);
             const subRooms = [];
             if (p?.rooms) {
-              for (const r of Object.values(p.rooms)) {
-                if (r && r.name && r.id) subRooms.push({ id: r.id, name: r.name });
+              for (const [rid, r] of Object.entries(p.rooms)) {
+                if (r && r.name) {
+                  const targetId = r.id || (parentKey ? `${parentKey}__${rid}` : rid);
+                  subRooms.push({ id: targetId, name: r.name });
+                }
               }
             }
-            if (p?.id) {
+            if (parentKey) {
               for (const [subId, subPl] of Object.entries(world.places || {})) {
-                if (subPl && subPl.parent === p.id) {
+                if (subPl && subPl.parent && (subPl.parent === parentKey || (p?.id && subPl.parent === p.id))) {
                   const sName = String(subPl.name || '').split('·').slice(-1)[0];
-                  if (!subRooms.some((r) => r.id === subId)) {
+                  if (!subRooms.some((r) => r.id === subId || r.name === sName)) {
                     subRooms.push({ id: subId, name: sName });
                   }
                 }
@@ -2126,7 +2130,41 @@ const STARTED_AT = Date.now();
             married: maritalMap[me?.marital || 'single'] || '未婚',
             spouseName,
             residence: resText,
+            isHusband,
           };
+        })(),
+        marriages: (() => {
+          if (!isHusband) {
+            return me?.spouse === 'husband' ? [{ name: '王甯', role: '夫君' }] : [];
+          }
+          const list = [];
+          const seen = new Set();
+          for (const m of (world.marriages || [])) {
+            if (!m || !m.name) continue;
+            list.push({
+              id: m.id || m.who,
+              name: m.name,
+              role: m.rank || '侧室',
+            });
+            seen.add(m.name);
+            if (m.who) seen.add(m.who);
+          }
+          for (const [aid, a] of Object.entries(world.actors || {})) {
+            if (!a || a.dead || aid === 'husband') continue;
+            if (seen.has(a.name) || seen.has(aid)) continue;
+            const r = String(a.role || '');
+            const isWife = a.spouse === 'husband'
+              || (a.household && (/妻|妾|如夫人|侧室|通房/.test(r) || /妻|妾|concubine/.test(String(a.marital || ''))));
+            if (isWife) {
+              list.push({
+                id: aid,
+                name: a.name,
+                role: r || '侧室',
+              });
+              seen.add(a.name);
+            }
+          }
+          return list;
         })(),
         here: hereNames,
         // 待付款只给当事人看：别人的账单不能弹到新人头上

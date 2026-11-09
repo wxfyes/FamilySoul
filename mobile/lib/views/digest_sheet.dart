@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
 
@@ -14,9 +15,12 @@ class DigestSheet extends StatefulWidget {
 }
 
 class _DigestSheetState extends State<DigestSheet> {
-  static const _bg = Color(0xFF12131A);
-  static const _card = Color(0xFF1A1B25);
-  static const _line = Colors.white10;
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _bg => _isDark ? const Color(0xFF12131A) : const Color(0xFFF1F5F9);
+  Color get _card => _isDark ? const Color(0xFF1A1B25) : Colors.white;
+  Color get _line => _isDark ? Colors.white10 : const Color(0xFFE2E8F0);
+  Color get _textPrimary => _isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _muted => _isDark ? Colors.white54 : const Color(0xFF64748B);
   static const _gold = Color(0xFFE0B252);
   static const _violet = Color(0xFF8B5CF6);
 
@@ -45,7 +49,7 @@ class _DigestSheetState extends State<DigestSheet> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 6),
-            child: Text(title, style: const TextStyle(color: Colors.white54, fontSize: 12.5)),
+            child: Text(title, style: TextStyle(color: _muted, fontSize: 12.5)),
           ),
           Container(
             width: double.infinity,
@@ -59,8 +63,8 @@ class _DigestSheetState extends State<DigestSheet> {
   Widget _kv(String k, String v, {Color? color}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(children: [
-          SizedBox(width: 64, child: Text(k, style: const TextStyle(color: Colors.white38, fontSize: 12.5))),
-          Expanded(child: Text(v, style: TextStyle(color: color ?? Colors.white, fontSize: 13))),
+          SizedBox(width: 64, child: Text(k, style: TextStyle(color: _muted, fontSize: 12.5))),
+          Expanded(child: Text(v, style: TextStyle(color: color ?? _textPrimary, fontSize: 13))),
         ]),
       );
 
@@ -85,27 +89,33 @@ class _DigestSheetState extends State<DigestSheet> {
     final bandits = (raw['bandits'] as List?) ?? (d['bandits'] as List?) ?? const [];
 
     return Container(
-      decoration: const BoxDecoration(color: _bg, borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      decoration: BoxDecoration(color: _bg, borderRadius: const BorderRadius.vertical(top: Radius.circular(22))),
       child: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
+            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: _isDark ? Colors.white24 : Colors.black12, borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 14),
             Row(children: [
-              const Text('今日', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700)),
+              Text('今日', style: TextStyle(color: _textPrimary, fontSize: 19, fontWeight: FontWeight.w700)),
               const Spacer(),
               Text('第${d['day'] ?? '-'}日 ${d['hour'] ?? ''}时',
-                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
-              const SizedBox(width: 6),
+                  style: TextStyle(color: _muted, fontSize: 12)),
+              const SizedBox(width: 8),
               InkWell(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.pop(context);
+                },
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Colors.white10, shape: BoxShape.circle),
-                  child: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: _isDark ? Colors.white.withValues(alpha: 0.16) : Colors.black.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.close_rounded, size: 18, color: _textPrimary),
                 ),
               ),
             ]),
@@ -140,20 +150,32 @@ class _DigestSheetState extends State<DigestSheet> {
                     _section('府里人', Column(
                       children: [
                         for (final p in kin)
-                          _kv('${p['role'] ?? ''}', '${p['name'] ?? ''}${(p['status'] ?? '') == '' ? '' : ' · ${p['status']}'}')
+                          _kv('${p['role'] ?? ''}', () {
+                            final name = p['name'] ?? '';
+                            var st = (p['status'] ?? '').toString();
+                            // 纠正服务端早期 days 直接拼"月"的历史痕迹（例如 4天 变成了 4月）
+                            final m = RegExp(r'^有孕(\d+)月$').firstMatch(st);
+                            if (m != null) {
+                              final numVal = int.tryParse(m.group(1)!) ?? 0;
+                              if (numVal > 0 && numVal <= 10) {
+                                st = '有孕$numVal天';
+                              }
+                            }
+                            return st.isEmpty ? name : '$name · $st';
+                          }())
                       ],
                     )),
                   _section('今日事', Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: today.isEmpty
-                        ? [const Text('今日无事。', style: TextStyle(color: Colors.white38, fontSize: 12.5))]
+                        ? [Text('今日无事。', style: TextStyle(color: _muted, fontSize: 12.5))]
                         : [
                             for (final e in today)
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 3),
                                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text('${e['hour'] ?? 0}时 ', style: const TextStyle(color: Colors.white30, fontSize: 11.5)),
-                                  Expanded(child: Text('${e['text'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.35))),
+                                  Text('${e['hour'] ?? 0}时 ', style: TextStyle(color: _muted, fontSize: 11.5)),
+                                  Expanded(child: Text('${e['text'] ?? ''}', style: TextStyle(color: _textPrimary, fontSize: 13, height: 1.35))),
                                 ]),
                               ),
                           ],
@@ -167,13 +189,13 @@ class _DigestSheetState extends State<DigestSheet> {
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               const Padding(padding: EdgeInsets.only(top: 5, right: 6), child: Icon(Icons.circle, size: 5, color: _violet)),
-                              Expanded(child: Text('$b', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4))),
+                              Expanded(child: Text('$b', style: TextStyle(color: _textPrimary, fontSize: 12.5, height: 1.4))),
                             ]),
                           ),
                       ],
                     )),
                   if (d['decree'] != null && '${d['decree']}'.isNotEmpty)
-                    _section('朝廷', Text('${d['decree']}', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4))),
+                    _section('朝廷', Text('${d['decree']}', style: TextStyle(color: _textPrimary, fontSize: 12.5, height: 1.4))),
                 ]),
               ),
           ]),

@@ -29,10 +29,13 @@ class _RosterScreenState extends State<RosterScreen> {
   String _selectedCategory = 'all'; // all, here, house, love, court, merchant
   final TextEditingController _searchCtrl = TextEditingController();
 
-  static const _bg = Color(0xFF0F1115);
-  static const _card = Color(0xFF171A21);
-  static const _line = Color(0xFF242833);
-  static const _muted = Color(0xFF8A93A6);
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _bg => _isDark ? const Color(0xFF0F1115) : const Color(0xFFF1F5F9);
+  Color get _card => _isDark ? const Color(0xFF171A21) : Colors.white;
+  Color get _line => _isDark ? const Color(0xFF242833) : const Color(0xFFE2E8F0);
+  Color get _muted => _isDark ? const Color(0xFF8A93A6) : const Color(0xFF64748B);
+  Color get _textPrimary => _isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _textSecondary => _isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155);
 
   @override
   void initState() {
@@ -182,23 +185,40 @@ class _RosterScreenState extends State<RosterScreen> {
       appBar: AppBar(
         backgroundColor: _bg,
         elevation: 0,
-        titleSpacing: 8,
-        title: const Text('世情名录 · 人物好感', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        titleSpacing: 14,
+        iconTheme: IconThemeData(color: _textPrimary),
+        title: Text(
+          '世情名录 · 人物好感',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary),
+        ),
         actions: [
-          IconButton(
-            tooltip: '刷新',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loading ? null : _load,
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+            ),
+            child: IconButton(
+              tooltip: '刷新',
+              icon: Icon(Icons.refresh_rounded, size: 20, color: _textPrimary),
+              onPressed: _loading ? null : _load,
+            ),
           ),
-          IconButton(
-            tooltip: '关闭',
-            icon: const Icon(Icons.close_rounded),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.of(context).maybePop();
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isDark ? Colors.white.withValues(alpha: 0.16) : Colors.black.withValues(alpha: 0.08),
+            ),
+            child: IconButton(
+              tooltip: '关闭',
+              icon: Icon(Icons.close_rounded, size: 20, color: _textPrimary),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).maybePop();
+              },
+            ),
           ),
-          const SizedBox(width: 4),
         ],
       ),
       body: _loading
@@ -218,17 +238,17 @@ class _RosterScreenState extends State<RosterScreen> {
                         ),
                         child: TextField(
                           controller: _searchCtrl,
-                          style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                          style: TextStyle(color: _textPrimary, fontSize: 13.5),
                           onChanged: (v) => setState(() => _searchQuery = v.trim()),
                           decoration: InputDecoration(
                             hintText: '🔍 快速搜索人物名、身份、地点...',
-                            hintStyle: const TextStyle(color: _muted, fontSize: 13),
+                            hintStyle: TextStyle(color: _muted, fontSize: 13),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                             isDense: true,
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear_rounded, size: 16, color: _muted),
+                                    icon: Icon(Icons.clear_rounded, size: 16, color: _muted),
                                     onPressed: () {
                                       _searchCtrl.clear();
                                       setState(() => _searchQuery = '');
@@ -306,7 +326,7 @@ class _RosterScreenState extends State<RosterScreen> {
                     // 4. 人物名录列表
                     Expanded(
                       child: filtered.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Text('没有符合条件的人物', style: TextStyle(color: _muted, fontSize: 13)),
                             )
                           : ListView.builder(
@@ -331,7 +351,9 @@ class _RosterScreenState extends State<RosterScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: active ? const Color(0xFF2E1065) : Colors.transparent,
+            color: active
+                ? (_isDark ? const Color(0xFF2E1065) : const Color(0xFFEDE9FE))
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: active ? const Color(0xFFA78BFA) : _line,
@@ -341,7 +363,9 @@ class _RosterScreenState extends State<RosterScreen> {
             label,
             style: TextStyle(
               fontSize: 11.5,
-              color: active ? const Color(0xFFDDD6FE) : _muted,
+              color: active
+                  ? (_isDark ? const Color(0xFFDDD6FE) : const Color(0xFF6D28D9))
+                  : _muted,
               fontWeight: active ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
@@ -386,12 +410,18 @@ class _RosterScreenState extends State<RosterScreen> {
                 height: 36,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: here ? const Color(0xFF8B5CF6) : const Color(0xFF242833),
+                  color: here
+                      ? const Color(0xFF8B5CF6)
+                      : (_isDark ? const Color(0xFF242833) : const Color(0xFFE2E8F0)),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   name.isNotEmpty ? name.characters.first : '人',
-                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: here ? Colors.white : _textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -401,15 +431,15 @@ class _RosterScreenState extends State<RosterScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(name, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                        Text(name, style: TextStyle(color: _textPrimary, fontSize: 15, fontWeight: FontWeight.bold)),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
+                            color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text('📍 $city', style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                          child: Text('📍 $city', style: TextStyle(fontSize: 10.5, color: _muted)),
                         ),
                         if (here) ...[
                           const SizedBox(width: 6),
@@ -427,7 +457,7 @@ class _RosterScreenState extends State<RosterScreen> {
                     const SizedBox(height: 2),
                     Text(
                       [role, if (marital.isNotEmpty) marital].join(' · '),
-                      style: const TextStyle(color: _muted, fontSize: 11.5),
+                      style: TextStyle(color: _muted, fontSize: 11.5),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -441,8 +471,10 @@ class _RosterScreenState extends State<RosterScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: intimacy.contains('有孕')
-                        ? const Color(0xFF831843)
-                        : (intimacy.contains('月事') ? const Color(0xFF450A0A) : const Color(0xFF312E81)),
+                        ? (_isDark ? const Color(0xFF831843) : const Color(0xFFFCE7F3))
+                        : (intimacy.contains('月事')
+                            ? (_isDark ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2))
+                            : (_isDark ? const Color(0xFF312E81) : const Color(0xFFE0E7FF))),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -451,8 +483,8 @@ class _RosterScreenState extends State<RosterScreen> {
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       color: intimacy.contains('有孕')
-                          ? const Color(0xFFF472B6)
-                          : (intimacy.contains('月事') ? const Color(0xFFF87171) : const Color(0xFFA5B4FC)),
+                          ? const Color(0xFFEC4899)
+                          : (intimacy.contains('月事') ? const Color(0xFFEF4444) : const Color(0xFF6366F1)),
                     ),
                   ),
                 ),
@@ -464,12 +496,12 @@ class _RosterScreenState extends State<RosterScreen> {
           // 所在位置与私房钱
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 13, color: Colors.white38),
+              Icon(Icons.location_on_outlined, size: 13, color: _muted),
               const SizedBox(width: 3),
               Expanded(
                 child: Text(
                   place,
-                  style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 11.5),
+                  style: TextStyle(color: _textSecondary, fontSize: 11.5),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -484,7 +516,7 @@ class _RosterScreenState extends State<RosterScreen> {
           ),
 
           const SizedBox(height: 8),
-          const Divider(height: 1, color: _line),
+          Divider(height: 1, color: _line),
           const SizedBox(height: 8),
 
           // 三项心性指标进度条（信任、欲望、怨怼）
@@ -507,13 +539,13 @@ class _RosterScreenState extends State<RosterScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F1115),
+                    color: _isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: _line.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '💬 $attitude',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFFE2E8F0)),
+                    style: TextStyle(fontSize: 11, color: _textSecondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -527,10 +559,10 @@ class _RosterScreenState extends State<RosterScreen> {
                   style: OutlinedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                    side: const BorderSide(color: Color(0xFF6D28D9)),
+                    side: const BorderSide(color: Color(0xFF8B5CF6)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  child: const Text('去她这', style: TextStyle(fontSize: 11.5, color: Color(0xFFDDD6FE))),
+                  child: const Text('去她这', style: TextStyle(fontSize: 11.5, color: Color(0xFF8B5CF6))),
                 ),
                 if (canSummon) ...[
                   const SizedBox(width: 6),
@@ -560,23 +592,20 @@ class _RosterScreenState extends State<RosterScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 10.5, color: _muted)),
-            Text('$v', style: TextStyle(fontSize: 10.5, color: barColor, fontWeight: FontWeight.bold)),
+            Text(label, style: TextStyle(fontSize: 10.5, color: _muted)),
+            const Spacer(),
+            Text('$v', style: TextStyle(fontSize: 10.5, color: _muted, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 3),
         ClipRRect(
           borderRadius: BorderRadius.circular(3),
-          child: Container(
-            height: 4,
-            color: const Color(0xFF0F1115),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: (v / 100.0).clamp(0.0, 1.0),
-              child: Container(color: barColor),
-            ),
+          child: LinearProgressIndicator(
+            value: v / 100.0,
+            minHeight: 4,
+            backgroundColor: _isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
           ),
         ),
       ],
@@ -588,9 +617,9 @@ class _RosterScreenState extends State<RosterScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, color: _muted, size: 40),
+          Icon(Icons.cloud_off_rounded, color: _muted, size: 40),
           const SizedBox(height: 10),
-          Text(_error ?? '出错了', style: const TextStyle(color: _muted)),
+          Text(_error ?? '出错了', style: TextStyle(color: _muted)),
           const SizedBox(height: 14),
           OutlinedButton(onPressed: _load, child: const Text('重试')),
         ],

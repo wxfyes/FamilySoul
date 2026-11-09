@@ -376,6 +376,28 @@ class SurfCoreApiClient {
     return false;
   }
 
+  /// 回信/回话：只记录在信件 thread，不混入主聊天
+  Future<bool> replyCorrespondence(String id, String text) async {
+    try {
+      final res = await _dio.post('/correspondence/reply',
+          queryParameters: {'token': config.token.trim()},
+          data: {'id': id, 'text': text});
+      return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;
+    } catch (_) {}
+    return false;
+  }
+
+  /// 处置信件/拜访请求：allow（请进）/ wait（稍后）/ decline（回绝）/ read（已读）
+  Future<bool> actionCorrespondence(String id, String action) async {
+    try {
+      final res = await _dio.post('/correspondence/action',
+          queryParameters: {'token': config.token.trim()},
+          data: {'id': id, 'action': action});
+      return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;
+    } catch (_) {}
+    return false;
+  }
+
   /// 确认一笔待付款：option 是选项 key（luxury/cheap/pay…）
   Future<String?> confirmPayment(String option, {String? actionId}) async {
     try {

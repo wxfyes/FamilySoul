@@ -425,6 +425,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
                 speaker: e['speaker'] as String?,
                 place: e['place'] as String?,
                 isLetter: e['isLetter'] as bool? ?? (type == 'proactive'),
+                kind: e['kind'] as String?,
+                source: e['source'] as String?,
+                threadId: e['threadId']?.toString(),
+                requiresConsent: e['requiresConsent'] as bool? ?? false,
+                correspondenceStatus: e['status'] as String?,
               );
 
               // 避免重复追加
@@ -1045,6 +1050,43 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     onPlaceChanged?.call();
     return res;
+  }
+
+  /// 插入一条旁白提示消息（例如：信使送回手书、相公吩咐请人进门）
+  void addLocalNarrative(String text) {
+    final msg = ChatMessage(
+      id: 'local_narrative_${DateTime.now().millisecondsSinceEpoch}',
+      text: text,
+      isUser: false,
+      timestamp: DateTime.now(),
+      speaker: '提示',
+    );
+    _messages.add(msg);
+    _persistMessages();
+    notifyListeners();
+  }
+
+  /// 插入一条本地相公提笔回复信件的用户消息
+  void addLocalUserReply(String text) {
+    final msg = ChatMessage(
+      id: 'local_reply_${DateTime.now().millisecondsSinceEpoch}',
+      text: text,
+      isUser: true,
+      timestamp: DateTime.now(),
+    );
+    _messages.add(msg);
+    _persistMessages();
+    notifyListeners();
+  }
+
+  /// 更新某条信函/差事消息的办理状态
+  void updateMessageCorrespondenceStatus(String msgId, String status) {
+    final idx = _messages.indexWhere((m) => m.id == msgId);
+    if (idx != -1) {
+      _messages[idx] = _messages[idx].copyWith(correspondenceStatus: status);
+      _persistMessages();
+      notifyListeners();
+    }
   }
 
   /// 清空本地聊天历史记录

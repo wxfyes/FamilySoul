@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
 import 'roster_screen.dart';
+import 'army_sheet.dart';
 
 /// 我的世界：只显示"我自己"那一份
 /// —— 今夕何年、我在哪、我的家底、今日待办、线索、我的难关
@@ -17,16 +18,17 @@ class MyWorldScreen extends StatefulWidget {
 
 class _MyWorldScreenState extends State<MyWorldScreen> {
   Map<String, dynamic>? _data;
-  List<Map<String, dynamic>> _who = const [];
-  final TextEditingController _whoCtrl = TextEditingController();
   bool _loading = true;
   String? _error;
 
-  static const _bg = Color(0xFF0F1115);
-  static const _card = Color(0xFF171A21);
-  static const _line = Color(0xFF242833);
-  static const _accent = Color(0xFF8B5CF6);
-  static const _muted = Color(0xFF8A93A6);
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _bg => _isDark ? const Color(0xFF0F1115) : const Color(0xFFF1F5F9);
+  Color get _card => _isDark ? const Color(0xFF171A21) : Colors.white;
+  Color get _line => _isDark ? const Color(0xFF242833) : const Color(0xFFE2E8F0);
+  Color get _accent => const Color(0xFF8B5CF6);
+  Color get _muted => _isDark ? const Color(0xFF8A93A6) : const Color(0xFF64748B);
+  Color get _textPrimary => _isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _textSecondary => _isDark ? const Color(0xFFDDE3EE) : const Color(0xFF334155);
 
   @override
   void initState() {
@@ -34,36 +36,37 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     _load();
   }
 
-  @override
-  void dispose() {
-    _whoCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadWho({String q = ''}) async {
-    final rows = await widget.api.fetchWho(q: q);
-    if (!mounted) return;
-    setState(() => _who = rows);
-  }
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
-    await _loadWho();
-    final data = await widget.api.fetchMyWorld();
+    final d = await widget.api.fetchMyWorld();
     if (!mounted) return;
+    if (d == null) {
+      setState(() {
+        _loading = false;
+        _error = '未连上，稍后再试';
+      });
+      return;
+    }
     setState(() {
-      _data = data;
+      _data = d;
       _loading = false;
-      _error = data == null ? '连不上世界，检查一下网络' : null;
     });
+    // 首次载入后顺便拉一下当前地点有哪些人
+    final self = (d['self'] as Map?)?.cast<String, dynamic>();
+    if (self?['place'] != null) {
+      _loadWho(loc: self!['place'].toString());
+    }
   }
 
-  String _num(dynamic v, {int digits = 0}) {
-    final n = (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0;
-    return digits == 0 ? n.toStringAsFixed(0) : n.toStringAsFixed(digits);
+  List<Map<String, dynamic>> _who = [];
+  final TextEditingController _whoCtrl = TextEditingController();
+  Future<void> _loadWho({String? q, String? loc}) async {
+    final list = await widget.api.fetchWho(q: q ?? '');
+    if (!mounted) return;
+    setState(() => _who = list);
   }
 
   @override
@@ -73,23 +76,44 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       appBar: AppBar(
         backgroundColor: _bg,
         elevation: 0,
-        titleSpacing: 8,
-        title: const Text('我的世界', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        titleSpacing: 14,
+        iconTheme: IconThemeData(color: _textPrimary),
+        title: Text(
+          '我的世界',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: _textPrimary,
+          ),
+        ),
         actions: [
-          IconButton(
-            tooltip: '刷新',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loading ? null : _load,
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+            ),
+            child: IconButton(
+              tooltip: '刷新',
+              icon: Icon(Icons.refresh_rounded, size: 20, color: _textPrimary),
+              onPressed: _loading ? null : _load,
+            ),
           ),
-          IconButton(
-            tooltip: '关闭',
-            icon: const Icon(Icons.close_rounded),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.of(context).maybePop();
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isDark ? Colors.white.withValues(alpha: 0.16) : Colors.black.withValues(alpha: 0.08),
+            ),
+            child: IconButton(
+              tooltip: '关闭',
+              icon: Icon(Icons.close_rounded, size: 20, color: _textPrimary),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).maybePop();
+              },
+            ),
           ),
-          const SizedBox(width: 4),
         ],
       ),
       body: _loading
@@ -112,9 +136,9 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, color: _muted, size: 40),
+          Icon(Icons.cloud_off_rounded, color: _muted, size: 40),
           const SizedBox(height: 10),
-          Text(_error ?? '出错了', style: const TextStyle(color: _muted)),
+          Text(_error ?? '出错了', style: TextStyle(color: _muted)),
           const SizedBox(height: 14),
           OutlinedButton(onPressed: _load, child: const Text('重试')),
         ],
@@ -125,6 +149,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
   List<Widget> _buildSections() {
     final d = _data ?? const <String, dynamic>{};
     final self = (d['self'] as Map?)?.cast<String, dynamic>() ?? {};
+    final isHusband = self['isHusband'] == true;
     final date = (d['date'] as Map?)?.cast<String, dynamic>() ?? {};
     final assets = (d['assets'] as Map?)?.cast<String, dynamic>() ?? {};
     final todos = (d['todos'] as List?) ?? const [];
@@ -169,11 +194,11 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('第 $day 日 · $hour 时',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                      style: TextStyle(color: _textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 3),
                   Text(
                     [if (iso.isNotEmpty) iso, if (lunar.isNotEmpty) '农历$lunar'].join(' · '),
-                    style: const TextStyle(color: _muted, fontSize: 12.5),
+                    style: TextStyle(color: _muted, fontSize: 12.5),
                   ),
                 ],
               ),
@@ -186,13 +211,13 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       _cardShell(
         child: Row(
           children: [
-            const Icon(Icons.place_rounded, color: _accent, size: 18),
+            Icon(Icons.place_rounded, color: _accent, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 '${self['name'] ?? ''}${(self['role'] as String?)?.isNotEmpty == true ? ' · ${self['role']}' : ''}'
                 '${(self['place'] as String?)?.isNotEmpty == true ? ' · 在${self['place']}' : ''}',
-                style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13.5),
+                style: TextStyle(color: _textSecondary, fontSize: 13.5),
               ),
             ),
           ],
@@ -204,16 +229,17 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       _cardShell(
         child: Column(
           children: [
-            _kv('婚姻', () {
-              final wivesList = (d['wives'] as List?) ?? (self['wives'] as List?) ?? (d['marriages'] as List?);
-              if (wivesList != null && wivesList.isNotEmpty) {
-                return wivesList.map((w) {
+            _kv('名分', () {
+              // 彻底动态化：优先从服务端 marriages 下发（包含正妻沈婉儿、二房林芸娘、妾室小翠、侧室崔婉宁等全量名单）
+              final marriages = (d['marriages'] as List?) ?? (d['wives'] as List?) ?? (self['wives'] as List?);
+              if (marriages != null && marriages.isNotEmpty) {
+                return marriages.map((w) {
                   if (w is Map) return '${w['role'] ?? '侧室'}：${w['name'] ?? ''}';
                   return w.toString();
                 }).join('；');
               }
               if (spouseName.isNotEmpty) return '$married · 配偶「$spouseName」';
-              return '正妻：沈婉儿；侧室：林芸娘';
+              return married.isNotEmpty ? married : '府内良人';
             }()),
             _kv('住处', () {
               final h = (self['homeName'] as String?) ??
@@ -227,8 +253,10 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
         ),
       ),
 
-      // 城中世情名录入口
-      _sectionTitle('世情羁绊'),
+      // 二级卡片直通看板：世情羁绊 / 江山兵符 / 庙堂朝政（按账号权限隔离）
+      _sectionTitle('天下格局与世情志'),
+
+      // 1. 城中世情名录入口（全员可见）
       _cardShell(
         child: InkWell(
           onTap: () {
@@ -239,32 +267,116 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF2E1065),
+                  color: _isDark ? const Color(0xFF2E1065) : const Color(0xFFF3E8FF),
                 ),
-                child: const Icon(Icons.favorite_rounded, color: Color(0xFFF472B6), size: 18),
+                child: const Icon(Icons.favorite_rounded, color: Color(0xFFF472B6), size: 19),
               ),
-              const SizedBox(width: 10),
-              const Expanded(
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('城中世情志 · 人物好感名录',
-                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 2),
+                        style: TextStyle(color: _textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
                     Text('分地区查阅全城人物 · 信任欲望怨怼心性与态度评语',
                         style: TextStyle(color: _muted, fontSize: 11.5)),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios_rounded, color: _muted, size: 14),
+              Icon(Icons.arrow_forward_ios_rounded, color: _muted, size: 14),
             ],
           ),
         ),
       ),
+
+      // 2. 江山兵符 · 势力与天下城池（仅主公/相公账号可见，普通妻妾账号隔离隐藏）
+      if (isHusband) ...[
+        const SizedBox(height: 8),
+        _cardShell(
+          child: InkWell(
+            onTap: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => ArmySheet(
+                  api: widget.api,
+                  onChanged: () => setState(() {}),
+                ),
+              );
+            },
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7),
+                  ),
+                  child: const Icon(Icons.shield_rounded, color: Color(0xFF10B981), size: 19),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('江山兵符 · 势力与天下城池',
+                          style: TextStyle(color: _textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text('各城驻防部署 · 私兵护院家丁统御与武勋晋升',
+                          style: TextStyle(color: _muted, fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios_rounded, color: _muted, size: 14),
+              ],
+            ),
+          ),
+        ),
+      ],
+
+      // 3. 庙堂朝政 · 圣谕与天下父母官（仅主公/相公账号可见，普通妻妾账号隔离隐藏）
+      if (isHusband) ...[
+        const SizedBox(height: 8),
+        _cardShell(
+          child: InkWell(
+            onTap: () => _showCourtSheet(context, d),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7),
+                  ),
+                  child: const Icon(Icons.account_balance_rounded, color: Color(0xFFF59E0B), size: 19),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('庙堂朝政 · 圣谕与天下父母官',
+                          style: TextStyle(color: _textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text('京城圣谕敕令 · 各府父母官与文武品级评定',
+                          style: TextStyle(color: _muted, fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios_rounded, color: _muted, size: 14),
+              ],
+            ),
+          ),
+        ),
+      ],
 
       // 我这一日（只有自己的事）
       if (daily.isNotEmpty) ...[
@@ -282,18 +394,18 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                       Row(
                         children: [
                           Text('${g['name']}',
-                              style: const TextStyle(color: Color(0xFFE7ECF5), fontSize: 13.5, fontWeight: FontWeight.w600)),
+                              style: TextStyle(color: _textPrimary, fontSize: 13.5, fontWeight: FontWeight.w600)),
                           const SizedBox(width: 6),
                           if ('${g['place'] ?? ''}'.isNotEmpty)
                             Text('在${g['place']}',
-                                style: const TextStyle(color: _muted, fontSize: 11.5)),
+                                style: TextStyle(color: _muted, fontSize: 11.5)),
                         ],
                       ),
                       for (final line in ((g['lines'] as List?) ?? const []))
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text('· $line',
-                              style: const TextStyle(color: Color(0xFFB6BFD0), fontSize: 12.5, height: 1.35)),
+                              style: TextStyle(color: _textSecondary, fontSize: 12.5, height: 1.35)),
                         ),
                     ],
                   ),
@@ -345,8 +457,8 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 ]),
               ),
             if (props.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text('名下还没有产业', style: TextStyle(color: _muted, fontSize: 12.5)),
@@ -360,11 +472,11 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                     children: [
                       Expanded(
                         child: Text('${p['name']}',
-                            style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13)),
+                            style: TextStyle(color: _textSecondary, fontSize: 13)),
                       ),
                       Text(
                         '${_num(p['income'], digits: 2)} 两 · ${p['status'] ?? ''}',
-                        style: const TextStyle(color: _muted, fontSize: 12),
+                        style: TextStyle(color: _muted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -385,17 +497,17 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text('你今年 ${(d['life'] as Map)['age']} 岁'
                     '${(d['life'] as Map)['pregnant'] == true ? '　·　身怀六甲（${(d['life'] as Map)['pregnancyDays']} 天）' : ''}',
-                    style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5)),
+                    style: TextStyle(color: _textSecondary, fontSize: 12.5)),
                 ),
               for (final h in ((d['life'] as Map)['house'] as List? ?? []))
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 3),
                   child: Row(
                     children: [
-                      Expanded(child: Text('${h['name']}  ${h['role'] ?? ''}', style: const TextStyle(color: Color(0xFFCFD6E4), fontSize: 12))),
+                      Expanded(child: Text('${h['name']}  ${h['role'] ?? ''}', style: TextStyle(color: _textSecondary, fontSize: 12))),
                       Text(
                         '${h['age'] != null ? '${h['age']}岁' : ''}${h['pregnant'] == true ? '　有孕 ${h['days']}天' : ''}',
-                        style: const TextStyle(color: _muted, fontSize: 11.5),
+                        style: TextStyle(color: _muted, fontSize: 11.5),
                       ),
                     ],
                   ),
@@ -425,7 +537,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     '兵种分列：${(mil['kinds'] as Map).entries.map((e) => '${e.key == 'guard' ? '甲兵' : e.key == 'retainer' ? '精锐' : e.key}: ${e.value}人').join(' · ')}',
-                    style: const TextStyle(color: _muted, fontSize: 11.5),
+                    style: TextStyle(color: _muted, fontSize: 11.5),
                   ),
                 ),
             ],
@@ -460,13 +572,13 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                       Expanded(
                         child: Text(
                           it['name']?.toString() ?? '',
-                          style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13),
+                          style: TextStyle(color: _textSecondary, fontSize: 13),
                         ),
                       ),
                       if (it['holder'] != null || it['owner'] != null)
                         Text(
                           '${it['holder'] ?? it['owner']}',
-                          style: const TextStyle(color: _muted, fontSize: 11.5),
+                          style: TextStyle(color: _muted, fontSize: 11.5),
                         ),
                     ],
                   ),
@@ -492,7 +604,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                       Expanded(
                         child: Text(
                           b['name']?.toString() ?? '散匪',
-                          style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 13),
+                          style: TextStyle(color: _textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
@@ -515,7 +627,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('${arc['title'] ?? ''}',
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                  style: TextStyle(color: _textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               Text(
                 arc['done'] == true
@@ -532,7 +644,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 const SizedBox(height: 8),
                 Text(
                   '${arc['hint']}',
-                  style: const TextStyle(color: Color(0xFF6E7A8F), fontSize: 11.5, height: 1.5),
+                  style: TextStyle(color: _muted, fontSize: 11.5, height: 1.5),
                 ),
               ],
             ],
@@ -544,7 +656,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
       _sectionTitle('待办（${todos.length}）'),
       _cardShell(
         child: todos.isEmpty
-            ? const Text('眼下没有要办的事', style: TextStyle(color: _muted, fontSize: 12.5))
+            ? Text('眼下没有要办的事', style: TextStyle(color: _muted, fontSize: 12.5))
             : Column(
                 children: [
                   for (final t in todos.cast<Map>())
@@ -566,7 +678,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text('${t['text']}',
-                                style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5, height: 1.45)),
+                                style: TextStyle(color: _textSecondary, fontSize: 12.5, height: 1.45)),
                           ),
                           if (t['day'] != null)
                             Text(
@@ -574,7 +686,6 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                               style: TextStyle(
                                 color: t['overdue'] == true ? const Color(0xFFFF7A7A) : _muted,
                                 fontSize: 11,
-                                fontWeight: t['overdue'] == true ? FontWeight.w600 : FontWeight.normal,
                               ),
                             ),
                         ],
@@ -584,79 +695,26 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
               ),
       ),
 
-      // 世界新闻
-      if (news.isNotEmpty) ...[
-        if ((d['decrees'] as List?)?.isNotEmpty == true) ...[
-        _sectionTitle('朝廷旨意'),
+      // 心头线索
+      if (clues.isNotEmpty) ...[
+        _sectionTitle('心头线索（${clues.length}）'),
         _cardShell(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final dec in (d['decrees'] as List))
+              for (final c in clues.cast<Map>())
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('第${dec['day']}日', style: const TextStyle(color: _muted, fontSize: 11.5)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '「${dec['text'] ?? ''}」',
-                          style: const TextStyle(color: Color(0xFFE7D9A8), fontSize: 12.5, height: 1.5),
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, right: 6),
+                        child: Icon(Icons.circle, size: 5, color: _accent),
                       ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-
-      _sectionTitle('世界动静'),
-        _cardShell(
-          child: Column(
-            children: [
-              for (final e in news)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.bolt_rounded, size: 13, color: Color(0xFF7C8BA1)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text('${e['text']}',
-                            style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5, height: 1.45)),
-                      ),
-                      if (e['day'] != null)
-                        Text('第${e['day']}日', style: const TextStyle(color: _muted, fontSize: 10.5)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-
-      // 线索
-      if (clues.isNotEmpty) ...[
-        _sectionTitle('线索'),
-        _cardShell(
-          child: Column(
-            children: [
-              for (final c in clues.cast<Map>())
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.circle, size: 5, color: _accent),
-                      const SizedBox(width: 8),
                       Expanded(
                         child: Text('${c['text']}',
-                            style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5, height: 1.45)),
+                            style: TextStyle(color: _textSecondary, fontSize: 12.5, height: 1.35)),
                       ),
                     ],
                   ),
@@ -666,8 +724,37 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
         ),
       ],
 
-      // 行踪：谁在哪
-      _sectionTitle('行踪（谁在哪）'),
+      // 近日听闻
+      if (news.isNotEmpty) ...[
+        _sectionTitle('近日听闻'),
+        _cardShell(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final n in news.cast<Map>())
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4, right: 6),
+                        child: Icon(Icons.circle, size: 5, color: Color(0xFFF59E0B)),
+                      ),
+                      Expanded(
+                        child: Text('${n['text']}',
+                            style: TextStyle(color: _textSecondary, fontSize: 12.5, height: 1.35)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+
+      // 查身边的人
+      _sectionTitle('查人物'),
       _cardShell(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,13 +764,13 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 Expanded(
                   child: TextField(
                     controller: _whoCtrl,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    style: TextStyle(color: _textPrimary, fontSize: 13),
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: '搜名字或身份（默认只显示相识的人）',
-                      hintStyle: const TextStyle(color: _muted, fontSize: 12),
+                      hintStyle: TextStyle(color: _muted, fontSize: 12),
                       filled: true,
-                      fillColor: const Color(0xFF1B2029),
+                      fillColor: _isDark ? const Color(0xFF1B2029) : const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     ),
@@ -696,7 +783,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
             ),
             const SizedBox(height: 6),
             if (_who.isEmpty)
-              const Text('没找到人', style: TextStyle(color: _muted, fontSize: 12.5))
+              Text('没找到人', style: TextStyle(color: _muted, fontSize: 12.5))
             else
               for (final w in _who)
                 Padding(
@@ -711,11 +798,11 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                       Expanded(
                         child: Text(
                           '${w['name']}  ${w['role'] ?? ''}${w['human'] == true ? '  · 真人' : ''}',
-                          style: const TextStyle(color: Color(0xFFDDE3EE), fontSize: 12.5),
+                          style: TextStyle(color: _textSecondary, fontSize: 12.5),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Text('${w['place'] ?? ''}', style: const TextStyle(color: _muted, fontSize: 11.5)),
+                      Text('${w['place'] ?? ''}', style: TextStyle(color: _muted, fontSize: 11.5)),
                     ],
                   ),
                 ),
@@ -736,9 +823,172 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     ];
   }
 
+  void _showCourtSheet(BuildContext context, Map<String, dynamic> d) {
+    final decrees = (d['decrees'] as List?) ?? const [];
+    final offices = (d['offices'] as List?) ?? const [];
+    final factions = (d['factions'] as Map?)?.cast<String, dynamic>() ?? {};
+    final yamen = (factions['yamen'] as Map?)?.cast<String, dynamic>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(ctx).size.height * 0.78,
+          decoration: BoxDecoration(
+            color: _bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 12),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7),
+                        ),
+                        child: const Icon(Icons.account_balance_rounded, size: 20, color: Color(0xFFF59E0B)),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '庙堂朝政 · 圣谕与天下父母官',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _textPrimary,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, color: _muted),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      // 圣谕敕令
+                      _sectionTitle('📜 朝廷明降圣谕'),
+                      if (decrees.isEmpty)
+                        _cardShell(child: Text('近期朝廷无特颁大典圣谕。', style: TextStyle(color: _muted, fontSize: 13)))
+                      else
+                        for (final dec in decrees)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _isDark ? const Color(0xFF1E1B18) : const Color(0xFFFFFBEB),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text('【天子明诏】', style: TextStyle(color: Color(0xFFF59E0B), fontSize: 12, fontWeight: FontWeight.bold)),
+                                    const Spacer(),
+                                    if (dec is Map && dec['day'] != null)
+                                      Text('第${dec['day']}日奉旨', style: TextStyle(color: _muted, fontSize: 11)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  dec is Map ? (dec['text']?.toString() ?? '') : dec.toString(),
+                                  style: TextStyle(color: _textPrimary, fontSize: 13, height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                      const SizedBox(height: 12),
+                      // 天下父母官与官阶品级
+                      _sectionTitle('🏛️ 天下父母官与仕宦品级'),
+                      if (offices.isEmpty && yamen == null)
+                        _cardShell(child: Text('天下官员录尚在吏部誊抄。', style: TextStyle(color: _muted, fontSize: 13)))
+                      else ...[
+                        if (yamen != null)
+                          _cardShell(
+                            child: Row(
+                              children: [
+                                const Icon(Icons.badge_outlined, color: Color(0xFF38BDF8), size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('${yamen['name'] ?? '临江府衙'}', style: TextStyle(color: _textPrimary, fontSize: 13.5, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 2),
+                                      Text('势力威信: ${yamen['power'] ?? 50} · 与王家交情: ${yamen['relation'] ?? 0}', style: TextStyle(color: _muted, fontSize: 11.5)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        for (final o in offices)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _card,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _line),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  o is Map ? (o['title']?.toString() ?? '') : o.toString(),
+                                  style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                if (o is Map && o['holder'] != null)
+                                  Text(
+                                    '${o['holder']}',
+                                    style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _sectionTitle(String text) => Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 8, left: 2),
-        child: Text(text, style: const TextStyle(color: _muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+        child: Text(text, style: TextStyle(color: _muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
       );
 
   Widget _cardShell({required Widget child}) => Container(
@@ -756,9 +1006,15 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           children: [
-            Text(k, style: const TextStyle(color: _muted, fontSize: 12.5)),
+            Text(k, style: TextStyle(color: _muted, fontSize: 12.5)),
             const Spacer(),
-            Text(v, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+            Expanded(
+              child: Text(
+                v,
+                textAlign: TextAlign.end,
+                style: TextStyle(color: _textPrimary, fontSize: 13.5, fontWeight: FontWeight.w600),
+              ),
+            ),
           ],
         ),
       );
@@ -766,10 +1022,18 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
   Widget _kvInline(String k, String v) => Expanded(
         child: Column(
           children: [
-            Text(v, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(v, style: TextStyle(color: _textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            Text(k, style: const TextStyle(color: _muted, fontSize: 11)),
+            Text(k, style: TextStyle(color: _muted, fontSize: 11)),
           ],
         ),
       );
+
+  static String _num(dynamic n, {int digits = 0}) {
+    if (n == null) return '-';
+    if (n is num) {
+      return digits == 0 ? n.toInt().toString() : n.toStringAsFixed(digits);
+    }
+    return n.toString();
+  }
 }

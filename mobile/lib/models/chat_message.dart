@@ -20,6 +20,21 @@ class ChatMessage {
   /// 是否差人送来的口信/家书（消除隔空假象）
   final bool isLetter;
 
+  /// 来信/差事/求见独立通道类型：'letter' | 'report' | 'visit'
+  final String? kind;
+
+  /// 真实来源说明（例如「来源：门房」、「来源：翟家货栈 翟管事」）
+  final String? source;
+
+  /// 对应的信件/差事 thread ID
+  final String? threadId;
+
+  /// 是否需要允准（求见进屋）
+  final bool requiresConsent;
+
+  /// 信件处置状态：'pending' | 'replied' | 'waiting' | 'approved' | 'declined'
+  final String? correspondenceStatus;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -35,6 +50,11 @@ class ChatMessage {
     this.speaker,
     this.place,
     this.isLetter = false,
+    this.kind,
+    this.source,
+    this.threadId,
+    this.requiresConsent = false,
+    this.correspondenceStatus,
   });
 
   /// 智能推导说话人：正文显式前缀【xxx】拥有最高真相权重（彻底防止外部默认账号名污染覆盖剧本真实角色）；
@@ -162,6 +182,11 @@ class ChatMessage {
         'speaker': speaker,
         'place': place,
         'isLetter': isLetter,
+        'kind': kind,
+        'source': source,
+        'threadId': threadId,
+        'requiresConsent': requiresConsent,
+        'correspondenceStatus': correspondenceStatus,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -178,6 +203,11 @@ class ChatMessage {
         speaker: json['speaker'] as String?,
         place: json['place'] as String?,
         isLetter: json['isLetter'] as bool? ?? false,
+        kind: json['kind'] as String?,
+        source: json['source'] as String?,
+        threadId: json['threadId'] as String?,
+        requiresConsent: json['requiresConsent'] as bool? ?? false,
+        correspondenceStatus: json['correspondenceStatus'] as String?,
       );
 
   ChatMessage copyWith({
@@ -194,6 +224,11 @@ class ChatMessage {
     String? speaker,
     String? place,
     bool? isLetter,
+    String? kind,
+    String? source,
+    String? threadId,
+    bool? requiresConsent,
+    String? correspondenceStatus,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -209,6 +244,11 @@ class ChatMessage {
       speaker: speaker ?? this.speaker,
       place: place ?? this.place,
       isLetter: isLetter ?? this.isLetter,
+      kind: kind ?? this.kind,
+      source: source ?? this.source,
+      threadId: threadId ?? this.threadId,
+      requiresConsent: requiresConsent ?? this.requiresConsent,
+      correspondenceStatus: correspondenceStatus ?? this.correspondenceStatus,
     );
   }
 }
