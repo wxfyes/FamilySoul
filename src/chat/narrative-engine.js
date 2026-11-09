@@ -622,7 +622,14 @@ export function executeNarrativeTags({
           try {
             const first = (opts2 || []).find((o) => Number(o.price) > 0 && !o.skip) || (opts2 || [])[0];
             const quoted = first?.skip ? 0 : (Number(first?.price) || 0);
-            if (quoted > 0) {
+            // 真人角色已有这个名字：不能拿钱把人家买成 NPC，直接不扣
+            const humanName = Object.values(wPay.actors || {}).find((a) => a && a.name
+              && isHumanBound(wPay, a.id) && String(title2 || '').includes(String(a.name)));
+            const blockedHuman = Boolean(humanName && /头牌|安家|雇|请|工钱|月钱|聘/.test(String(title2 || '')));
+            if (blockedHuman) {
+              reply += `\n（「${humanName.name}」是真人角色，不能雇作 NPC；这笔安家银未扣，请另取艺名。）`;
+              console.log(`[Pay] 真人重名拦截：${humanName.name}`);
+            } else if (quoted > 0) {
               // 同一产业同一天：按"累计预算"只补差额
               let price = quoted;
               if (projectKey) {

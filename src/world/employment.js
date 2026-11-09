@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 雇佣：全世界只有这里能把一个人放进某处产业。
  *
  * 以前"雇人"这段逻辑抄在三个地方（天道招人、自检修账、管理接口），
@@ -12,7 +12,7 @@
  *   · 位置走 moveActor（受单一写入口与真人保护约束）
  */
 
-import { moveActor } from './position.js';
+import { moveActor, isHumanBound } from './position.js';
 import { isPlaceName } from './naming.js';
 
 export function hireStaff(world, { propName = '', name = '', role = '伙计', via = 'dm', hiredBy = null, taskId = null } = {}) {
@@ -24,6 +24,13 @@ export function hireStaff(world, { propName = '', name = '', role = '伙计', vi
   if (!prop.placeId || !world.places?.[prop.placeId]) return { ok: false, error: '这处产业还没挂地点' };
 
   let a = Object.values(world.actors || {}).find((x) => x && x.name === nm);
+  const alreadyStaff = a && Array.isArray(prop.staffIds) && prop.staffIds.includes(a.id);
+  if (a && !alreadyStaff) {
+    if (isHumanBound(world, a.id)) {
+      return { ok: false, error: `「${nm}」是真人角色，不能当 NPC 雇；请另取艺名` };
+    }
+    return { ok: false, error: `名字「${nm}」已经有主，不能重复起名` };
+  }
   const created = !a;
   if (!a) {
     const id = `npc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
