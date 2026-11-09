@@ -35,4 +35,15 @@ rm -f "$PID_FILE"
 pkill -f "node src/server.js" 2>/dev/null || true
 sleep 1
 pkill -9 -f "node src/server.js" 2>/dev/null || true
+
+# 路由固件可能没有 pkill：直接扫 /proc，确保旧 node 一定被停掉
+for d in /proc/[0-9]*; do
+    [ -r "$d/cmdline" ] || continue
+    if tr '\0' ' ' < "$d/cmdline" 2>/dev/null | grep -q "node src/server.js"; then
+        pid=${d##*/}
+        [ "$pid" = "$$" ] && continue
+        kill -9 "$pid" 2>/dev/null || true
+    fi
+done
+sleep 1
 exit 0
