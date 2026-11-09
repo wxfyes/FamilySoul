@@ -247,8 +247,13 @@ export function ensureCityLife(world) {
     if (!isFolk && a.origin !== 'city_class' && !ROLE_KEYS.some((k) => String(a.role || '').includes(k))) continue;
     // 城郊大户被历史漂移堆到临江长街的，先归回本城本宅
     const home = world.places?.[a.home];
-    // 外城大户不是王宅的人，绝不能借 household 混进相公文书/内宅名单
-    if (a.origin === 'city_class' && a.household && !String(a.home || '').startsWith('husband_room')) {
+    // 外城大户不是王宅的人，绝不能借 household 混进相公文书/内宅名单；
+    // 但已嫁给相公的侧室/二房/通房，哪怕住东跨院，也不是"外城大户"
+    const roleText = String(a.role || '');
+    const isHusbandKin = a.spouse === 'husband' || a.marital === 'concubine'
+      || /正妻|大娘子|如夫人|二房|侧室|妾|通房/.test(roleText);
+    if (a.origin === 'city_class' && a.household && !isHusbandKin
+      && !String(a.home || '').startsWith('husband_room')) {
       delete a.household;
     }
     if (a.origin === 'city_class' && home && a.home !== 'street' && a.location === 'street' && !a.cityLifeHomed) {

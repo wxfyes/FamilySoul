@@ -15,9 +15,11 @@ try {
     id: 'zhangbo_test', name: '张伯', role: '邻家老丈', gender: 'female',
     location: 'street', home: 'street', onPeriod: true, cycleDay: 3,
   };
+  w.places.wang_mansion_east = { id: 'wang_mansion_east', name: '临江·王宅·东跨院', exits: ['husband_room'] };
   w.actors.cui_test = {
     id: 'cui_test', name: '崔婉宁', role: '侧室', gender: 'female',
-    location: 'husband_room', home: 'husband_room', spouse: null,
+    location: 'wang_mansion_east', home: 'wang_mansion_east', spouse: null,
+    marital: 'concubine',
   };
   saveState(dir, w);
   // 另起一份目录，确保走真正的读档迁移（进程重启时同样）

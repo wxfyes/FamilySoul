@@ -34,6 +34,37 @@ import { lunarFromTable } from './lunar-table.js';
 import path from 'node:path';
 import { migrateMemories } from './memory.js';
 
+/**
+ * 婚书名分唯一补全：住在王宅、名分为正妻/侧室/通房的人，
+ * 必须在 world.marriages 里有位置；不依赖某个一次性迁移是否被旧存档冲掉。
+ */
+function ensureMarriageRoster(world) {
+  world.marriages = Array.isArray(world.marriages) ? world.marriages : [];
+  let fixed = 0;
+  for (const a of Object.values(world?.actors || {})) {
+    if (!a || a.dead) continue;
+    const role = String(a.role || '');
+    if (!/正妻|大娘子|如夫人|二房|侧室|妾|通房/.test(role)) continue;
+    const homeName = String(world.places?.[a.home]?.name || '');
+    const hereName = String(world.places?.[a.location]?.name || '');
+    if (!/王宅/.test(homeName) && !/王宅/.test(hereName) && a.spouse !== 'husband') continue;
+    a.spouse = 'husband';
+    a.household = true;
+    a.marital = /正妻|大娘子/.test(role) ? 'married' : 'concubine';
+    if (!world.marriages.some((m) => m && (m.who === a.id || m.id === a.id))) {
+      world.marriages.push({
+        id: a.id, who: a.id, name: a.name,
+        rank: /正妻|大娘子/.test(role) ? '正妻·大娘子' : (/通房/.test(role) ? '通房' : '侧室'),
+        location: a.location, placeName: hereName,
+        pregnancy: a.pregnancy || null, children: [], intimacy: a.intimacy || {},
+        day: a.createdDay || world.clock?.day || 1,
+      });
+      fixed += 1;
+    }
+  }
+  return fixed;
+}
+
 export const STATE_VERSION = 1;
 
 export function worldDir(dataDir) {
@@ -2184,6 +2215,8 @@ export function migrateOwnership(world) {
   // 性格生成：缺性格的人补一副稳定的脾气（已有的一律不动）
   try { ensurePersonalities(world); } catch { /* 忽略 */ }
   try { ensureCityLife(world); } catch { /* 忽略 */ }
+  // 城life 可能清 household；婚书最后统一补一次，绝不让侧室从名录消失
+  try { ensureMarriageRoster(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }
   // 待办归属：老数据没写 owner 的，一律算相公的（那是当时唯一的主角）
   try {
