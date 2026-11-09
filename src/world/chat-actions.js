@@ -336,7 +336,9 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   {
     const hireWord = /(雇|请|聘|添|增加|加|补|招|找)/.test(say);
     const roleHit = /(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘|头牌|花魁|琴师|歌女)/.exec(say);
-    if (hireWord && roleHit) {
+    const namedCandidate = /(?:请|让|叫|用|找|聘|雇)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
+    const namedExists = namedCandidate && Object.values(world.actors || {}).some((a) => a && a.name === namedCandidate);
+    if (hireWord && roleHit && !namedExists) {
       const wantRole = roleHit[1];
       const countHit = /(\d+|[一二两三四五六七八九十]+|几|数)\s*(?:个|名|位|人)/.exec(say);
       const wantNum = countHit
@@ -400,7 +402,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
 
   // 调人：让阿福去粮铺坐柜 / 派刘二到粮铺当伙计 —— 真移动、真入产业名册
   {
-    const transferWord = /(让|叫|派|调|安排)/.test(say);
+    const transferWord = /(让|叫|派|调|安排|请)/.test(say);
     if (transferWord) {
       const properties = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
       const target = properties
@@ -421,9 +423,16 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
             actor.role = '掌柜';
             target.keeper = actor.id;
             target.keeperName = actor.name;
+          } else if (/头牌|花魁|琴师|歌女/.test(say)) {
+            actor.role = (/头牌/.test(say) ? '头牌' : (/花魁/.test(say) ? '花魁' : (/琴师/.test(say) ? '琴师' : '歌女')));
           } else if (/伙计|跑堂|账房/.test(say)) {
             actor.role = /账房/.test(say) ? '账房' : (/跑堂/.test(say) ? '跑堂' : '伙计');
           }
+          actor.employer = target.owner || 'husband';
+          actor.workplace = target.name;
+          actor.workplaceId = target.placeId;
+          actor.hiredBy = actor.hiredBy || me.id;
+          actor.hiredDay = actor.hiredDay || day;
           actor.home = target.placeId;
           actor.quarters = target.placeId;
           actor.duty = { ...(actor.duty || {}), home: target.placeId, place: target.placeId };

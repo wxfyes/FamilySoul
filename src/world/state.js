@@ -2403,10 +2403,23 @@ export function migrateOwnership(world) {
       if (!prop || !prop.name) continue;
       const nm = String(prop.name);
       if (prop.placeId && world.places?.[prop.placeId]) {
-        const onDuty = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.location === prop.placeId);
+        // 产业人手要算上前堂/二层等子地点，不能只数产业根地点，否则一上工就被清零
+        const related = new Set([prop.placeId]);
+        for (const [pid, pl] of Object.entries(world.places || {})) {
+          if (pl && String(pl.parent || '') === String(prop.placeId)) related.add(pid);
+        }
+        const onDuty = Object.values(world.actors || {}).filter((a) => a && !a.dead
+          && (related.has(a.location) || String(a.workplaceId || '') === String(prop.placeId)));
         const dutyIds = new Set(onDuty.map((a) => a.id));
-        if (Array.isArray(prop.staffIds)) prop.staffIds = prop.staffIds.filter((id) => dutyIds.has(id));
-        prop.staff = onDuty.length;
+        const had = Array.isArray(prop.staffIds) ? prop.staffIds : [];
+        const merged = new Set([...had.filter((id) => dutyIds.has(id))]);
+        for (const a of onDuty) {
+          if (String(a.workplaceId || '') === String(prop.placeId) && /掌柜|伙计|跑堂|账房|头牌|花魁|琴师|歌女|厨子|护院/.test(String(a.role || ''))) {
+            merged.add(a.id);
+          }
+        }
+        prop.staffIds = [...merged];
+        prop.staff = prop.staffIds.length;
         continue;
       }
       const hit = Object.entries(world.places || {}).find(([, pl]) => {

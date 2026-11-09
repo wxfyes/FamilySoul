@@ -94,6 +94,13 @@ export function parseDismissIntent(sayText) {
     return { isDismiss: false, targetName: null, targetWhere: null };
   }
 
+  // 2.5 到某产业当差/当头牌，是调人上工，不是打发送客
+  const isStaffing = /(?:请|让|叫|派|调|安排|雇|聘)[^。！？\n]{0,24}(?:到|去|往)[^。！？\n]{0,14}(?:当|做|任|坐柜|掌事|当头牌|当掌柜|当伙计)/.test(say)
+    || /(?:到|去|往)[^。！？\n]{0,20}(?:当头牌|当掌柜|当伙计|做头牌|做掌柜|做伙计|坐柜|掌事)/.test(say);
+  if (isStaffing) {
+    return { isDismiss: false, targetName: null, targetWhere: null };
+  }
+
   const isDismiss =
     /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(?:去|回|到|往)\s*(回家|回去|回房|回屋|回府|回铺子|去铺子|回院子|出去|退下|房间|厢房|东厢|西厢|屋里|歇着|等我|候着|睡觉|[\u4e00-\u9fa5]{2,6})/.test(say)
     || /(?:让|叫|命|打发|请)?\s*([^去回到往先\s]{1,4})\s*(?:先)?\s*(回家|回去|回房|回屋|回府|回铺子|回院子|出去|退下|退出去|走吧|回房间|去睡)/.test(say)
