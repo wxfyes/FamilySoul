@@ -3664,6 +3664,44 @@ const STARTED_AT = Date.now();
       }
     }
 
+    // 9.30b 指定产业添人：已有的人调过去，没有的人真落籍（后台修数据用）
+    if (req.method === 'POST' && pathname === '/api/admin/project/staff') {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const world = loadState(DATA_DIR);
+        const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+        const prop = props.find((p) => p && p.name && (String(p.name) === String(body.property || '') || String(p.name).includes(String(body.property || ''))));
+        if (!prop) return sendJson(res, 404, { ok: false, error: '没有这间产业' });
+        if (!prop.placeId) {
+          const hit = Object.entries(world.places || {}).find(([, pl]) => pl && String(pl.name).includes(String(prop.name)));
+          if (hit) { prop.placeId = hit[0]; prop.place = hit[0]; prop.placeName = hit[1].name; }
+        }
+        if (!prop.placeId || !world.places?.[prop.placeId]) return sendJson(res, 400, { ok: false, error: '产业没有地点' });
+        const name = String(body.name || '').trim().slice(0, 8);
+        const role = String(body.role || '伙计').slice(0, 8);
+        if (!name) return sendJson(res, 400, { ok: false, error: '需要 name' });
+        let actor = Object.values(world.actors || {}).find((a) => a && !a.dead && a.name === name);
+        if (actor) {
+          moveActor(world, actor.id, prop.placeId, 'world', '调往产业');
+          if (role) actor.role = role;
+        } else {
+          const r = hireStaff(world, { propName: prop.name, name, role, hiredBy: 'husband' });
+          if (!r?.ok) return sendJson(res, 400, { ok: false, error: r?.error || '招人失败' });
+          actor = Object.values(world.actors || {}).find((a) => a && a.name === name);
+        }
+        if (actor) {
+          prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
+          if (!prop.staffIds.includes(actor.id)) prop.staffIds.push(actor.id);
+          prop.staff = prop.staffIds.length;
+          if (/掌柜/.test(role)) { prop.keeper = actor.id; prop.keeperName = actor.name; }
+        }
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, property: prop.name, placeId: prop.placeId, staff: prop.staff, actor: actor?.name || null });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.31 账本修复：清掉"只写流水、没进现银"的测试行；可补一条尾款债权
     if (req.method === 'POST' && pathname === '/api/admin/ledger/repair') {
       try {

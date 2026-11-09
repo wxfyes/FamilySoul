@@ -342,13 +342,17 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       const wantNum = countHit
         ? (/几|数/.test(countHit[1]) ? 3 : Math.max(1, Math.min(20, cn2num(countHit[1]))))
         : 1;
-      // 指名请掌柜：请陈敬堂当鑫雅阁掌柜 → 就用这个名字，不再随机起名
-      const preferredName = wantRole === '掌柜'
-        ? (/(?:请|让|叫|用|找|聘|雇)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|管|掌))/.exec(say)?.[1] || '')
-        : '';
+      // 指名请人：请陈敬堂当掌柜 / 雇刘二到粮铺当伙计 → 用这个名字，不再随机起名
+      const hiredNamed = /(?:雇|请|聘|招)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
+      const anyNamed = /(?:让|叫|找|用)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
+      const knownNamed = Object.values(world.actors || {}).some((a) => a && a.name === anyNamed);
+      const preferredName = hiredNamed || (anyNamed && !knownNamed ? anyNamed : '');
       const properties = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
       const named = properties
-        .filter((p) => p && p.name && say.includes(String(p.name)))
+        .filter((p) => p && p.name && (
+          say.includes(String(p.name))
+          || (String(p.name).length > 2 && say.includes(String(p.name).slice(-2)))
+        ))
         .sort((a, b) => String(b.name).length - String(a.name).length)[0];
       // 相公就站在这间产业里，“找个掌柜”默认就是这一间
       const herePlace = me.location && world.places?.[me.location];
@@ -389,6 +393,39 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
           } else {
             notices.push(`（${target.name}没能添上人。）`);
           }
+        }
+      }
+    }
+  }
+
+  // 调人：让阿福去粮铺坐柜 / 派刘二到粮铺当伙计 —— 真移动、真入产业名册
+  {
+    const transferWord = /(让|叫|派|调|安排)/.test(say);
+    if (transferWord) {
+      const properties = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+      const target = properties
+        .filter((p) => p && p.name && (
+          say.includes(String(p.name))
+          || (String(p.name).length > 2 && say.includes(String(p.name).slice(-2)))
+        ))
+        .sort((a, b) => String(b.name).length - String(a.name).length)[0];
+      if (target?.placeId && world.places?.[target.placeId]) {
+        const actor = Object.values(world.actors || {}).find((a) => a && !a.dead && a.id !== 'husband'
+          && a.name && say.includes(String(a.name)));
+        if (actor) {
+          const mv = moveActor(world, actor.id, target.placeId, 'world', '调往产业');
+          target.staffIds = Array.isArray(target.staffIds) ? target.staffIds : [];
+          if (!target.staffIds.includes(actor.id)) target.staffIds.push(actor.id);
+          target.staff = target.staffIds.length;
+          if (/掌柜|掌事|坐柜/.test(say)) {
+            actor.role = '掌柜';
+            target.keeper = actor.id;
+            target.keeperName = actor.name;
+          } else if (/伙计|跑堂|账房/.test(say)) {
+            actor.role = /账房/.test(say) ? '账房' : (/跑堂/.test(say) ? '跑堂' : '伙计');
+          }
+          actor.duty = { ...(actor.duty || {}), home: target.placeId, place: target.placeId };
+          notices.push(`${actor.name}已到${target.name}当差${mv?.ok ? '' : '（本来就在）'}。`);
         }
       }
     }

@@ -108,6 +108,20 @@ export function ensureProjectProperty(world, projectName, amount, { day = null, 
 /** 旧账修复：已经扣过"某某开张/盘铺"的钱，但没有产业记录的，补建。 */
 export function repairProjectProperties(world) {
   let made = 0;
+  // 老产业只记了名字、没挂地点：按场景地名补回，不然“去粮铺/添人”都找不到地方
+  for (const p of world?.assets?.properties || []) {
+    if (!p || p.placeId || !p.name) continue;
+    const hit = Object.entries(world.places || {}).find(([, pl]) => pl && (
+      String(pl.name) === String(p.name) || String(pl.name).includes(String(p.name))
+    ));
+    if (hit) {
+      p.placeId = hit[0];
+      p.place = hit[0];
+      p.placeName = String(hit[1].name || '');
+      if (!p.status) p.status = '已开张';
+      console.log(`[Project] 补挂产业地点：${p.name} → ${hit[1].name}`);
+    }
+  }
   const byName = new Map();
   for (const e of world?.ledger || []) {
     if (!e || Number(e.delta) >= 0) continue;
