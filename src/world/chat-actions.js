@@ -335,7 +335,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   // 雇/添掌柜伙计：东家出钱，直接落到指定产业，不靠模型嘴上答应
   {
     const hireWord = /(雇|请|聘|添|增加|加|补|招|找)/.test(say);
-    const roleHit = /(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘)/.exec(say);
+    const roleHit = /(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘|头牌|花魁|琴师|歌女)/.exec(say);
     if (hireWord && roleHit) {
       const wantRole = roleHit[1];
       const countHit = /(\d+|[一二两三四五六七八九十]+|几|数)\s*(?:个|名|位|人)/.exec(say);
