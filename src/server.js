@@ -1614,6 +1614,35 @@ const STARTED_AT = Date.now();
             return `${a.name}（在${actClean}）`;
           });
         const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
+        // 走到有人处，让在场的人先开口；文字世界不能靠动画，只靠一句搭话
+        try {
+          if (res2?.applied && me2?.location) {
+            const greeter = Object.values(after.actors || {}).find((x) => x && !x.dead
+              && x.id !== me2.id && x.location === me2.location && x.name && !x.humanBound);
+            if (greeter) {
+              after.flags = after.flags || {};
+              after.flags.arrivalGreet = after.flags.arrivalGreet || {};
+              const gkey = `${actorId}:${me2.location}:${after.clock?.day || 1}:${after.clock?.hour || 0}`;
+              if (!after.flags.arrivalGreet[gkey]) {
+                const role = String(greeter.role || '');
+                const kin = greeter.spouse === 'husband' || /正妻|侧室|如夫人|二房|通房|妾/.test(role);
+                const greet = kin && actorId === 'husband' ? '相公来了。'
+                  : /掌柜|老板|东家/.test(role) ? '东家来了，里边请。'
+                    : /伙计|跑堂/.test(role) ? '客官里边坐。'
+                      : /官|差役|书吏/.test(role) ? '王掌柜。'
+                        : '您来了。';
+                queueProactive(after, {
+                  to: actorId, speaker: greeter.name, actorId: greeter.id,
+                  placeId: me2.location, place: placeName2, reason: 'arrival',
+                  text: greet, fallback: greet, force: true, kind: 'report', privacy: 'public',
+                });
+                after.flags.arrivalGreet[gkey] = Date.now();
+                const keys = Object.keys(after.flags.arrivalGreet);
+                if (keys.length > 300) for (const k of keys.slice(0, keys.length - 300)) delete after.flags.arrivalGreet[k];
+              }
+            }
+          }
+        } catch { /* 忽略 */ }
         // 手动出门也在聊天里留一条"你到了某处"，不只靠顶部地点刷新
         try {
           if (res2?.applied) {

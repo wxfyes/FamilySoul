@@ -2295,6 +2295,7 @@ function fireAppointments(world, events) {
         reason: 'appointment',
         facts: { who: ap.name, text: ap.text, met: true },
         speaker: actor ? actor.name : ap.name,
+        fallback: `${actor?.name || ap.name}已在${world.places?.[meetPlace]?.name || '约定处'}候着：${ap.text || '到点提醒'}`,
         force: true,
       });
     } else {
@@ -2317,6 +2318,7 @@ function fireAppointments(world, events) {
         reason: 'appointment_missed',
         facts: { who: safeSpeaker, text: ap.text, place: world.places?.[meetPlace]?.name || '' },
         speaker: safeSpeaker,
+        fallback: `${safeSpeaker}在${world.places?.[meetPlace]?.name || '约定处'}等了一场，相公没来。`,
         force: true,
       });
     }
