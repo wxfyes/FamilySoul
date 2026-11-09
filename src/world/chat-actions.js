@@ -424,6 +424,8 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
           } else if (/伙计|跑堂|账房/.test(say)) {
             actor.role = /账房/.test(say) ? '账房' : (/跑堂/.test(say) ? '跑堂' : '伙计');
           }
+          actor.home = target.placeId;
+          actor.quarters = target.placeId;
           actor.duty = { ...(actor.duty || {}), home: target.placeId, place: target.placeId };
           notices.push(`${actor.name}已到${target.name}当差${mv?.ok ? '' : '（本来就在）'}。`);
         }

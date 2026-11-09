@@ -3693,6 +3693,9 @@ const STARTED_AT = Date.now();
           prop.staffIds = Array.isArray(prop.staffIds) ? prop.staffIds : [];
           if (!prop.staffIds.includes(actor.id)) prop.staffIds.push(actor.id);
           prop.staff = prop.staffIds.length;
+          actor.home = prop.placeId;
+          actor.quarters = prop.placeId;
+          actor.duty = { ...(actor.duty || {}), home: prop.placeId, place: prop.placeId };
           if (/掌柜/.test(role)) { prop.keeper = actor.id; prop.keeperName = actor.name; }
         }
         saveState(DATA_DIR, world);
