@@ -1239,30 +1239,39 @@ export function executeNarrativeTags({
 /** 最后一道人话校正：男角色不得自称妾身；客人不得代报内部账 */
 function enforceSpeakerTone(reply, dataDir, viewerActorId) {
   const world = loadState(dataDir);
-  const me = world?.actors?.[viewerActorId || 'husband'] || world?.actors?.husband;
   const guestRole = /乡绅|客商|公子|富商|茶客|酒客|顾客|客人|买主|贵客/;
   const internal = /(入柜|入账|账房|账目|核账|菜单|陈设|工钱|月钱|流水|日入|成本|雇工|定金)/;
-  return String(reply || '').split('\n').map((line) => {
-    const m = line.match(/^【([^】]{1,20})】\s*[：:]?\s*([\s\S]*)$/);
-    if (!m) return line;
-    const spk = m[1];
-    const name = spk.includes('·') ? spk.split('·').pop().trim() : spk;
-    if (!name || /提示|旁白|系统/.test(name)) return line;
-    const actor = Object.values(world?.actors || {}).find((a) => a && !a.dead && a.name === name);
-    if (!actor) return line;
-    let text = m[2];
-    const hadClosingQuote = /[”"]\s*$/.test(text);
-    if (actor.gender === 'male') {
+
+  const cleanText = (raw, actor, hasClosingQuote = false) => {
+    let text = String(raw || '');
+    const hadQuote = hasClosingQuote || /[”"]\s*$/.test(text);
+    if (actor?.gender === 'male') {
       text = text.replace(/妾身|奴家|奴婢|小女子/g, '在下');
     }
-    if (guestRole.test(String(actor.role || '')) && internal.test(text)) {
+    if (guestRole.test(String(actor?.role || '')) && internal.test(text)) {
       text = text.split(/(?<=[。！？])/).filter((s) => !internal.test(s)).join('').trim();
       text = text
         ? `${text} 这些账房里的细事小人说不清，得问掌柜。`
         : '这些账房里的细事小人说不清，得问掌柜。';
-      if (hadClosingQuote) text += '”';
+      if (hadQuote) text += '”';
     }
+    return text;
+  };
+
+  let current = null;
+  return String(reply || '').split('\n').map((line) => {
+    const m = line.match(/^【([^】]{1,20})】\s*[：:]?\s*([\s\S]*)$/);
+    if (!m) {
+      // 同一角色换行继续说的话，也要校正；不能只改第一行
+      return current ? cleanText(line, current) : line;
+    }
+    const spk = m[1];
+    const name = spk.includes('·') ? spk.split('·').pop().trim() : spk;
+    if (!name || /提示|旁白|系统/.test(name)) { current = null; return line; }
+    const actor = Object.values(world?.actors || {}).find((a) => a && !a.dead && a.name === name);
+    if (!actor) { current = null; return line; }
+    current = actor;
     const prefix = line.slice(0, line.indexOf(m[2]));
-    return prefix + text;
+    return prefix + cleanText(m[2], actor, true);
   }).join('\n');
 }

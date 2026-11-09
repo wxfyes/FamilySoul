@@ -24,7 +24,7 @@ try {
 
   const out = executeNarrativeTags({
     dataDir: dir, viewerActorId: 'husband', sayText: '袁叔来了啊，吃好喝好啊',
-    replyText: '【乡绅·袁叔】：“谢东家！妾身就不客气了。那五十两定金已入柜立账，何大厨的菜单候着，等您点头。”',
+    replyText: '【乡绅·袁叔】：“谢东家！妾身就不客气了。那五十两定金已入柜立账，何大厨的菜单候着，等您点头。”\n这几桩妾身不敢替东家做主，全等您一句话。',
   });
   const reply = String(out.reply || '');
   assert.ok(!/妾身/.test(reply), '男角色不得自称妾身');
