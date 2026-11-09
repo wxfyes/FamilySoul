@@ -15,6 +15,10 @@ import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { planNamedNpcMoves } from './chat/plan-moves.js';
 import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes, queueProactive } from './world/clock.js';
+import {
+  listCorrespondence, getCorrespondence, markCorrespondence, appendCorrespondence,
+  setCorrespondenceStatus,
+} from './world/correspondence.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements, shouldHeal } from './world/society.js';
 import { readRecentEvents, shichenOf, saveState, appendEvents, nextEvent } from './world/state.js';
 import { beginStateBatch, endStateBatch, runInStateTurn } from './world/state.js';
@@ -1771,6 +1775,92 @@ const STARTED_AT = Date.now();
     }
 
     // POST /api/world/summon { id }  → 叫她过来（她走到我这）
+    // 独立来信/回话通道：不碰主聊天，不替相公回信
+    if (req.method === 'GET' && matchRoute('/correspondence')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const actorId = member.actor || 'husband';
+        const world = peek(DATA_DIR);
+        const threads = listCorrespondence(world, actorId);
+        return sendJson(res, 200, { ok: true, threads, unread: threads.filter((t) => t.unread).length });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    if (req.method === 'GET' && matchRoute('/correspondence/thread')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const actorId = member.actor || 'husband';
+        const world = peek(DATA_DIR);
+        const thread = getCorrespondence(world, String(url.searchParams.get('id') || ''), actorId);
+        if (!thread) return sendJson(res, 404, { ok: false, error: '没有这封信' });
+        const marked = markCorrespondence(world, thread.id, actorId);
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, thread: marked, source: marked?.source || '', kind: marked?.kind || 'letter' });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    if (req.method === 'POST' && matchRoute('/correspondence/reply')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const actorId = member.actor || 'husband';
+        const body = await parseJsonBody(req, 64 * 1024);
+        const world = peek(DATA_DIR);
+        const thread = appendCorrespondence(world, String(body.id || ''), 'me', String(body.text || '').slice(0, 500));
+        if (!thread || thread.to !== actorId) return sendJson(res, 404, { ok: false, error: '没有这封信' });
+        thread.status = 'replied';
+        thread.unread = false;
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, thread });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    if (req.method === 'POST' && matchRoute('/correspondence/action')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
+        const actorId = member.actor || 'husband';
+        const body = await parseJsonBody(req, 16 * 1024);
+        const world = peek(DATA_DIR);
+        const thread = getCorrespondence(world, String(body.id || ''), actorId);
+        if (!thread) return sendJson(res, 404, { ok: false, error: '没有这封信' });
+        const action = String(body.action || '').trim();
+        if (action === 'wait') setCorrespondenceStatus(world, thread.id, actorId, 'waiting');
+        else if (action === 'decline') setCorrespondenceStatus(world, thread.id, actorId, 'declined');
+        else if (action === 'allow') {
+          if (thread.kind !== 'visit') return sendJson(res, 400, { ok: false, error: '这一封不是求见' });
+          const who = world.actors?.[thread.fromId];
+          if (!who || who.dead) return sendJson(res, 404, { ok: false, error: '来人已不在' });
+          if (isHumanBound(world, who.id)) return sendJson(res, 409, { ok: false, error: '真人在线/离线由本人决定，不能由天道代进' });
+          // 私密处默认门外候着；点了“见”才真正移动进来
+          const me = world.actors?.[actorId] || world.actors?.husband;
+          const mv = moveActor(world, who.id, me?.location || 'husband_room', 'ui', '应允入见');
+          if (!mv?.ok) return sendJson(res, 409, { ok: false, error: mv?.error || '没能进来' });
+          setCorrespondenceStatus(world, thread.id, actorId, 'approved');
+          thread.messages.push({
+            id: `${Date.now()}_allow`, role: 'system',
+            text: `（${me?.name || '相公'}允了${who.name}进来。）`,
+            at: Date.now(), day: world.clock?.day || 1, hour: world.clock?.hour || 0,
+          });
+          thread.messages = thread.messages.slice(-80);
+        } else {
+          markCorrespondence(world, thread.id, actorId);
+        }
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, thread });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     if (req.method === 'POST' && matchRoute('/world/summon')) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
@@ -4590,6 +4680,10 @@ const STARTED_AT = Date.now();
               if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk) {
                 finalText = `【${spk}】：${finalText}`;
               }
+              // 没有署名的回话，至少把出处补在末尾，别让它冒充系统提示
+              if (!textSpk && item.source) {
+                finalText = `${finalText}\n（来源：${item.source}）`;
+              }
 
               // 判定发言人当前真实位置与相公位置（严禁当面当场面对面说话还变成递信）
               const husLoc = world.actors?.husband?.location || 'husband_room';
@@ -4632,6 +4726,12 @@ const STARTED_AT = Date.now();
                 actorId: item.actorId || null,
                 placeId: item.placeId || null,
                 isLetter: Boolean(isLetter),
+                source: item.source || (isLetter ? '来信' : '回话'),
+                kind: item.kind || (isLetter ? 'letter' : 'report'),
+                privacy: item.privacy || 'private',
+                threadId: item.threadId || null,
+                requiresConsent: Boolean(item.requiresConsent),
+                status: 'pending',
                 audioKey: item.audioKey || null,
                 messageId: `push_${now}_${i}`,
                 modality: item.audioKey ? 'audio' : 'text',

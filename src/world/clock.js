@@ -70,6 +70,8 @@ function worldHourStamp(world) {
  * 真正的措辞由天道（大模型）在发送前现写，见 pet-service.generateProactive()。
  * fallback 仅在大模型不可用时兜底，绝不作日常文案。
  */
+import { openCorrespondence } from './correspondence.js';
+
 export function queueProactive(
   world,
   {
@@ -86,6 +88,11 @@ export function queueProactive(
     to = 'husband',
     atMs = Date.now(),
     force = false,
+    kind = null,
+    source = null,
+    privacy = null,
+    threadId = null,
+    requiresConsent = null,
   } = {},
 ) {
   if (!text && !fallback && !reason) return false;
@@ -94,6 +101,26 @@ export function queueProactive(
   if (!force && last > 0 && stamp - last < PROACTIVE_COOLDOWN_HOURS) return false;
   world.flags.lastProactiveStamp = stamp;
   world.proactive = Array.isArray(world.proactive) ? world.proactive : [];
+
+  const person = Boolean(speaker && speaker !== '提示' && speaker !== '系统提示') || Boolean(actorId);
+  const resolvedKind = kind || (isLetter ? 'letter' : (kind === 'visit' ? 'visit' : (person ? 'report' : 'system')));
+  const resolvedSource = source || (person ? `回话·${speaker || actorId}` : '系统提示');
+  const resolvedPrivacy = privacy || 'private';
+  let resolvedThreadId = threadId || null;
+  if (!resolvedThreadId && person && (text || fallback)) {
+    try {
+      const thread = openCorrespondence(world, {
+        fromId: actorId || '', fromName: speaker || '', to,
+        kind: resolvedKind, privacy: resolvedPrivacy,
+        placeId: placeId || '', placeName: place || '', source: resolvedSource,
+        text: String(text || fallback).trim(),
+        requiresConsent: requiresConsent ?? resolvedKind === 'visit',
+        key: `proactive:${to}:${actorId || speaker}:${String(reason || '')}:${String(text || fallback).slice(0, 24)}`,
+      });
+      if (thread) resolvedThreadId = thread.id;
+    } catch { /* 忽略 */ }
+  }
+
   world.proactive.push({
     id: `p_${stamp}_${world.proactive.length}_${Math.floor(Math.random() * 1000)}`,
     type,
@@ -107,6 +134,11 @@ export function queueProactive(
     actorId,
     placeId,
     isLetter,
+    kind: resolvedKind,
+    source: resolvedSource,
+    privacy: resolvedPrivacy,
+    threadId: resolvedThreadId,
+    requiresConsent: Boolean(requiresConsent ?? (resolvedKind === 'visit')),
     at: atMs,
     day: world.clock.day,
     hour: world.clock.hour,
