@@ -12,28 +12,30 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-08 22:47",
-  "active_task": "【全闭环交付】大酒楼三层立体空间雅间直达 + App城中世情好感名录（支持分地区/心性/态度筛选）",
+  "last_updated": "2026-11-09 11:05",
+  "active_task": "【全闭环交付】全量妻妾动态名分+世情兵马朝政二级卡片与权限隔离+胶囊长按拖拽重排+信函同屏回信请进门+日夜主题打通+大酒楼雅间单间直达",
   "priority": "DEPLOYED_VERIFIED",
-  "single_owner": "Antigravity & DeepSeek 协同闭环",
-  "reviewer_role": "修复酒楼雅间单间过滤漏洞，开放三层天字阁、二层雅阁、清幽雅间与内账房；上线 /api/world/relationships 接口；移动端实现全新 RosterScreen 人物志",
+  "single_owner": "Antigravity 审查官",
+  "reviewer_role": "根除写死兜底，动态聚合沈婉儿/林芸娘/小翠/崔婉宁；增加二级卡片并按相公/家眷隔离权限；胶囊栏长按拖拽重排并持久化；信件/差事/求见在聊天框同屏呈现与提笔手书回信；打通白天黑夜主题与高对比度关闭圆纽；修复大酒楼雅间单间下发",
   "changed_files": [
-    "src/world/heal.js",
     "src/server.js",
-    "mobile/lib/views/roster_screen.dart",
-    "mobile/lib/views/out_and_about_sheet.dart",
+    "mobile/lib/models/chat_message.dart",
+    "mobile/lib/providers/chat_provider.dart",
+    "mobile/lib/services/api_client.dart",
     "mobile/lib/views/chat_screen.dart",
+    "mobile/lib/views/digest_sheet.dart",
     "mobile/lib/views/my_world_screen.dart",
-    "mobile/lib/services/api_client.dart"
+    "mobile/lib/views/roster_screen.dart",
+    "mobile/lib/widgets/message_bubble.dart"
   ],
   "prod_metrics": {
     "server_regression": "20/20 全部通过",
-    "softrouter_deploy": "软路由 192.168.1.254:3088 热更新成功，/health 正常，新接口实测返回 1500 人全城名录",
+    "softrouter_deploy": "软路由 192.168.1.254:3088 热更新成功，/health 正常，大酒楼 5 处雅间及身孕天数实测矫正",
     "flutter_analyze": "No issues found! (0 告警通过)",
-    "client_build": "双端（Android APK 283.7MB / iOS IPA 19.41MB）已全部完成构建并覆盖桌面最新安装包"
+    "client_build": "双端（Android APK 283.9MB / iOS IPA 19.45MB）已完成编译并覆盖桌面最新交付包"
   },
   "client_reinstall_needed": true,
-  "reviewer_action": "双端安装包已覆盖至桌面，相公可直接安装体验"
+  "reviewer_action": "双端安装包已全量覆盖至桌面，相公可直接安装体验"
 }
 ```
 
