@@ -3,10 +3,12 @@
 // 规则（按类别，不按姓名）：
 // 1. 写入：about 一律存人物 id；LLM 给的人名/称谓会被解析成 id，正文里提到的人也会自动补进 about。
 // 2. 类别：kind='notice' 是城里的公告（如新面孔入城），只在当事人在场时才被想起；其余都是"人与人之间的旧事"。
-// 3. 留存：公告最多留 NOTICE_CAP 条；旧事上限 MEMORY_CAP 条，超了先丢公告、再丢最旧旧事——绝不让公告把私事挤掉。
+// 3. 留存：公告最多留 NOTICE_CAP 条；旧事上限 MEMORY_CAP 条。超限时先丢公告，再丢最旧的普通闲事；
+//    私情、婚嫁、生死、承诺、大案这些"核心旧事"单独保护，绝不被闲事挤掉。
 // 4. 召回：只召回与"在场的人"相关的旧事（about 命中或正文点名），若当前发言提及特定过往关键词则优先召回，绝不遗忘。
 
-export const MEMORY_CAP = 600;
+export const MEMORY_CAP = 2000;
+export const CORE_MEMORY_CAP = 1500;
 export const NOTICE_CAP = 20;
 
 // 丈夫（真人主角）在世界里的通用称谓
@@ -83,18 +85,27 @@ function isNotice(m) {
   return m?.kind === 'notice' || /^新面孔入城/.test(String(m?.text || ''));
 }
 
-/** 留存规则：公告单独限额；总量超限时先丢公告，再丢最旧的旧事 */
+const CORE_MEMORY_RE = /(契纸|赎|还清|立约|托付终身|身孕|骨肉|私情|上房|留宿|侍寝|肌肤|定情|认下.*(关系|私情)|应了.*(相公|王甯)|夫妻之实|同床|云雨|圆房|收了房|和离|休书|婚嫁|嫁了|娶了|送官|衙门|收监|判(?:案|罪|了)|结案|亡故|病故|去世|死了)/;
+
+/** 核心旧事：不许被普通闲事挤掉 */
+export function isCoreMemory(m) {
+  return Boolean(m && CORE_MEMORY_RE.test(String(m.text || '')));
+}
+
+/** 留存规则：公告单独限额；总量超限时先丢公告，再丢最旧的普通闲事，核心旧事优先保 */
 export function trimMemories(world) {
   const list = Array.isArray(world.memories) ? world.memories.filter((m) => m && String(m.text || '').trim()) : [];
   const notices = list.filter(isNotice);
-  let dropNotice = new Set(notices.slice(0, Math.max(0, notices.length - NOTICE_CAP)));
+  const dropNotice = new Set(notices.slice(0, Math.max(0, notices.length - NOTICE_CAP)));
   let kept = list.filter((m) => !dropNotice.has(m));
   if (kept.length > MEMORY_CAP) {
-    const keptNotices = kept.filter(isNotice);
-    const over = kept.length - MEMORY_CAP;
-    dropNotice = new Set(keptNotices.slice(0, over));
-    kept = kept.filter((m) => !dropNotice.has(m));
-    if (kept.length > MEMORY_CAP) kept = kept.slice(-MEMORY_CAP);
+    const core = kept.filter(isCoreMemory);
+    const normal = kept.filter((m) => !isCoreMemory(m));
+    const coreKeep = core.slice(-Math.min(core.length, CORE_MEMORY_CAP));
+    const room = Math.max(0, MEMORY_CAP - coreKeep.length);
+    const normalKeep = normal.slice(-room);
+    const keepSet = new Set([...coreKeep, ...normalKeep]);
+    kept = kept.filter((m) => keepSet.has(m));
   }
   const removed = list.length - kept.length;
   world.memories = kept;

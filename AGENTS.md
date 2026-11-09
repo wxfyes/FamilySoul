@@ -148,3 +148,19 @@
    - 状态为 `REVISION_REQUIRED` 时：DeepSeek 依据信箱中的修改意见进行整改，改完再次切回 `READY_FOR_REVIEW`；
    - 状态为 `APPROVED_DEPLOYED` 时：代表审查官验收通过并完成上线，全部完工。
 
+
+---
+
+## 九、记忆红线（高于一般调试便利）
+
+**她们记得的事，不许因为调试、重构、打包而丢。**
+
+1. 生产 `data/world/state.json` 与 `data/chat` **绝不入包、绝不覆盖**；
+2. 任何测试脚本必须用临时目录副本，严禁直接写生产 `data/world/state.json`；
+3. 长期记忆超限时，先丢普通闲事与旧公告；**私情、婚嫁、生死、承诺、大案、送官收监**等核心旧事单独保护，不得被挤出；
+4. 改记忆/关系/召回逻辑，必须同时跑：
+   - `scripts/test_memory_recall.mjs`
+   - `scripts/test_memory_trim.mjs`
+   - `scripts/test_major_memory.mjs`
+   - `scripts/test_relation_tag.mjs`
+5. 升级/迁移前先备份 `data/world/state.json`；迁移代码只许补，不许清空 `world.memories`。
