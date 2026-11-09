@@ -20,6 +20,7 @@ import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
 import { spreadRumors, addRumor } from './rumors.js';
 import { moveActor } from './position.js';
+import { businessHoursFor } from './projects.js';
 import { runMilitaryDay, setWarEventSink, runPayday } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
 import { propertySeasonFactor, maybeOutbreak, canalFrozen } from './season.js';
@@ -2079,12 +2080,17 @@ export function runBusinessTraffic(world) {
   };
 
   let moved = 0;
+  const served = new Set();
   for (const p of props) {
     if (!p || !p.placeId || !world.places?.[p.placeId]) continue;
     if (!/开张|营业/.test(String(p.status || '')) || !(Number(p.incomePerDay) > 0)) continue;
     const floor = p.rooms?.f1?.id && world.places?.[p.rooms.f1.id] ? p.rooms.f1.id
       : (world.places?.[`${p.placeId}__f1`] ? `${p.placeId}__f1` : p.placeId);
     if (!world.places?.[floor]) continue;
+    served.add(p.placeId);
+    for (const [pid, pl] of Object.entries(world.places || {})) {
+      if (pl && String(pl.parent || '') === String(p.placeId)) served.add(pid);
+    }
 
     // 打烊的产业：把客人散回，不赶别家还在营业的客人
     if (!openAt(p, hour)) {
@@ -2130,6 +2136,56 @@ export function runBusinessTraffic(world) {
           a.trafficFloor = floor;
           a.trafficDay = day;
           a.activity = { text: `在${p.name}吃酒听曲`, at: hour, day };
+          moved += 1;
+        }
+      } catch { /* 忽略 */ }
+    }
+  }
+
+  // 全城其它铺子：不是只有相公名下的产业才有人间烟火
+  const shopName = /(铺|店|楼|坊|馆|阁|肆|栈|行|庄|堂|斋|轩)(子)?$/;
+  for (const [pid, pl] of Object.entries(world.places || {})) {
+    if (!pl || !pl.name || served.has(pid)) continue;
+    if (pl.parent) continue; // 只处理临街/独立铺面，楼层由上层的产业处理
+    const name = String(pl.name);
+    if (!shopName.test(name) || /宅|府|院|祠|房|间|仓库|仓房|街|市|场/.test(name)) continue;
+    if (!Number(pl.openHour)) Object.assign(pl, businessHoursFor(name, pl.use || ''));
+    const floor = pl.rooms?.f1?.id && world.places?.[pl.rooms.f1.id] ? pl.rooms.f1.id
+      : (world.places?.[`${pid}__f1`] ? `${pid}__f1` : pid);
+    if (!world.places?.[floor]) continue;
+    const workers = Object.values(world.actors || {}).filter((a) => a && !a.dead
+      && (a.location === pid || String(world.places?.[a.location]?.parent || '') === pid)
+      && /掌柜|老板|东家|伙计|跑堂|账房|厨子|琴娘|舞娘|头牌|老板娘/.test(String(a.role || '')));
+    if (!workers.length) continue;
+
+    if (!openAt(pl, hour)) {
+      for (const a of Object.values(world.actors || {})) {
+        if (!a || a.dead || a.trafficPlace !== pid) continue;
+        const back = world.places?.[a.home] ? a.home : 'street';
+        try { moveActor(world, a.id, back, 'world', '打烊散客'); } catch { /* 忽略 */ }
+        delete a.trafficPlace;
+        delete a.trafficFloor;
+      }
+      continue;
+    }
+
+    const late = hour >= 22 || hour < 6;
+    const candidates = Object.values(world.actors || {}).filter((a) => a && !a.dead
+      && a.id !== 'husband' && a.location !== floor && !a.trafficPlace
+      && !a.humanBound && !a.household && !/^usr_/.test(String(a.id))
+      && /客人|公子|世家|富商|客商|乡绅|才子|文人|贵客|达官|茶客|酒客|买主|顾客/.test(String(a.role || ''))
+      && (a.location === 'street'
+        || /街|市|market/.test(String(world.places?.[a.location]?.name || ''))
+        || (late && /临江/.test(String(world.places?.[a.location]?.name || '')))))
+      .slice(0, 1);
+    for (const a of candidates) {
+      try {
+        const r = moveActor(world, a.id, floor, 'world', '进店买东西');
+        if (r?.ok) {
+          a.trafficPlace = pid;
+          a.trafficFloor = floor;
+          a.trafficDay = day;
+          a.activity = { text: `在${name}看货`, at: hour, day };
           moved += 1;
         }
       } catch { /* 忽略 */ }
