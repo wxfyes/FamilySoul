@@ -56,6 +56,10 @@ import { composeSystemPrompt } from './system-prompt.js';
  * 只读世界、只拼提示字符串，不写库。
  */
 export function buildContextHints(svc, { say, recent, summonedNames, contextHint, profileKey }) {
+    // 相公问街面见闻：只准说街上听来的，产业内部账一个字都不许混进来
+    if (/(街上|街面|奇闻|异事|传闻|听说|热闹|新鲜事|外面)/.test(String(say || ''))) {
+      contextHint += '（【街面话题】相公问的是街面见闻/传闻。只说街上听来的闲话；产业内部账目、寿宴定金、菜单、陈设、工钱一个字都不许提。）\n';
+    }
     // 诊脉与身孕：把账本上的身子实情摆出来（发起人自己的身孕绝不可遗漏！）
     try {
       const wQ = loadState(svc.dataDir);

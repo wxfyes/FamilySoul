@@ -30,7 +30,18 @@ try {
   assert.ok(!/妾身/.test(reply), '男角色不得自称妾身');
   assert.ok(!/定金|入柜|菜单/.test(reply), '客人不得代报内部账');
   assert.ok(/得问掌柜|掌柜/.test(reply), '应把内部账推给掌柜');
-  console.log('✅ 性别与内部账都校正了');
+
+  const mgr = Object.values(w.actors || {}).find((a) => a && /掌柜/.test(String(a.role || '')) && a.location === w.actors.husband.location);
+  if (mgr) {
+    const out2 = executeNarrativeTags({
+      dataDir: dir, viewerActorId: 'husband', sayText: '最近街上有什么奇闻异事吗？',
+      replyText: `【掌柜·${mgr.name}】：东家问街面的事。那五十两定金已入柜，何大厨的菜单候着。再有码头上传，漕帮的船这几日结伴过闸，比往年密。`,
+    });
+    const r2 = String(out2.reply || '');
+    assert.ok(!/定金|入柜|菜单/.test(r2), '问街面时不许夹带内部账');
+    assert.ok(/漕帮|码头/.test(r2), '街面见闻应保留');
+  }
+  console.log('✅ 性别、内部账、街面话题都校正了');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }
