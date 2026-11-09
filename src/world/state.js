@@ -3200,9 +3200,8 @@ function __loadStateInner(dataDir) {
       for (const pr of a.properties) {
         if (!pr) continue;
         if (!pr.owner) pr.owner = pr.keeper || 'husband';
-        if (!pr.keeper) continue;
-        if (pr.id === 'wine_shop' || pr.name === '于家酒肆' || pr.id === 'yujie_yard') continue;
-        pr.keeper = 'husband';
+        // 掌柜是谁就记谁；不能再每读一次档都把掌柜重置成相公
+        if (!pr.keeper) pr.keeper = 'husband';
       }
       if (!a.properties.some((x) => x && (x.id === 'wine_shop' || x.name === '于家酒肆'))) {
         a.properties.push({ id: 'wine_shop', name: '于家酒肆', status: '正常营业', incomePerDay: 1.1, keeper: 'liuwenxia', owner: 'liuwenxia', city: '临江府' });
