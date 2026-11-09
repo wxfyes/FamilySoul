@@ -15,6 +15,7 @@ import { quellBandits } from './bandits.js';
 import { callToArms, spawnMaids } from './warfare.js';
 import { actorSeniority } from './turn-target.js';
 import { materializeRoom } from './residence.js';
+import { applyUnifiedIntents } from './intent-router.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -55,10 +56,19 @@ const homeOf = (a) => a?.home || a?.quarters || null;
  */
 export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) {
   const notices = [];
-  const say = String(sayText || '');
+  let say = String(sayText || '');
   const me = world.actors?.[viewerId] || world.actors?.husband;
   if (!me) return notices;
   const day = num(world.clock?.day) || 1;
+
+  // 统一意图入口先拆句：招人/调人/约定提醒先办，办完的句子不再交给旧正则重复执行
+  try {
+    const routed = applyUnifiedIntents({ world, viewerId, sayText: say });
+    if (routed.notices.length) notices.push(...routed.notices);
+    if (routed.handled.length) say = routed.remainingText;
+  } catch (err) {
+    console.warn('[Intent] 统一意图失败：', err.message);
+  }
 
   // 暗号赴约：先说对了暗号，人才会来
   for (const s of world.signals || []) {
