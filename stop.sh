@@ -30,3 +30,9 @@ else
 fi
 
 rm -f "$PID_FILE"
+
+# 兜底：PID 文件可能失效或指向旧进程，自更新必须确保真的停掉服务
+pkill -f "node src/server.js" 2>/dev/null || true
+sleep 1
+pkill -9 -f "node src/server.js" 2>/dev/null || true
+exit 0
