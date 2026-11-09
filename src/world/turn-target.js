@@ -12,6 +12,10 @@ export function actorSeniority(a) {
   if (/如夫人|二房|侧室|妾/.test(role) || a.id === 'yunnia') return 900;
   // 3. 其他内眷/侍妾
   if (/通房|姨娘/.test(role) || a.id === 'wanning') return 800;
+  // 3.5 客人/乡绅/客商只是客人，不能凭“叔/伯”压过掌柜账房，也不能代报产业内部账
+  if (/乡绅|客商|公子|富商|茶客|酒客|顾客|客人|买主|贵客/.test(role)) {
+    return 100 + (Number(a.age) || 20);
+  }
   // 4. 掌柜/总管/管事/头领（或尊称叔、伯的长者）
   if (/掌柜|管事|头领|领头|头目|总管|教头/.test(role) || /掌柜|管事|领头/.test(title) || /叔|伯|老/.test(name)) {
     return 600 + (Number(a.age) || 30);

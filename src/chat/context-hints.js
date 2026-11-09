@@ -131,6 +131,7 @@ export function buildContextHints(svc, { say, recent, summonedNames, contextHint
         if (place?.owner === 'public') bits.push('这是公家地方，没有东家');
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
+        if (prop) bits.push('这是产业内部：账目、预订、寿宴、雇工等事只能由掌柜、账房或东家开口；在座客人只谈街面见闻，绝不能代报内部账');
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
         const activePartnerId = String((wHere.chatPartners || {})[svc._viewerActorId] || '');
         const activePartner = (wHere.actors || {})[activePartnerId];
