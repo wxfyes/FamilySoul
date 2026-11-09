@@ -332,28 +332,51 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 雇掌柜/伙计：东家出钱，掌柜管店
-  if (/(雇|请|聘)(一个|个|一名|位)?\s*(掌柜|二掌柜|伙计|跑堂|账房)/.test(say)) {
-    const want = /账房/.test(say) ? '账房' : (/掌柜/.test(say) ? '掌柜' : (/跑堂/.test(say) ? '跑堂' : '伙计'));
-    const prop = (world.assets?.properties || []).find((p) => p && String(p.name || '').includes(String(say).replace(/.*(?:雇|请|聘)/, '').trim().slice(0, 2)));
-    const target = prop || (world.assets?.properties || [])[0];
-    if (!target) {
-      notices.push('（名下没有铺子，雇了人也无处安。）');
-    } else if (want === '掌柜' && Object.values(world.actors || {}).some((a) => a && !a.dead && a.location === target.place && /掌柜/.test(String(a.role || '')))) {
-      notices.push(`（${target.name}已经有掌柜了。）`);
-    } else {
-      const nm = fallbackName(world, 'male');
-      const r = hireStaff(world, { propName: target.name, name: nm, role: want, hiredBy: me.id });
-      if (r?.ok) {
-        const staffActor = Object.values(world.actors || {}).find((a) => a && a.name === nm);
-        if (staffActor) staffActor.location = target.place || staffActor.location;
-        target.staff = (Number(target.staff) || 0) + 1;
-        notices.push(`请了 ${nm} 到 ${target.name} 当${want}。`);
-        world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
-        world.ledger.push({ day, hour: world.clock?.hour || 0, delta: -0.5, title: `雇佣${want}`, by: 'husband', balance: (Number(world.assets?.silver) || 0) });
-        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - 0.5) * 100) / 100;
+  // 雇/添掌柜伙计：东家出钱，直接落到指定产业，不靠模型嘴上答应
+  {
+    const hireWord = /(雇|请|聘|添|增加|加|补|招)/.test(say);
+    const roleHit = /(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘)/.exec(say);
+    if (hireWord && roleHit) {
+      const wantRole = roleHit[1];
+      const countHit = /(\d+|[一二两三四五六七八九十]+|几|数)\s*(?:个|名|位|人)/.exec(say);
+      const wantNum = countHit
+        ? (/几|数/.test(countHit[1]) ? 3 : Math.max(1, Math.min(20, cn2num(countHit[1]))))
+        : 1;
+      const properties = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+      const named = properties
+        .filter((p) => p && p.name && say.includes(String(p.name)))
+        .sort((a, b) => String(b.name).length - String(a.name).length)[0];
+      const target = named || (properties.length === 1 ? properties[0] : null);
+      if (!target) {
+        notices.push('（请相公说清是哪一间产业，名下铺子不止一处。）');
+      } else if (wantRole === '掌柜' && Object.values(world.actors || {}).some((a) => a && !a.dead && a.location === target.placeId && /掌柜/.test(String(a.role || '')))) {
+        notices.push(`（${target.name}已经有掌柜了。）`);
       } else {
-        notices.push(`（${r?.error || '没雇成'}。）`);
+        const unit = 0.5;
+        const cost = Math.round(wantNum * unit * 100) / 100;
+        const purse = Number(world.assets?.silver) || 0;
+        if (purse < cost) {
+          notices.push(`（银不够：添 ${wantNum} 个${wantRole}要 ${cost.toFixed(2)} 两。）`);
+        } else {
+          const names = [];
+          for (let i = 0; i < wantNum; i += 1) {
+            const nm = fallbackName(world, /琴娘|舞娘|厨娘/.test(wantRole) ? 'female' : 'male');
+            const r = hireStaff(world, { propName: target.name, name: nm, role: wantRole, hiredBy: me.id });
+            if (r?.ok) names.push(nm);
+          }
+          if (names.length) {
+            world.assets.silver = Math.round((purse - cost) * 100) / 100;
+            world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+            world.ledger.push({
+              day, hour: world.clock?.hour || 0, delta: -cost,
+              title: `${target.name}添${wantRole} ${names.length} 人·安家银`,
+              by: 'husband', balance: world.assets.silver, category: '雇工',
+            });
+            notices.push(`${target.name}添了 ${names.join('、')} 当${wantRole}，安家银共 ${cost.toFixed(2)} 两。`);
+          } else {
+            notices.push(`（${target.name}没能添上人。）`);
+          }
+        }
       }
     }
   }
