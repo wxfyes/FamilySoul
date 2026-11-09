@@ -923,7 +923,7 @@ export function executeNarrativeTags({
         // 核心铁律：候选人必须 100% 严格限定在【当前在场的人】！严禁搜寻全天下不在场的人！
         const hereActors = Object.values(wF.actors || {}).filter(
           (a) => a && !a.dead && a.id !== meF?.id && a.location === meF?.location
-            && !a.humanBound && !/^usr_/.test(String(a.id)),
+            && !/^usr_/.test(String(a.id)),
         );
 
         console.log(`[Departure] 单一入口判定：在场 ${hereActors.length} 人，say="${sayStr.slice(0, 30)}"`);

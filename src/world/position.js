@@ -88,11 +88,11 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   } catch { /* 忽略 */ }
   if (a.location === placeId) return { ok: true, moved: false };
 
-  // 真人登着的角色：只有他自己点界面才动
-  // 真人角色不能被别人随意搬；但主人当面送客（note 带"送客"）是明确的离场指令
-  // 自己的打算、自己的走动、主人当面送客——都算"自己走"，真人绑定也放行
-  const selfMove = /办自己的事|自己走动|送客|通禀允入/.test(String(note || ''));
-  if (isHumanBound(world, actorId) && reason !== 'ui' && !selfMove) {
+  // 真人登着的角色：在线时只有本人点界面才动；离线时 AI 可代演、可听命回家/送客
+  const selfMove = /办自己的事|自己走动|送客|听命离场|回家|回房|退下|通禀允入/.test(String(note || ''));
+  if (isHumanBound(world, actorId) && reason !== 'ui') {
+    const offline = !isHumanOnline(actorId);
+    const selfAllowed = selfMove && offline;
     // 真人离线时，允许"同一场所内同行"（货栈→货栈雅间）；在线或跨场所一律拒绝
     const rootOf = (id) => String(world.places?.[id]?.parent || '') || String(id || '');
     const fromId = String(a.location || '');
@@ -104,7 +104,7 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
     const proxyMove = /随行|领路|同行|跟随|暗号/.test(String(note || ''))
       && !isHumanOnline(actorId)
       && sameVenue;
-    if (!proxyMove) return { ok: false, error: '真人角色不接受世界移动（离线仅限同场所同行）' };
+    if (!selfAllowed && !proxyMove) return { ok: false, error: '真人角色不接受世界移动（在线只能本人动；离线可回家/同场所同行）' };
   }
 
   // 刚被主人请走的人：几个时辰内不许自己回来（送客本人除外）
