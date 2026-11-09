@@ -25,8 +25,15 @@ try {
   const ap = (w.appointments || []).find((x) => x && /回门/.test(String(x.text)));
   assert.ok(ap, '应生成回门约定');
   assert.strictEqual(ap.name, '崔婉宁', '约定应落到崔婉宁');
+  assert.strictEqual(ap.hour, 10, '上午应是 10 时');
   assert.ok(n.some((x) => /记下了/.test(x)), '应有记下提醒的回执');
-  console.log('✅ 一句话里的约定提醒已真落盘');
+
+  const n2 = applyChatActions({ world: w, viewerId: 'husband', sayText: '明天下午提醒我和婉宁回门' });
+  const aps = (w.appointments || []).filter((x) => x && /回门/.test(String(x.text)));
+  assert.strictEqual(aps.length, 1, '改时间应更新同一条约定，不新增');
+  assert.strictEqual(aps[0].hour, 14, '下午应改到 14 时');
+  assert.ok(n2.some((x) => /改到/.test(x)), '应有改时间回执');
+  console.log('✅ 一句话里的约定提醒已真落盘，且能改到下午');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }

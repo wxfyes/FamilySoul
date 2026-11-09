@@ -7,6 +7,24 @@ function slugOf(name, seq) {
   return `project_${seq}`;
 }
 
+/** 按营生定营业时辰；阁/酒楼/夜场做晚市，茶坊做日场，粮铺花铺做早市 */
+export function businessHoursFor(name = '', kind = '') {
+  const s = `${name} ${kind}`;
+  if (/阁|酒楼|花楼|瓦舍|勾栏|夜/.test(s)) {
+    return { openHour: 10, closeHour: 26, shifts: [{ name: '日班', start: 10, end: 18 }, { name: '晚班', start: 18, end: 26 }] };
+  }
+  if (/酒肆|酒馆|酒家/.test(s)) {
+    return { openHour: 10, closeHour: 24, shifts: [{ name: '日班', start: 10, end: 17 }, { name: '晚班', start: 17, end: 24 }] };
+  }
+  if (/茶坊|茶楼|茶馆/.test(s)) {
+    return { openHour: 8, closeHour: 22, shifts: [{ name: '日班', start: 8, end: 16 }, { name: '晚班', start: 16, end: 22 }] };
+  }
+  if (/粮铺|米铺|花铺|铺|店/.test(s)) {
+    return { openHour: 8, closeHour: 19, shifts: [{ name: '日班', start: 8, end: 19 }] };
+  }
+  return { openHour: 9, closeHour: 20, shifts: [{ name: '日班', start: 9, end: 20 }] };
+}
+
 /** 按本钱与定位估日入：普通铺 5%/日；雅集/清贵/达官客源 7.5%/日 */
 export function recommendedIncome(amount, title = '') {
   const base = Math.max(0, Number(amount) || 0) * 0.05;
@@ -63,6 +81,7 @@ export function ensureProjectProperty(world, projectName, amount, { day = null, 
       console.log(`[Project] 修正日入：${exists.name} → ${rec} 两/日`);
     }
     ensureProjectFloors(world, exists, name, title);
+    if (!Number(exists.openHour)) Object.assign(exists, businessHoursFor(name, exists.kind || ''));
     return exists;
   }
 
@@ -97,6 +116,7 @@ export function ensureProjectProperty(world, projectName, amount, { day = null, 
     desc: `相公出资置办并开张的产业${title ? `（${String(title).slice(0, 20)}）` : ''}`,
   };
   ensureProjectFloors(world, prop, name, title);
+  Object.assign(prop, businessHoursFor(name, prop.kind || ''));
   world.assets.properties.push(prop);
   world.notes = Array.isArray(world.notes) ? world.notes : [];
   world.notes.push({ day: world.clock?.day || 1, hour: world.clock?.hour || 0, text: `产业入册：${name}（${prop.costSilver} 两开张）` });
@@ -110,7 +130,9 @@ export function repairProjectProperties(world) {
   let made = 0;
   // 老产业只记了名字、没挂地点：按场景地名补回，不然“去粮铺/添人”都找不到地方
   for (const p of world?.assets?.properties || []) {
-    if (!p || p.placeId || !p.name) continue;
+    if (!p || !p.name) continue;
+    if (!Number(p.openHour)) Object.assign(p, businessHoursFor(p.name, p.kind || ''));
+    if (p.placeId) continue;
     const hit = Object.entries(world.places || {}).find(([, pl]) => pl && (
       String(pl.name) === String(p.name) || String(pl.name).includes(String(p.name))
     ));

@@ -2069,19 +2069,14 @@ function ensureActivity(world) {
 export function runBusinessTraffic(world) {
   const hour = Number(world.clock?.hour) || 0;
   const day = Number(world.clock?.day) || 1;
-  const open = hour >= 9 && hour < 22;
   const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
-
-  if (!open) {
-    for (const a of Object.values(world.actors || {})) {
-      if (!a || a.dead || !a.trafficPlace) continue;
-      const back = world.places?.[a.home] ? a.home : 'street';
-      try { moveActor(world, a.id, back, 'world', '打烊散客'); } catch { /* 忽略 */ }
-      delete a.trafficPlace;
-      delete a.trafficFloor;
-    }
-    return 0;
-  }
+  const openAt = (p, h) => {
+    const open = Number(p?.openHour) || 9;
+    const close = Number(p?.closeHour) || 22;
+    let hh = h;
+    if (close <= open && hh < open) hh += 24;
+    return hh >= open && hh < close;
+  };
 
   let moved = 0;
   for (const p of props) {
@@ -2091,20 +2086,41 @@ export function runBusinessTraffic(world) {
       : (world.places?.[`${p.placeId}__f1`] ? `${p.placeId}__f1` : p.placeId);
     if (!world.places?.[floor]) continue;
 
+    // 打烊的产业：把客人散回，不赶别家还在营业的客人
+    if (!openAt(p, hour)) {
+      for (const a of Object.values(world.actors || {})) {
+        if (!a || a.dead || a.trafficPlace !== p.placeId) continue;
+        const back = world.places?.[a.home] ? a.home : 'street';
+        try { moveActor(world, a.id, back, 'world', '打烊散客'); } catch { /* 忽略 */ }
+        delete a.trafficPlace;
+        delete a.trafficFloor;
+      }
+      continue;
+    }
+
+    // 开门：掌柜伙计到前堂当值
     for (const sid of p.staffIds || []) {
       const staff = world.actors?.[sid];
       if (!staff || staff.dead || staff.location === floor) continue;
-      if (staff.location === p.placeId) {
+      const inHouse = staff.location === p.placeId
+        || String(world.places?.[staff.location]?.parent || '') === p.placeId;
+      if (inHouse) {
         try { moveActor(world, staff.id, floor, 'world', '当值上堂'); } catch { /* 忽略 */ }
       }
     }
 
+    // 客人：白天从街市找；晚上允许本地世家公子从家里出来吃酒听曲
+    const late = hour >= 22 || hour < 6;
     const want = Math.max(1, Math.min(3, Math.round((Number(p.incomePerDay) || 1) / 15)));
     const candidates = Object.values(world.actors || {}).filter((a) => a && !a.dead
       && a.id !== 'husband' && a.location !== floor && !a.trafficPlace
       && !a.humanBound && !a.household && !/^usr_/.test(String(a.id))
       && /公子|世家|富商|客商|乡绅|才子|文人|贵客|达官/.test(String(a.role || ''))
-      && (a.location === 'street' || /街|市|market/.test(String(world.places?.[a.location]?.name || ''))))
+      && (
+        a.location === 'street'
+        || /街|市|market/.test(String(world.places?.[a.location]?.name || ''))
+        || (late && /临江/.test(String(world.places?.[a.location]?.name || '')))
+      ))
       .slice(0, want);
     for (const a of candidates) {
       try {

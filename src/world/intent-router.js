@@ -95,9 +95,11 @@ function timeOf(text, world) {
   else if (/今天|今日|今晚/.test(text)) d = day;
   const mDay = /第\s*(\d+)\s*日/.exec(text);
   if (mDay) d = Number(mDay[1]);
-  if (/明早|早上|上午|清晨/.test(text)) h = 8;
+  if (/明早|早上|清晨/.test(text)) h = 8;
   else if (/明晚|晚上|夜里|今晚/.test(text)) h = 20;
-  else if (/下午|晌午|中午/.test(text)) h = 14;
+  else if (/上午/.test(text)) h = 10;
+  else if (/中午|晌午/.test(text)) h = 12;
+  else if (/下午/.test(text)) h = 14;
   const mHour = /(\d{1,2})\s*(?:时|点)/.exec(text);
   if (mHour) h = Math.max(0, Math.min(23, Number(mHour[1])));
   if (d == null && h == null) return null;
@@ -202,15 +204,21 @@ export function applyUnifiedIntents({ world, viewerId = 'husband', sayText = '' 
       const name = actor?.name || '';
       if (name) {
         world.appointments = Array.isArray(world.appointments) ? world.appointments : [];
-        const found = world.appointments.find((ap) => ap && ap.day === time.day && ap.hour === time.hour
+        const eventKey = /回门/.test(text) ? '回门' : '';
+        const sameActor = world.appointments.filter((ap) => ap
           && (ap.actorId === actor?.id || ap.name === name));
+        const found = sameActor.find((ap) => eventKey && String(ap.text || '').includes(eventKey))
+          || sameActor.find((ap) => ap.day === time.day);
         if (found) {
+          found.day = time.day;
+          found.hour = time.hour;
           found.text = text.slice(0, 80);
-          if (actor) found.actorId = actor.id;
+          if (actor) { found.actorId = actor.id; found.name = name; }
+          notices.push(`${name}的事改到第${time.day}日 ${time.hour}时，到点提醒相公。`);
         } else {
           world.appointments.push({ actorId: actor?.id || null, name, day: time.day, hour: time.hour, place: me.location || null, text: text.slice(0, 80), madeAt: { day, hour: Number(world.clock?.hour) || 0 } });
+          notices.push(`记下了：第${time.day}日 ${time.hour}时，${name}的事到点提醒相公。`);
         }
-        notices.push(`记下了：第${time.day}日 ${time.hour}时，${name}的事到点提醒相公。`);
         pushUnique(handled, 'appointment');
         continue;
       }
