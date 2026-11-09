@@ -204,7 +204,7 @@ export function recallMemories(world, ids = [], { limit = 16, query = '' } = {})
   const rest = [];
   for (const m of hits) {
     const t = String(m.text);
-    const isCore = /(契纸|赎|还清|归到.*名下|身孕|骨肉|2026|老公|托付终身|立约)/.test(t) ||
+    const isCore = /(契纸|赎|还清|归到.*名下|身孕|骨肉|2026|老公|托付终身|立约|私情|上房|留宿|侍寝|肌肤|定情|认下.*(关系|私情)|应了.*(相公|王甯)|同床|云雨|圆房|收了房|夫妻之实)/.test(t) ||
       (qTokens.length > 0 && qTokens.some((tk) => t.includes(tk)));
     if (isCore) pinned.push(t);
     else rest.push(t);
