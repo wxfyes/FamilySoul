@@ -1900,6 +1900,7 @@ function dailyIncomeOf(world, prop) {
   // ── 基础安全底线：严格遵守相公铁律，最低绝不低于现有基准收入 ──
   const baselineMap = {
     canal_restaurant: 33.3, // 运河码头大酒楼基准 33.3 两
+    prop_1: 45.0,           // 鑫雅阁达官雅间基准 45.0 两
     prop_2: 19.8,           // 运河茶栈基准 19.8 两
     prop_3: 14.7,           // 码头茶栈基准 14.7 两
     prop_8: 6.2,            // 王记花店基准 6.2 两
@@ -1908,7 +1909,7 @@ function dailyIncomeOf(world, prop) {
     prop_7: 3.3,            // 临街花铺基准 3.3 两
     prop_4: 2.8,            // 苏州小茶栈基准 2.8 两
   };
-  const safeBase = baselineMap[prop.id] || (Number(prop.baseIncome) || 1.5);
+  const safeBase = baselineMap[prop.id] || (/鑫雅阁/.test(String(prop.name || '')) ? 45.0 : (Number(prop.baseIncome) || 1.5));
 
   // ── 真实江南商海风云与大客包场事件（生动鲜活，杜绝死流水）──
   delete prop.todayHighlight;
@@ -1929,6 +1930,16 @@ function dailyIncomeOf(world, prop) {
     } else if (roll < 0.78) {
       eventBonus = Math.round((25 + Math.random() * 40) * 100) / 100;
       prop.todayHighlight = '南北客商在大堂斗酒争彩，于家酒肆特供陈酿售罄';
+    }
+  } else if (/鑫雅阁|雅阁|雅集/.test(String(prop.name || ''))) {
+    // 鑫雅阁：清贵雅致、达官显贵包雅间与文墨诗会
+    const roll = Math.random();
+    if (roll < 0.35) {
+      eventBonus = Math.round((40 + Math.random() * 65) * 100) / 100;
+      prop.todayHighlight = '金陵世家公子包下二层清幽雅阁大摆文墨雅宴，赏银流水进账';
+    } else if (roll < 0.60) {
+      eventBonus = Math.round((25 + Math.random() * 45) * 100) / 100;
+      prop.todayHighlight = '江南名士雅集开宴，点名品鉴阁中上等香茗与珍馐，满座皆惊';
     }
   } else if (prop.id === 'tea_house') {
     // 临江茶坊老店：二房芸娘打理，烟火市井，名点出笼
