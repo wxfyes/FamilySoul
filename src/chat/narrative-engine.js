@@ -13,6 +13,7 @@ import { sanePrice, priceHint } from '../world/pricing.js';
 import { hireStaff } from '../world/employment.js';
 import { proposeMarriage, acceptAlliance, declineAlliance } from '../world/marriage.js';
 import { quellBandits } from '../world/bandits.js';
+import { addMemory } from '../world/memory.js';
 import {
   parseSummonTarget, pickSummonActor,
   parseDismissIntent, isMassDismiss, homeRoomForName,
@@ -1073,6 +1074,26 @@ export function executeNarrativeTags({
       reply = `${activeSummonNotice}\n` + reply;
       activeSummonNotice = null;
     }
+
+    // 12. 重大事件兜底记忆：模型忘了写 [[world:remember]] 时，引擎替它记一笔
+    try {
+      const majorEvent = /(?:送|押)(?:进|去|到)?了?(?:衙门|县衙|大牢|官府)|判(?:了)?(?:有罪|无罪|斩|流|杖)|断罪|收监|结案/;
+      const hadRemember = /\[\[world:remember/i.test(String(replyText || ''));
+      if (!hadRemember && majorEvent.test(reply)) {
+        const wM = loadState(dataDir);
+        if (wM) {
+          const about = ['husband'];
+          for (const a of Object.values(wM.actors || {})) {
+            if (a && a.id !== 'husband' && a.name && reply.includes(a.name)) about.push(a.id);
+          }
+          const text = `事件：${String(reply).replace(/【[^】]*】/g, '').replace(/\s+/g, ' ').trim().slice(0, 100)}`;
+          if (addMemory(wM, { text, about: about.slice(0, 8), visible: 'private', day: wM.clock?.day })) {
+            saveState(dataDir, wM);
+            console.log('[Memory] 重大事件兜底落账：' + text.slice(0, 40));
+          }
+        }
+      }
+    } catch { /* 忽略 */ }
 
     return { reply: reply.trim(), lastSummonNotice: activeSummonNotice };
 }
