@@ -41,15 +41,20 @@ try {
   assert.ok(n2.some((n) => n.includes('陈敬堂')), '应有掌柜到岗提示');
 
   const n3 = applyChatActions({ world: w, viewerId: 'husband', sayText: '让阿福去粮铺坐柜，雇刘二到粮铺当伙计' });
-  console.log('n3=', JSON.stringify(n3));
-  console.log('names=', Object.values(w.actors || {}).filter((a) => /阿福|刘二/.test(a.name)).map((a) => [a.name, a.role, a.location]));
   const aFu = Object.values(w.actors || {}).find((a) => a && a.name === '阿福');
   const liu = Object.values(w.actors || {}).find((a) => a && a.name === '刘二');
   const grain = (w.assets.properties || []).find((p) => String(p.name).includes('粮铺'));
   assert.ok(aFu && aFu.location === grain.placeId, '阿福应真调到粮铺');
   assert.ok(liu && liu.location === grain.placeId, '刘二应真雇到粮铺');
   assert.ok(n3.some((n) => n.includes('粮铺')), '应有粮铺到岗提示');
-  console.log('✅ 伙计真落籍、指名掌柜/刘二真落籍，钱真扣、流水真落');
+
+  const n4 = applyChatActions({ world: w, viewerId: 'husband', sayText: '鑫雅阁招两个琴娘、三个舞娘' });
+  const xin = (w.assets.properties || []).find((p) => String(p.name).includes('鑫雅阁'));
+  const performers = Object.values(w.actors || {}).filter((a) => a && a.workplaceId === xin.placeId && /琴娘|舞娘/.test(a.role));
+  assert.strictEqual(performers.filter((a) => a.role === '琴娘').length, 2, '应有 2 个琴娘');
+  assert.strictEqual(performers.filter((a) => a.role === '舞娘').length, 3, '应有 3 个舞娘');
+  assert.ok(n4.some((n) => n.includes('琴娘') && n.includes('舞娘')), '应有一句多角色到岗提示');
+  console.log('✅ 伙计/掌柜/刘二真落籍；琴娘舞娘也能一次招齐，钱真扣、流水真落');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }

@@ -336,14 +336,18 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   {
     const hireWord = /(雇|请|聘|添|增加|加|补|招|找)/.test(say);
     const roleHit = /(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘|头牌|花魁|琴师|歌女)/.exec(say);
-    const namedCandidate = /(?:请|让|叫|用|找|聘|雇)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
+    const namedCandidate = /(?:雇|请|聘|招)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
     const namedExists = namedCandidate && Object.values(world.actors || {}).some((a) => a && a.name === namedCandidate);
     if (hireWord && roleHit && !namedExists) {
-      const wantRole = roleHit[1];
-      const countHit = /(\d+|[一二两三四五六七八九十]+|几|数)\s*(?:个|名|位|人)/.exec(say);
-      const wantNum = countHit
-        ? (/几|数/.test(countHit[1]) ? 3 : Math.max(1, Math.min(20, cn2num(countHit[1]))))
-        : 1;
+      // 一段话里说几种人，就分别招：两个琴娘、三个舞娘
+      const roleSeq = [...say.matchAll(/(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘|头牌|花魁|琴师|歌女)/g)].map((m) => m[1]);
+      const roles = [...new Set(roleSeq)];
+      const roleCounts = roles.map((role) => {
+        const m = new RegExp(`(\\d+|[一二两三四五六七八九十]+|几|数)\\s*(?:个|名|位|人)?\\s*${role}`).exec(say)
+          || new RegExp(`${role}\\s*(\\d+|[一二两三四五六七八九十]+|几|数)\\s*(?:个|名|位|人)`).exec(say);
+        const n = m ? (/几|数/.test(m[1]) ? 2 : Math.max(1, Math.min(10, cn2num(m[1])))) : 1;
+        return { role, count: n };
+      });
       // 指名请人：请陈敬堂当掌柜 / 雇刘二到粮铺当伙计 → 用这个名字，不再随机起名
       const hiredNamed = /(?:雇|请|聘|招)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
       const anyNamed = /(?:让|叫|找|用)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|去|管|掌|坐柜|看店))/.exec(say)?.[1] || '';
@@ -366,35 +370,44 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       const target = named || atHere || (properties.length === 1 ? properties[0] : null);
       if (!target) {
         notices.push('（请相公说清是哪一间产业，名下铺子不止一处。）');
-      } else if (wantRole === '掌柜' && Object.values(world.actors || {}).some((a) => a && !a.dead && a.location === target.placeId && /掌柜/.test(String(a.role || '')))) {
-        notices.push(`（${target.name}已经有掌柜了。）`);
       } else {
-        const unit = 0.5;
-        const cost = Math.round(wantNum * unit * 100) / 100;
-        const purse = Number(world.assets?.silver) || 0;
-        if (purse < cost) {
-          notices.push(`（银不够：添 ${wantNum} 个${wantRole}要 ${cost.toFixed(2)} 两。）`);
-        } else {
-          const names = [];
-          for (let i = 0; i < wantNum; i += 1) {
-            const nm = (i === 0 && preferredName && !/掌柜|伙计|跑堂|账房/.test(preferredName))
-              ? preferredName
-              : fallbackName(world, /琴娘|舞娘|厨娘/.test(wantRole) ? 'female' : 'male');
-            const r = hireStaff(world, { propName: target.name, name: nm, role: wantRole, hiredBy: me.id });
-            if (r?.ok) names.push(nm);
+        if (roles.includes('掌柜') && Object.values(world.actors || {}).some((a) => a && !a.dead
+          && (a.location === target.placeId || String(world.places?.[a.location]?.parent || '') === target.placeId)
+          && /掌柜/.test(String(a.role || '')))) {
+          notices.push(`（${target.name}已经有掌柜了。）`);
+        }
+        const hires = [];
+        for (const rc of roleCounts) {
+          if (rc.role === '掌柜' && Object.values(world.actors || {}).some((a) => a && !a.dead
+            && (a.location === target.placeId || String(world.places?.[a.location]?.parent || '') === target.placeId)
+            && /掌柜/.test(String(a.role || '')))) continue;
+          for (let i = 0; i < rc.count; i += 1) {
+            const usePreferred = preferredName && hires.length === 0 && roles.length === 1
+              && !/掌柜|伙计|跑堂|账房/.test(preferredName) && i === 0;
+            const nm = usePreferred ? preferredName
+              : fallbackName(world, /琴娘|舞娘|歌女|头牌|花魁|厨娘/.test(rc.role) ? 'female' : 'male');
+            const r = hireStaff(world, { propName: target.name, name: nm, role: rc.role, hiredBy: me.id });
+            if (r?.ok) hires.push({ name: nm, role: rc.role });
           }
-          if (names.length) {
+        }
+        if (hires.length) {
+          const cost = Math.round(hires.length * 0.5 * 100) / 100;
+          const purse = Number(world.assets?.silver) || 0;
+          if (purse < cost) {
+            notices.push(`（银不够：这支队伍要 ${cost.toFixed(2)} 两安家银。）`);
+          } else {
             world.assets.silver = Math.round((purse - cost) * 100) / 100;
             world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+            const summary = roles.map((role) => `${role}${hires.filter((h) => h.role === role).length}人`).join('、');
             world.ledger.push({
               day, hour: world.clock?.hour || 0, delta: -cost,
-              title: `${target.name}添${wantRole} ${names.length} 人·安家银`,
+              title: `${target.name}添${summary}·安家银`,
               by: 'husband', balance: world.assets.silver, category: '雇工',
             });
-            notices.push(`${target.name}添了 ${names.join('、')} 当${wantRole}，安家银共 ${cost.toFixed(2)} 两。`);
-          } else {
-            notices.push(`（${target.name}没能添上人。）`);
+            notices.push(`${target.name}添了 ${hires.map((h) => h.name).join('、')}，分任${summary}，安家银共 ${cost.toFixed(2)} 两。`);
           }
+        } else {
+          notices.push(`（${target.name}没能添上人。）`);
         }
       }
     }
