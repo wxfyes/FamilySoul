@@ -22,7 +22,9 @@ try {
   const prop = (got.assets?.properties || []).find((p) => String(p.name || '').includes('鑫雅阁'));
   assert.ok(prop, '应补建鑫雅阁产业');
   assert.ok(got.places?.[prop.placeId], '产业必须有真实地点');
-  console.log('✅ 鑫雅阁已入产业总览');
+  assert.strictEqual(Number(prop.floors), 2, '鑫雅阁应为二层');
+  assert.ok(got.places[`${prop.placeId}__f2`], '二层雅间必须是真实地点');
+  console.log('✅ 鑫雅阁已入产业总览，二层雅间是真的');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }
