@@ -1208,6 +1208,11 @@ export function executeNarrativeTags({
       activeSummonNotice = null;
     }
 
+    // 11.9 说话人校正：男角色不许自称妾身；客人不许代报产业内部账
+    try {
+      reply = enforceSpeakerTone(reply, dataDir, viewerActorId);
+    } catch { /* 忽略 */ }
+
     // 12. 重大事件兜底记忆：模型忘了写 [[world:remember]] 时，引擎替它记一笔
     try {
       const majorEvent = /(?:送|押)(?:进|去|到)?了?(?:衙门|县衙|大牢|官府)|判(?:了)?(?:有罪|无罪|斩|流|杖)|断罪|收监|结案/;
@@ -1229,4 +1234,35 @@ export function executeNarrativeTags({
     } catch { /* 忽略 */ }
 
     return { reply: reply.trim(), lastSummonNotice: activeSummonNotice };
+}
+
+/** 最后一道人话校正：男角色不得自称妾身；客人不得代报内部账 */
+function enforceSpeakerTone(reply, dataDir, viewerActorId) {
+  const world = loadState(dataDir);
+  const me = world?.actors?.[viewerActorId || 'husband'] || world?.actors?.husband;
+  const guestRole = /乡绅|客商|公子|富商|茶客|酒客|顾客|客人|买主|贵客/;
+  const internal = /(入柜|入账|账房|账目|核账|菜单|陈设|工钱|月钱|流水|日入|成本|雇工|定金)/;
+  return String(reply || '').split('\n').map((line) => {
+    const m = line.match(/^【([^】]{1,20})】\s*[：:]?\s*([\s\S]*)$/);
+    if (!m) return line;
+    const spk = m[1];
+    const name = spk.includes('·') ? spk.split('·').pop().trim() : spk;
+    if (!name || /提示|旁白|系统/.test(name)) return line;
+    const actor = Object.values(world?.actors || {}).find((a) => a && !a.dead && a.name === name);
+    if (!actor) return line;
+    let text = m[2];
+    const hadClosingQuote = /[”"]\s*$/.test(text);
+    if (actor.gender === 'male') {
+      text = text.replace(/妾身|奴家|奴婢|小女子/g, '在下');
+    }
+    if (guestRole.test(String(actor.role || '')) && internal.test(text)) {
+      text = text.split(/(?<=[。！？])/).filter((s) => !internal.test(s)).join('').trim();
+      text = text
+        ? `${text} 这些账房里的细事小人说不清，得问掌柜。`
+        : '这些账房里的细事小人说不清，得问掌柜。';
+      if (hadClosingQuote) text += '”';
+    }
+    const prefix = line.slice(0, line.indexOf(m[2]));
+    return prefix + text;
+  }).join('\n');
 }

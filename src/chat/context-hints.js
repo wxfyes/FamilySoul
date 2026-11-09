@@ -126,13 +126,14 @@ export function buildContextHints(svc, { say, recent, summonedNames, contextHint
         const keeperName = wHere.actors?.[prop?.keeper]?.name || '';
         const hereNames = Object.values(wHere.actors || {})
           .filter((a) => a && !a.dead && a.id !== svc._viewerActorId && a.location === locId)
-          .map((a) => `${a.name}（${a.role || '在场'}）`);
+          .map((a) => `${a.name}（${a.role || '在场'}，${a.gender === 'male' ? '男' : (a.gender === 'female' ? '女' : '性别不详')}）`);
         const bits = [`你现在在「${locName || '未明'}」`];
         if (place?.owner === 'public') bits.push('这是公家地方，没有东家');
         else if (ownerName) bits.push(`这地方东家是「${ownerName}」`);
         if (keeperName) bits.push(`掌柜是「${keeperName}」`);
         if (prop) bits.push('这是产业内部：账目、预订、寿宴、雇工等事只能由掌柜、账房或东家开口；在座客人只谈街面见闻，绝不能代报内部账');
         bits.push(hereNames.length ? `此刻在跟前的只有：${hereNames.join('、')}` : '此刻跟前没有别人');
+        if (hereNames.some((x) => x.includes('，男）'))) bits.push('在场的男性角色自称我/在下/小人，绝不许自称妾身、奴家、奴婢、小女子');
         const activePartnerId = String((wHere.chatPartners || {})[svc._viewerActorId] || '');
         const activePartner = (wHere.actors || {})[activePartnerId];
         if (activePartner && !activePartner.dead && activePartner.location === locId) {
