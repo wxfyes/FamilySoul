@@ -241,6 +241,15 @@ export function executeNarrativeTags({
             t.doneDay = wD.clock?.day || 1;
             wD.notes = Array.isArray(wD.notes) ? wD.notes : [];
             wD.notes.push({ day: wD.clock?.day, hour: wD.clock?.hour, text: `${t.name}办完了：${result}` });
+            // 办完差事回铺/回家，不能把人扔在外头
+            try {
+              const actor = wD.actors?.[t.actorId];
+              const back = actor?.home || actor?.quarters;
+              if (actor && !actor.dead && back && wD.places?.[back] && actor.location !== back) {
+                const mv = moveActor(wD, actor.id, back, 'world', '差事办完回铺');
+                if (mv?.ok) reply += `\n【提示】${actor.name}办完差事，回${wD.places[back].name}去了。`;
+              }
+            } catch { /* 忽略 */ }
           }
           // 差事办完，顺带勾掉包含同一片段的旧诺（模型常忘了写 [[deal]]）
           if (frag.length >= 2) {
