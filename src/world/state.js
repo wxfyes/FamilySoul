@@ -24,6 +24,7 @@ import { ensureStalls } from './stalls.js';
 import { ensureFame } from './reputation.js';
 import { ensurePersonalities } from './personality.js';
 import { ensureCityLife, ensureCityPopulation } from './city-life.js';
+import { repairProjectProperties } from './projects.js';
 import { ensureMarket } from './prices.js';
 import { moveActor } from './position.js';
 import { syncMoney } from './money.js';
@@ -2242,6 +2243,8 @@ export function migrateOwnership(world) {
   try { ensureCityLife(world); } catch { /* 忽略 */ }
   // 城life 可能清 household；婚书最后统一补一次，绝不让侧室从名录消失
   try { ensureMarriageRoster(world); } catch { /* 忽略 */ }
+  // 已经扣过"某铺开张/盘铺"的钱，但产业总览没有的，补建
+  try { repairProjectProperties(world); } catch { /* 忽略 */ }
   try { ensureClans(world); } catch { /* 忽略 */ }
   // 待办归属：老数据没写 owner 的，一律算相公的（那是当时唯一的主角）
   try {

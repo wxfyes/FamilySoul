@@ -367,7 +367,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     if (mGive && !notARecipient) {
       const who = findByName(world, mGive[1]);
       if (!who) {
-        notices.push(`（没找到「${mGive[1]}」这个人。）`);
+        // “给人一种安全感”不是给某个叫“人一种安”的人东西，静默跳过
       } else if (who.location !== me.location) {
         notices.push(`（${who.name}不在跟前，东西递不过去。）`);
       } else {

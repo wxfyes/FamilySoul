@@ -14,6 +14,7 @@ import { hireStaff } from '../world/employment.js';
 import { proposeMarriage, acceptAlliance, declineAlliance } from '../world/marriage.js';
 import { quellBandits } from '../world/bandits.js';
 import { addMemory } from '../world/memory.js';
+import { ensureProjectProperty } from '../world/projects.js';
 import {
   parseSummonTarget, pickSummonActor,
   parseDismissIntent, isMassDismiss, homeRoomForName,
@@ -643,6 +644,8 @@ export function executeNarrativeTags({
                 if (keys.length > 60) {
                   for (const k of keys.slice(0, keys.length - 60)) delete wPay.flags.projectPay[k];
                 }
+                // 付了开张钱，产业总览里必须真有一间
+                try { ensureProjectProperty(wPay, projectKey, quoted, { day: wPay.clock?.day, title: title2 }); } catch { /* 忽略 */ }
               }
               const silverNow = Number(wPay.assets?.silver) || 0;
               if (price <= 0) {
