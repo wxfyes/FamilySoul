@@ -27,7 +27,13 @@ try {
   assert.ok(Number(w.assets.silver) < before, '应真扣安家银');
   assert.ok((w.ledger || []).some((e) => String(e.title).includes('鑫雅阁添伙计')), '应有雇工流水');
   assert.ok(notices.some((n) => n.includes('鑫雅阁添了')), '应有明确提示');
-  console.log('✅ 伙计真落籍、钱真扣、流水真落');
+
+  const n2 = applyChatActions({ world: w, viewerId: 'husband', sayText: '请陈敬堂当鑫雅阁掌柜' });
+  const mgr = Object.values(w.actors || {}).find((a) => a && a.name === '陈敬堂');
+  assert.ok(mgr, '指名的陈敬堂应真的落籍');
+  assert.ok(/掌柜/.test(String(mgr.role || '')), '陈敬堂应任掌柜');
+  assert.ok(n2.some((n) => n.includes('陈敬堂')), '应有掌柜到岗提示');
+  console.log('✅ 伙计真落籍、指名掌柜也真落籍，钱真扣、流水真落');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }

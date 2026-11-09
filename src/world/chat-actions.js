@@ -334,7 +334,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
 
   // 雇/添掌柜伙计：东家出钱，直接落到指定产业，不靠模型嘴上答应
   {
-    const hireWord = /(雇|请|聘|添|增加|加|补|招)/.test(say);
+    const hireWord = /(雇|请|聘|添|增加|加|补|招|找)/.test(say);
     const roleHit = /(二掌柜|掌柜|伙计|跑堂|账房|厨子|琴娘|舞娘)/.exec(say);
     if (hireWord && roleHit) {
       const wantRole = roleHit[1];
@@ -342,11 +342,22 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       const wantNum = countHit
         ? (/几|数/.test(countHit[1]) ? 3 : Math.max(1, Math.min(20, cn2num(countHit[1]))))
         : 1;
+      // 指名请掌柜：请陈敬堂当鑫雅阁掌柜 → 就用这个名字，不再随机起名
+      const preferredName = wantRole === '掌柜'
+        ? (/(?:请|让|叫|用|找|聘|雇)\s*([\u4e00-\u9fa5]{2,4})(?=\s*(?:来|当|做|任|到|管|掌))/.exec(say)?.[1] || '')
+        : '';
       const properties = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
       const named = properties
         .filter((p) => p && p.name && say.includes(String(p.name)))
         .sort((a, b) => String(b.name).length - String(a.name).length)[0];
-      const target = named || (properties.length === 1 ? properties[0] : null);
+      // 相公就站在这间产业里，“找个掌柜”默认就是这一间
+      const herePlace = me.location && world.places?.[me.location];
+      const hereRoot = herePlace?.parent || me.location;
+      const atHere = properties.find((p) => p && (
+        p.placeId === me.location || p.placeId === hereRoot
+        || String(world.places?.[p.placeId]?.parent || '') === hereRoot
+      ));
+      const target = named || atHere || (properties.length === 1 ? properties[0] : null);
       if (!target) {
         notices.push('（请相公说清是哪一间产业，名下铺子不止一处。）');
       } else if (wantRole === '掌柜' && Object.values(world.actors || {}).some((a) => a && !a.dead && a.location === target.placeId && /掌柜/.test(String(a.role || '')))) {
@@ -360,7 +371,9 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         } else {
           const names = [];
           for (let i = 0; i < wantNum; i += 1) {
-            const nm = fallbackName(world, /琴娘|舞娘|厨娘/.test(wantRole) ? 'female' : 'male');
+            const nm = (i === 0 && preferredName && !/掌柜|伙计|跑堂|账房/.test(preferredName))
+              ? preferredName
+              : fallbackName(world, /琴娘|舞娘|厨娘/.test(wantRole) ? 'female' : 'male');
             const r = hireStaff(world, { propName: target.name, name: nm, role: wantRole, hiredBy: me.id });
             if (r?.ok) names.push(nm);
           }

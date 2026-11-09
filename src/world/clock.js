@@ -2062,6 +2062,67 @@ function ensureActivity(world) {
   }
 }
 
+/**
+ * 店铺客流：开门时把街上的公子/世家/富商/客商请进堂里，关门前散回。
+ * 纯本地移动，不花 token；不然产业开张了，楼里还是空的。
+ */
+export function runBusinessTraffic(world) {
+  const hour = Number(world.clock?.hour) || 0;
+  const day = Number(world.clock?.day) || 1;
+  const open = hour >= 9 && hour < 22;
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+
+  if (!open) {
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead || !a.trafficPlace) continue;
+      const back = world.places?.[a.home] ? a.home : 'street';
+      try { moveActor(world, a.id, back, 'world', '打烊散客'); } catch { /* 忽略 */ }
+      delete a.trafficPlace;
+      delete a.trafficFloor;
+    }
+    return 0;
+  }
+
+  let moved = 0;
+  for (const p of props) {
+    if (!p || !p.placeId || !world.places?.[p.placeId]) continue;
+    if (!/开张|营业/.test(String(p.status || '')) || !(Number(p.incomePerDay) > 0)) continue;
+    const floor = p.rooms?.f1?.id && world.places?.[p.rooms.f1.id] ? p.rooms.f1.id
+      : (world.places?.[`${p.placeId}__f1`] ? `${p.placeId}__f1` : p.placeId);
+    if (!world.places?.[floor]) continue;
+
+    for (const sid of p.staffIds || []) {
+      const staff = world.actors?.[sid];
+      if (!staff || staff.dead || staff.location === floor) continue;
+      if (staff.location === p.placeId) {
+        try { moveActor(world, staff.id, floor, 'world', '当值上堂'); } catch { /* 忽略 */ }
+      }
+    }
+
+    const want = Math.max(1, Math.min(3, Math.round((Number(p.incomePerDay) || 1) / 15)));
+    const candidates = Object.values(world.actors || {}).filter((a) => a && !a.dead
+      && a.id !== 'husband' && a.location !== floor && !a.trafficPlace
+      && !a.humanBound && !a.household && !/^usr_/.test(String(a.id))
+      && /公子|世家|富商|客商|乡绅|才子|文人|贵客|达官/.test(String(a.role || ''))
+      && (a.location === 'street' || /街|市|market/.test(String(world.places?.[a.location]?.name || ''))))
+      .slice(0, want);
+    for (const a of candidates) {
+      try {
+        const r = moveActor(world, a.id, floor, 'world', '进店听曲吃酒');
+        if (r?.ok) {
+          a.trafficPlace = p.placeId;
+          a.trafficFloor = floor;
+          a.trafficDay = day;
+          a.activity = { text: `在${p.name}吃酒听曲`, at: hour, day };
+          moved += 1;
+        }
+      } catch { /* 忽略 */ }
+    }
+  }
+  if (moved) console.log(`[Traffic] ${moved} 位客人进店`);
+  return moved;
+}
+
 function runSchedules(world) {
   const husbandPlace = world.actors?.husband?.location;
   for (const actor of Object.values(world.actors || {})) {
@@ -2469,6 +2530,7 @@ function advanceHour(world, events, nowMs) {
 
   ensureActivity(world);
   runSchedules(world);
+  try { runBusinessTraffic(world); } catch (err) { console.warn('[Traffic] 客流失败：', err.message); }
 
   runNPCInitiatives(world, events, (opts) => queueProactive(world, { type: 'proactive', ...opts }));
   fireAppointments(world, events);
