@@ -584,6 +584,16 @@ export function executeNarrativeTags({
             if (/铺|店|楼/.test(s2)) return 'shop';
             return null;
           };
+          // 同一处产业同一天只认"总预算"，后一次报价只补差额，绝不重复扣整笔
+          const projectKeyOf = (t) => {
+            const s = String(t || '').replace(/\s/g, '');
+            if (!/开张|盘铺|置办|开业|装修|盘店|新店|开间/.test(s)) return null;
+            const m = s.match(/^(.{2,10}?)(?:开张|盘铺|置办|开业|装修|盘店|新店|开间)/);
+            return m ? m[1] : null;
+          };
+          const projectKey = projectKeyOf(title2);
+          const payDay = String(loadState(dataDir)?.clock?.day || 1);
+
           for (const o of opts2) {
             if (o.skip) continue;
             const labelAll = `${o.label} ${title2}`;
@@ -601,16 +611,52 @@ export function executeNarrativeTags({
           // 即刻落账：不再挂待付单等确认，扣完在回复里报明
           try {
             const first = (opts2 || []).find((o) => Number(o.price) > 0 && !o.skip) || (opts2 || [])[0];
-            const price = first?.skip ? 0 : (Number(first?.price) || 0);
-            if (price > 0) {
+            const quoted = first?.skip ? 0 : (Number(first?.price) || 0);
+            if (quoted > 0) {
+              // 同一产业同一天：按"累计预算"只补差额
+              let price = quoted;
+              if (projectKey) {
+                wPay.flags = wPay.flags || {};
+                wPay.flags.projectPay = wPay.flags.projectPay || {};
+                const pk = `${payDay}:${projectKey}`;
+                const rec = wPay.flags.projectPay[pk];
+                if (rec && Number(rec.paid) > 0) {
+                  price = Math.max(0, Math.round((quoted - Number(rec.paid)) * 100) / 100);
+                  rec.paid = Math.max(Number(rec.paid) || 0, quoted);
+                  rec.title = String(title2).slice(0, 30);
+                } else {
+                  // 兼容旧账：今天已经为这处产业扣过的钱，先从 ledger 里认出来，防止升级后当天再扣一次
+                  const alreadyPaid = (wPay.ledger || [])
+                    .filter((e) => e && Number(e.day) === Number(payDay) && Number(e.delta) < 0
+                      && String(e.title || '').includes(projectKey))
+                    .reduce((s, e) => s + Math.abs(Number(e.delta) || 0), 0);
+                  wPay.flags.projectPay[pk] = {
+                    paid: alreadyPaid > 0 ? alreadyPaid : quoted,
+                    title: String(title2).slice(0, 30),
+                    day: payDay,
+                  };
+                  price = alreadyPaid > 0
+                    ? Math.max(0, Math.round((quoted - alreadyPaid) * 100) / 100)
+                    : quoted;
+                }
+                const keys = Object.keys(wPay.flags.projectPay);
+                if (keys.length > 60) {
+                  for (const k of keys.slice(0, keys.length - 60)) delete wPay.flags.projectPay[k];
+                }
+              }
               const silverNow = Number(wPay.assets?.silver) || 0;
-              if (silverNow >= price) {
+              if (price <= 0) {
+                saveState(dataDir, wPay);
+                reply += `\n（${String(title2 || '这桩花销').slice(0, 12)}此前已付过，不再重复扣。）`;
+                console.log(`[Pay] ${title2} 已付过，跳过重复扣款（报价 ${quoted}）`);
+              } else if (silverNow >= price) {
                 wPay.assets.silver = Math.round((silverNow - price) * 100) / 100;
                 wPay.ledger = Array.isArray(wPay.ledger) ? wPay.ledger : [];
                 wPay.ledger.push({ day: wPay.clock?.day || 1, hour: wPay.clock?.hour || 0, delta: -price, title: String(title2 || '花销').slice(0, 24), by: mePay?.id || 'husband', balance: wPay.assets.silver });
                 saveState(dataDir, wPay);
-                reply += `\n【提示】已付 ${price.toFixed(2)} 两：${String(title2 || '花销').slice(0, 12)}。余 ${wPay.assets.silver.toFixed(2)} 两。`;
-                console.log(`[Pay] 即付 ${price} 两：${title2}`);
+                const note = price < quoted ? `（补足至 ${quoted.toFixed(2)} 两）` : '';
+                reply += `\n【提示】已付 ${price.toFixed(2)} 两${note}：${String(title2 || '花销').slice(0, 12)}。余 ${wPay.assets.silver.toFixed(2)} 两。`;
+                console.log(`[Pay] 即付 ${price} 两${note}：${title2}`);
               } else {
                 reply += `\n（要 ${price.toFixed(2)} 两，手头只有 ${silverNow.toFixed(2)} 两，这桩先记着。）`;
               }
