@@ -195,24 +195,31 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
 
   // 叫人来（单人 / 都来）
   const staffWords = /护院|家丁|当差|当值|门房/.test(say);
-  const callAll = !staffWords && /(都|你们|大伙|全)[^。]{0,8}(来|过来|到.{0,4}(我|这)|回来)/.test(say);
-  const mCall = /(?:让|叫|请|唤|去叫|去请|去喊|去把|把)\s*([\u4e00-\u9fa5]{2,4})\s*(?:叫来|请来|喊来|来|到|过来|上前)/.exec(say)
-    || /([\u4e00-\u9fa5]{2,4})\s*(?:叫来|请来|喊来|过来|上前)/.exec(say)
+  const notCall = /来都来了|都来了|什么时候来|怎么才来|怎么还没来/.test(say);
+  const hereName0 = String(world.places?.[me.location]?.name || '');
+  const isAtHome = /王宅|正房|内院|西厢房|东厢房|暖阁|议事厅/.test(hereName0);
+  // 最高铁律：群召内眷仅限身处王宅府邸内，在外（客栈/酒楼/市井）严禁唤深闺妻妾出府群聚
+  const callAll = !staffWords && !notCall && isAtHome && /(?:你们|大伙|全府|内眷|全家)\s*(?:都|全都)?\s*(?:过来|到这来|到跟前|来大厅|来正房)/.test(say);
+  const mCall = /(?:让|叫|请|唤|去叫|去请|去喊|去把|把)\s*([\u4e00-\u9fa5]{2,4})\s*(?:叫来|请来|喊来|过来|上前)/.exec(say)
     || /(?:去|让|叫|请|派)[^，。]{0,8}?(?:叫|请|喊)\s*([\u4e00-\u9fa5]{2,4})/.exec(say);
   const callIsQuestion = /[吗呢]\s*[？?]?\s*$/.test(say.trim());
   if (!callIsQuestion && (callAll || mCall)) {
-    const hereName0 = String(world.places?.[me.location]?.name || '');
     const estate0 = hereName0.includes('·') ? hereName0.split('·').slice(0, 2).join('·') : '';
     const isMyKin = (a) => (String(a.spouse || '') === 'husband' && /正妻|如夫人|二房|侧室|妾|通房|丫鬟/.test(String(a.role || '')))
       || (estate0 && String(world.places?.[a.home]?.name || '').startsWith(estate0)
         && /正妻|如夫人|二房|侧室|妾|通房|丫鬟/.test(String(a.role || '')));
+    // 在外绝不群召内眷
     const targets = callAll
-      ? Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && isMyKin(a)).slice(0, 8)
+      ? (isAtHome ? Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && isMyKin(a)).slice(0, 8) : [])
       : [findByName(world, mCall?.[1])].filter(Boolean);
     const names = [];
     let triedMove = 0;
     for (const a of targets) {
       if (!a || a.location === me.location) continue;
+      // 在府外严禁将正妻内眷挪至客栈等非宅院场所
+      if (!isAtHome && isMyKin(a) && /客栈|酒楼|青楼|货栈|赌场/.test(hereName0)) {
+        continue;
+      }
       const dest = isOuterStaff(a) ? (hallOf(world) || me.location) : me.location;
       if (!dest) continue;
       triedMove += 1;
@@ -220,7 +227,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       if (mv?.ok) names.push(isOuterStaff(a) ? `${a.name}（厅上）` : a.name);
     }
     if (names.length) notices.push(`${names.join('、')}都到了跟前。`);
-    else if (callAll) notices.push('（内眷已经在跟前了。）');
+    else if (callAll && isAtHome) notices.push('（内眷已经在跟前了。）');
     else if (triedMove > 0) notices.push('（人没能到跟前；若是真人，只能去找她。）');
   }
 
@@ -339,6 +346,42 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
             : '（同行没跟上，仍在原处。）');
         }
       }
+    }
+  }
+
+  // 备雅间设宴：在酒楼或鑫雅阁对掌柜/账房说今晚备房、设宴款待达官显贵
+  if (/(?:准备|备|订|留|收拾)\s*(?:一间|个)?\s*(?:房间|雅间|包厢|天字阁|席面|宴席)/.test(say)
+    || /(?:宴请|设宴|请客|摆酒|招待)\s*(?:达官|贵人|大人|士绅|知县|县令|同僚|客人)/.test(say)) {
+    const herePl = world.places?.[me.location] || {};
+    const rootId = String(herePl.parent || me.location || '');
+    const isRestaurant = /酒楼|place_44|canal_restaurant/.test(rootId) || /酒楼/.test(herePl.name || '');
+    const isXinyage = /xinyage|鑫雅阁/.test(rootId) || /鑫雅阁/.test(herePl.name || '');
+
+    if (isRestaurant || isXinyage) {
+      const venueName = isXinyage ? '鑫雅阁' : '运河码头大酒楼';
+      const targetRoomId = isXinyage ? 'xinyage__f2_tian' : (world.places?.['place_44__f3'] ? 'place_44__f3' : 'place_44__f2');
+      const roomObj = world.places?.[targetRoomId];
+      const roomName = roomObj?.name || (isXinyage ? '二层·天字雅间' : '三层天字阁');
+
+      if (roomObj) roomObj.reserved = true;
+      world.banquets = Array.isArray(world.banquets) ? world.banquets : [];
+      const banquetId = `banquet_${Date.now()}`;
+      world.banquets.push({
+        id: banquetId,
+        placeId: targetRoomId,
+        venueName,
+        roomName,
+        day: world.clock?.day || 1,
+        hour: 19, // 戌时入席
+        status: 'preparing',
+        title: '宴请达官贵人与名流士绅',
+      });
+
+      const manager = isXinyage
+        ? (world.actors?.['npc_49']?.name || '钱书办')
+        : (world.actors?.['npc_accountant_zhou']?.name || '周账房');
+
+      notices.push(`（【宴席备妥】${manager}躬身抱拳：“少掌柜放心，${roomName}已整肃挂牌，专候今宵贵客！后厨这便采办水陆八珍席面，入夜戌时只候相公与诸位贵客登门赴宴！”）`);
     }
   }
 
@@ -514,37 +557,67 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 开房住店：真开一间上房（地点），把人挪进去
-  if (/(开|要|住)(一间|间|个)?(上房|房间|房)|住店/.test(say)) {
+  // 开房住店：真开一间上房（地点），同行女伴一同移入，防重复扣费
+  if (/(?:去开间?房|去客栈开房|在客栈住下|开一间上房|住进上房|去开房)/.test(say)) {
     const curName = String(world.places?.[me.location]?.name || '');
     const innId = Object.keys(world.places || {}).find((id) => {
       const n = String(world.places[id]?.name || '');
       return /客栈/.test(n) && (curName.startsWith(n) || n.startsWith(curName.split('·')[0]));
-    });
-    const innName = String(world.places?.[innId]?.name || '客栈');
+    }) || 'inn';
+    const innName = String(world.places?.[innId]?.name || '临江客栈');
     const fee = 0.1;
     const purse = Number(world.assets?.silver) || 0;
-    if (purse < fee) {
-      notices.push(`（上房一晚 ${fee.toFixed(2)} 两，手头不够。）`);
+
+    let roomId = Object.keys(world.places || {}).find((id) => String(world.places[id]?.name || '') === `${innName}·上房`);
+    if (!roomId) {
+      world.flags = world.flags || {};
+      world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
+      roomId = `place_${world.flags.placeSeq}`;
+      world.places[roomId] = { id: roomId, name: `${innName}·上房`, exits: innId ? [innId] : ['street'], parent: innId || null, use: 'room', dynamic: true, private: true };
+      if (innId && world.places[innId]) {
+        world.places[innId].exits = Array.isArray(world.places[innId].exits) ? world.places[innId].exits : [];
+        if (!world.places[innId].exits.includes(roomId)) world.places[innId].exits.push(roomId);
+      }
+    }
+
+    // 已经在房内，不重复扣费也不重复造景
+    if (me.location === roomId || curName.includes('上房')) {
+      notices.push(`（人已在「${world.places[roomId]?.name || curName || '客栈上房'}」中歇息，不必重复开房。）`);
     } else {
-      let roomId = Object.keys(world.places || {}).find((id) => String(world.places[id]?.name || '') === `${innName}·上房`);
-      if (!roomId) {
-        world.flags = world.flags || {};
-        world.flags.placeSeq = (Number(world.flags.placeSeq) || 0) + 1;
-        roomId = `place_${world.flags.placeSeq}`;
-        world.places[roomId] = { id: roomId, name: `${innName}·上房`, exits: innId ? [innId] : ['street'], parent: innId || null, use: 'room', dynamic: true };
-        if (innId && world.places[innId]) {
-          world.places[innId].exits = Array.isArray(world.places[innId].exits) ? world.places[innId].exits : [];
-          if (!world.places[innId].exits.includes(roomId)) world.places[innId].exits.push(roomId);
+      const alreadyPaidToday = world.flags?.lodging?.place === roomId && world.flags?.lodging?.day === day;
+      if (!alreadyPaidToday) {
+        if (purse < fee) {
+          notices.push(`（上房一晚 ${fee.toFixed(2)} 两，手头银子不够。）`);
+        } else {
+          world.assets.silver = Math.round((purse - fee) * 100) / 100;
+          world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+          world.ledger.push({ day, hour: world.clock?.hour || 0, delta: -fee, title: '客栈上房', by: 'husband', balance: world.assets.silver });
+          world.flags = world.flags || {};
+          world.flags.lodging = { place: roomId, day };
         }
       }
-      world.assets.silver = Math.round((purse - fee) * 100) / 100;
-      world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
-      world.ledger.push({ day, hour: world.clock?.hour || 0, delta: -fee, title: '客栈上房', by: 'husband', balance: world.assets.silver });
-      world.flags = world.flags || {};
-      world.flags.lodging = { place: roomId, day };
-      moveActor(world, me.id, roomId, 'world', '开房入住');
-      notices.push(`上房开好了：${world.places[roomId].name}，一晚 ${fee.toFixed(2)} 两，今夜就在此处歇下。`);
+
+      if (alreadyPaidToday || purse >= fee) {
+        const oldLoc = me.location;
+        moveActor(world, me.id, roomId, 'world', '开房入住');
+
+        // 核心修复：在场同行的红颜女伴一同进入上房，绝不把女伴丢在门外空房！
+        const comers = [];
+        const companions = Object.values(world.actors || {}).filter((a) =>
+          a && !a.dead && a.id !== me.id && a.location === oldLoc
+        );
+        for (const comp of companions) {
+          // 在场的红颜、老板娘、对话对象随行入房（严禁带远在王宅的正妻内眷）
+          if (/老板娘|柳如烟|彩云|女/.test(comp.name + String(comp.role || '')) || comp.gender === 'female') {
+            moveActor(world, comp.id, roomId, 'world', '同行入住');
+            comers.push(comp.name);
+          }
+        }
+
+        const costText = alreadyPaidToday ? '（今夜房费已结清）' : `一晚 ${fee.toFixed(2)} 两`;
+        const withText = comers.length ? `，${comers.join('、')}随你一同进了房` : '';
+        notices.push(`上房开好了：${world.places[roomId].name}，${costText}${withText}。`);
+      }
     }
   }
 

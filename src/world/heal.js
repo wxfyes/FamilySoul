@@ -80,9 +80,10 @@ export function healWorld(world) {
     }
     const oldId = byName.get(nm);
     const oldPl = world.places[oldId];
-    // 智能选择保留哪个：优先保留有 rooms、有较多 exits 的实体
-    const oldScore = (oldPl?.rooms ? 10 : 0) + (Array.isArray(oldPl?.exits) ? oldPl.exits.length : 0);
-    const newScore = (p?.rooms ? 10 : 0) + (Array.isArray(p?.exits) ? p.exits.length : 0);
+    // 智能选择保留哪个：优先保留标准前缀实体（如 xinyage/place_*），杜绝 project_* 临时自增 ID
+    const isStd = (key) => !key.startsWith('project_');
+    const oldScore = (oldPl?.rooms ? 10 : 0) + (Array.isArray(oldPl?.exits) ? oldPl.exits.length : 0) + (isStd(oldId) ? 50 : 0);
+    const newScore = (p?.rooms ? 10 : 0) + (Array.isArray(p?.exits) ? p.exits.length : 0) + (isStd(id) ? 50 : 0);
     const keep = newScore > oldScore ? id : oldId;
     const drop = newScore > oldScore ? oldId : id;
     const keepPl = world.places[keep];
@@ -445,6 +446,126 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 酒楼天字阁与人物落地失败：', err.message);
+  }
+
+  // ⑯ 鑫雅阁风雅会所单一真实地点自愈、房间落地与钱书办大掌柜职责确立
+  try {
+    world.places = world.places || {};
+    world.actors = world.actors || {};
+    world.assets = world.assets || {};
+    world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
+
+    // 1. 确保鑫雅阁物理空间存在
+    let pXin = world.places['xinyage'];
+    if (!pXin) {
+      world.places['xinyage'] = {
+        id: 'xinyage',
+        name: '临江·鑫雅阁',
+        exits: ['street'],
+        owner: 'husband',
+        kind: '雅阁',
+        use: 'restaurant',
+        access: 'public_shop',
+        desc: '相公斥资三百两由侧室崔婉宁筹备置办的风雅楼阁，知县文达亲验关防，专供官商名流雅集，密织临江消息网。',
+        rooms: {
+          hall: { id: 'xinyage__hall', name: '一层·品茗大堂', exits: ['xinyage', 'xinyage__f2_tian', 'xinyage__f2_di', 'xinyage__secret'], access: 'public_outer', use: 'hall' },
+          f2_tian: { id: 'xinyage__f2_tian', name: '二层·天字雅间', exits: ['xinyage__hall'], access: 'guest_main', use: 'room', reserved: false },
+          f2_di: { id: 'xinyage__f2_di', name: '二层·地字雅间', exits: ['xinyage__hall'], access: 'guest_main', use: 'room' },
+          secret: { id: 'xinyage__secret', name: '内堂·消息账房', exits: ['xinyage__hall'], access: 'guest_main', use: 'office' },
+        },
+      };
+      pXin = world.places['xinyage'];
+      fixes.push('生成真实建筑实体：临江·鑫雅阁');
+    }
+
+    // 实例化各个子房间
+    for (const [rid, r] of Object.entries(pXin.rooms || {})) {
+      const fullId = r.id || `xinyage__${rid}`;
+      if (!world.places[fullId]) {
+        world.places[fullId] = {
+          id: fullId,
+          name: `临江·鑫雅阁·${r.name}`,
+          parent: 'xinyage',
+          use: r.use || 'shop_floor',
+          access: r.access || 'public_shop',
+          exits: ['xinyage', 'xinyage__hall'],
+        };
+        fixes.push(`生成真实房间实体：${world.places[fullId].name}`);
+      }
+      pXin.exits = Array.isArray(pXin.exits) ? pXin.exits : [];
+      if (!pXin.exits.includes(fullId)) pXin.exits.push(fullId);
+    }
+
+    // 2. 确保 assets.properties 中登记鑫雅阁
+    let propXin = world.assets.properties.find((p) => p && (p.id === 'xinyage' || p.name === '鑫雅阁' || p.name === '临江·鑫雅阁'));
+    if (!propXin) {
+      world.assets.properties.push({
+        id: 'xinyage',
+        keeper: 'npc_49',
+        owner: 'husband',
+        name: '临江·鑫雅阁',
+        status: '筹备开张',
+        incomePerDay: 5.0,
+        costSilver: 300,
+        placeId: 'xinyage',
+        desc: '相公斥资三百两由侧室崔婉宁筹备置办的风雅楼阁，知县文达亲验关防，钱书办任大掌柜兼账房主管，专织临江消息网与笼络官商名流。',
+      });
+      fixes.push('资产登记：临江·鑫雅阁（相公出资三百两，钱书办任掌柜）');
+    } else {
+      propXin.keeper = 'npc_49';
+      propXin.placeId = 'xinyage';
+    }
+
+    // 3. 确立钱书办（npc_49）为鑫雅阁大掌柜兼消息主事
+    const qian = world.actors['npc_49'] || Object.values(world.actors).find((a) => a && a.name === '钱书办');
+    if (qian) {
+      qian.role = '鑫雅阁大掌柜兼消息主事';
+      qian.location = 'xinyage';
+      qian.home = 'xinyage';
+      qian.desc = '县衙书办出身，深谙官府律令掌故与钱谷名册，由知县周文达大人亲荐至鑫雅阁任大掌柜，专管歌舞契纸名册与内堂密阁，替相公将鑫雅阁打造成刺探临江消息网、笼络各路达官显贵的清雅会所。';
+      qian.relations = qian.relations || {};
+      qian.relations.husband = qian.relations.husband || { trust: 50, desire: 30, fear: 0, grievance: 0 };
+      qian.relations.husband.trust = Math.max(Number(qian.relations.husband.trust || 0), 50);
+      fixes.push('正名归位：钱书办确立为鑫雅阁大掌柜兼消息主事，坐镇临江·鑫雅阁');
+    }
+
+    // 4. 彻底清理历史遗留旧鑫雅阁（project_1*）幽灵节点，将人员与出入口统归 xinyage 唯一实体
+    for (const [id, pl] of Object.entries(world.places || {})) {
+      if (id.startsWith('project_1') || (pl && String(pl.name || '').includes('鑫雅阁') && !id.startsWith('xinyage'))) {
+        const destId = id.includes('f2') ? 'xinyage__f2' : (id.includes('f1') ? 'xinyage__hall' : 'xinyage');
+        for (const a of Object.values(world.actors || {})) {
+          if (a && a.location === id) {
+            a.location = destId;
+            fixes.push(`将 ${a.name} 从旧节点 ${id} 迁移至唯一真实实体 ${destId}`);
+          }
+        }
+        delete world.places[id];
+        fixes.push(`清理旧鑫雅阁节点：${id}`);
+      }
+    }
+    // 确保 xinyage__f2 实体存在并命名为 临江·鑫雅阁·二层雅间
+    if (!world.places['xinyage__f2']) {
+      world.places['xinyage__f2'] = {
+        id: 'xinyage__f2',
+        name: '临江·鑫雅阁·二层雅间',
+        parent: 'xinyage',
+        use: 'shop_floor',
+        access: 'guest_main',
+        exits: ['xinyage', 'xinyage__hall'],
+      };
+      fixes.push('实例化唯一真实实体：临江·鑫雅阁·二层雅间 (xinyage__f2)');
+    }
+    // 确保相公与周文达若在鑫雅阁，位置精确锁定为 xinyage__f2
+    const hus = world.actors?.husband;
+    const wenda = world.actors?.county_magistrate;
+    if (hus && String(hus.location || '').includes('xinyage') && hus.location !== 'xinyage__f2') {
+      hus.location = 'xinyage__f2';
+    }
+    if (wenda && String(wenda.location || '').includes('xinyage') && wenda.location !== 'xinyage__f2') {
+      wenda.location = 'xinyage__f2';
+    }
+  } catch (err) {
+    console.warn('[Heal] 鑫雅阁自愈异常：', err.message);
   }
 
   return fixes;

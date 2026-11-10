@@ -772,29 +772,19 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         const tName = tActor.name;
         const tLabel = tActor.label || tName;
         if (turnTarget.named) {
-          turnDirective = `\n（【现场发言权调度 · 指名正主接话】：\n` +
-            `1. 相公此刻明确在跟【${tName}】说话！\n` +
-            `2. 本轮必须由【${tName}】（以【${tLabel}】开头）独立回答；其他在场者垂手聆听，绝不抢白代替表态！）`;
+          turnDirective = `\n（相公指名向【${tName}】问话，此刻由【${tLabel}】接话作答。）`;
         } else {
           const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
           const wifeCompanions = companions.filter((a) => a.household || ['waner', 'yunnia'].includes(a.id));
           const companionNames = wifeCompanions.map((a) => a.label || a.name).join('、');
           const isStaff = /掌柜|管事|头领|领头|护院|家丁|门房|伙计/.test(String(tActor.role || '')) || /罗叔/.test(tName);
           if (companionNames) {
-            turnDirective = `\n（【现场多人在场发言调度 · 妻妾同堂】：\n` +
-              `1. 本轮首位开口者必须是掌事正主【${tName}】（以【${tLabel}】开头），主持表态；\n` +
-              `2. 同在现场的家眷【${companionNames}】随后温婉附和、行礼接话或递茶侍候，营造自然和睦的家室氛围；\n` +
-              `3. 丫鬟小翠听差不抢主子话头；不在场的人绝不许出声！）`;
+            turnDirective = `\n（此刻由【${tLabel}】主持回应相公，在场眷属【${companionNames}】自然随侍相伴。）`;
           } else if (isStaff && companions.length > 0) {
-            const compNames = companions.map((a) => a.label || a.name).join('、');
-            turnDirective = `\n（【现场主从尊卑调度 · 领头人回话】：\n` +
-              `1. 主仆礼制：由在场领头人/长者【${tName}】（以【${tLabel}】开头）率先上前躬身回话，答复相公；\n` +
-              `2. 现场随从跟班【${compNames}】只许垂手肃立，绝不可越过头领抢白！若开腔只许在后附和应诺（如抱拳称"是！"）；\n` +
-              `3. 不在场者绝不出声！）`;
+            turnDirective = `\n（主仆礼制：由掌事领头人【${tLabel}】上前从容回话，余人肃立各司其职。）`;
           } else {
-            turnDirective = `\n（【现场发言权调度】：\n` +
-              `1. 本轮首位开口发言者由场景正主【${tName}】（以【${tLabel}】开头）接话；\n` +
-              `2. 现场其他在场者不得代替 ${tName} 表态立据；不在场者绝不出声！）`;
+            const locName = wTurn.places?.[myLoc]?.name || '客栈·上房';
+            turnDirective = `\n（现场法则：此刻相公身处【${locName}】，室内唯有【${tLabel}】一人在场相伴！沈婉儿、林芸娘等府内眷属此刻皆在王宅深闺安歇，绝不在场，严禁以沈婉儿或府内妻妾口吻发言！本轮回复必须且只能由【${tLabel}】一人接话答复相公。）`;
           }
         }
         console.log(`[TurnTarget] 发言权锁定: ${tName}(${tActor.id}) reason=${turnTarget.named ? '指名道姓' : (turnTarget.solePresent ? '唯一在场' : '场景正主')}`);
@@ -803,10 +793,9 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       console.warn('[TurnTarget] 仲裁异常:', err.message);
     }
 
-    // 离场时把动作写进用户这一句 —— 模型对最后一条 user 消息最敏感，
-    // 只放在 system 末尾会被忽略，导致她还在原地反复道别。
+    // 离场时把动作写进当前指引
     const sceneAction = leftScene
-      ? '\n（相公已起身离开，回到临江茶坊。请先写出转场，再由临江茶坊这边的人开口；刚才那位已经不在场，不能再说话。）'
+      ? '\n（相公已移步离去，回到临江茶坊。此处由临江茶坊在场之人相迎。）'
       : '';
     const mergedHints = [contextHint, turnDirective].filter(Boolean).join('\n');
     const currentContent = mergedHints ? `${say}${sceneAction}\n${mergedHints}` : `${say}${sceneAction}`;
@@ -1819,12 +1808,17 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           (a) => a && !a.dead && a.id !== mePres?.id && a.location === hereLoc && a.name,
         );
         if (presentOne) {
+          const actorMems = (wPres.memories || []).filter(
+            (m) => (m.about || []).includes(presentOne.id)
+              || (m.about || []).includes(presentOne.name)
+              || String(m.text || '').includes(presentOne.name)
+          ).map((m) => m.text);
           const pp2 = buildProxyPrompt({
             actor: presentOne,
             hearer: mePres,
-            memories: [],
+            memories: actorMems,
             facts: [personFacts(wPres, presentOne.id)].concat(svc._mentionFacts(wPres, say, presentOne.id)).filter(Boolean),
-            hearerName: mePres?.name || '客人',
+            hearerName: mePres?.name || '相公',
             hearerPlace: String(wPres.places?.[hereLoc]?.name || ''),
             said: String(say || '').slice(0, 200),
             recent: svc._recentSnippet(profileKey, 4),

@@ -133,6 +133,39 @@ export function normalizeSpeakers(text, dataDir) {
         res = res.replace(rawRegex, `$1【${label}】：$3`);
       }
     }
+
+    // 治理男性角色被大模型误套正妻人设自称“妾身/奴婢”的荒唐问题
+    const segs = res.split(/(?=【[^】\n]{1,12}】)/);
+    const correctedSegs = segs.map((seg) => {
+      const spkMatch = seg.match(/^【([^】\n]{1,12})】/);
+      if (!spkMatch) return seg;
+      const spk = spkMatch[1].trim();
+      // 判断说话人是否为男性
+      const actor = Object.values(world.actors || {}).find(
+        (a) => a && (a.name === spk || spk.includes(a.name) || (a.name && spk.endsWith(a.name)))
+      );
+      const isMale = (actor && actor.gender === 'male') ||
+        /叔|爷|伯|公|男|生|掌柜|账房|大厨|伙计|护院|家丁|大人|总商|捕快|师爷|小二|小厮|兄|爹|汉/.test(spk);
+      const isFemale = (actor && actor.gender === 'female') ||
+        /妻|妾|娘|妹|姐|丫鬟|女|姑|妇|婆/.test(spk);
+
+      if (isMale && !isFemale) {
+        // 男性严禁自称妾身、奴婢、小女
+        let cSeg = seg;
+        // 如果是长者、乡绅、士人、客商
+        if (/乡绅|老|叔|爷|伯|公|大人|总商|汪德润|袁/.test(spk)) {
+          cSeg = cSeg.replace(/妾身/g, '老夫').replace(/奴婢/g, '在下').replace(/小女/g, '在下');
+        } else if (/掌柜|账房|大厨|伙计|护院|小二|小厮|小的/.test(spk)) {
+          cSeg = cSeg.replace(/妾身/g, '小的').replace(/奴婢/g, '小的').replace(/小女/g, '小的');
+        } else {
+          cSeg = cSeg.replace(/妾身/g, '在下').replace(/奴婢/g, '在下').replace(/小女/g, '在下');
+        }
+        return cSeg;
+      }
+      return seg;
+    });
+    res = correctedSegs.join('');
+
     return res;
   } catch {
     return text;

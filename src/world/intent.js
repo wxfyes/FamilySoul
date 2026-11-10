@@ -261,21 +261,10 @@ export function parseIntent({ text = '', actorId = 'husband', world = null, last
         params.leaveParty = lTarget;
       }
 
-      // 缺口④：反向伴随与默契同场伴随
-      // 若是伴侣对相公说“跟我去/随我去”，或相公对伴侣表达同去
+      // 缺口④：反向伴随（伴侣对相公说“跟我去/随我去”），相公带人必须指名道姓，严禁模糊口语偷带身边内眷
       if (companions.length === 0 && isTogether && curLoc) {
         if (actor !== 'husband' && world.actors.husband) {
-          // 伴侣带相公
           companions.push({ id: 'husband', name: world.actors.husband.name || '王甯' });
-        } else {
-          // 相公带身旁亲近红颜
-          for (const [aId, a] of Object.entries(world.actors)) {
-            if (!a || a.dead || aId === actor) continue;
-            if (a.location === curLoc && (['liuwenxia', 'yunnia', 'yangcaiyun', 'zhanjing'].includes(aId) || a.household || a.gender === 'female')) {
-              companions.push({ id: aId, name: a.name });
-              break;
-            }
-          }
         }
       }
     }

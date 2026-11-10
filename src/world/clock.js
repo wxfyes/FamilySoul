@@ -58,7 +58,7 @@ function dailyGossip(day) {
   return DAILY_GOSSIP[Math.abs(day) % DAILY_GOSSIP.length];
 }
 
-const PROACTIVE_COOLDOWN_HOURS = 6; // 主动推送按「世界时辰」间隔，至少隔 6 个世界小时
+const PROACTIVE_COOLDOWN_HOURS = 2; // 主动推送按「世界时辰」间隔，至少隔 2 个世界小时
 
 function worldHourStamp(world) {
   return (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
@@ -2586,20 +2586,103 @@ function advanceHour(world, events, nowMs) {
     });
   }
 
-  // 掌灯时分仍不见人 → 红颜闺阁温存关切
-  if (world.clock.hour === 20) {
-    const lastUser = Number(world.flags.lastUserMessageAt) || 0;
-    if (lastUser > 0 && nowMs - lastUser > 6 * 60 * 60 * 1000) {
-      queueProactive(world, {
-        reason: 'night_care',
-        facts: { hoursAway: Math.round((nowMs - lastUser) / 3600000) },
+  // 世情与产业主动呈报调度器：主仆定夺请示 + 妻妾红颜温存私语（告别死寂“半活”）
+  const chour = Number(world.clock?.hour) || 0;
+  const cday = Number(world.clock?.day) || 1;
+
+  // 1. 晨间巳时（9时）：掌柜/下人请示定夺要务
+  if (chour === 9) {
+    const pOptions = [
+      {
+        speaker: '掌柜·钱书办',
+        actorId: 'npc_49',
+        reason: 'staff_report',
+        text: '【掌柜·钱书办】：少掌柜，鑫雅阁歌舞名册已立好底稿，县衙户房刘主簿今晚欲来品茗听曲，问能否腾出一间清幽雅座？请少掌柜示下。',
+        place: '临江·鑫雅阁',
+      },
+      {
+        speaker: '大掌柜·周有财',
+        actorId: 'npc_accountant_zhou',
+        reason: 'staff_report',
+        text: '【大掌柜·周有财】：东家，运河码头今早泊来两艘淮盐大官船，船老大托人来问，今夜要在酒楼包下五桌上好席面，请东家示下可否接下？',
+        place: '运河码头三层大酒楼',
+      },
+      {
+        speaker: '账房·罗叔',
+        actorId: 'npc_accountant_luo',
+        reason: 'staff_report',
+        text: '【账房·罗叔】：少掌柜，老茶坊后院春茶炒制好了三成，头道香气极正，紫阳山茶农催着结算二道茶定金，请少掌柜示下。',
+        place: '临江茶坊老店',
+      },
+    ];
+    const pick = pOptions[cday % pOptions.length];
+    queueProactive(world, {
+      ...pick,
+      fallback: pick.text,
+      type: 'proactive',
+      force: true,
+    });
+  }
+
+  // 2. 午后申时（15时）：名流往来与新铺筹备
+  if (chour === 15) {
+    const sOptions = [
+      {
+        speaker: '侧室·婉宁',
+        actorId: '临江_gentry_1_小姐',
+        reason: 'wife_care',
+        text: '【侧室·婉宁】：相公，鑫雅阁名帖与东跨院的屏风采买妾身已着人备妥了。何时得空，妾身在房里候相公一同掌眼。',
+        place: '临江·王宅·东跨院',
+      },
+      {
+        speaker: '门房·老周',
+        actorId: 'staff_gatekeeper',
+        reason: 'visitor_notice',
+        text: '【门房·老周】：少掌柜，外头有两淮客商递了拜帖名帖，说仰慕少掌柜大名，求见商议茶叶专供之事，拜帖已呈在门房。',
+        place: '临江·王宅·朱漆大门',
+      },
+    ];
+    const pick = sOptions[cday % sOptions.length];
+    queueProactive(world, {
+      ...pick,
+      fallback: pick.text,
+      type: 'proactive',
+      force: true,
+    });
+  }
+
+  // 3. 入夜戌时（20时）：后宅温存、体己私语与红颜心动求欢
+  if (chour === 20) {
+    const nOptions = [
+      {
         speaker: '正妻·婉儿',
-        text: '【正妻·婉儿】：相公在外头忙了一整日，更深露重，正房已点上安神熏香，温着清茶，相公得空早些回房歇息吧。',
-        fallback: '【正妻·婉儿】：相公在外头忙了一整日，更深露重，得空早些回房歇息吧。',
-        type: 'proactive',
-        force: true,
-      });
-    }
+        actorId: 'waner',
+        reason: 'night_care',
+        text: '【正妻·婉儿】：相公在外奔波一整日，今儿腹中孩儿又踢了妾身两回，小翠已煨好了热鸡汤。夜深露重，相公早些回东厢房歇息吧。',
+        place: '临江·王宅·正房',
+      },
+      {
+        speaker: '二房·芸娘',
+        actorId: 'yunnia',
+        reason: 'night_care',
+        text: '【二房·芸娘】：相公，老茶坊今日账目妾身已盘清了，新给你做了一双软底暖靴。炉子上煨着莲子羹，相公何时回房歇息？',
+        place: '临江·王宅·西厢房',
+      },
+      {
+        speaker: '老板娘·柳如烟',
+        actorId: 'yangcaiyun',
+        reason: 'secret_rendezvous',
+        text: '【老板娘·柳如烟】：（密信）冤家，今儿货栈后门那批两淮的货总算点清了，掌柜的早早回了乡下。后巷那条清幽小道……你今晚可要来寻我？',
+        place: '翟家货栈·后门',
+      },
+    ];
+    const pick = nOptions[cday % nOptions.length];
+    queueProactive(world, {
+      ...pick,
+      fallback: pick.text,
+      type: 'proactive',
+      force: true,
+    });
   }
 
   try {

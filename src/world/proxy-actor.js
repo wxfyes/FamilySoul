@@ -17,11 +17,20 @@ export function relationOf(actor, hearer) {
   if (!hid) return 'outsider';
   if (actor.spouse && String(actor.spouse) === hid) return 'spouse';
   if (Array.isArray(actor.lovers) && actor.lovers.includes(hid)) return 'lover';
-  const rel = actor.relations?.[hid] || {};
+
+  // 兼顾按 ID 索引与扁平关系结构（NPC 对相公的 relations 往往直接存放在根字段）
+  const isHusband = hid === 'husband' || hearer.id === 'me';
+  const rel = actor.relations?.[hid]
+    || (isHusband && actor.relations?.trust !== undefined ? actor.relations : null)
+    || (isHusband && actor.rel?.trust !== undefined ? actor.rel : null)
+    || {};
+
   if (rel.lover || rel.intimacy === 'lover') return 'lover';
-  if (Number(rel.desire) >= 70 && Number(rel.trust) >= 60) return 'lover';
+  // trust >= 50 且 desire >= 50，或任一超过 70，视为私下心仪之红颜知己
+  if ((Number(rel.desire) >= 50 && Number(rel.trust) >= 50) || Number(rel.desire) >= 70) return 'confidante';
+  if (Number(rel.trust) >= 50 || Number(rel.desire) >= 30) return 'friend';
   if (actor.id === 'husband' && hearer.household) return 'household';
-  if (actor.household && hearer.id === 'husband') return 'household';
+  if (actor.household && (hid === 'husband' || hearer.id === 'me')) return 'household';
   if (actor.household && hearer.household) return 'household';
   return 'outsider';
 }
@@ -29,6 +38,7 @@ export function relationOf(actor, hearer) {
 /** 说话人的行当气质（按身份类别，不按姓名） */
 function flavorOf(actor) {
   const text = `${actor?.role || ''} ${actor?.name || ''}`;
+  if (/知县|县令|知府|官员|通判|同知|巡抚|总兵|县丞|官爷/.test(text)) return 'official';
   if (/工头|营造|泥瓦|木匠|力工/.test(text)) return 'rough';
   if (/书办|书吏|衙役|吏|先生|夫子/.test(text)) return 'scholar';
   if (/东家|掌柜|少东家|商人|客商/.test(text)) return 'merchant';
@@ -51,7 +61,7 @@ function flavorOf(actor) {
 export function buildProxyPrompt({ actor, hearer = null, memories = [], facts = [], hearerName, hearerPlace, said, recent = '' }) {
   const actorName = actor?.name || '王甯';
   const relation = relationOf(actor, hearer);
-  const intimate = relation === 'spouse' || relation === 'lover';
+  const intimate = relation === 'spouse' || relation === 'lover' || relation === 'confidante' || relation === 'household';
   const flavor = flavorOf(actor);
   const who = hearer?.name || hearerName || '对方';
 
@@ -59,15 +69,24 @@ export function buildProxyPrompt({ actor, hearer = null, memories = [], facts = 
   lines.push(`你现在代演「${actorName}」——${actor?.role || '城中人'}。他本人不在线，由你按他的立场说话。`);
 
   // ① 关系铁律：这是本轮最要紧的一条，写在最前面
-  if (intimate) {
-    lines.push(`【眼前这个人】：${who}，是他的${relation === 'spouse' ? '结发之人' : '相好'}。可以有关起门来的亲近与疼惜，但要像活人，不要写成荤段子。`);
+  if (relation === 'spouse') {
+    lines.push(`【眼前这个人】：${who}，是你的结发夫君。有关起门来的夫妻恩爱与体己话，自然亲近。`);
+  } else if (relation === 'lover') {
+    lines.push(`【眼前这个人】：${who}，是你的相好意中人。彼此私定情愫，私下共处时亲近温存。`);
+  } else if (relation === 'confidante') {
+    lines.push(`【眼前这个人】：${who}（王相公/王甯），是你的知心红颜与私下心仪托付之人。你们彼此互有情愫与默契，私下相伴共处一室自有一份心照不宣的亲近、试探与娇嗔；即便碍于外物（如尚未摆平夫家/有正事在身）有所推拒，也当温言软语相劝、半推半就，绝不可假装不认人，绝不可说“认错人了/与您没干系/请回吧”这类绝情昏话！`);
+  } else if (relation === 'household') {
+    lines.push(`【眼前这个人】：${who}，是府内自家人，说话亲切自然、相互照拂。`);
+  } else if (relation === 'friend') {
+    lines.push(`【眼前这个人】：${who}（王少掌柜），是熟络交好的知交旧识。说话随和客气，以礼相待。`);
   } else {
-    lines.push(`【眼前这个人】：${who}，**与他没有婚配、不是他的相好，只是个外人**。`);
-    lines.push('绝不可称对方"媳妇/娘子/宝贝"，绝不可动手动脚、揽腰拉手，绝不可说"想你了"这类私房话。');
+    lines.push(`【眼前这个人】：${who}（王少掌柜），是城中茶坊产业的少掌柜，有头有脸。虽无深交，但说话知分寸、客气持重，就事论事，绝不说失礼冷言。`);
   }
 
   // ② 行当气质
-  if (flavor === 'rough') {
+  if (flavor === 'official') {
+    lines.push('你是百里之侯一方父母官（县尊/知县/府台）：举止沉稳持重、威仪自生，深谙大明官场条规与世情人情。自称「本官/老夫/文达/某家」，称相公「王少掌柜/少掌柜/小友/贤契」。【绝不可自称小的、奴才，绝不可叫相公东家】！官民有别，纵使受邀吃酒应酬、私交甚契，亦是朝廷正印官人俯就商人，言谈间自有官府威严与长者风度，绝无奴颜婢膝之态！');
+  } else if (flavor === 'rough') {
     lines.push(intimate
       ? '你是营造行的大工头，手上几十号兄弟，嗓门大、力气足；对着自家媳妇会粗声粗气地疼人，会拍胸脯把难处揽下来。'
       : '你是营造行的大工头、酒肆的男掌柜：嗓门大、手脚快、就事论事。来求职的，先看他身板力气、问会什么手艺、谈工钱与吃住；来吃酒的，吆喝一声上酒上菜。');
@@ -131,3 +150,48 @@ export function wrapProxyLine(name, raw) {
   if (!t) return null;
   return `【${name}】：${t}`;
 }
+
+/**
+ * 记录真人角色离线期间由 AI 代演所产生的言行要务
+ */
+export function recordProxyActivity(world, actorId, { placeName, said, heard, day, hour, partnerName }) {
+  if (!world || !actorId) return;
+  world.proxyCatchUps = world.proxyCatchUps || {};
+  world.proxyCatchUps[actorId] = Array.isArray(world.proxyCatchUps[actorId]) ? world.proxyCatchUps[actorId] : [];
+  world.proxyCatchUps[actorId].push({
+    day: day || world.clock?.day || 1,
+    hour: hour || world.clock?.hour || 0,
+    place: placeName || '城中某处',
+    partner: partnerName || '王相公',
+    heard: (heard || '').slice(0, 100),
+    said: (said || '').slice(0, 150),
+    ts: Date.now(),
+  });
+  if (world.proxyCatchUps[actorId].length > 20) {
+    world.proxyCatchUps[actorId] = world.proxyCatchUps[actorId].slice(-20);
+  }
+}
+
+/**
+ * 真人上线时提取长篇履职汇报书（提取后清空）
+ */
+export function drainProxyCatchUpReport(world, actorId, actorName = '姑娘') {
+  if (!world?.proxyCatchUps?.[actorId] || !world.proxyCatchUps[actorId].length) return null;
+  const list = world.proxyCatchUps[actorId];
+  delete world.proxyCatchUps[actorId];
+
+  const lines = [
+    `╔═══════════════════════════════════════════════════════════╗`,
+    `       【离线履职全景汇报书 · 神识代演推移纪略】            `,
+    `╚═══════════════════════════════════════════════════════════╝`,
+    `尊驾离线期间，神识恪守本分，依尊驾性情立场代为应答周旋，要务汇报如下：`,
+  ];
+  list.forEach((item, idx) => {
+    lines.push(`\n${idx + 1}. 【第${item.day}日 ${item.hour}时 · ${item.place}】：与「${item.partner}」商谈。`);
+    if (item.heard) lines.push(`   - 对方言道：“${item.heard}”`);
+    if (item.said) lines.push(`   - 神识代答：“${item.said}”`);
+  });
+  lines.push(`\n尊驾此刻肉身已归位，神识退隐，世界推移诸事皆待尊驾亲自定夺执掌！`);
+  return lines.join('\n');
+}
+

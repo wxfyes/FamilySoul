@@ -90,14 +90,14 @@ export function matchScenarioTrigger({
       return `（【现状】第${wM2.clock?.day}日 ${wM2.clock?.hour}时。${rumorText ? '城里在传：' + rumorText + '。' : ''}该起身了。）\n`;
     })();
   } else if (!contextHint) {
-    // 动态场景兜底：相公亲临运河大酒楼现场处理商海大单
+    // 动态场景兜底：相公亲临运河大酒楼现场
     try {
       const wLive = loadState(dataDir);
       const husLoc = wLive.actors?.husband?.location;
       const isAtRestaurant = husLoc && (husLoc === 'canal_restaurant' || husLoc === 'place_44' || husLoc.startsWith('place_44__') || String(wLive.places?.[husLoc]?.name || '').includes('酒楼'));
       if (isAtRestaurant) {
         currentEpoch = 'ancient';
-        contextHint = `（【天道商海·东家王甯亲临运河大酒楼现场】：\n相公是运河码头三层大酒楼的全资大老板/大东家，此刻亲临酒楼！（相公指示：“${say}”）！\n【现场主从尊卑与商海闭环铁律】：\n1. 【大厨·何顺】、【账房·周有财】与【掌柜·钱有福】在场主答！针对扬州盐帮汪总商送来五十两定金包下【三层天字阁】办寿宴一事，账房周有财核验清点五十两纹银定金入柜立账，大厨何顺大喜、躬身呈请八冷八热两淮硬席与金桂酿配酒菜单，掌柜钱有福妥善统筹打点天字阁陈设！\n2. 【伙计·陈二】只在后头垂手端茶听差，绝不抢白！所有人必须围绕汪总商天字阁寿宴与酒楼大单展开，绝对严禁失忆扯东扯西！）`;
+        contextHint = `（相公是运河大酒楼东家，此刻身处酒楼。在场伙计与掌柜恭敬迎候东家，自然应对相公所问所言，各司其职，从容得体，严禁机械复读既定账目。）`;
       }
     } catch (_) {}
   }

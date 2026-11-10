@@ -275,7 +275,7 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                   title: '回王宅',
                   subtitle: '正房内寝',
                   color: const Color(0xFFC084FC),
-                  onTap: () => _run(() => _goTo('临江·王宅（七进大宅）'), '（你步入七进大宅正房。）'),
+                  onTap: () => _run(() => _goTo('临江·王宅·正房'), '（你步入七进大宅正房内寝。）'),
                 ),
                 _quickTile(
                   icon: Icons.storefront_rounded,
@@ -812,9 +812,10 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
             children: [
               _peopleFilterChip('all', '全部人物'),
               _peopleFilterChip('family', '内眷妻妾'),
-              _peopleFilterChip('manager', '得力掌柜'),
               _peopleFilterChip('confidant', '红颜知交'),
-              _peopleFilterChip('official', '官商士绅'),
+              _peopleFilterChip('official', '官府权贵'),
+              _peopleFilterChip('gentry', '名流士绅'),
+              _peopleFilterChip('manager', '产业掌柜'),
             ],
           ),
         ),
@@ -1001,17 +1002,20 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
     List<Map> list = people;
 
     if (_peopleFilter == 'family') {
-      final re = RegExp(r'妻|妾|房|丫鬟|王宅|正房|夫人');
+      final re = RegExp(r'妻|妾|房|丫鬟|王宅|正房|夫人|眷属');
       list = people.where((p) => re.hasMatch('${p['role']} ${p['group']}')).toList();
-    } else if (_peopleFilter == 'manager') {
-      final re = RegExp(r'掌柜|账房|大厨|跑堂|伙计|茶坊|酒楼|货栈');
-      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']}')).toList();
     } else if (_peopleFilter == 'confidant') {
-      final re = RegExp(r'知己|相好|客卿|乐师|采云|紫嫣|映雪');
+      final re = RegExp(r'知己|相好|客卿|乐师|采云|紫嫣|映雪|如烟|红颜');
       list = people.where((p) => re.hasMatch('${p['role']} ${p['name']} ${p['group']}')).toList();
     } else if (_peopleFilter == 'official') {
-      final re = RegExp(r'知府|县令|巡检|大人|漕帮|总商|士绅|官');
-      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']}')).toList();
+      final re = RegExp(r'知府|县令|知县|巡检|大人|巡按|巡抚|官员|县丞|主簿|通判|同知|官府|权贵');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']} ${p['group']}')).toList();
+    } else if (_peopleFilter == 'gentry') {
+      final re = RegExp(r'老爷|士绅|富商|名门|巨贾|盐商|总商|崔府|杨府|举人|进士|夫子|先生|名士|闺秀|公子');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']} ${p['group']}')).toList();
+    } else if (_peopleFilter == 'manager') {
+      final re = RegExp(r'掌柜|账房|大厨|跑堂|伙计|茶坊|酒楼|货栈|书办|主事|产业');
+      list = people.where((p) => re.hasMatch('${p['role']} ${p['name']} ${p['group']}')).toList();
     }
 
     if (list.isEmpty) {
@@ -1075,6 +1079,39 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(role, style: const TextStyle(fontSize: 10, color: Colors.white60)),
+                        ),
+                      ],
+                      if (p['group'] != null && (p['group'] ?? '').toString().isNotEmpty && !['其他人', '市井百态'].contains(p['group'])) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: p['group'] == '官府权贵'
+                                ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                                : (p['group'] == '名流士绅'
+                                    ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                                    : const Color(0xFF8B5CF6).withValues(alpha: 0.15)),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: p['group'] == '官府权贵'
+                                  ? const Color(0xFFEF4444).withValues(alpha: 0.35)
+                                  : (p['group'] == '名流士绅'
+                                      ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
+                                      : const Color(0xFF8B5CF6).withValues(alpha: 0.35)),
+                              width: 0.6,
+                            ),
+                          ),
+                          child: Text(
+                            p['group'].toString(),
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              color: p['group'] == '官府权贵'
+                                  ? const Color(0xFFFCA5A5)
+                                  : (p['group'] == '名流士绅'
+                                      ? const Color(0xFFFCD34D)
+                                      : const Color(0xFFDDD6FE)),
+                            ),
+                          ),
                         ),
                       ],
                     ],

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 命名规则：什么样的词才算"地名"
  *
  * 以前是在各处 if 里堆黑名单（"上方""旁边"…），那是补丁：
@@ -47,6 +47,7 @@ export const EN_PLACE_MAP = {
   school: '临江书院',
   tea_house: '临江茶坊老店',
   canal_restaurant: '运河码头三层大酒楼',
+  xinyage: '临江·鑫雅阁',
   wine_shop: '于家酒肆',
   husband_room: '后宅正房',
   study_room: '东厢书房',

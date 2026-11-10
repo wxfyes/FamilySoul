@@ -110,27 +110,12 @@ export function syncPartyIntent(world, text, selfId = 'husband') {
     return;
   }
 
-  // 2. 显式点名加队：“带紫嫣”、“紫嫣跟我走”、“和婉儿去”
+  // 2. 显式点名加队：“带紫嫣”、“紫嫣跟我走”、“和婉儿去”（必须指名道姓，严禁模糊集体词盲抓身边内眷）
   for (const [aId, a] of Object.entries(world.actors || {})) {
     if (aId === 'husband' || !a || a.dead) continue;
     if (matchActorInText(rawText, a, aId)) {
       if (/(?:带|跟|随|和|同|一块|一起)/.test(rawText) || JOIN_PARTY_RE.test(rawText)) {
         addToParty(world, 'husband', aId);
-      }
-    }
-  }
-
-  // 3. 集体词且当前有在场红颜：“咱们走”、“一起去”、“带上你”
-  if (JOIN_PARTY_RE.test(rawText) && husLoc) {
-    const currentMembers = getPartyMembers(world, 'husband');
-    if (currentMembers.length === 0) {
-      // 寻找当前同处的亲密红颜入队
-      for (const [aId, a] of Object.entries(world.actors || {})) {
-        if (aId === 'husband' || !a || a.dead) continue;
-        if (a.location === husLoc && (['liuwenxia', 'yunnia', 'waner', 'xiaocui', 'yangcaiyun', 'zhanjing'].includes(aId) || a.household)) {
-          addToParty(world, 'husband', aId);
-          break; // 默认带跟前最亲近的那一位
-        }
       }
     }
   }

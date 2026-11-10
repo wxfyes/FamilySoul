@@ -93,18 +93,9 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   if (isHumanBound(world, actorId) && reason !== 'ui') {
     const offline = !isHumanOnline(actorId);
     const selfAllowed = selfMove && offline;
-    // 真人离线时，允许"同一场所内同行"（货栈→货栈雅间）；在线或跨场所一律拒绝
-    const rootOf = (id) => String(world.places?.[id]?.parent || '') || String(id || '');
-    const fromId = String(a.location || '');
-    const toId = String(placeId || '');
-    const sameVenue = fromId && toId && (fromId === toId
-      || rootOf(fromId) === rootOf(toId)
-      || rootOf(fromId) === toId
-      || rootOf(toId) === fromId);
-    const proxyMove = /随行|领路|同行|跟随|暗号/.test(String(note || ''))
-      && !isHumanOnline(actorId)
-      && sameVenue;
-    if (!selfAllowed && !proxyMove) return { ok: false, error: '真人角色不接受世界移动（在线只能本人动；离线可回家/同场所同行）' };
+    // 真人离线时：允许相公召见、叫到跟前、神识代演、随行同行入住；在线或未经许可跨场所一律拒绝
+    const proxyMove = offline && /随行|领路|同行|跟随|暗号|相公召见|神识代演|叫到跟前|同行入住|开房入住/.test(String(note || ''));
+    if (!selfAllowed && !proxyMove) return { ok: false, error: '真人角色不接受世界移动（在线只能本人动；离线可由相公召见代演或回家）' };
   }
 
   // 刚被主人请走的人：几个时辰内不许自己回来（送客本人除外）
