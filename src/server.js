@@ -3589,36 +3589,106 @@ const server = http.createServer(async (req, res) => {
         if (isEscortIntent) {
           const wEsc = loadState(DATA_DIR);
           const meEsc = wEsc.actors?.[String(currentMember.actor || 'husband')] || wEsc.actors?.husband;
-          const pickPartner = (t) => {
-            const text = String(t || '');
-            if (!text) return null;
-            const actors = Object.values(wEsc.actors || {}).filter((a) => a && !a.dead && a.id !== meEsc.id);
-            // 1) 相公话里点了谁/称呼了谁（名字、老板娘、掌柜……）
-            const named = actors.find((a) => (a.name && text.includes(a.name))
-              || (a.role && text.includes(a.role))
-              || (/老板娘/.test(text) && /老板娘/.test(String(a.role || '')))
-              || (/掌柜|东家/.test(text) && /掌柜|东家/.test(String(a.role || ''))));
-            if (named) return named;
-            // 2) 上一句是谁说的
-            const hist = petService.readHistory(currentMember.memberKey)?.messages || [];
-            for (let k = hist.length - 1; k >= 0; k--) {
-              if (hist[k].role === 'user') continue;
-              const m = String(hist[k].text || '').match(/【([^】\n]{1,16})】/);
-              if (!m) continue;
-              const base = m[1].includes('·') ? m[1].split('·').pop().trim() : m[1].trim();
-              const a = actors.find((x) => x.name === base);
-              if (a) return a;
+          const myLoc = meEsc?.location || '';
+          const myPlace = wEsc.places?.[myLoc] || {};
+          const myParent = myPlace.parent || myLoc;
+          const myPlaceName = myPlace.name || '';
+          const myParentName = wEsc.places?.[myParent]?.name || myPlaceName;
+
+          // 核心防御：领路人必须是当前同一建筑或同一房间内的在场之人，严禁跨场景找人！
+          const hereActors = Object.values(wEsc.actors || {}).filter((a) => {
+            if (!a || a.dead || a.id === meEsc?.id) return false;
+            const aLoc = a.location || '';
+            const aParent = wEsc.places?.[aLoc]?.parent || aLoc;
+            return aLoc === myLoc || aLoc === myParent || aParent === myLoc || (aParent && aParent === myParent);
+          });
+
+          const pickPartner = () => {
+            if (!hereActors.length) return null;
+            // 1) 当前回复里说话的人
+            const replySpeaker = String(result.reply?.text || '').match(/【([^】\n]{1,16})】/);
+            if (replySpeaker) {
+              const spkName = replySpeaker[1].includes('·') ? replySpeaker[1].split('·').pop().trim() : replySpeaker[1].trim();
+              const found = hereActors.find((a) => a.name === spkName || replySpeaker[1].includes(a.name));
+              if (found) return found;
             }
+            // 2) 相公话里点名或称谓（仅在在场之人中匹配！）
+            const named = hereActors.find((a) =>
+              (a.name && sayText.includes(a.name))
+              || (a.role && sayText.includes(a.role))
+              || (/老板娘/.test(sayText) && /老鸨|老板娘|掌柜/.test(String(a.role || '')))
+              || (/妈妈|鸨母/.test(sayText) && /老鸨/.test(String(a.role || '')))
+              || (/掌柜|东家/.test(sayText) && /掌柜|东家/.test(String(a.role || '')))
+            );
+            if (named) return named;
+            // 3) 若在场只有一人，直接是该同伴
+            if (hereActors.length === 1) return hereActors[0];
             return null;
           };
-          let partner = pickPartner(sayText) || pickPartner(result.reply?.text);
+
+          const partner = pickPartner();
 
           if (partner) {
             let targetRoomId = null;
             let targetRoomName = '';
-            if (partner.location === 'goods_shop' || meEsc.location === 'goods_shop' || /货栈|采云/.test(partner.name || '')) {
+            let targetDesc = '';
+
+            // 核心铁律：目标房间 100% 由相公当前所处建筑决定，严禁跨店铺位移！
+            const isBrothel = myLoc === 'brothel' || myParent === 'brothel' || /万花楼|青楼/.test(myPlaceName + myParentName) || partner.id === 'suyingxue';
+            const isRestaurant = myLoc === 'place_44' || myParent === 'place_44' || /酒楼/.test(myPlaceName + myParentName);
+            const isTeaHouse = myLoc === 'tea_house' || myParent === 'tea_house' || /茶坊/.test(myPlaceName + myParentName);
+            const isGoodsShop = myLoc === 'goods_shop' || myParent === 'goods_shop' || /货栈/.test(myPlaceName + myParentName);
+            const isHome = myLoc === 'husband_room' || /王宅|正房/.test(myPlaceName + myParentName);
+
+            if (isBrothel) {
+              targetRoomId = 'brothel__yajian';
+              targetRoomName = '万花楼·二层温香雅阁';
+              targetDesc = '万花楼二层深处温香雅阁，茜纱半掩，重锦厚帘隔绝楼下喧嚣，最是私密清幽，软榻香暖。';
+              if (!wEsc.places[targetRoomId]) {
+                wEsc.places[targetRoomId] = {
+                  id: targetRoomId,
+                  name: targetRoomName,
+                  parent: 'brothel',
+                  use: 'private_room',
+                  access: 'private',
+                  desc: targetDesc,
+                  exits: ['brothel'],
+                };
+              }
+            } else if (isRestaurant) {
+              targetRoomId = 'place_44__f2';
+              targetRoomName = '运河码头三层大酒楼·二层雅阁';
+              targetDesc = '临水二层雅阁，轩窗外见运河点点渔火，屏风将外廊隔开，雅致安静。';
+              if (!wEsc.places[targetRoomId]) {
+                wEsc.places[targetRoomId] = {
+                  id: targetRoomId,
+                  name: targetRoomName,
+                  parent: 'place_44',
+                  use: 'private_room',
+                  access: 'private',
+                  desc: targetDesc,
+                  exits: ['place_44'],
+                };
+              }
+            } else if (isTeaHouse) {
+              targetRoomId = 'tea_house__room';
+              targetRoomName = '临江茶坊老店·二层雅间';
+              targetDesc = '茶坊二层幽静雅室，竹帘垂挂，炉香袅袅，品茗清谈极佳。';
+              if (!wEsc.places[targetRoomId]) {
+                wEsc.places[targetRoomId] = {
+                  id: targetRoomId,
+                  name: targetRoomName,
+                  parent: 'tea_house',
+                  use: 'private_room',
+                  access: 'private',
+                  desc: targetDesc,
+                  exits: ['tea_house'],
+                };
+              }
+            } else if (isGoodsShop) {
               targetRoomId = 'goods_shop__office';
               targetRoomName = '翟家货栈·清静账房';
+              targetDesc = '货栈深处清静账房，两重货架隔开市井喧嚣，门一掩，外头听不见里头说话。';
               if (!wEsc.places[targetRoomId]) {
                 wEsc.places[targetRoomId] = {
                   id: targetRoomId,
@@ -3626,19 +3696,17 @@ const server = http.createServer(async (req, res) => {
                   parent: 'goods_shop',
                   use: 'office',
                   access: 'private',
-                  desc: '货栈深处清静账房，两重货架隔开市井喧嚣，门一掩，外头听不见里头说话。',
+                  desc: targetDesc,
                   exits: ['goods_shop'],
                 };
               }
-            } else if (partner.location === 'place_44' || meEsc.location === 'place_44' || /酒楼/.test(partner.name || '')) {
-              targetRoomId = 'place_44__f2';
-              targetRoomName = '运河码头三层大酒楼·二层雅阁';
-            } else if (/王宅|正房/.test(wEsc.places?.[meEsc.location]?.name || '')) {
+            } else if (isHome) {
               targetRoomId = 'husband_room__study';
               targetRoomName = '临江·王宅·书斋';
             }
 
-            if (targetRoomId && wEsc.places[targetRoomId]) {
+            // 若当前已经在目标房间，不再重复提示和转移
+            if (targetRoomId && myLoc !== targetRoomId && wEsc.places[targetRoomId]) {
               const fromMe = meEsc.location;
               const fromPartner = partner.location;
               const mvMe = moveActor(wEsc, meEsc.id, targetRoomId, 'world', '领路转场');

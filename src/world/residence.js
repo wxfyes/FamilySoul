@@ -113,6 +113,11 @@ const PREMISES = {
     { key: 'front', name: '前店柜台', use: 'shop_floor', floor: 1 },
     { key: 'back', name: '后坊库房', use: 'workshop', floor: 0 },
   ],
+  brothel: [
+    { key: 'hall', name: '一层歌台大厅', use: 'shop_floor', floor: 1, access: 'public_shop' },
+    { key: 'yajian', name: '二层温香雅阁', use: 'private_room', floor: 2, access: 'private' },
+    { key: 'inner', name: '后院内室', use: 'bedroom', floor: 1, access: 'family_private' },
+  ],
 };
 
 /** 官府衙署：也是定死的层级，不递归 */
@@ -133,6 +138,7 @@ function premisesKind(name = '') {
   if (/酒肆|酒馆|小酒馆/.test(s)) return 'tavern';
   if (/酒楼|饭庄/.test(s)) return 'restaurant';
   if (/茶坊|茶肆|茶楼|茶铺/.test(s)) return 'teahouse';
+  if (/万花楼|青楼|勾栏|妓馆|花楼/.test(s)) return 'brothel';
   if (/铺|坊|行|栈|号|店/.test(s)) return 'shop';
   return null;
 }
