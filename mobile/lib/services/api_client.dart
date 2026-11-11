@@ -559,4 +559,63 @@ class SurfCoreApiClient {
     } catch (_) {}
     return null;
   }
+
+  /// 天下妙龄佳丽（35岁以下名媛图鉴）
+  Future<Map<String, dynamic>?> fetchBeauties() async {
+    try {
+      final res = await _dio.get('${config.baseUrl}/api/world/beauties',
+          queryParameters: {'token': config.token.trim()});
+      if (res.statusCode == 200 && res.data is Map) {
+        return Map<String, dynamic>.from(res.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 全域全量人物模糊搜索（突破300截断）
+  Future<List<Map<String, dynamic>>> searchActors(String q) async {
+    try {
+      final res = await _dio.get('${config.baseUrl}/api/world/actors/search',
+          queryParameters: {'token': config.token.trim(), 'q': q.trim()});
+      if (res.statusCode == 200 && res.data is Map && res.data['actors'] is List) {
+        return (res.data['actors'] as List).cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  /// 随身行囊与私人储物空间
+  Future<Map<String, dynamic>?> fetchInventory() async {
+    try {
+      final res = await _dio.get('${config.baseUrl}/api/world/items',
+          queryParameters: {'token': config.token.trim()});
+      if (res.statusCode == 200 && res.data is Map) {
+        return Map<String, dynamic>.from(res.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 物品交互：赠送 (give) / 出示验看 (show) / 当面索取 (ask)
+  Future<Map<String, dynamic>?> itemAction({
+    required String action,
+    required String itemId,
+    String? targetActorId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '${config.baseUrl}/api/world/items/action',
+        queryParameters: {'token': config.token.trim()},
+        data: {
+          'action': action,
+          'itemId': itemId,
+          if (targetActorId != null && targetActorId.isNotEmpty) 'targetActorId': targetActorId,
+        },
+      );
+      if (res.statusCode == 200 && res.data is Map) {
+        return Map<String, dynamic>.from(res.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
 }

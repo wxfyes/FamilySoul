@@ -148,9 +148,11 @@ export async function finalizeResponse(svc, ctx) {
       /* 压缩失败不影响对话 */
     }
 
-    // 问"我在哪"：引擎直接答，别让模型猜
+    // 问"我在哪"：引擎直接答，别让模型猜（严格限定问询地点，严禁误伤“我哪里懂/我哪里背”等口语反问）
     try {
-      if (/(我(在|到了)?哪|这是哪|到哪儿了|在什么地方)/.test(String(say || ''))) {
+      const sayStr = String(say || '').trim();
+      const isAskingPlace = /(?:我在哪|我到了哪|这是哪|到哪儿了|在什么地方|身在何处|身在何方)/.test(sayStr) && !/哪里(?:来|会|能|敢|有|背|算|懂|想|知|用|是)/.test(sayStr);
+      if (isAskingPlace) {
         const wHere2 = loadState(svc.dataDir);
         const locSelf = svc._viewerActorId ? wHere2.actors?.[svc._viewerActorId]?.location : wHere2.actors?.husband?.location;
         const pName = String(wHere2.places?.[locSelf]?.name || '');

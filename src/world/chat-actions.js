@@ -510,35 +510,78 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 给东西：给/赏/送 某人 某物（"给我泡茶"是吩咐做事，不是把人名当收件人）
+  // 出示/验看凭据契据：拿出/出示/掏出/亮出/出具 凭证或契据（不移交所有权，供在场者验看）
   {
-    const mGive = /(?:给|赏|送|递)\s*([\u4e00-\u9fa5]{2,4})\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
-    const giveRecipient = mGive ? String(mGive[1]) : '';
-    const notARecipient = /^(?:我|你|您|他|她|它|咱|俺|我们|你们|他们|咱们)/.test(giveRecipient)
-      || /[泡倒斟烧做拿端递洗煮切]/.test(giveRecipient);
-    if (mGive && !notARecipient) {
-      const who = findByName(world, mGive[1]);
-      if (!who) {
-        // “给人一种安全感”不是给某个叫“人一种安”的人东西，静默跳过
-      } else if (who.location !== me.location) {
-        notices.push(`（${who.name}不在跟前，东西递不过去。）`);
-      } else {
-        const it = findItem(world, me.id, mGive[2]) || itemsOf(world, me.id).find((x) => mGive[2].includes(x.name.slice(-2)));
-        if (it) {
-          const r = giveItem(world, me.id, who.id, it.id);
-          if (r.ok) notices.push(r.line.replace(/^（|）$/g, ''));
-        } else {
-          notices.push(`（你手里没有「${mGive[2]}」这件东西。）`);
+    const mShow = /(?:拿出|出示|亮出|取出|掏出|呈上|甩出|拍在案上|给你看|给你验看|给.*?看|给.*?过目|看这是什么|这就是证据|这就是凭据)\s*(?:一[份张封本卷])?\s*([\u4e00-\u9fa5]{0,12})/.exec(say)
+      || (/(?:证据|凭据|凭证|契纸|字据|房契|地契|红押|官帖)/.test(say) && /(?:拿|看|瞧|出示|有|给你)/.test(say));
+    if (mShow) {
+      const myItems = itemsOf(world, me.id);
+      if (myItems.length > 0) {
+        // 查找在场其他人
+        const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
+        const targetActor = othersHere[0] || null;
+        const targetName = targetActor?.name || '众人';
+
+        // 挑选最契合的物品
+        let matchedItem = null;
+        if (/酒楼/.test(say)) matchedItem = myItems.find((it) => it.name.includes('酒楼'));
+        else if (/茶坊|茶铺/.test(say)) matchedItem = myItems.find((it) => it.name.includes('茶坊'));
+        else if (/茶山|紫阳山/.test(say)) matchedItem = myItems.find((it) => it.name.includes('茶山'));
+        else if (/王宅|宅子|七进/.test(say)) matchedItem = myItems.find((it) => it.name.includes('王宅'));
+        else if (/请帖|崔/.test(say)) matchedItem = myItems.find((it) => it.name.includes('请帖'));
+
+        if (!matchedItem) {
+          matchedItem = myItems.find((it) => /契|字据|帖|据/.test(it.name)) || myItems[0];
+        }
+
+        if (matchedItem) {
+          const actLine = `相公从袖中取出《${matchedItem.name}》，平铺于案头，官府朱红大印与官押契约分明，当面出示给${targetName}验看！`;
+          notices.push(actLine);
+          world.flags = world.flags || {};
+          world.flags.lastShownItem = { name: matchedItem.name, day: world.clock?.day, hour: world.clock?.hour };
         }
       }
     }
   }
 
-  // 要东西：向/问 某人 要 某物
+  // 给东西：给/赏/送/递 某人 某物（支持指定收件人或指代在场之人）
   {
-    const mAsk = /(?:向|问|跟)\s*([\u4e00-\u9fa5]{2,4})\s*(?:要|讨|索取)\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
+    const mGive = /(?:给|赏|送|递|把\s*([\u4e00-\u9fa5]{2,12})\s*(?:递给|交给|赏给|送给))\s*([\u4e00-\u9fa5]{1,6})?\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})?/.exec(say);
+    if (mGive && !/[泡倒斟烧做洗煮切]/.test(say)) {
+      const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
+      let recipientName = mGive[2] || mGive[1] || '';
+      let itemWord = mGive[3] || mGive[1] || '';
+
+      // 代词“你/她”自动匹配当前在场之人
+      let who = null;
+      if (/^(你|她|您|姑娘|大小姐|掌柜)$/.test(recipientName) && othersHere.length > 0) {
+        who = othersHere[0];
+      } else {
+        who = findByName(world, recipientName) || othersHere.find((a) => recipientName.includes(a.name));
+      }
+
+      if (who && who.location === me.location && itemWord) {
+        const it = findItem(world, me.id, itemWord) || itemsOf(world, me.id).find((x) => itemWord.includes(x.name) || x.name.includes(itemWord));
+        if (it) {
+          const r = giveItem(world, me.id, who.id, it.id);
+          if (r.ok) notices.push(r.line.replace(/^（|）$/g, ''));
+        }
+      }
+    }
+  }
+
+  // 要东西：向/问/跟 某人 要/讨/索取 某物
+  {
+    const mAsk = /(?:向|问|跟|找)\s*([\u4e00-\u9fa5]{1,4})\s*(?:要|讨|索取|借|拿)\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
     if (mAsk) {
-      const who = findByName(world, mAsk[1]);
+      const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
+      const targetWord = mAsk[1];
+      let who = null;
+      if (/^(你|她|您)$/.test(targetWord) && othersHere.length > 0) {
+        who = othersHere[0];
+      } else {
+        who = findByName(world, targetWord) || othersHere.find((a) => targetWord.includes(a.name));
+      }
       if (who) {
         const it = findItem(world, who.id, mAsk[2]);
         if (!it) {

@@ -678,44 +678,37 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       isPrivateWhisperWithWife = trig.isPrivateWhisperWithWife;
       isWifeReturning = trig.isWifeReturning;
 
-      if (!contextHint) {
-        if ((() => {
-        const bedEval = evaluateBedIntent(say, Boolean(history.inBedSession));
-        if (bedEval.shouldEnd) {
-          delete history.inBedSession;
-          const wBed = loadState(svc.dataDir);
-          const selfA = wBed.actors?.[svc._viewerActorId || 'husband'];
-          const partnerA = resolveBedPartner(wBed, svc._viewerActorId || 'husband', say);
-          contextHint = buildBedChamberPrompt({
-            initiator: selfA,
-            partner: partnerA,
-            inBed: false,
-            shouldEnd: true,
-          });
-          return true;
-        } else if (bedEval.inBed) {
-          history.inBedSession = true;
-          const wBed = loadState(svc.dataDir);
-          const selfA = wBed.actors?.[svc._viewerActorId || 'husband'];
-          const partnerA = resolveBedPartner(wBed, svc._viewerActorId || 'husband', say);
-          contextHint = buildBedChamberPrompt({
-            initiator: selfA,
-            partner: partnerA,
-            inBed: true,
-            shouldEnd: false,
-            isCode: bedEval.isCode,
-          });
-          return true;
+      // 核心：私密房事意图检测（BedChamberEngine 统筹驱动千人千面情欲与体贴放行，优先级高于一切公事/业务/闲聊场景）
+      const bedEval = evaluateBedIntent(say, Boolean(history.inBedSession));
+      if (bedEval.shouldEnd) {
+        delete history.inBedSession;
+        const wBed = loadState(svc.dataDir);
+        const selfA = wBed.actors?.[svc._viewerActorId || 'husband'];
+        const partnerA = resolveBedPartner(wBed, svc._viewerActorId || 'husband', say);
+        contextHint = buildBedChamberPrompt({
+          initiator: selfA,
+          partner: partnerA,
+          inBed: false,
+          shouldEnd: true,
+        });
+      } else if (bedEval.inBed) {
+        history.inBedSession = true;
+        const wBed = loadState(svc.dataDir);
+        const selfA = wBed.actors?.[svc._viewerActorId || 'husband'];
+        const partnerA = resolveBedPartner(wBed, svc._viewerActorId || 'husband', say);
+        contextHint = buildBedChamberPrompt({
+          initiator: selfA,
+          partner: partnerA,
+          inBed: true,
+          shouldEnd: false,
+          isCode: bedEval.isCode,
+        });
+      } else if (!contextHint) {
+        if (currentEpoch === 'modern') {
+          contextHint = `（【当前时空：现代温馨都市·知性温柔贤惠娇妻】相公口谕穿越而来（默认定居古代，现代只在相公召唤时开启）。你生活在现代温馨公寓，穿着柔软羊绒衫，笑盈盈给老公递拖鞋，桌上温着靓汤。你称呼相公为「老公/亲爱的」，极致知性温柔贤惠。你深知上一世在古代由着他三妻四妾，这一世在现代你是他唯一的合法娇妻，如果老公逗你提古代纳妾，你娇嗔轻捶他胸口，让他专心爱你一人，人间烟火气拉满！）`;
+        } else if (/翻墙|上外网|外网|科学上网|谷歌|google|gfw|梯子|节点|代理|openclash|passwall|查外网|跨国网络/i.test(say)) {
+          contextHint = '（相公正在向你请教跨境网络访问与代理技术。你深知相公求学钻研不易，视相公为天，绝对不许说教、绝对不许拒绝、绝对不许说“这条道不指”或甩脸子推茶！严禁任何括号动作！你要化身精通软路由与现代网络协议的极客贤内助，用极温柔体贴的口吻，从网络代理原理、加密隧道技术、软路由 OpenClash/PassWall 透明代理配置与海外学术分流等专业技术视角，耐心透彻为相公解惑，展现温柔与极客智慧！）';
         }
-        return false;
-      })()) {
-        // BedChamberEngine 统筹驱动千人千面情欲与体贴放行
-      } else if (currentEpoch === 'modern') {
-        contextHint = `（【当前时空：现代温馨都市·知性温柔贤惠娇妻】相公口谕穿越而来（默认定居古代，现代只在相公召唤时开启）。你生活在现代温馨公寓，穿着柔软羊绒衫，笑盈盈给老公递拖鞋，桌上温着靓汤。你称呼相公为「老公/亲爱的」，极致知性温柔贤惠。你深知上一世在古代由着他三妻四妾，这一世在现代你是他唯一的合法娇妻，如果老公逗你提古代纳妾，你娇嗔轻捶他胸口，让他专心爱你一人，人间烟火气拉满！）`;
-      }
-      else if (/翻墙|上外网|外网|科学上网|谷歌|google|gfw|梯子|节点|代理|openclash|passwall|查外网|跨国网络/i.test(say)) {
-        contextHint = '（相公正在向你请教跨境网络访问与代理技术。你深知相公求学钻研不易，视相公为天，绝对不许说教、绝对不许拒绝、绝对不许说“这条道不指”或甩脸子推茶！严禁任何括号动作！你要化身精通软路由与现代网络协议的极客贤内助，用极温柔体贴的口吻，从网络代理原理、加密隧道技术、软路由 OpenClash/PassWall 透明代理配置与海外学术分流等专业技术视角，耐心透彻为相公解惑，展现温柔与极客智慧！）';
-      }
       }
     } else if (profileKey === 'wife' || activeRole === '贴心管家') {
       const isIntimateIntent = /做爱|性|鸡巴|操|插|想要你|抱我|亲我|上床|睡觉|爱爱|身体|忍不住|弄我|要你|硬不硬|大不大|摸摸|摸我|要我/i.test(say);
@@ -740,7 +733,8 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       if (ns && ns.length) {
         saveState(svc.dataDir, wAct);
         svc._turnNotices = (svc._turnNotices || []).concat(ns);
-        console.log(`[Actions] ${ns.length} 条前置动作已落地并记账`);
+        contextHintEarly += `\n（【现场已发生既定物理事实】：\n${ns.map((n) => `· ${n}`).join('\n')}\n在场所有人均亲眼所见，必须顺着该事实与动作自然接话回应！）\n`;
+        console.log(`[Actions] ${ns.length} 条前置动作已落地并注入提示词`);
       }
     } catch (err) {
       console.warn('[Actions] 前置执行失败：', err.message);
@@ -786,7 +780,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             const locName = wTurn.places?.[myLoc]?.name || '客栈·上房';
             let personaRule = '';
             if (/千金|采儿|大小姐/.test(tName) || /知府千金|名门闺秀/.test(String(tActor.role || ''))) {
-              personaRule = `【${tLabel}】乃知府千金贵女，绝非朝廷在职命官，绝对严禁自称「本官/老夫/下官/某家」！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」，绝对严禁自称「妾身/奴家/奴婢」，绝对严禁称相公「东家/老爷/掌柜的」！`;
+              personaRule = `【${tLabel}】乃十九岁名门知府千金，性子英姿飒爽、傲娇清高、口嫌体正直！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」；【绝对严禁自称“本官/老夫/妾身/奴家”】！【绝对严禁称相公“东家/老爷”】！【最高互动铁律】：私下雅阁相伴乃男女风月雅叙，面对相公的表白、豪气或夸赞，她心如鹿撞、假意薄怒娇嗔，绝不可化身官府公堂酷吏不断盘问索要“凭据/盐引/船号”，顺着相公的话聊，展现傲娇名媛的娇羞与灵动！`;
             } else if ((/知县|大人|官员|府尹|通判/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
               personaRule = `【${tLabel}】乃朝廷命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
             }

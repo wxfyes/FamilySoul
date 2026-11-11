@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
+import 'beauties_sheet.dart';
 
 /// 城中世情名录 · 人物好感羁绊看板
 class RosterScreen extends StatefulWidget {
@@ -87,6 +88,11 @@ class _RosterScreenState extends State<RosterScreen> {
       // 2. 身份圈子过滤
       if (_selectedCategory == 'here') {
         if (a['here'] != true) return false;
+      } else if (_selectedCategory == 'beauty') {
+        if (a['gender'] != 'female') return false;
+        final role = a['role']?.toString() ?? '';
+        final name = a['name']?.toString() ?? '';
+        if (RegExp(r'老妪|婆|嬷嬷|老太|大娘|老妇|师太|老母|姑子').hasMatch(role + name)) return false;
       } else if (_selectedCategory == 'house') {
         if (a['household'] != true) return false;
       } else if (_selectedCategory == 'love') {
@@ -192,6 +198,31 @@ class _RosterScreenState extends State<RosterScreen> {
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: _textPrimary),
         ),
         actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFEC4899).withValues(alpha: 0.16),
+            ),
+            child: IconButton(
+              tooltip: '天下佳丽图鉴',
+              icon: const Icon(Icons.favorite_rounded, size: 20, color: Color(0xFFEC4899)),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => BeautiesSheet(
+                    api: widget.api,
+                    onAction: (msg) {
+                      widget.onActionMessage?.call(msg);
+                      _load();
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
           Container(
             margin: const EdgeInsets.only(right: 6),
             decoration: BoxDecoration(
@@ -314,6 +345,7 @@ class _RosterScreenState extends State<RosterScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         children: [
                           _catChip('all', '全部'),
+                          _catChip('beauty', '🌸 天下佳丽'),
                           _catChip('here', '在场之人'),
                           _catChip('house', '府中内眷'),
                           _catChip('love', '红颜相好'),

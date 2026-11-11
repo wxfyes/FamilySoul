@@ -460,6 +460,18 @@ export function healWorld(world) {
       restPlace.rooms.private = { id: privateId, name: '清幽雅间', floor: 2, use: 'shop_floor', access: 'public_shop' };
       restPlace.rooms.office = { id: officeId, name: '内账房', floor: 1, use: 'shop_floor', access: 'public_shop' };
 
+      // 3. 确立大酒楼资产状态为「正常营业」，绝不许残留「筹备开张」
+      const canalProp = (world.assets?.properties || []).find((p) => p && (p.id === 'canal_restaurant' || String(p.name || '').includes('酒楼')));
+      if (canalProp) {
+        if (canalProp.status !== '正常营业') {
+          canalProp.status = '正常营业';
+          fixes.push('修正运河码头大酒楼产业状态为【正常营业】');
+        }
+        if (!canalProp.incomePerDay || canalProp.incomePerDay <= 0) {
+          canalProp.incomePerDay = 124.1;
+        }
+      }
+
       // 3. 真实落地：账房先生（周有财）与扬州盐帮汪总商（汪德润）
       let hasAccountant = Object.values(world.actors).some(
         (a) => a && !a.dead && a.location === restPlaceId && /账房/.test(String(a.role || ''))
@@ -699,6 +711,16 @@ export function healWorld(world) {
         caier.age = 19;
       }
       caier.desc = '临江知府杨振华大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+      caier.relations = caier.relations || {};
+      const mine = (caier.relations.husband = caier.relations.husband || { trust: 55, desire: 35, fear: 0, grievance: 0 });
+      if (Number(mine.trust || 0) < 55) {
+        fixes.push(`杨采儿相知底子校准：信任 ${mine.trust} → 55`);
+        mine.trust = 55;
+      }
+      if (Number(mine.desire || 0) < 35) {
+        fixes.push(`杨采儿情愫底子校准：情愫 ${mine.desire} → 35`);
+        mine.desire = 35;
+      }
     }
   } catch (err) {
     console.warn('[Heal] 杨采儿正名自愈异常：', err.message);

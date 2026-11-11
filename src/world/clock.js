@@ -2594,6 +2594,7 @@ function advanceHour(world, events, nowMs) {
   }
 
   // 世情与产业主动呈报调度器：主仆定夺请示 + 妻妾红颜温存私语（告别死寂“半活”）
+  // 世界时整点保留重要作息节点，其余常态由 dispatchNaturalProactive 现实自然间隔动态补位
   const chour = Number(world.clock?.hour) || 0;
   const cday = Number(world.clock?.day) || 1;
 
@@ -2734,16 +2735,160 @@ export function tick(dataDir, { now = Date.now(), msPerWorldHour = DEFAULT_MS_PE
   const events = [];
   for (let i = 0; i < steps; i += 1) advanceHour(world, events, now);
 
-  if (steps > 0 || world.court?.pendingDecree || Object.keys(world.npcArcs || {}).length) {
+  // 现实自然间隔主动分发检查（确保即使当前世界时辰未变，现实流逝达到 15 分钟也会自然找人）
+  let proactiveAdded = false;
+  try {
+    proactiveAdded = dispatchNaturalProactive(world, now);
+  } catch (err) {
+    console.warn('[Proactive] 自然分发异常：', err.message);
+  }
+
+  if (steps > 0 || world.court?.pendingDecree || Object.keys(world.npcArcs || {}).length || proactiveAdded) {
     if (steps > 0) world.lastRealAt += steps * msPerWorldHour; // 只吃掉已结算的时间，剩余欠账留到下次
     world.clock.season = seasonOf(world.clock.day);
     world.clock.weather = weatherOf(world.clock.day, world.clock.season);
     world.version = world.version || 1;
     saveState(dataDir, world);
-    appendEvents(dataDir, events);
+    if (events.length > 0) appendEvents(dataDir, events);
   }
 
   return { world, events, steps };
+}
+
+/**
+ * 现实自然间隔的主动事件分发器（自然生活流与掌柜请示）
+ * 不再死锁于世界时钟的 9/15/20 整点，而是基于现实流逝时间（15~20分钟）与游标轮巡分发。
+ * @param {object} world 
+ * @param {number} now 
+ * @returns {boolean} 是否分发了新消息
+ */
+export function dispatchNaturalProactive(world, now = Date.now()) {
+  if (!world) return false;
+  world.flags = world.flags || {};
+  world.proactive = Array.isArray(world.proactive) ? world.proactive : [];
+
+  // 若当前队列中已有属于相公且尚未过期的主动消息，暂不堆积
+  const pendingHusband = world.proactive.filter(
+    (item) => item && (item.to || 'husband') === 'husband' && item.text && (Number(item.at) || 0) <= now + 300000
+  );
+  if (pendingHusband.length >= 2) return false;
+
+  const lastRealMs = Number(world.flags.lastNaturalProactiveRealMs) || 0;
+  // 自然流逝间隔：15 分钟（900,000 毫秒）
+  const MIN_INTERVAL_MS = 15 * 60 * 1000;
+  if (lastRealMs > 0 && (now - lastRealMs) < MIN_INTERVAL_MS) {
+    return false;
+  }
+
+  const pool = [
+    // 1. 运河码头大酒楼 · 大掌柜周有财
+    {
+      speaker: '大掌柜·周有财',
+      actorId: 'npc_accountant_zhou',
+      reason: 'staff_report',
+      text: '【大掌柜·周有财】：东家，运河码头泊来两艘淮盐官船，船头大管事托人来问，今夜要在咱们大酒楼顶层包下三桌上等席面，请东家示下可否接下？',
+      place: '运河码头三层大酒楼',
+      isLetter: true,
+    },
+    // 2. 正妻·沈婉儿 · 后宅温存关心
+    {
+      speaker: '正妻·婉儿',
+      actorId: 'waner',
+      reason: 'wife_care',
+      text: '【正妻·婉儿】：相公在外奔波劳碌，今儿腹中孩儿又踢了妾身两遭。妾身吩咐小翠煨好了一盅参芪老鸭汤，相公早些回房歇歇脚吧。',
+      place: '临江·王宅·正房',
+      isLetter: true,
+    },
+    // 3. 鑫雅阁 · 掌柜钱书办
+    {
+      speaker: '掌柜·钱书办',
+      actorId: 'npc_49',
+      reason: 'staff_report',
+      text: '【掌柜·钱书办】：少掌柜，鑫雅阁歌舞名册已立好底稿，县衙户房刘主簿今晚欲来品茗听曲，问能否腾出一间清幽雅座？请少掌柜示下。',
+      place: '临江·鑫雅阁',
+      isLetter: true,
+    },
+    // 4. 二房·林芸娘 · 体贴小意
+    {
+      speaker: '二房·芸娘',
+      actorId: 'yunnia',
+      reason: 'wife_care',
+      text: '【二房·芸娘】：相公，老茶坊今日的散客茶钱与紫阳山茶账妾身已理得妥当。炉上慢火温着百合莲子羹，相公何时得空尝上一碗？',
+      place: '临江·王宅·西厢房',
+      isLetter: true,
+    },
+    // 5. 运河货船 · 家丁伍兰
+    {
+      speaker: '家丁·伍兰',
+      actorId: 'staff_wulan',
+      reason: 'staff_report',
+      text: '【家丁·伍兰】：东家，运河上的货船刚从镇江运回一批景德镇细瓷与两淮茶叶行市底细，小的正带着伙计在码头候着，等东家示下如何交割。',
+      place: '运河码头',
+      isLetter: true,
+    },
+    // 6. 侧室·崔婉宁 · 名门千金东跨院候叙
+    {
+      speaker: '侧室·婉宁',
+      actorId: '临江_gentry_1_小姐',
+      reason: 'wife_care',
+      text: '【侧室·婉宁】：相公，东跨院采买的紫檀案头与新铺屏风样式已有着落。妾身备了上好的碧螺春，候相公得空过来一同掌眼定夺。',
+      place: '临江·王宅·东跨院',
+      isLetter: true,
+    },
+    // 7. 临江茶坊老店 · 账房罗叔
+    {
+      speaker: '账房·罗叔',
+      actorId: 'npc_accountant_luo',
+      reason: 'staff_report',
+      text: '【账房·罗叔】：少掌柜，老茶坊后院春茶炒制好了三成，头道茶香极正，紫阳山茶农催着结算二道茶定金，请少掌柜示下。',
+      place: '临江茶坊老店',
+      isLetter: true,
+    },
+    // 8. 翟家货栈老板娘·柳如烟 · 私下密信
+    {
+      speaker: '老板娘·柳如烟',
+      actorId: 'yangcaiyun',
+      reason: 'secret_rendezvous',
+      text: '【老板娘·柳如烟】：（密信）冤家，两淮水路这几日漕兵查得紧，但后巷暗栈那批好货我替你扣下了。今夜若有空，你来货栈后院寻我一趟？',
+      place: '翟家货栈·后门',
+      isLetter: true,
+    },
+    // 9. 王宅门房 · 老周
+    {
+      speaker: '门房·老周',
+      actorId: 'staff_gatekeeper',
+      reason: 'visitor_notice',
+      text: '【门房·老周】：少掌柜，外头有两淮客商递了拜帖名帖，说仰慕少掌柜大名，求见商议茶叶专供之事，拜帖已呈在门房。',
+      place: '临江·王宅·朱漆大门',
+      isLetter: true,
+    },
+    // 10. 知府衙门 · 杨采儿
+    {
+      speaker: '知府千金·杨采儿',
+      actorId: 'yangzhenhua',
+      reason: 'official_note',
+      text: '【知府千金·杨采儿】：（官笺）王少掌柜，知府衙门过堂运河茶引案，家父特意提了你王家茶船的通关文书。若得空，过府一叙。',
+      place: '临江知府衙门',
+      isLetter: true,
+    },
+  ];
+
+  const round = Number(world.flags.proactiveRound) || 0;
+  const pick = pool[round % pool.length];
+
+  const queued = queueProactive(world, {
+    ...pick,
+    fallback: pick.text,
+    type: 'proactive',
+    force: true,
+  });
+
+  if (queued) {
+    world.flags.lastNaturalProactiveRealMs = now;
+    world.flags.proactiveRound = round + 1;
+    return true;
+  }
+  return false;
 }
 
 /** 只读取当前世界（不推进）*/

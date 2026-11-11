@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/api_client.dart';
 import 'roster_screen.dart';
+import 'beauties_sheet.dart';
 
 /// 出门 · 找人 · 赴约 —— 现代国风微质感交互抽屉
 /// 彻底告别密密麻麻长列表：常驻快捷磁贴 + 圈子标签秒切 + 真实街市烟火标注
@@ -805,12 +806,77 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
           ),
         ),
 
+        // 天下名媛佳丽图鉴专席入口
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
+            onTap: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => BeautiesSheet(
+                  api: widget.api,
+                  onAction: (msg) {
+                    _run(() async => true, msg);
+                  },
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFBE185D).withValues(alpha: 0.35),
+                    const Color(0xFF831843).withValues(alpha: 0.5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFEC4899).withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEC4899).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.favorite_rounded, size: 16, color: Color(0xFFFBCFE8)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '🌸 天下名媛佳丽 · 妙龄图鉴',
+                          style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          '搜罗全天下35岁以下佳丽 · 容貌身段与心事攻略秘要',
+                          style: TextStyle(fontSize: 10.5, color: Color(0xFFF9A8D4)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFFF472B6)),
+                ],
+              ),
+            ),
+          ),
+        ),
+
         // 圈子分类胶囊
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
               _peopleFilterChip('all', '全部人物'),
+              _peopleFilterChip('beauty', '🌸 天下佳丽'),
               _peopleFilterChip('family', '内眷妻妾'),
               _peopleFilterChip('confidant', '红颜知交'),
               _peopleFilterChip('official', '官府权贵'),
@@ -1001,7 +1067,10 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
   List<Widget> _renderPeopleList(List<Map> people) {
     List<Map> list = people;
 
-    if (_peopleFilter == 'family') {
+    if (_peopleFilter == 'beauty') {
+      final oldRe = RegExp(r'老妪|婆|嬷嬷|老太|大娘|老妇|师太|老母|姑子');
+      list = people.where((p) => (p['gender'] != 'male') && !oldRe.hasMatch('${p['role']} ${p['name']}')).toList();
+    } else if (_peopleFilter == 'family') {
       final re = RegExp(r'妻|妾|房|丫鬟|王宅|正房|夫人|眷属');
       list = people.where((p) => re.hasMatch('${p['role']} ${p['group']}')).toList();
     } else if (_peopleFilter == 'confidant') {

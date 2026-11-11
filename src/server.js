@@ -14,7 +14,7 @@ import { EdgeTtsService } from './edge-tts.js';
 import { VisionGeminiService } from './vision-gemini.js';
 import { PetService } from './pet-service.js';
 import { planNamedNpcMoves } from './chat/plan-moves.js';
-import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes, queueProactive, runBusinessTraffic } from './world/clock.js';
+import { startWorldClock, peek, buildMorningReport, refreshPropertyIncomes, queueProactive, runBusinessTraffic, dispatchNaturalProactive } from './world/clock.js';
 import {
   listCorrespondence, getCorrespondence, markCorrespondence, appendCorrespondence,
   setCorrespondenceStatus,
@@ -27,7 +27,7 @@ import { maybeOfferAlliance } from './world/marriage.js';
 import { advanceWorldTick } from './world/tick.js';
 import { ensureCityBase, streetOfCity, cityOfPlace } from './world/city.js';
 import { isPlaceNameOk } from './world/ledger-rules.js';
-import { itemsOf } from './world/items.js';
+import { itemsOf, giveItem, showItem, askItem, addItem } from './world/items.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -1163,8 +1163,7 @@ const server = http.createServer(async (req, res) => {
             // 同组：在跟前的排前，其次信任高的
             if (x.here !== y.here) return x.here ? -1 : 1;
             return y.trust - x.trust;
-          })
-          .slice(0, 300);
+          });
 
         // 待办：约定 + 承诺
         const todos = [];
@@ -1403,6 +1402,318 @@ const server = http.createServer(async (req, res) => {
           total: actorsList.length,
           cities,
           actors: actorsList,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // GET /api/world/beauties - 天下妙龄佳丽搜罗（35岁以下），方便相公攻略
+    if (req.method === 'GET' && matchRoute('/world/beauties')) {
+      try {
+        const world = peek(DATA_DIR);
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const me = world.actors?.husband || world.actors?.[member.actor || 'husband'];
+        const curLocation = me?.location || 'husband_room';
+        const placeName = (id) => world.places?.[id]?.name || id;
+        const citiesList = Object.keys(world.cities || {});
+
+        const cityOf = (a) => {
+          if (a.city) return a.city;
+          const pName = placeName(a.location || '');
+          const text = `${pName} ${a.role || ''} ${a.name || ''}`;
+          for (const c of citiesList) {
+            if (text.includes(c)) return c;
+          }
+          return '临江府';
+        };
+
+        const attitudeOf = (a) => {
+          const r = a.relations?.husband || {};
+          const d = Number(r.desire) || 0;
+          const t = Number(r.trust) || 0;
+          const g = Number(r.grievance) || 0;
+          if (a.household) {
+            if (g >= 60) return '心里有气，会闹一场、要哄';
+            if (d >= 60) return '心里有你，主动迎合';
+            if (d >= 30) return '愿意服侍，会撒撒娇';
+            return '虽有些倦，仍会应下';
+          }
+          if (g >= 60) return '心里有怨，轻易不松口';
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1 || (t >= 75 && d >= 60);
+          if (isCons) return d >= 50 ? '已是相好，嘴上推拒身子应' : '已是相好，脸皮薄';
+          if (d >= 70 && t >= 55) return '心里已有你，半推半就';
+          if (d >= 45) return '有点意动，要给由头';
+          if (t >= 45) return '可信的人，但到此为止';
+          if (d <= 20 && t <= 30) return '只是相识，第一次必拒';
+          return '点头之交，各怀算盘';
+        };
+
+        const intimacyOf = (a) => {
+          if (a.pregnancy && !a.pregnancy.born) {
+            const days = Number(a.pregnancy.days || 0);
+            const months = Math.floor(days / 30);
+            return months >= 1 ? `有孕·${months}个月` : `有孕·${days}天`;
+          }
+          if (a.menses?.on || a.onPeriod) return '月事中';
+          const r = a.relations?.husband || {};
+          const t = Number(r.trust) || 0;
+          const d = Number(r.desire) || 0;
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1 || (t >= 75 && d >= 60);
+          if (isCons) {
+            if (/正妻/.test(String(a.role || ''))) return '琴瑟和鸣';
+            if (/如夫人|二房|妾/.test(String(a.role || ''))) return '雨意云情';
+            if (a.household) return '承欢侍寝';
+            return '红颜相好';
+          }
+          return a.household ? '端庄' : '守礼';
+        };
+
+        const beautyAgeOf = (id, a) => {
+          if (typeof a.age === 'number' && a.age > 0) return a.age;
+          if (id === 'waner' || id === 'shenwaner') return 19;
+          if (id === 'yunnia' || id === 'linyunniang') return 18;
+          if (id === 'cuiwanning') return 20;
+          if (id === 'yangzhenhua') return 21;
+          if (id === 'suyingxue') return 27;
+          if (id === 'yangcaier' || id === 'yangcaiyun') return 22;
+          if (id === 'xiaocui') return 17;
+          if (id === 'jinniang') return 24;
+          if (id === 'liuwenxia') return 23;
+          if (id === 'zhanjing') return 21;
+          if (id === 'zixiu') return 17;
+          if (id === 'bihuan') return 16;
+          let hash = 0;
+          for (let i = 0; i < (a.name || id).length; i++) hash = ((hash << 5) - hash) + (a.name || id).charCodeAt(i);
+          return 18 + Math.abs(hash % 9);
+        };
+
+        const appearanceOf = (a) => {
+          if (a.desc || a.look || a.appearance) return String(a.desc || a.look || a.appearance).slice(0, 80);
+          if (/知府千金|名门闺秀|小姐/.test(a.role || '')) return '眉目如画，通体矜贵名媛气度，身段清雅婀娜';
+          if (/正妻|娘子/.test(a.role || '')) return '容貌温婉端庄，眼波脉脉含情，持家有度的大家风范';
+          if (/二房|妾|如夫人/.test(a.role || '')) return '柔情似水，体态轻盈袅娜，一双秋水剪瞳顾盼生姿';
+          if (/名妓|清倌人|琴姬|歌姬|风尘|掌事/.test(a.role || '')) return '身段妖娆多姿，媚态天成，轻颦浅笑间摄人心魄';
+          if (/丫鬟|侍女|丫头/.test(a.role || '')) return '年方二八，肤若凝脂，娇俏灵动，一团稚气活泼';
+          if (/女捕|女将|侠女/.test(a.role || '')) return '英姿飒爽，细腰长腿，眉宇间有一股英武与傲雪之气';
+          return '亭亭玉立，姿容秀美，肌理如雪，身段窈窕';
+        };
+
+        const secretOf = (a) => {
+          if (a.secret) return a.secret;
+          const r = a.relations?.husband || {};
+          const d = Number(r.desire) || 0;
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1;
+          if (isCons) return '【已入罗帏】对相公情根深种，凡相公吩咐无不依从，私下极盼相公常来疼惜。';
+          if (d >= 50) return '【暗送秋波】私下对相公极具好感，稍加撩拨、送些体己礼数便能水到渠成。';
+          if (/千金|名门/.test(a.role || '')) return '【名门心事】自幼长于闺阁，心高气傲，喜雅致诗画与风雅之士，敬重顶天立地的男儿。';
+          if (/商|掌柜|东家/.test(a.role || '')) return '【求财与依附】商贾之女精明能干，最重相公在两淮盐铁运河上的通天手段与银两实力。';
+          return '【待君采撷】待字闺中或流寓市井，常有难解心事，相公若常去探望关切，必成入幕之宾。';
+        };
+
+        const beauties = [];
+        for (const [id, a] of Object.entries(world.actors || {})) {
+          if (!a || a.dead) continue;
+          if (id === 'husband') continue;
+          if (a.gender !== 'female') continue;
+          if (/(老妪|婆|嬷嬷|老太|大娘|老妇|师太|老母|姑子)/.test((a.role || '') + (a.name || ''))) continue;
+
+          const age = beautyAgeOf(id, a);
+          if (age > 35) continue;
+
+          const r = a.relations?.husband || {};
+          const isHere = a.location === curLocation;
+          const isLove = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1;
+
+          beauties.push({
+            id,
+            name: a.name || id,
+            age,
+            city: cityOf(a),
+            place: placeName(a.location || ''),
+            locationId: a.location || '',
+            role: a.role || '名媛佳丽',
+            marital: maritalTextOf(a, a.spouse ? (world.actors?.[a.spouse]?.name || '') : ''),
+            trust: Math.max(0, Math.min(100, Number(r.trust) || 0)),
+            desire: Math.max(0, Math.min(100, Number(r.desire) || 0)),
+            grievance: Math.max(0, Math.min(100, Number(r.grievance) || 0)),
+            attitude: attitudeOf(a),
+            intimacy: intimacyOf(a),
+            appearance: appearanceOf(a),
+            secret: secretOf(a),
+            here: isHere,
+            household: Boolean(a.household),
+            consummated: isLove,
+          });
+        }
+
+        beauties.sort((a, b) => {
+          if (a.here !== b.here) return a.here ? -1 : 1;
+          if (a.consummated !== b.consummated) return a.consummated ? -1 : 1;
+          const scoreA = a.trust + a.desire * 1.5;
+          const scoreB = b.trust + b.desire * 1.5;
+          return scoreB - scoreA;
+        });
+
+        return sendJson(res, 200, {
+          ok: true,
+          total: beauties.length,
+          beauties,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // GET /api/world/actors/search?q=xxx - 全域全量人物搜索（无300截断）
+    if (req.method === 'GET' && matchRoute('/world/actors/search')) {
+      try {
+        const world = peek(DATA_DIR);
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const q = String(url.searchParams.get('q') || '').trim().toLowerCase();
+        if (!q) return sendJson(res, 200, { ok: true, total: 0, actors: [] });
+
+        const me = world.actors?.husband || world.actors?.[member.actor || 'husband'];
+        const curLocation = me?.location || 'husband_room';
+        const placeName = (id) => world.places?.[id]?.name || id;
+
+        const matched = [];
+        for (const [id, a] of Object.entries(world.actors || {})) {
+          if (!a || a.dead) continue;
+          if (id === 'husband') continue;
+          const name = String(a.name || '').toLowerCase();
+          const role = String(a.role || '').toLowerCase();
+          const alias = String(a.alias || '').toLowerCase();
+          const pName = String(placeName(a.location || '')).toLowerCase();
+          const city = String(a.city || '').toLowerCase();
+          const tags = Array.isArray(a.tags) ? a.tags.join(' ').toLowerCase() : '';
+
+          if (name.includes(q) || role.includes(q) || alias.includes(q) || pName.includes(q) || city.includes(q) || tags.includes(q) || id.toLowerCase().includes(q)) {
+            const r = a.relations?.husband || {};
+            matched.push({
+              id,
+              name: a.name || id,
+              role: a.role || '市井百姓',
+              place: placeName(a.location || ''),
+              locationId: a.location || '',
+              city: a.city || '临江府',
+              gender: a.gender || 'male',
+              trust: Math.max(0, Math.min(100, Number(r.trust) || 0)),
+              desire: Math.max(0, Math.min(100, Number(r.desire) || 0)),
+              here: a.location === curLocation,
+              household: Boolean(a.household),
+            });
+          }
+        }
+
+        matched.sort((a, b) => {
+          if (a.here !== b.here) return a.here ? -1 : 1;
+          return b.trust - a.trust;
+        });
+
+        return sendJson(res, 200, { ok: true, total: matched.length, actors: matched });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // GET /api/world/items - 随身行囊与储物空间（含相公随身物与在场之人持有物）
+    if (req.method === 'GET' && matchRoute('/world/items')) {
+      try {
+        const world = peek(DATA_DIR);
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const me = world.actors?.husband || world.actors?.[member.actor || 'husband'];
+        const curLocation = me?.location || 'husband_room';
+        const husbandItems = itemsOf(world, 'husband');
+
+        const hereActors = [];
+        const presentItems = [];
+        for (const [id, a] of Object.entries(world.actors || {})) {
+          if (!a || a.dead || id === 'husband') continue;
+          if (a.location === curLocation) {
+            hereActors.push({ id, name: a.name || id, role: a.role || '', gender: a.gender || 'male' });
+            const theirItems = itemsOf(world, id);
+            for (const it of theirItems) {
+              presentItems.push({ ...it, holderName: a.name || id, holderRole: a.role || '' });
+            }
+          }
+        }
+
+        return sendJson(res, 200, {
+          ok: true,
+          total: husbandItems.length,
+          items: husbandItems,
+          presentItems,
+          hereActors,
+        });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/items/action { action: 'give'|'show'|'ask', itemId, targetActorId }
+    if (req.method === 'POST' && matchRoute('/world/items/action')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const action = String(body.action || '').trim();
+        const itemId = String(body.itemId || '').trim();
+        const targetActorId = String(body.targetActorId || '').trim();
+
+        if (!action || !itemId) {
+          return sendJson(res, 400, { ok: false, error: '参数不齐：缺少 action 或 itemId' });
+        }
+
+        const world = loadState(DATA_DIR);
+        let result = null;
+
+        if (action === 'give') {
+          if (!targetActorId) return sendJson(res, 400, { ok: false, error: '请指定赠予的对象' });
+          result = giveItem(world, 'husband', targetActorId, itemId);
+          if (result.ok) {
+            saveState(DATA_DIR, world);
+            const toActor = world.actors?.[targetActorId];
+            const toName = toActor?.name || targetActorId;
+            appendEvents(DATA_DIR, [nextEvent(world, 'item_give', {
+              desc: `相公将《${result.item?.name}》赠予${toName}`,
+              actor: 'husband',
+              target: targetActorId,
+            })]);
+          }
+        } else if (action === 'show') {
+          result = showItem(world, 'husband', targetActorId, itemId);
+        } else if (action === 'ask') {
+          if (!targetActorId) return sendJson(res, 400, { ok: false, error: '请指定索取的对象' });
+          result = askItem(world, 'husband', targetActorId, itemId);
+          if (result.ok) {
+            saveState(DATA_DIR, world);
+            const fromActor = world.actors?.[targetActorId];
+            const fromName = fromActor?.name || targetActorId;
+            appendEvents(DATA_DIR, [nextEvent(world, 'item_take', {
+              desc: `相公自${fromName}手中取回《${result.item?.name}》`,
+              actor: 'husband',
+              target: targetActorId,
+            })]);
+          }
+        } else {
+          return sendJson(res, 400, { ok: false, error: '未知物品操作：' + action });
+        }
+
+        return sendJson(res, 200, {
+          ok: Boolean(result?.ok),
+          refused: Boolean(result?.refused),
+          line: result?.line || '',
+          item: result?.item || null,
+          trustDelta: result?.trustDelta || 0,
+          desireDelta: result?.desireDelta || 0,
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
@@ -2999,6 +3310,13 @@ const server = http.createServer(async (req, res) => {
     try {
       for (;;) {
         const world = peek(DATA_DIR);
+        // 若当前未满/队列空，且满足现实自然间隔，自动动态分发主动事件（告别冷清死寂）
+        try {
+          if (dispatchNaturalProactive(world, Date.now())) {
+            saveState(DATA_DIR, world);
+          }
+        } catch (err) { /* 忽略分发异常 */ }
+
         const queue = Array.isArray(world.proactive) ? world.proactive : [];
         const now = Date.now();
         const due = queue

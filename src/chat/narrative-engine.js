@@ -814,7 +814,7 @@ export function executeNarrativeTags({
       for (const spk of speakers) {
         const nm = spk.includes('·') ? spk.split('·').pop().trim() : spk;
         if (!nm || nm === '旁白' || nm === meR0?.name) continue;
-        const a = Object.values(wR.actors || {}).find((x) => x && !x.dead && x.name === nm && x.location === meR0?.location);
+        const a = matchActor(wR.actors, spk) || matchActor(wR.actors, nm);
         if (!a) continue;
         touched.add(a.id);
       }
@@ -823,13 +823,16 @@ export function executeNarrativeTags({
       const mg = /(?:给|赏|送)[^。]{0,6}?([\u4e00-\u9fa5]{2,4})[^。]{0,4}?([一二三四五六七八九十两\d]+)\s*两/.exec(String(sayText || ''));
       const cnNum = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
       if (mg) {
-        const who = Object.values(wR.actors || {}).find((x) => x && !x.dead && x.name === mg[1]);
+        const who = matchActor(wR.actors, mg[1]);
         const rawN = mg[2].replace(/两/g, '');
         const amt = /^\d+$/.test(rawN) ? Number(rawN) : (cnNum[rawN] || 1);
         if (who && amt > 0) gifts.push({ who, amt });
       }
       let changed = false;
-      const intimate = /(?:亲吻|吻|拥抱|抱住|搂|依偎|侍寝|宽衣|解衣|同床|云雨|行房|肌肤之亲|亲我|亲你|亲她|亲一下|亲一口)/.test(`${sayText || ''} ${reply || ''}`);
+      const combinedChat = `${sayText || ''} ${reply || ''}`;
+      const intimate = /(?:亲吻|吻|拥抱|抱住|搂|依偎|侍寝|宽衣|解衣|同床|云雨|行房|肌肤之亲|亲我|亲你|亲她|亲一下|亲一口)/.test(combinedChat);
+      const romanticOrCourage = /(?:真心|喜欢你|心悦你|爱慕|中意|表明真心|铁了心|做我女人|迎你过门|娶你|护你|疼你|看上你|相中你|心里有你|动心|定情|有我呢|替你撑腰|护着你|有我在|自信|为民除害|剿匪|私兵|都司|好看|漂亮|俊俏|倾国倾城|灵动|真美|千金小姐|娇美)/.test(combinedChat);
+
       for (const id of touched) {
         const a = wR.actors[id];
         const rel = (a.relations = a.relations || {});
@@ -839,18 +842,30 @@ export function executeNarrativeTags({
         // 初次打交道：先有"一面之缘"的底子，再涨这一分
         if (mine.trust == null) mine.trust = 5;
         if (mine.desire == null) mine.desire = 0;
-        if (Number(a.talkToday || 0) < 5) {
+
+        // 常规畅叙相伴：上限放宽至每日 15 次，不再轻易锁死
+        if (Number(a.talkToday || 0) < 15) {
           mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 1) * 10) / 10);
           a.talkToday = Number(a.talkToday || 0) + 1;
           changed = true;
         }
+
+        // 情感共鸣与豪气担当进展：相公表白真心、展露抱负或赞美爱护，触动少女心弦
+        if (romanticOrCourage && Number(a.romanticDay) !== today) {
+          mine.desire = Math.min(100, Math.round(((Number(mine.desire) || 0) + 3) * 10) / 10);
+          mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 2) * 10) / 10);
+          a.romanticDay = today;
+          changed = true;
+          reply += `\n（${a.name}被你的真诚豪气所触动，心底泛起一丝波澜 · 信任+2，情愫+3）`;
+        }
+
         // 亲密进展：情愫不能只写在台词里，每天至少动一次
         if (intimate && Number(a.intimacyDay) !== today) {
-          mine.desire = Math.min(100, Math.round(((Number(mine.desire) || 0) + 3) * 10) / 10);
-          mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 1) * 10) / 10);
+          mine.desire = Math.min(100, Math.round(((Number(mine.desire) || 0) + 4) * 10) / 10);
+          mine.trust = Math.min(100, Math.round(((Number(mine.trust) || 0) + 2) * 10) / 10);
           a.intimacyDay = today;
           changed = true;
-          reply += `\n（${a.name}与你的情愫更深了一层。）`;
+          reply += `\n（${a.name}与你的情愫更深了一层 · 亲密温存）`;
         }
       }
       for (const g of gifts) {
