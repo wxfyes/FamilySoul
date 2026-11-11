@@ -12,27 +12,33 @@
 ```json
 {
   "status": "APPROVED_DEPLOYED",
-  "last_updated": "2026-11-09 11:05",
-  "active_task": "【全闭环交付】全量妻妾动态名分+世情兵马朝政二级卡片与权限隔离+胶囊长按拖拽重排+信函同屏回信请进门+日夜主题打通+大酒楼雅间单间直达",
+  "last_updated": "2026-11-11 19:50",
+  "active_task": "【全闭环交付】天下名媛佳丽图鉴+随身行囊出示验看赠予索取+搜人防截断根治+大酒楼盛大开业既定事实修正+苏映雪床笫激情与房事逻辑穿透",
   "priority": "DEPLOYED_VERIFIED",
   "single_owner": "Antigravity 审查官",
-  "reviewer_role": "根除写死兜底，动态聚合沈婉儿/林芸娘/小翠/崔婉宁；增加二级卡片并按相公/家眷隔离权限；胶囊栏长按拖拽重排并持久化；信件/差事/求见在聊天框同屏呈现与提笔手书回信；打通白天黑夜主题与高对比度关闭圆纽；修复大酒楼雅间单间下发",
+  "reviewer_role": "修复酒楼老说没开业历史大事记与状态机；实现全量妙龄女子图鉴（265位35岁以下名媛）；新增随身行囊与储物空间抽屉（出示验看/赠予增进好感/索取归仓）；根除/world/menu的300人截断，实现全域全量搜人；苏映雪与酒楼雅间房事逻辑修复并扩充荤话；软路由热更新与双端打包全闭环",
   "changed_files": [
     "src/server.js",
-    "mobile/lib/models/chat_message.dart",
-    "mobile/lib/providers/chat_provider.dart",
+    "src/world/items.js",
+    "src/world/bedchamber.js",
+    "src/chat/chat-flow.js",
+    "src/chat/scenario-triggers.js",
+    "src/chat/prompt-composer.js",
+    "src/world/state.js",
+    "src/world/heal.js",
+    "data/world/milestones.json",
     "mobile/lib/services/api_client.dart",
+    "mobile/lib/views/inventory_sheet.dart",
+    "mobile/lib/views/beauties_sheet.dart",
     "mobile/lib/views/chat_screen.dart",
-    "mobile/lib/views/digest_sheet.dart",
-    "mobile/lib/views/my_world_screen.dart",
     "mobile/lib/views/roster_screen.dart",
-    "mobile/lib/widgets/message_bubble.dart"
+    "mobile/lib/views/out_and_about_sheet.dart"
   ],
   "prod_metrics": {
-    "server_regression": "20/20 全部通过",
-    "softrouter_deploy": "软路由 192.168.1.254:3088 热更新成功，/health 正常，大酒楼 5 处雅间及身孕天数实测矫正",
+    "server_regression": "20/20 全部通过，4项记忆单测全部通过",
+    "softrouter_deploy": "软路由 192.168.1.254:3088 热更新成功，/health 正常，实测 beauties 返回 265 人，items 返回 5 件",
     "flutter_analyze": "No issues found! (0 告警通过)",
-    "client_build": "双端（Android APK 283.9MB / iOS IPA 19.45MB）已完成编译并覆盖桌面最新交付包"
+    "client_build": "双端（Android APK 284.2MB / iOS IPA 19.48MB）已编译完毕并覆盖桌面最新交付包"
   },
   "client_reinstall_needed": true,
   "reviewer_action": "双端安装包已全量覆盖至桌面，相公可直接安装体验"
