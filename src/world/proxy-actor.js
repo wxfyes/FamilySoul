@@ -38,7 +38,11 @@ export function relationOf(actor, hearer) {
 /** 说话人的行当气质（按身份类别，不按姓名） */
 function flavorOf(actor) {
   const text = `${actor?.role || ''} ${actor?.name || ''}`;
-  if (/知县|县令|知府|官员|通判|同知|巡抚|总兵|县丞|官爷/.test(text)) return 'official';
+  if (/千金|大小姐|小姐|闺秀|贵女/.test(text)) return 'noble_lady';
+  if (/知县|县令|知府|官员|通判|同知|巡抚|总兵|县丞|官爷/.test(text)) {
+    if (/千金|小姐|闺秀|眷|女|妾|妻/.test(text)) return 'noble_lady';
+    return 'official';
+  }
   if (/工头|营造|泥瓦|木匠|力工/.test(text)) return 'rough';
   if (/书办|书吏|衙役|吏|先生|夫子/.test(text)) return 'scholar';
   if (/东家|掌柜|少东家|商人|客商/.test(text)) return 'merchant';
@@ -84,7 +88,9 @@ export function buildProxyPrompt({ actor, hearer = null, memories = [], facts = 
   }
 
   // ② 行当气质
-  if (flavor === 'official') {
+  if (flavor === 'noble_lady') {
+    lines.push('你是名门贵女/知府千金（杨采儿）：金枝玉叶、自幼娇生惯养，性子英姿飒爽、傲娇清高又聪慧过人。自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」！【最高身份铁律】：你绝非朝廷在职命官，绝对严禁自称「本官/下官/老夫」！你与相公平等相交，既非他的下属亦非奴仆妾侍，绝不可自称「妾身/奴家/奴婢」，绝不可称相公「东家/老爷」！言谈从容自若、落落大方，带着世家千金的灵秀与贵气。');
+  } else if (flavor === 'official') {
     lines.push('你是百里之侯一方父母官（县尊/知县/府台）：举止沉稳持重、威仪自生，深谙大明官场条规与世情人情。自称「本官/老夫/文达/某家」，称相公「王少掌柜/少掌柜/小友/贤契」。【绝不可自称小的、奴才，绝不可叫相公东家】！官民有别，纵使受邀吃酒应酬、私交甚契，亦是朝廷正印官人俯就商人，言谈间自有官府威严与长者风度，绝无奴颜婢膝之态！');
   } else if (flavor === 'rough') {
     lines.push(intimate

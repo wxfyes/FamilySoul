@@ -49,6 +49,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   // 锁屏防休眠专职后台静音守护器（维持 iOS / Android 后台 AudioSession，防止锁屏冻结网络与Timer）
   final AudioPlayer _keeperPlayer = AudioPlayer();
   bool _isKeeperActive = false;
+  bool _isAppInBackground = false;
 
   /// 地点变动全局通知回调（用于顶部导航条即时刷新）
   VoidCallback? onPlaceChanged;
@@ -128,21 +129,14 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _updateKeeperState() async {
-    if (!_routineConfig.keepAliveEnabled) {
+    // 降温省电铁律：仅在启用了锁屏保活、且 App 真正处于后台/锁屏、且当前无正在播放的语音时，才维持静音音频保活
+    if (!_routineConfig.keepAliveEnabled || !_isAppInBackground || _isPlayingAudio) {
       if (_isKeeperActive) {
         try {
           await _keeperPlayer.stop();
         } catch (_) {}
         _isKeeperActive = false;
-      }
-      return;
-    }
-
-    if (_isPlayingAudio) {
-      if (_isKeeperActive) {
-        try {
-          await _keeperPlayer.pause();
-        } catch (_) {}
+        debugPrint('[KeepAlive] App处于前台或无需保活，已彻底释放静音音频通道以降温省电');
       }
       return;
     }
@@ -153,7 +147,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         await _keeperPlayer.setVolume(0.01);
         await _keeperPlayer.play(BytesSource(_createSilentWav()));
         _isKeeperActive = true;
-        debugPrint('[KeepAlive] 锁屏夜间守护静音心跳启动（iOS/Android 锁屏防休眠已就绪）');
+        debugPrint('[KeepAlive] 进入后台/锁屏状态，启动静音守护心跳（iOS/Android 锁屏防休眠已就绪）');
       } else {
         await _keeperPlayer.resume();
       }
@@ -165,10 +159,13 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      debugPrint('[Lifecycle] App 进入后台/锁屏状态，确保守护心跳运行');
+      debugPrint('[Lifecycle] App 进入后台/锁屏状态，准备按需启动后台守护');
+      _isAppInBackground = true;
       _updateKeeperState();
     } else if (state == AppLifecycleState.resumed) {
-      debugPrint('[Lifecycle] App 返回前台，立即校准连接与状态');
+      debugPrint('[Lifecycle] App 返回前台，立即关闭静音播放器降温省电并校准状态');
+      _isAppInBackground = false;
+      _updateKeeperState();
       refreshStatus();
     }
   }

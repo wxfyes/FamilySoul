@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 世情常理：年龄、婚配、身子的单一推导。
  *
  * 三件事之所以放一处，是因为它们互相约束：
@@ -108,7 +108,7 @@ export function maritalTextOf(a, spouseName = '') {
   if (!a) return '—';
   if (a.id === 'husband') return '已婚 · 妻妾在侧';
   if (spouseName) return `已婚 · ${spouseName}`;
-  if (/小姐|公子|才女|少爷|姑娘/.test(String(a.role || '')) && !a.spouse) {
+  if (/千金|小姐|闺秀|公子|才女|少爷|姑娘|贵女/.test(String(a.role || '')) && !a.spouse) {
     return a.gender === 'male' ? '未婚 · 尚未娶亲' : '未婚 · 待字闺中';
   }
   const guessed = a.marital || inferMaritalStatus(a.name, a.role, a.age, a.gender);

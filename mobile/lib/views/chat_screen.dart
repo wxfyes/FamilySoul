@@ -893,22 +893,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           children: [
                             Text(name, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 2),
-                            FutureBuilder<Map<String, dynamic>?>(
-                              future: provider.api.fetchMyWorld(),
-                              builder: (context, snap) {
-                                final self = (snap.data?['self'] is Map) ? snap.data!['self'] as Map : const {};
-                                final homeName = (self['homeName'] ?? '').toString();
-                                final locRaw = (self['location'] ?? '').toString();
-                                String place = (self['place'] ?? '').toString().trim();
-                                if (place.isEmpty || place.contains('house_') || place.contains('__gate') || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(place)) {
-                                  if (place.contains('__gate') || locRaw.contains('__gate')) {
-                                    place = homeName.isNotEmpty ? '$homeName·门外' : '宅院门外';
-                                  } else if (place.isEmpty || RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(place)) {
-                                    place = homeName.isNotEmpty ? homeName : '门外';
-                                  }
-                                }
-                                final day = (snap.data?['date'] is Map) ? snap.data!['date'] as Map : const {};
-                                final txt = '$place · 第${day['day'] ?? '-'}日 ${day['hour'] ?? '-'}时';
+                            Builder(
+                              builder: (context) {
+                                final place = _placeName.isNotEmpty ? _placeName : '王宅';
+                                final dayStr = _worldDay > 0 ? '第$_worldDay日' : '';
+                                final hourStr = _worldHour > 0 ? '$_worldHour时' : '';
+                                final timeStr = '$dayStr $hourStr'.trim();
+                                final txt = timeStr.isNotEmpty ? '$place · $timeStr' : place;
                                 return Text(txt, style: const TextStyle(color: Colors.white54, fontSize: 12));
                               },
                             ),

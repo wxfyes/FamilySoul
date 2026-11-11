@@ -1306,7 +1306,7 @@ const server = http.createServer(async (req, res) => {
             return '虽有些倦，仍会应下';
           }
           if (g >= 60) return '心里有怨，轻易不松口';
-          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1;
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1 || (t >= 75 && d >= 60);
           if (isCons) return d >= 50 ? '已是相好，嘴上推拒身子应' : '已是相好，脸皮薄';
           if (d >= 70 && t >= 55) return '心里已有你，半推半就';
           if (d >= 45) return '有点意动，要给由头';
@@ -1323,7 +1323,10 @@ const server = http.createServer(async (req, res) => {
             return months >= 1 ? `有孕·${months}个月` : `有孕·${days}天`;
           }
           if (a.menses?.on || a.onPeriod) return '月事中';
-          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好';
+          const r = a.relations?.husband || {};
+          const t = Number(r.trust) || 0;
+          const d = Number(r.desire) || 0;
+          const isCons = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1 || (t >= 75 && d >= 60);
           if (isCons) {
             if (/正妻/.test(String(a.role || ''))) return '琴瑟和鸣';
             if (/如夫人|二房|妾/.test(String(a.role || ''))) return '雨意云情';
@@ -1335,7 +1338,10 @@ const server = http.createServer(async (req, res) => {
 
         const categoryOf = (a) => {
           if (a.household) return 'house';
-          const isLove = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(a.relations?.husband?.intimate) === 1;
+          const r = a.relations?.husband || {};
+          const t = Number(r.trust) || 0;
+          const d = Number(r.desire) || 0;
+          const isLove = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(a.relations?.husband?.intimate) === 1 || (t >= 75 && d >= 60);
           if (isLove) return 'love';
           if (/官|府尹|知府|通判|同知|县令|提点|总督|尚书|侍郎|主簿|捕头|衙役/.test(String(a.role || ''))) return 'court';
           return 'all';
@@ -1417,8 +1423,10 @@ const server = http.createServer(async (req, res) => {
         // 记录相公移动前的位置，用于判定是否发生物理转场
         const prevLocation = (world.actors?.[actorId] || world.actors?.husband)?.location || '';
 
-        // 说"回家/回府/回王宅"：夫妻同归一处，直达正房家眷守候之所
-        if (/回家|回府|回宅|回房|回屋|王宅/.test(target)) {
+        // 说"回家/回府/回宅"（仅当未指定具体子院落/房间时）：夫妻同归一处，直达正房家眷守候之所
+        const isGenericHome = target === 'home' || /^(回家|回府|回宅|回王宅|王宅)$/.test(target);
+        const hasSpecificRoom = /(西厢|东跨院|书房|书斋|厨房|柴房|后院|暖阁|客房|门房|garden|wing|study)/i.test(target);
+        if (isGenericHome && !hasSpecificRoom) {
           const meH = world.actors?.[actorId];
           const homeId = meH?.home || 'husband_room';
           const wanerLoc = world.actors?.waner?.location;
@@ -1464,11 +1472,21 @@ const server = http.createServer(async (req, res) => {
           };
           const meNow0 = world.actors?.[actorId] || world.actors?.husband;
           const myCity2 = labelOf2(world.places?.[meNow0?.location]?.name);
-          const alreadyCity = /府|州|县/.test(String(target));
-          if (!alreadyCity) {
-            const hit = Object.entries(world.places || {}).find(([, pl]) => pl && pl.name
-              && labelOf2(pl.name) === myCity2 && String(pl.name).split('·').slice(1).join('·').includes(target));
-            if (hit) target = hit[0];
+          // 优先看是否直接命中已有的地点 ID 或完整名称
+          if (world.places?.[target]) {
+            // target 本身就是合法地点 ID
+          } else {
+            const exactPl = Object.entries(world.places || {}).find(([k, pl]) => pl && (k === target || pl.name === target));
+            if (exactPl) {
+              target = exactPl[0];
+            } else {
+              const alreadyCity = /府|州|县/.test(String(target));
+              if (!alreadyCity) {
+                const hit = Object.entries(world.places || {}).find(([, pl]) => pl && pl.name
+                  && labelOf2(pl.name) === myCity2 && (String(pl.name).includes(target) || target.includes(String(pl.name).split('·').pop())));
+                if (hit) target = hit[0];
+              }
+            }
           }
         } catch { /* 忽略 */ }
 
@@ -1869,10 +1887,38 @@ const server = http.createServer(async (req, res) => {
         const actorId = member.actor || 'husband';
         const body = await parseJsonBody(req, 64 * 1024);
         const world = peek(DATA_DIR);
-        const thread = appendCorrespondence(world, String(body.id || ''), 'me', String(body.text || '').slice(0, 500));
+        const replyText = String(body.text || '').trim().slice(0, 500);
+        const thread = appendCorrespondence(world, String(body.id || ''), 'me', replyText);
         if (!thread || thread.to !== actorId) return sendJson(res, 404, { ok: false, error: '没有这封信' });
         thread.status = 'replied';
         thread.unread = false;
+
+        // 1. 记忆沉淀：让发信人（如二房芸娘）永久记住相公亲笔写的手书内容
+        const senderId = thread.fromId || '';
+        const senderName = thread.fromName || '对方';
+        if (replyText) {
+          addMemory(world, {
+            text: `相公亲笔给${senderName}手书回信：“${replyText}”`,
+            about: [senderId, actorId, 'husband'].filter(Boolean),
+            kind: 'letter',
+          });
+          // 2. 好感与心意沉淀：相公亲笔回信，对方内心踏实温存
+          const sender = world.actors?.[senderId] || Object.values(world.actors || {}).find((a) => a && a.name === senderName);
+          if (sender) {
+            sender.relations = sender.relations || {};
+            sender.relations.husband = sender.relations.husband || { trust: 50, desire: 30, fear: 0, grievance: 0 };
+            sender.relations.husband.trust = Math.min(100, (Number(sender.relations.husband.trust) || 0) + 3);
+            sender.relations.husband.desire = Math.min(100, (Number(sender.relations.husband.desire) || 0) + 2);
+          }
+          // 3. 事件流记录
+          world.events = world.events || [];
+          world.events.push({
+            day: world.clock?.day || 1,
+            hour: world.clock?.hour || 0,
+            text: `信使将相公手书送抵${senderName}处，信中写道：“${replyText}”`,
+          });
+        }
+
         saveState(DATA_DIR, world);
         return sendJson(res, 200, { ok: true, thread });
       } catch (err) {
@@ -2291,26 +2337,54 @@ const server = http.createServer(async (req, res) => {
           .map((c) => ({ text: c.text, day: c.day })),
         decrees: (world.court?.decisions || []).slice(-3).map((d) => ({ day: d.day, text: d.text })),
         market: marketSnapshot(world),
-        // 今日看板：把一天里值得看的事收成一张单子（过滤掉"回了/待久了"这类噪音）
+        // 今日看板：把一天里值得看的事收成一张单子（聚合事件流与大额账目变动，告别空白）
         digest: (() => {
           try {
             const day = Number(world.clock?.day) || 1;
+            const hour = Number(world.clock?.hour) || 0;
             const meNow = (actorId && world.actors?.[actorId]) || me || world.actors?.husband;
             const isBoss = meNow?.id === 'husband' || meNow?.household || meNow?.spouse === 'husband';
             const noisy = /回了|待久了|自己宅里走动|按作息走动|归位/;
             const evs = readRecentEvents(DATA_DIR, 60) || [];
             const myName = String(meNow?.name || '');
-            const today = evs
+            let today = evs
               .filter((e) => e && Number(e.day) === day)
               .map((e) => ({ text: String(e?.payload?.text || ''), day: e.day, hour: e.hour || 0, action: e.action || '' }))
               .filter((x) => x.text && !noisy.test(x.text))
               // 只看与自己有关的：本人/王家（家眷）
-              .filter((x) => (myName && x.text.includes(myName)) || (isBoss && /王家|王宅|相公|府里/.test(x.text)))
-              .slice(-8)
-              .reverse();
-            // 大事记是王家的账，只有王家人看得到
+              .filter((x) => (myName && x.text.includes(myName)) || (isBoss && /王家|王宅|相公|府里|酒楼|船队|茶坊/.test(x.text)));
+
+            // 聚合今日收支流水与产业动作（如置办船队、采办、大额进账）
+            if (isBoss && Array.isArray(world.ledger)) {
+              const todayLedger = world.ledger
+                .filter((l) => l && Number(l.day) === day && Math.abs(Number(l.delta) || 0) >= 5)
+                .slice(-6)
+                .map((l) => ({
+                  text: `${l.title}（${Number(l.delta) > 0 ? '+' : ''}${l.delta} 两）`,
+                  day: l.day,
+                  hour: l.hour || 0,
+                  action: 'ledger',
+                }));
+              today = [...today, ...todayLedger];
+            }
+
+            today.sort((a, b) => (Number(b.hour) || 0) - (Number(a.hour) || 0));
+            today = today.slice(0, 8);
+
+            // 若今日尚未有大事记入，根据王家产业经营与府邸平安生成今日实录
+            if (today.length === 0 && isBoss) {
+              const totalInc = (world.assets?.properties || []).reduce((s, p) => s + (Number(p?.incomePerDay) || 0), 0);
+              today.push({
+                text: `临江王宅各房安好，茶坊老店、大酒楼与各处铺面营运稳妥，日入约 +${Math.round(totalInc * 10) / 10} 两白银。`,
+                day,
+                hour,
+                action: 'routine',
+              });
+            }
+
+            // 大事记是王家的账，只有王家人看得到（展现全部已完成重大里程碑）
             const big = isBoss
-              ? (world.milestones || []).slice(-4).map((m) => (typeof m === 'string' ? m : (m?.text || m?.title || ''))).filter(Boolean)
+              ? (world.milestones || []).map((m) => (typeof m === 'string' ? m : (m?.text || m?.title || ''))).filter(Boolean).slice(0, 10)
               : [];
             const hist = (world.history || []).slice(-3);
             const h1 = hist[hist.length - 1];
@@ -2616,6 +2690,7 @@ const server = http.createServer(async (req, res) => {
           return here || close || humanActors.has(a.id);
         })
         .map((a) => ({
+          id: a.id,
           name: a.name,
           role: a.role || '',
           place: String(world.places?.[a.location]?.name || '不知去向'),
@@ -2943,21 +3018,30 @@ const server = http.createServer(async (req, res) => {
               const textSpk = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
               let spk = (textSpk ? textSpk[1].trim() : item.speaker) || '';
               // 彻底杜绝拼音变量、系统代号或裸露英文污染（如 an, usr_, ancient, system）
-              if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown)$/i.test(spk)) {
-                if (/酒肆|续酒|旧账纸|紫嫣/.test(String(item.text || ''))) spk = '酒肆伙计';
-                else if (/客栈|住处|打探|孙进/.test(String(item.text || ''))) spk = '客栈掌柜·孙进';
-                else if (/货栈|水路|茶价|采云/.test(String(item.text || ''))) spk = '货栈总管·采云';
-                else if (/县衙|茶税|公文|静儿/.test(String(item.text || ''))) spk = '县衙书吏·静儿';
-                else if (/窑厂|砖瓦|鲁青/.test(String(item.text || ''))) spk = '窑厂工头·鲁青';
-                else spk = '传信小厮';
+              // 关键铁律：凡台词在向东家汇报（"东家"、"等您示下"、"回来了"），绝不可被标为「提示」沦为居中小灰条！
+              const isSpokenErrand = /东家|掌柜|相公|少掌柜/.test(item.text || '') && /等您示下|请东家示下|留个心眼|不敢擅自|回来了|暗账|码头/.test(item.text || '');
+              if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown|提示)$/i.test(spk) || (isSpokenErrand && spk === '提示')) {
+                const textStr = String(item.text || '');
+                const mWho = textStr.match(/(伍兰|纪生|常木|熊河|樊生|傅生|盛哥|阿福|阿吉|陈二|老周)/);
+                if (mWho) {
+                  spk = `家丁·${mWho[1]}`;
+                } else if (/酒肆|续酒|旧账纸|紫嫣/.test(textStr)) spk = '酒肆伙计';
+                else if (/客栈|住处|打探|孙进/.test(textStr)) spk = '客栈掌柜·孙进';
+                else if (/货栈|水路|茶价|采云/.test(textStr)) spk = '货栈总管·采云';
+                else if (/县衙|茶税|公文|静儿/.test(textStr)) spk = '县衙书吏·静儿';
+                else if (/窑厂|砖瓦|鲁青/.test(textStr)) spk = '窑厂工头·鲁青';
+                else if (isSpokenErrand) spk = '当差仆役';
+                else if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown)$/i.test(spk)) spk = '传信小厮';
               }
               let finalText = String(item.text || '').trim();
-              if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk) {
+              if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk && spk !== '提示') {
                 finalText = `【${spk}】：${finalText}`;
               }
               // 没有署名的回话，至少把出处补在末尾，别让它冒充系统提示
-              if (!textSpk && item.source) {
-                finalText = `${finalText}\n（来源：${item.source}）`;
+              let itemSrc = item.source || (isSpokenErrand ? `差事回话·${spk}` : '');
+              if (itemSrc === '系统提示' && isSpokenErrand) itemSrc = `差事回话·${spk}`;
+              if (!textSpk && itemSrc && itemSrc !== '系统提示') {
+                finalText = `${finalText}\n（来源：${itemSrc}）`;
               }
 
               // 判定发言人当前真实位置与相公位置（严禁当面当场面对面说话还变成递信）

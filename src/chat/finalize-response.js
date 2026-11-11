@@ -296,42 +296,9 @@ export async function finalizeResponse(svc, ctx) {
       }
     } catch { /* 忽略 */ }
 
-    // 问到府里的人：引擎先把事实顶在最前面，模型再编也编不过这一行
+    // 问到府里的人：剔除纯旁白干扰，保持回复纯净
     try {
-      const wHouse = loadState(svc.dataDir);
-      const saidH = String(say || '');
-      const houseActor = Object.values(wHouse.actors || {}).find((a) => {
-        if (!a || a.dead || a.id === 'husband') return false;
-        if (!(a.household || ['waner', 'yunnia', 'xiaocui'].includes(a.id))) return false;
-        const short = a.name && a.name.length > 2 ? a.name.slice(-2) : a.name;
-        return a.name && (saidH.includes(a.name) || (short && saidH.includes(short)));
-      });
-      if (houseActor) {
-        let whereH = String(wHouse.places?.[houseActor.location]?.name || '');
-        if (!whereH || /^[a-z0-9_]+$/i.test(whereH)) whereH = String(wHouse.places?.[houseActor.home]?.name || '宅中');
-        if (!whereH || /^[a-z0-9_]+$/i.test(whereH)) whereH = '宅中';
-        const factLine = `【府中】${houseActor.name}是${houseActor.role || '府里人'}，就住「${whereH}」。`;
-        const roleOk = new RegExp(String(houseActor.role || '府里人').slice(0, 2)).test(String(reply || ''));
-        // 先把旁白行剔掉，别让"就站在…"跟着事实一起出现
-        reply = String(reply || '').split('\n').filter((x) => !/就站在|四下冷清|你到了/.test(x)).join('\n').trim();
-        const mSpk = String(reply || '').match(/^【([^】\n]{1,12})】/);
-        const speakerName = mSpk ? mSpk[1] : '';
-        const speakerIsThem = speakerName.includes(houseActor.name) || (houseActor.name.length > 2 && speakerName.includes(houseActor.name.slice(-2)));
-        const deniesHer = /(哪家|不认识|不认得|没听说过|没听过|从哪儿听来|这是谁|是谁)/.test(String(reply || ''));
-        const mentionsHer = String(reply || '').includes(houseActor.name) || (houseActor.name.length > 2 && String(reply || '').includes(houseActor.name.slice(-2)));
-        const contradicted = deniesHer && !mentionsHer && !speakerIsThem;
-        if (!roleOk && contradicted) {
-          // 模型把府里人当外人 → 换成她本人口吻的更正
-          const mSpeak = String(reply || '').match(/^【([^】\n]{1,12})】/);
-          const speaker = mSpeak ? mSpeak[1] : '府中';
-          const core = `${houseActor.name}是${houseActor.role || '府里人'}，就住在「${whereH}」`;
-          reply = `【${speaker}】：（一时语塞）妾身糊涂了——${core}。`;
-          console.log(`[Scene] 模型把${houseActor.name}当外人，已改成更正口吻`);
-        } else if (!roleOk) {
-          reply = `${factLine}\n${String(reply || '').trim()}`.trim();
-          console.log(`[Scene] 先给事实：${houseActor.name}·${houseActor.role || ''}`);
-        }
-      }
+      reply = String(reply || '').split('\n').filter((x) => !/就站在|四下冷清|你到了/.test(x)).join('\n').trim();
     } catch { /* 忽略 */ }
 
     // 最后兜底：若只剩场景旁白，而在场有人 → 让他开口说一句

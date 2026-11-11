@@ -111,7 +111,11 @@ export function resolvePlaceTarget(world, hint, { nearId = '', actor = null } = 
   // ② 按语义类别找
   for (const sem of SEMANTICS) {
     if (!sem.test.test(text)) continue;
-    const cands = places.filter((p) => p.name && sem.test.test(String(p.name)));
+    let cands = places.filter((p) => p.name && sem.test.test(String(p.name)));
+    // 牢房隔离铁律：去衙门/官署/公堂等正常官衙，绝对严禁被县衙男牢/女牢截胡！
+    if (sem.key === '衙门') {
+      cands = cands.filter((p) => !/牢|狱|死牢|囚/.test(String(p.name || '')) && !String(p.id).startsWith('jail_'));
+    }
     if (cands.length) {
       cands.sort((a, b) => score(b, nearId, actor, text) - score(a, nearId, actor, text));
       return cands[0].id;

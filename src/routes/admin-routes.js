@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 
 import { pruneForeignRooms, settleItinerants, buildPremises, buildCourts } from '../world/residence.js';
 import { roomForHour } from '../world/room-life.js';
-import { peek, buildMorningReport, refreshPropertyIncomes } from '../world/clock.js';
+import { peek, buildMorningReport, refreshPropertyIncomes, queueProactive } from '../world/clock.js';
 import { detectDrift, collectDrifters, buildDriftPrompt, applyPlacements } from '../world/society.js';
 import { readRecentEvents, shichenOf, saveState, worldDate, loadState } from '../world/state.js';
 import { buildStateSummary } from '../world/summarize.js';
@@ -31,6 +31,7 @@ import { grainPrice } from '../world/prices.js';
 import { nextPromotion, spawnBandit } from '../world/bandits.js';
 import { maritalTextOf, mensesStatusText } from '../world/persona.js';
 import { addMemory } from '../world/memory.js';
+import { healWorld } from '../world/heal.js';
 import { sendJson, parseJsonBody } from '../middleware/http-utils.js';
 import { resolveMember as resolveMemberAuth, getLockedToken as getLockedTokenAuth, getFamilyProfiles as getFamilyProfilesAuth, MEMBER_LAST_SEEN, HUMAN_ONLINE_MS } from '../middleware/auth.js';
 
@@ -1303,23 +1304,36 @@ export async function handleAdminRoutes(req, res, ctx) {
       }
     }
 
-    // 人间自愈：手动让天道安顿一次（诊断/验收用）
+    // 人间自愈：规则自愈 + 手动让天道安顿（诊断/验收用）
     if (req.method === 'POST' && pathname === '/api/admin/world/heal') {
       try {
         const world = loadState(DATA_DIR);
+        const ruleFixes = healWorld(world);
+        let changed = ruleFixes.length;
+        let notes = [...ruleFixes];
+        let text = '';
+        let rError = null;
+
         const drift = detectDrift(world) || collectDrifters(world);
-        if (!drift) return sendJson(res, 200, { ok: true, healed: false, reason: '没有该安顿的人' });
-        if (!llmClient.isReady()) return sendJson(res, 200, { ok: false, reason: 'LLM 未就绪' });
-        const { system, user } = buildDriftPrompt(world, drift);
-        const out = await llmClient.complete({ system, messages: [{ role: 'user', content: user }], temperature: 0.4, maxTokens: 1500 });
-        const text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || JSON.stringify(out || {}));
-        const r = applyPlacements(world, text);
+        if (drift && llmClient.isReady()) {
+          try {
+            const { system, user } = buildDriftPrompt(world, drift);
+            const out = await llmClient.complete({ system, messages: [{ role: 'user', content: user }], temperature: 0.4, maxTokens: 1500 });
+            text = typeof out === 'string' ? out : (out?.text || out?.content || out?.reply || JSON.stringify(out || {}));
+            const r = applyPlacements(world, text);
+            changed += (r.changed || 0);
+            notes = notes.concat(r.notes || []);
+            rError = r.error || null;
+          } catch (e) {
+            console.warn('[Heal] LLM安顿异常：', e.message);
+          }
+        }
         world.flags = world.flags || {};
         world.flags.lastSelfHealDayHour = (Number(world.clock?.day) || 1) * 24 + (Number(world.clock?.hour) || 0);
         saveState(DATA_DIR, world);
         return sendJson(res, 200, {
-          ok: true, healed: true, changed: r.changed,
-          notes: (r.notes || []).slice(0, 20), error: r.error || null,
+          ok: true, healed: true, changed,
+          notes: notes.slice(0, 30), error: rError,
           raw: String(text || '').slice(0, 400),
         });
       } catch (err) {
@@ -1842,10 +1856,13 @@ export async function handleAdminRoutes(req, res, ctx) {
         const member = resolveMember(req, url);
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
         const world = loadState(DATA_DIR);
-        const speaker = body.speaker || '老板娘·紫嫣';
-        const text = body.text || '【老板娘·紫嫣】：相公，于家酒肆刚起了一坛桂花新酿，妾身特差小二给相公送去府上了。这几日城南酒肆都在打听咱们运河大酒楼的存酒呢，相公何时得空过来坐坐？';
-        const place = body.place || null;
-        const isLetter = body.isLetter !== undefined ? Boolean(body.isLetter) : Boolean(place);
+        const speaker = body.speaker || '二房·芸娘';
+        const actorId = body.actorId || 'yunnia';
+        const text = body.text || '【二房·芸娘】：相公，老茶坊今日账目妾身已盘清了，新给你做了一双软底暖靴。炉子上煨着莲子羹，相公何时回房歇息？';
+        const place = body.place || '临江·王宅·西厢房';
+        const placeId = body.placeId || 'wang_mansion_west';
+        const reason = body.reason || 'night_care';
+
         let audioKey = null;
         try {
           if (ttsService) {
@@ -1856,22 +1873,27 @@ export async function handleAdminRoutes(req, res, ctx) {
             }
           }
         } catch { /* 忽略语音失败 */ }
-        world.proactive = Array.isArray(world.proactive) ? world.proactive : [];
-        world.proactive.push({
-          id: `test_push_${Date.now()}`,
-          type: 'proactive',
-          to: 'husband',
+
+        queueProactive(world, {
           speaker,
+          actorId,
           place,
-          isLetter,
+          placeId,
           text,
           fallback: text,
-          audioKey,
-          at: Date.now(),
+          reason,
+          type: 'proactive',
+          isLetter: true,
+          force: true,
         });
+
+        if (audioKey && world.proactive?.length) {
+          world.proactive[world.proactive.length - 1].audioKey = audioKey;
+        }
+
         saveState(DATA_DIR, world);
-        console.log(`[Admin] 立即触发主动递话: ${speaker} -> 相公`);
-        return sendJson(res, 200, { ok: true, text, speaker, audioKey });
+        console.log(`[Admin] 立即触发主动便笺: ${speaker} -> 相公（地点：${place}）`);
+        return sendJson(res, 200, { ok: true, text, speaker, place, audioKey });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

@@ -658,9 +658,20 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
   const text = String(replyText || '');
   if (!text) return [];
 
-  // 只有天道明确写了 [[depart:谁|去哪儿]] 才动身。
-  // 台词里出现"退下""这就去"这类词，一律只当台词，不再由正则偷听触发位移。
-  const tags = [...text.matchAll(/\[\[depart:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+  // 优先按天道明确写了 [[depart:谁|去哪儿]] 动身；若模型漏附标签但台词明确告辞离场，自动兜底
+  let tags = [...text.matchAll(/\[\[depart:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\]/g)];
+  if (!tags.length) {
+    const farewellRe = /(?:留步|不必送了|不必再送|免送|先行告辞|这就告退|告辞了|小人告退|这就告辞|老夫告辞|本官这就回|回衙门|轿夫在楼下候着|这就动身)/;
+    const speakerMatches = [...text.matchAll(/【([^】\n]{1,16})】[：:]?([^【\n]+)/g)];
+    for (const sm of speakerMatches) {
+      const spk = sm[1].trim();
+      const line = sm[2];
+      if (farewellRe.test(line)) {
+        const cleanName = spk.replace(/^(?:知县|县令|大人|知府|掌柜|老板娘|二房|正妻|侍妾|伙计|厨子|总管)[·\s]/, '').trim();
+        tags.push(['', cleanName, '衙署']);
+      }
+    }
+  }
   if (!tags.length) return [];
 
   const world = loadState(dataDir);

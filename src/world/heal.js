@@ -197,11 +197,25 @@ export function healWorld(world) {
   if (isNight) {
     for (const a of Object.values(world.actors || {})) {
       if (!a || a.dead || a.id === 'husband') continue;
-      // 王府内眷（婉儿、芸娘、小翠）：夜间必须在宅内安歇，严禁深夜公堂或市井游荡
-      if (a.household || ['waner', 'yunnia', 'xiaocui'].includes(a.id)) {
+      // 王府内眷各安其所：正房大娘子在正房，二房芸娘在西厢房，侧室婉宁在东跨院
+      if (a.id === 'yunnia' || a.name === '林芸娘') {
+        const dest = world.places?.wang_mansion_west ? 'wang_mansion_west' : 'husband_room';
+        if (a.location !== dest && a.location !== husbandLoc) {
+          fixes.push(`内眷归位：二房芸娘回西厢房歇息`);
+          a.location = dest;
+          a.home = dest;
+        }
+      } else if (a.name === '崔婉宁') {
+        const dest = world.places?.wang_mansion_east ? 'wang_mansion_east' : 'husband_room';
+        if (a.location !== dest && a.location !== husbandLoc) {
+          fixes.push(`内眷归位：侧室崔婉宁回东跨院歇息`);
+          a.location = dest;
+          a.home = dest;
+        }
+      } else if (a.household || ['waner', 'xiaocui'].includes(a.id)) {
         const isSafeHome = ['backyard', 'husband_room'].includes(a.location);
         if (!isSafeHome && a.location !== husbandLoc) {
-          const dest = world.places?.backyard ? 'backyard' : 'husband_room';
+          const dest = world.places?.husband_room ? 'husband_room' : 'backyard';
           fixes.push(`夜深露重，内眷${a.name}从${world.places?.[a.location]?.name || a.location}归宅安歇`);
           a.location = dest;
         }
@@ -233,6 +247,32 @@ export function healWorld(world) {
       fixes.push(`清洗 ${beforePromises - world.promises.length} 条陈旧查账差事`);
     }
   }
+
+  // ⑮ 正房寝堂门禁铁律：正房（husband_room）及内室（wang_mansion_west, wang_mansion_east）严禁伙计、跑堂、家丁及外人逗留
+  try {
+    for (const a of Object.values(world.actors || {})) {
+      if (!a || a.dead) continue;
+      const loc = String(a.location || '');
+      const isChamber = loc === 'husband_room' || loc === 'wang_mansion_west' || loc === 'wang_mansion_east';
+      if (!isChamber) continue;
+      const isMasterFamily = a.id === 'husband'
+        || ['waner', 'yunnia', 'xiaocui'].includes(a.id)
+        || /正妻|二房|如夫人|侧室|侍妾|通房/.test(String(a.role || ''));
+      if (!isMasterFamily) {
+        let dest = world.places?.tea_house ? 'tea_house' : 'street';
+        if (/伙计|跑堂/.test(String(a.role || ''))) {
+          dest = world.places?.tea_house ? 'tea_house' : (world.places?.['place_44__f1'] ? 'place_44__f1' : 'street');
+          if (a.home === 'husband_room') a.home = 'tea_house';
+          if (a.work === 'husband_room') a.work = 'tea_house';
+        } else if (/家丁|护院|门房/.test(String(a.role || ''))) {
+          dest = world.places?.['husband_room__gate'] ? 'husband_room__gate' : 'street';
+        }
+        fixes.push(`正房门禁自愈：${a.name}（${a.role}）移出寝堂，归位于${world.places?.[dest]?.name || dest}`);
+        a.location = dest;
+        delete a.activity;
+      }
+    }
+  } catch { /* 忽略 */ }
 
   // ⑭ 世情自愈：姓名带"婆/嬷/老/翁"却是少年岁数的，按称谓改正；绝经者清月事
   try {
@@ -266,6 +306,24 @@ export function healWorld(world) {
       if (isChild && a.marital === 'married' && !a.spouse) {
         a.marital = 'single';
         fixes.push(`${a.name}名分校正为未婚`);
+      }
+
+      // ⑯ 红颜羁绊与相好名分自愈：
+      // 信任 >= 80 且欲望 >= 70，或身怀相公骨肉，或已有私情密约（柳如烟/紫嫣/静儿等）：确立相好与已行房事实
+      if (a.gender === 'female' && a.id !== 'husband') {
+        const rel = a.relations?.husband || {};
+        const t = Number(rel.trust) || 0;
+        const d = Number(rel.desire) || 0;
+        const hasBaby = Boolean(a.pregnancy && a.pregnancy.father === 'husband');
+        if ((t >= 80 && d >= 70) || hasBaby || a.name === '柳如烟' || a.id === 'yangcaiyun') {
+          a.intimacy = a.intimacy || {};
+          if (!a.intimacy.consummated) {
+            a.intimacy.consummated = true;
+            if (!(a.intimacy.level > 0)) a.intimacy.level = 1;
+            a.bondsWithHusband = '相好';
+            fixes.push(`红颜相好确立：${a.name}（信${t}/欲${d}）正式立为相好羁绊`);
+          }
+        }
       }
       if (!a.marital && Number(a.age) >= 18 && a.id !== 'husband') {
         a.marital = isChild ? 'single' : (a.spouse ? 'married' : (a.household ? 'married' : inferMaritalStatus(a.name, a.role, a.age, a.gender)));
@@ -566,6 +624,107 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 鑫雅阁自愈异常：', err.message);
+  }
+
+  // ㉒ 运河大船队编制与资产正名自愈（1大3小共4艘船，20名船工编制，赵水生坐镇）
+  try {
+    const shipProp = (world.assets?.properties || []).find(
+      (p) => p && (p.kind === 'ship' || String(p.name || '').includes('船') || String(p.id || '').includes('ship'))
+    );
+    if (shipProp) {
+      if (shipProp.name !== '王家运河大船队（一大三小）') {
+        fixes.push(`资产正名：${shipProp.name} → 王家运河大船队（一大三小）`);
+        shipProp.name = '王家运河大船队（一大三小）';
+      }
+      shipProp.costSilver = Math.max(Number(shipProp.costSilver) || 0, 730);
+      shipProp.capital = Math.max(Number(shipProp.capital) || 0, 730);
+      shipProp.incomePerDay = Math.max(Number(shipProp.incomePerDay) || 0, 43.8);
+      shipProp.status = '正常起航';
+      shipProp.staff = 20;
+      shipProp.desc = '王家名下运河船队。旗舰三丈两桅大货船一艘（扬帆号，四百石长途大宗）、一丈八驳船三艘（利水、顺风、安澜，各百五十石，机动直供两淮与各铺茶栈）。配备总船老大赵水生与二十名得力水手船工；自运茶粮免外包运费，余舱常年承揽两淮客商拼船带货捎货，每日漕运水路进账结余丰厚。';
+      shipProp.todayHighlight = '王家船队（一大三小）顺流破浪，满载两淮客商托运丝茶粮饷，水路利银与漕运分润尽皆入账！';
+      shipProp.floors = 3;
+      shipProp.floorNames = ['大船主甲板', '深水大货舱', '船工宿舱'];
+
+      const plId = shipProp.placeId || 'project_4';
+      if (world.places && world.places[plId]) {
+        world.places[plId].name = '王家运河大船队';
+        world.places[plId].desc = shipProp.desc;
+        world.places[plId].rooms = {
+          deck: { id: `${plId}__deck`, name: '大船主甲板' },
+          cargo: { id: `${plId}__cargo`, name: '深水大货舱' },
+          cabin: { id: `${plId}__cabin`, name: '船工宿舱' },
+        };
+      }
+
+      // 确立总船老大赵水生
+      let zhao = Object.values(world.actors || {}).find((a) => a && a.name === '赵水生');
+      if (!zhao && world.actors) {
+        const zhaoId = 'npc_captain_zhao';
+        world.actors[zhaoId] = {
+          id: zhaoId,
+          name: '赵水生',
+          role: '王家船队总把式兼大船老大',
+          location: plId,
+          home: plId,
+          desc: '两淮漕运老把式，熟悉运河每一道闸口与吃水暗礁，掌舵沉稳经验丰富，受相公重金聘请总管王家一大三小四艘大船队。',
+          relations: { husband: { trust: 65, desire: 20, fear: 0, grievance: 0 } },
+        };
+        fixes.push('正名归位：赵水生确立为王家船队总把式兼大船老大');
+      } else if (zhao) {
+        zhao.role = '王家船队总把式兼大船老大';
+        zhao.desc = '两淮漕运老把式，熟悉运河每一道闸口与吃水暗礁，掌舵沉稳经验丰富，受相公重金聘请总管王家一大三小四艘大船队。';
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 运河船队自愈异常：', err.message);
+  }
+
+  // ㉓ 知府千金杨采儿正名与年龄归正（杜绝被当成官员或老年知府）
+  try {
+    const caier = world.actors?.yangzhenhua || Object.values(world.actors || {}).find((a) => a && (a.name === '杨采儿' || a.id === 'yangzhenhua'));
+    if (caier) {
+      if (caier.name !== '杨采儿') {
+        fixes.push(`大小姐正名：${caier.name} → 杨采儿`);
+        caier.name = '杨采儿';
+      }
+      if (caier.role !== '知府千金') {
+        fixes.push(`身份正名：${caier.role} → 知府千金`);
+        caier.role = '知府千金';
+      }
+      caier.label = '知府千金';
+      caier.gender = 'female';
+      if (!caier.age || caier.age > 25) {
+        fixes.push(`年龄归位：杨采儿 ${caier.age}岁 → 19岁芳华`);
+        caier.age = 19;
+      }
+      caier.desc = '临江知府杨振华大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+    }
+  } catch (err) {
+    console.warn('[Heal] 杨采儿正名自愈异常：', err.message);
+  }
+
+  // ⑬ 大事记自愈与知府千金杨采儿正名
+  try {
+    if (Array.isArray(world.milestones)) {
+      world.milestones = world.milestones.map((m) => {
+        if (typeof m !== 'string') return m;
+        if (m.includes('杨振华') && (m.includes('千金') || m.includes('大小姐') || m.includes('包下一半'))) {
+          fixes.push('大事记正名：杨振华千金 → 知府千金杨采儿');
+          return m.replace(/知府千金杨振华/g, '知府千金杨采儿').replace(/知府杨振华大小姐/g, '知府千金杨采儿小姐');
+        }
+        return m;
+      });
+      // 检查是否包含置办船队的大事，若无且产业中有货船，则自动归入大事记
+      const hasShipMilestone = world.milestones.some((m) => typeof m === 'string' && m.includes('运河大货船队'));
+      const hasShipProperty = (world.assets?.properties || []).some((p) => p && String(p.name || '').includes('运河货船'));
+      if (!hasShipMilestone && hasShipProperty) {
+        fixes.push('大事记归档：相公置办王家运河大船队开辟水运商路');
+        world.milestones.unshift('【置办运河大货船队开辟水运商路】：相公斥资数百两置办运河双桅大货船与吃水驳船共四艘组建王家船队，招募老练水手船工，开辟临江至扬州水运货运航道，为天下两淮茶盐客商承揽押运并稳赚水脚银。');
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 大事记自愈异常：', err.message);
   }
 
   return fixes;

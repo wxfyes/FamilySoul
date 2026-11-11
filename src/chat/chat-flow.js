@@ -784,7 +784,13 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             turnDirective = `\n（主仆礼制：由掌事领头人【${tLabel}】上前从容回话，余人肃立各司其职。）`;
           } else {
             const locName = wTurn.places?.[myLoc]?.name || '客栈·上房';
-            turnDirective = `\n（现场法则：此刻相公身处【${locName}】，室内唯有【${tLabel}】一人在场相伴！沈婉儿、林芸娘等府内眷属此刻皆在王宅深闺安歇，绝不在场，严禁以沈婉儿或府内妻妾口吻发言！本轮回复必须且只能由【${tLabel}】一人接话答复相公。）`;
+            let personaRule = '';
+            if (/千金|采儿|大小姐/.test(tName) || /知府千金|名门闺秀/.test(String(tActor.role || ''))) {
+              personaRule = `【${tLabel}】乃知府千金贵女，绝非朝廷在职命官，绝对严禁自称「本官/老夫/下官/某家」！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」，绝对严禁自称「妾身/奴家/奴婢」，绝对严禁称相公「东家/老爷/掌柜的」！`;
+            } else if ((/知县|大人|官员|府尹|通判/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
+              personaRule = `【${tLabel}】乃朝廷命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
+            }
+            turnDirective = `\n（现场法则：此刻相公身处【${locName}】，室内唯有【${tLabel}】一人在场相伴！沈婉儿、林芸娘等府内眷属此刻皆在王宅深闺安歇，绝不在场，严禁以沈婉儿或府内妻妾口吻发言！本轮回复必须且只能由【${tLabel}】一人接话答复相公。${personaRule}）`;
           }
         }
         console.log(`[TurnTarget] 发言权锁定: ${tName}(${tActor.id}) reason=${turnTarget.named ? '指名道姓' : (turnTarget.solePresent ? '唯一在场' : '场景正主')}`);
@@ -793,11 +799,31 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       console.warn('[TurnTarget] 仲裁异常:', err.message);
     }
 
+    // 跨场景信息隔离屏障：当前场景在场角色绝不全知上文别处的对话（杜绝肚里蛔虫）
+    let sceneBoundaryHint = '';
+    try {
+      const lastAssistantText = [...recent].reverse().find((m) => m.role === 'assistant')?.text || '';
+      const lastSpkMatch = lastAssistantText.match(/【([^】\n]{1,16})】/);
+      const lastSpeaker = lastSpkMatch ? lastSpkMatch[1] : '';
+      const wNowLoc = loadState(svc.dataDir);
+      const myNowLoc = (svc._viewerActorId ? wNowLoc.actors?.[svc._viewerActorId] : wNowLoc.actors?.husband)?.location || 'husband_room';
+      const hereNowActors = Object.values(wNowLoc.actors || {}).filter(
+        (a) => a && !a.dead && a.id !== (svc._viewerActorId || 'husband') && a.location === myNowLoc,
+      );
+      const isDifferentScene = lastSpeaker && !hereNowActors.some((a) => a.name.includes(lastSpeaker) || lastSpeaker.includes(a.name));
+      if (isDifferentScene && hereNowActors.length > 0) {
+        const curLocName = wNowLoc.places?.[myNowLoc]?.name || '王宅正房';
+        const hereNames = hereNowActors.map((a) => a.name).join('、');
+        sceneBoundaryHint = `\n（【场景切换与信息隔离屏障】：相公刚才是在外面别处与【${lastSpeaker}】交谈，此刻相公已回到【${curLocName}】！在场众人（${hereNames}）一直在此处内宅，绝不在外头，对相公此前在外与官员、客商、红颜谈论的盐引、底档、官商机密或外室私房一概不知！绝对严禁当“相公肚子里的蛔虫”主动泄露或提及外面的机密词汇！只能以内宅眷属/在场人本分关切迎侯相公！）`;
+        console.log(`[SceneBoundary] 触发跨场景信息隔离屏障：${lastSpeaker} (外场) → ${hereNames} (${curLocName})`);
+      }
+    } catch { /* 忽略 */ }
+
     // 离场时把动作写进当前指引
     const sceneAction = leftScene
       ? '\n（相公已移步离去，回到临江茶坊。此处由临江茶坊在场之人相迎。）'
       : '';
-    const mergedHints = [contextHint, turnDirective].filter(Boolean).join('\n');
+    const mergedHints = [contextHint, turnDirective, sceneBoundaryHint].filter(Boolean).join('\n');
     const currentContent = mergedHints ? `${say}${sceneAction}\n${mergedHints}` : `${say}${sceneAction}`;
     messages.push({ role: 'user', content: currentContent });
 

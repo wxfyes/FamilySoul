@@ -225,15 +225,15 @@ function applyNpcEffect(world, actor, events, queuePush) {
             }),
           );
           queuePush?.({
-            speaker: '知府千金·振华',
+            speaker: '知府千金·采儿',
             to: 'husband',
             reason: 'official_intel',
             facts: {
-              who: '杨振华',
+              who: '杨采儿',
               role: '知府千金',
               intel: '衙门正商议整肃两淮茶税，大小姐遣侍女暗中提醒'
             },
-            fallback: '【知府千金·振华】：王掌柜，家父在签押房正与通判商议茶税重厘之事，小女子特让侍女递个私信，东家这几日的账目契纸还需做扎实些，莫让人拿了短处。',
+            fallback: '【知府千金·采儿】：王少掌柜，我爹在签押房正与通判商议茶税重厘之事，我特让侍女给你递个私信，你这几日的账目契纸还需做扎实些，莫让人拿了短处。',
             force: true,
           });
         }

@@ -2671,14 +2671,16 @@ export function migrateOwnership(world) {
   } catch { /* 忽略 */ }
   // 没写年龄的人给个合理岁数（不然生老病死跑不起来）
   try {
-    const FIXED = { waner: 24, yunnia: 21, xiaocui: 17, aji: 19, husband: 26 };
+    const FIXED = { waner: 24, yunnia: 21, xiaocui: 17, aji: 19, husband: 26, yangzhenhua: 19 };
     for (const [id, a] of Object.entries(world.actors || {})) {
-      if (!a || a.dead || a.age) continue;
+      if (!a || a.dead) continue;
       if (FIXED[id]) { a.age = FIXED[id]; continue; }
+      if (a.age) continue;
       const role = String(a.role || '');
-      if (/天子/.test(role)) a.age = 42;
+      if (/千金|小姐|闺秀/.test(role)) a.age = 19;
+      else if (/天子/.test(role)) a.age = 42;
       else if (/宰相|尚书|巡抚/.test(role)) a.age = 52 + (id.length % 6);
-      else if (/知府|知县/.test(role)) a.age = 44 + (id.length % 8);
+      else if (/知府|知县/.test(role) && !/千金|小姐|闺秀/.test(role)) a.age = 44 + (id.length % 8);
       // 年龄：姓名 + 身份一起看（王婆的 role 是"面摊"，只看 role 会把她判成少女）
       else if (/老鸨|鸨母/.test(role)) a.age = 38 + (id.length % 8);
       else if (/先生|老夫子|夫子/.test(role)) a.age = 58 + (id.length % 8);
@@ -2714,12 +2716,23 @@ export function migrateOwnership(world) {
   world.places = world.places || {};
   // 1. 府邸主正房（相公与正妻大娘子沈婉儿主起居之中枢）
   if (!world.places.husband_room) {
-    world.places.husband_room = { name: '临江·王宅·正房', exits: ['tea_house', 'wang_mansion_east', 'wang_mansion_west', 'street'], owner: 'husband' };
+    world.places.husband_room = {
+      name: '临江·王宅·正房',
+      access: 'family_inner',
+      kind: 'bedroom',
+      use: 'bedroom',
+      residence: true,
+      exits: ['tea_house', 'wang_mansion_east', 'wang_mansion_west'],
+      owner: 'husband',
+    };
   } else {
     const hr = world.places.husband_room;
     hr.name = '临江·王宅·正房';
     hr.owner = 'husband';
-    hr.exits = ['tea_house', 'wang_mansion_east', 'wang_mansion_west', 'street'];
+    hr.access = 'family_inner';
+    hr.kind = 'bedroom';
+    hr.use = 'bedroom';
+    hr.exits = ['tea_house', 'wang_mansion_east', 'wang_mansion_west'];
   }
   // 2. 府邸东跨院（二房如夫人林芸娘雅居院落）—— 是正房底下的房间，不是独立宅子
   if (!world.places.wang_mansion_east) {
@@ -3263,7 +3276,21 @@ function __loadStateInner(dataDir) {
     clues: Array.isArray(raw.clues) ? raw.clues : [],
     appointments: Array.isArray(raw.appointments) ? raw.appointments : [],
     proactive: Array.isArray(raw.proactive) ? raw.proactive : [],
-    milestones: Array.isArray(raw.milestones) ? raw.milestones : base.milestones,
+    milestones: (() => {
+      const baseMs = Array.isArray(base.milestones) ? base.milestones : [];
+      const rawMs = Array.isArray(raw.milestones) ? raw.milestones : [];
+      const merged = [...baseMs];
+      for (const m of rawMs) {
+        const text = typeof m === 'string' ? m : (m?.text || m?.title || '');
+        if (!text) continue;
+        const clean = text.replace(/知府千金杨振华/g, '知府千金杨采儿').replace(/知府杨振华大小姐/g, '知府千金杨采儿小姐');
+        const key = clean.split('：')[0] || clean.slice(0, 10);
+        if (!merged.some((x) => (typeof x === 'string' ? x : (x?.text || x?.title || '')).includes(key))) {
+          merged.push(clean);
+        }
+      }
+      return merged;
+    })(),
     flags: { ...base.flags, ...(raw.flags || {}) },
   };
 

@@ -536,7 +536,7 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '兵种分列：${(mil['kinds'] as Map).entries.map((e) => '${e.key == 'guard' ? '甲兵' : e.key == 'retainer' ? '精锐' : e.key}: ${e.value}人').join(' · ')}',
+                    '兵种分列：${(mil['kinds'] as Map).entries.map((e) => '${_troopKindName(e.key.toString())}: ${e.value}人').join(' · ')}',
                     style: TextStyle(color: _muted, fontSize: 11.5),
                   ),
                 ),
@@ -823,11 +823,49 @@ class _MyWorldScreenState extends State<MyWorldScreen> {
     ];
   }
 
+  String _troopKindName(String key) {
+    switch (key.toLowerCase()) {
+      case 'guard':
+        return '甲兵';
+      case 'retainer':
+        return '精锐';
+      case 'army':
+        return '战卒';
+      case 'militia':
+        return '乡勇';
+      case 'cavalry':
+        return '铁骑';
+      case 'archer':
+        return '弓弩手';
+      case 'scout':
+        return '斥候';
+      case 'escort':
+        return '镖师';
+      default:
+        return key;
+    }
+  }
+
   void _showCourtSheet(BuildContext context, Map<String, dynamic> d) {
     final decrees = (d['decrees'] as List?) ?? const [];
     final offices = (d['offices'] as List?) ?? const [];
-    final factions = (d['factions'] as Map?)?.cast<String, dynamic>() ?? {};
-    final yamen = (factions['yamen'] as Map?)?.cast<String, dynamic>();
+    Map<String, dynamic>? yamen;
+
+    final rawFactions = d['factions'];
+    if (rawFactions is List) {
+      for (final f in rawFactions) {
+        if (f is Map) {
+          final fid = f['id']?.toString() ?? '';
+          if (fid == 'yamen' || fid == 'court') {
+            yamen = f.cast<String, dynamic>();
+            break;
+          }
+        }
+      }
+    } else if (rawFactions is Map) {
+      yamen = (rawFactions['yamen'] as Map?)?.cast<String, dynamic>() ??
+              (rawFactions['court'] as Map?)?.cast<String, dynamic>();
+    }
 
     showModalBottomSheet(
       context: context,

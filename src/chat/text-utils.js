@@ -103,6 +103,7 @@ export function cleanRoleLabel(raw) {
   if (/东家/.test(r)) return '东家';
   if (/郎中|大夫/.test(r)) return '郎中';
   if (/仵作/.test(r)) return '仵作';
+  if (/千金|大小姐|小姐|闺秀/.test(r)) return '知府千金';
   if (/知府/.test(r)) return '知府';
   if (/知县|县令/.test(r)) return '知县';
   if (/统领|侍卫/.test(r)) return '侍卫';

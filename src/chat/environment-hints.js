@@ -51,7 +51,7 @@ export function buildEnvironmentHints({
     hints += '（【关系规矩】有亲吻、拥抱、侍寝等明确亲密进展时，必须在回复末尾写 [[relation:谁|desire|+5]]，必要时再补 [[relation:谁|trust|+1]]；只写台词不写标签，关系账本不会动。别把"亲了一下"写成没发生。）\n';
     hints += '（【旧情规矩】记忆里若已有"应了、留宿、私情、夫妻之实、认下这层关系"，她就是已经认了的人，绝不许再演成陌路、抵死不认或装第一次；可以有羞、有顾虑、有礼法上的为难，但不能把已经发生的事抹掉。）\n';
     hints += '（【接话规矩】同场多人时，只让与话头最相关的人接话，没被点名的可以沉默；不要用"是""小的明白"这种占位回话，每次开口带一条实情（人数、班次、码头情形、账目）。）\n';
-    hints += '（【收钱规矩】剧情里若要花钱（房钱、货钱、打点、赏银、聘礼），你在回复末尾附一行 [[pay:名目|选项=价|选项=价]]，**每改一次价、每换一个数目，都必须重新写一行新的 [[pay]]，否则玩家看到的仍是上一张旧单**，例如 [[pay:开房|上房=3|通铺=0.2]]。相公会自己点确认；你没收到确认前，不许写"已经付了/已经进了房"。）\n';
+    hints += '（【收钱与询价规矩】剧情里若相公在打探行情、询价、问多少钱（如“一条船约多少钱”、“米价几何”），在场人只许据实报出行情与账目，相公未拍板下令前，绝对严禁说“已经付了/已经买了/已经动了银子”！若需相公定夺，在回复末尾附 [[pay:名目|选项=价]] 挂待定夺单。必须等相公明确下令“买了/定下/准了/照办”或在界面点击确认，才算正式成交落账！）\n';
   } catch { /* 忽略 */ }
 
   // 今日真实行情
@@ -85,17 +85,28 @@ export function buildEnvironmentHints({
     }
   } catch { /* 忽略 */ }
 
-  // 行当规矩与铺面
+  // 行当规矩
   try {
-    const wBz2 = loadState(dataDir);
-    const props2 = Array.isArray(wBz2.assets?.properties) ? wBz2.assets.properties.filter(Boolean) : [];
-    if (props2.length) {
-      hints += '（【行当规矩】东家出本钱、定大方向；掌柜管经营、用人、账目；伙计跑堂听掌柜的。小铺子老板自己就是掌柜，不另请人。东家与掌柜是两回事，绝不许混为一谈。）\n';
-      const lines2 = props2.slice(0, 6).map((p) => {
-        const boss = Object.values(wBz2.actors || {}).find((a) => a && !a.dead && a.location === p.place && /掌柜/.test(String(a.role || '')));
-        return `${p.name}（东家：相公；掌柜：${boss?.name || '未请'}）`;
+    hints += '（【行当规矩】东家出本钱、定大方向；管事/大匠/掌柜管生产经营、用人、账目；伙计工匠听管事的。东家与管事是两回事，绝不许混为一谈。）\n';
+  } catch { /* 忽略 */ }
+
+  // 王家公账与名下实业（沈婉儿执掌内宅中馈钥匙，对府内现银实数与各处工坊产业一清二楚）
+  try {
+    const wAssets = loadState(dataDir);
+    const silver = Number(wAssets.assets?.silver || 0);
+    const props = Array.isArray(wAssets.assets?.properties) ? wAssets.assets.properties.filter(Boolean) : [];
+    const dailyIncome = props.reduce((acc, p) => acc + (Number(p.incomePerDay) || 0), 0);
+    hints += `（【王家公账与家底现银】王家公账现存白银整整 ${silver.toFixed(1)} 两（一万多两现银存底），名下各处产业工坊每日净进账约 ${dailyIncome.toFixed(1)} 两。`
+      + `正妻沈婉儿掌管后宅钥匙与中馈账簿，对府里有一万多两现银实数心知肚明，账目丝毫不乱。相公若与婉儿商议银两开销、实业本钱调度，婉儿必须照实数作答（随时可动用数千乃至万两现银），严禁贬低瞎猜家里只有两三千两！）\n`;
+
+    if (props.length) {
+      const summaryList = props.slice(0, 10).map((p) => {
+        const mgr = Object.values(wAssets.actors || {}).find((a) => a && !a.dead && a.work === p.placeId);
+        const mgrName = mgr ? `${mgr.name}（${mgr.role || '管事'}）` : (p.keeperName || '相公自掌');
+        return `${p.name}【${p.category || '实业'}】（主管：${mgrName}，日入约 ${Number(p.incomePerDay || 0).toFixed(1)} 两）`;
       });
-      hints += `（【名下铺面】${lines2.join('；')}）\n`;
+      hints += `（【王家名下实业与工坊】府内共执掌 ${props.length} 处产业基业：${summaryList.join('；')}。`
+        + `凡相公出资置办的兵工厂（自造军械刀兵+接官府订单）、窑厂（烧造砖瓦细瓷大宗外销）、货船（运河带货免运费）、茶坊、酒楼、镖局等，沈婉儿与芸娘皆记在账簿，对每处营生与主管大匠如数家珍，相公问起据实欣慰汇报。）\n`;
     }
   } catch { /* 忽略 */ }
 

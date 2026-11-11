@@ -798,9 +798,16 @@ export function runTaskDues(world, events, queuePush) {
       payload: { text: `${name}的差事「${short}」到期，尚无回话` }, isPublic: false,
     }));
     queuePush?.({
-      to: t.owner || 'husband', reason: 'task', speaker: '提示', type: 'proactive', isLetter: false,
+      to: t.owner || 'husband',
+      reason: 'task',
+      speaker: name || '办差仆役',
+      actorId: t.actorId || null,
+      type: 'proactive',
+      isLetter: true,
+      kind: 'errand',
+      source: `差事回禀·${name}`,
       facts: { 差事: short, 办差人: name, 期限: `第${due}日` },
-      fallback: `【差事期限】${name}那边的「${short}」今日到期，还没回话。`,
+      fallback: `【${name}】：东家，小的办的「${short}」差事已有着落，特来向东家回禀，等东家示下！`,
       force: true,
     });
   }

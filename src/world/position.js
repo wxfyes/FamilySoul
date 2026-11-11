@@ -9,7 +9,7 @@
  *   真人登着的角色（humanBound）只接受 'ui'，其它一律拒绝。
  */
 
-import { isInnerRoom } from './privacy.js';
+import { isInnerRoom, isChamberRoom } from './privacy.js';
 import { isHumanOnline } from './presence.js';
 
 export const MOVE_REASONS = new Set(['ui', 'world']);
@@ -64,10 +64,22 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   const a = world?.actors?.[actorId];
   if (!a || a.dead) return { ok: false, error: '没有这个人' };
   if (!placeId || !world.places?.[placeId]) return { ok: false, error: '没有这个地点' };
-  // 单一入口铁律：外院当差的不许进内室，任何路径都改去议事厅
+  // 单一入口铁律：私密寝室（正房/东跨院/西厢房）仅限相公与内宅妻妾；外人与下人（伙计/家丁/护院）无相公特召一律阻断或引至门房/茶坊
   try {
     const destPlace = world.places[placeId];
     const role = String(a.role || '');
+    const isMasterFamily = actorId === 'husband'
+      || ['waner', 'yunnia', 'xiaocui'].includes(actorId)
+      || /正妻|二房|如夫人|侧室|侍妾|通房/.test(role);
+    if (!isMasterFamily && isChamberRoom(destPlace) && !/特召|叫到跟前|相公召见|提审/.test(String(note || ''))) {
+      if (/伙计|跑堂/.test(role)) {
+        placeId = world.places?.tea_house ? 'tea_house' : 'street';
+      } else {
+        const gate = Object.keys(world.places || {}).find((id) => /朱漆大门|门房|外院|门头|大门/.test(String(world.places[id]?.name || '')));
+        placeId = gate || (world.places?.tea_house ? 'tea_house' : 'street');
+      }
+    }
+
     const outerStaff = /家丁|护院|门房|小厮|马夫|车夫|脚夫/.test(role);
     // 回自己家（住处本身、或住处所在的宅子）不算"闯别家内室"
     const homeId = String(a.home || '');

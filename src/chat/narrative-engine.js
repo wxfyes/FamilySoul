@@ -68,6 +68,30 @@ export function applyGoTags(dataDir, text) {
   return { text: out, moved };
 }
 
+function formatDepartureNotice(names, destName = '', actorMap = {}) {
+  const notices = names.map((n) => {
+    const a = actorMap[n] || {};
+    const r = String(a.role || '');
+    if (/知府|千金|大小姐/.test(r) || /采儿/.test(n)) {
+      return `（杨大小姐含笑示意，提灯乘车回府去了。）`;
+    }
+    if (/知县|县令|大人|官员/.test(r) || /文达/.test(n)) {
+      return `（知县周大人拱手道别，下楼登轿回衙去了。）`;
+    }
+    if (/掌柜|老板娘/.test(r)) {
+      return `（${n}盈盈一礼，回自家铺子打理去了。）`;
+    }
+    if (/家丁|护院|门房|小厮/.test(r)) {
+      return `（${n}躬身应诺，自去前院当差看护。）`;
+    }
+    if (destName) {
+      return `（${n}应声告退，去了${destName}。）`;
+    }
+    return `（${n}告辞离去。）`;
+  });
+  return notices.join('\n');
+}
+
 export function executeNarrativeTags({
   replyText,
   sayText = '',
@@ -555,6 +579,7 @@ export function executeNarrativeTags({
     }
 
     // 8. 待付款声明：[[pay:标题|选项=价|选项=价]] 挂待付款，正文剥离
+    let createdPendingId = null;
     try {
       const payTag = reply.match(/\[\[pay:([^\]]+)\]\]/);
       if (payTag) {
@@ -594,14 +619,24 @@ export function executeNarrativeTags({
             if (/铺|店|楼/.test(s2)) return 'shop';
             return null;
           };
-          // 同一处产业同一天只认"总预算"，后一次报价只补差额，绝不重复扣整笔
-          const projectKeyOf = (t) => {
+          // 通用大类归一键：同类实业在同一天内只认最高总预算，一律只补差额，绝对严禁重复扣整笔
+          const canonicalGroupKey = (t) => {
             const s = String(t || '').replace(/\s/g, '');
-            if (!/开张|盘铺|置办|开业|装修|盘店|新店|开间/.test(s)) return null;
-            const m = s.match(/^(.{2,10}?)(?:开张|盘铺|置办|开业|装修|盘店|新店|开间)/);
-            return m ? m[1] : null;
+            if (/船|舟|舶|漕运/.test(s)) return 'group_ship_fleet';
+            if (/兵工|军械|铁匠|兵器|火器/.test(s)) return 'group_armory';
+            if (/窑|瓷|陶|砖瓦/.test(s)) return 'group_kiln';
+            if (/镖局|车马|脚行|驿/.test(s)) return 'group_logistics';
+            if (/马场|矿|田庄|茶山/.test(s)) return 'group_resource';
+            if (/钱庄|票号|当铺/.test(s)) return 'group_finance';
+            const isProjectAction = /开张|盘铺|置办|开业|装修|盘店|新店|开间|设立|筹建|新开/.test(s);
+            const isIndustryFeature = /厂|所|局|坊|庄|场|行|号|肆|铺|店|楼|阁|坞|院|馆|栈|仓/.test(s);
+            if (!isProjectAction && !isIndustryFeature) return null;
+            const clean = s.replace(/^(?:置办|购置|盘下|打制|开办|采买|兴建|设立|筹建|新开|开一[家座个条间]|建一[家座个条间]|立一[家座个条间])/, '')
+                           .replace(/(?:开张|盘铺|开业|装修|盘店|新店|开间|买船|造船|打船|设厂|开厂)$/, '')
+                           .trim();
+            return clean.length >= 2 ? clean : s.slice(0, 10);
           };
-          const projectKey = projectKeyOf(title2);
+          const projectKey = canonicalGroupKey(title2);
           const payDay = String(loadState(dataDir)?.clock?.day || 1);
 
           for (const o of opts2) {
@@ -618,73 +653,111 @@ export function executeNarrativeTags({
           }
           const wPay = loadState(dataDir);
           const mePay = viewerActorId ? wPay.actors?.[viewerActorId] : wPay.actors?.husband;
-          // 即刻落账：不再挂待付单等确认，扣完在回复里报明
-          try {
-            const first = (opts2 || []).find((o) => Number(o.price) > 0 && !o.skip) || (opts2 || [])[0];
-            const quoted = first?.skip ? 0 : (Number(first?.price) || 0);
-            // 真人角色已有这个名字：不能拿钱把人家买成 NPC，直接不扣
-            const humanName = Object.values(wPay.actors || {}).find((a) => a && a.name
-              && isHumanBound(wPay, a.id) && String(title2 || '').includes(String(a.name)));
-            const blockedHuman = Boolean(humanName && /头牌|安家|雇|请|工钱|月钱|聘/.test(String(title2 || '')));
-            if (blockedHuman) {
-              reply += `\n（「${humanName.name}」是真人角色，不能雇作 NPC；这笔安家银未扣，请另取艺名。）`;
-              console.log(`[Pay] 真人重名拦截：${humanName.name}`);
-            } else if (quoted > 0) {
-              // 同一产业同一天：按"累计预算"只补差额
-              let price = quoted;
-              if (projectKey) {
-                wPay.flags = wPay.flags || {};
-                wPay.flags.projectPay = wPay.flags.projectPay || {};
-                const pk = `${payDay}:${projectKey}`;
-                const rec = wPay.flags.projectPay[pk];
-                if (rec && Number(rec.paid) > 0) {
-                  price = Math.max(0, Math.round((quoted - Number(rec.paid)) * 100) / 100);
-                  rec.paid = Math.max(Number(rec.paid) || 0, quoted);
-                  rec.title = String(title2).slice(0, 30);
-                } else {
-                  // 兼容旧账：今天已经为这处产业扣过的钱，先从 ledger 里认出来，防止升级后当天再扣一次
-                  const alreadyPaid = (wPay.ledger || [])
+          const first = (opts2 || []).find((o) => Number(o.price) > 0 && !o.skip) || (opts2 || [])[0];
+          const quoted = first?.skip ? 0 : (Number(first?.price) || 0);
+
+          // 判定相公是否属于打探/询价/商议调整阶段（提需求、改方案、询价均严禁擅自直接扣银子！）
+          const sayClean = String(sayText || '').trim();
+          const isInquiringOrNegotiating = /(多少钱|什么价|什么价格|贵不贵|能值多少|市价|几何|算算|合算吗|开价|怎么卖|多少银子|估摸|约多少|要多少|探探|问问|也搞一条|也要一条|也要|换成|改改|太小了|太大了|不够|再添|再加|商量|合计|看看)/.test(sayClean);
+          const isExplicitPurchase = /(买了|买下|定下|准了|成交|就照这个办|支银子|给钱|掏钱|拿下|办了吧|办起来|就按这个定|拍板了|就这么定了|定了|买吧|要了|取银子|付了|给银子|就买|定这条|出银子|立下|开办|置办|做吧)/.test(sayClean);
+
+          // 核心风控：大额开销（>5两）且相公在商议调整或未明确拍板时，绝不擅自扣钱！挂入待定夺单
+          if (quoted > 5 && (isInquiringOrNegotiating || !isExplicitPurchase)) {
+            createdPendingId = `pend_pay_${Date.now()}`;
+            wPay.pendingAction = {
+              kind: 'pay',
+              id: createdPendingId,
+              title: title2,
+              options: opts2,
+              by: mePay?.id || 'husband',
+              askedDay: wPay.clock?.day || 1,
+              askedHour: wPay.clock?.hour || 0,
+            };
+            saveState(dataDir, wPay);
+            reply += `\n（【商议报价】${title2}市价约需银 ${quoted.toFixed(2)} 两，公账银两未动，待相公定夺拍板。）`;
+            console.log(`[Pay] 相公商议中尚未拍板，挂入待定夺单：${title2}（${quoted} 两）`);
+          } else {
+            // 即刻落账：相公明确拍板购买，或市井小额零花（<=5两）
+            try {
+              // 真人角色已有这个名字：不能拿钱把人家买成 NPC，直接不扣
+              const humanName = Object.values(wPay.actors || {}).find((a) => a && a.name
+                && isHumanBound(wPay, a.id) && String(title2 || '').includes(String(a.name)));
+              const blockedHuman = Boolean(humanName && /头牌|安家|雇|请|工钱|月钱|聘/.test(String(title2 || '')));
+              if (blockedHuman) {
+                reply += `\n（「${humanName.name}」是真人角色，不能雇作 NPC；这笔安家银未扣，请另取艺名。）`;
+                console.log(`[Pay] 真人重名拦截：${humanName.name}`);
+              } else if (quoted > 0) {
+                // 同一大类同一天：按"最高总预算覆盖制"只补差额，坚决杜绝重复叠加扣款
+                let price = quoted;
+                if (projectKey) {
+                  wPay.flags = wPay.flags || {};
+                  wPay.flags.projectPay = wPay.flags.projectPay || {};
+                  const pk = `${payDay}:${projectKey}`;
+
+                  // 从当天 ledger 中穿透统计该大类已扣金额（防止内存丢失导致的重复扣）
+                  const matchLedgerRe = projectKey === 'group_ship_fleet' ? /船|舟|舶|漕运/
+                    : (projectKey === 'group_armory' ? /兵工|军械|铁匠|兵器/
+                    : (projectKey === 'group_kiln' ? /窑|瓷|陶|砖瓦/
+                    : new RegExp(projectKey)));
+                  const ledgerAlreadyPaid = (wPay.ledger || [])
                     .filter((e) => e && Number(e.day) === Number(payDay) && Number(e.delta) < 0
-                      && String(e.title || '').includes(projectKey))
+                      && matchLedgerRe.test(String(e.title || '')))
                     .reduce((s, e) => s + Math.abs(Number(e.delta) || 0), 0);
+
+                  const recordedPaid = Number(wPay.flags.projectPay[pk]?.paid) || 0;
+                  const currentTotalPaid = Math.max(recordedPaid, ledgerAlreadyPaid);
+
+                  if (currentTotalPaid >= quoted) {
+                    // 今日已付金额已经覆盖当前报价：完全免扣！
+                    price = 0;
+                  } else {
+                    // 仅补差额！
+                    price = Math.max(0, Math.round((quoted - currentTotalPaid) * 100) / 100);
+                  }
+
                   wPay.flags.projectPay[pk] = {
-                    paid: alreadyPaid > 0 ? alreadyPaid : quoted,
+                    paid: Math.max(currentTotalPaid, quoted),
                     title: String(title2).slice(0, 30),
                     day: payDay,
                   };
-                  price = alreadyPaid > 0
-                    ? Math.max(0, Math.round((quoted - alreadyPaid) * 100) / 100)
-                    : quoted;
+
+                  const keys = Object.keys(wPay.flags.projectPay);
+                  if (keys.length > 60) {
+                    for (const k of keys.slice(0, keys.length - 60)) delete wPay.flags.projectPay[k];
+                  }
+                  // 付了开张/置办钱，产业总览里必须真有一间（按最高总预算落地）
+                  try { ensureProjectProperty(wPay, projectKey.startsWith('group_') ? title2 : projectKey, Math.max(currentTotalPaid, quoted), { day: wPay.clock?.day, title: title2 }); } catch { /* 忽略 */ }
                 }
-                const keys = Object.keys(wPay.flags.projectPay);
-                if (keys.length > 60) {
-                  for (const k of keys.slice(0, keys.length - 60)) delete wPay.flags.projectPay[k];
+
+                const silverNow = Number(wPay.assets?.silver) || 0;
+                if (price <= 0) {
+                  saveState(dataDir, wPay);
+                  reply += `\n（【账簿核销】${String(title2 || '这桩开销').slice(0, 16)}预算已包含在今日已付银两中，不再重复扣款。）`;
+                  console.log(`[Pay] ${title2} 差额为0，跳过重复扣款（当前最高预算 ${quoted}）`);
+                } else if (silverNow >= price) {
+                  wPay.assets.silver = Math.round((silverNow - price) * 100) / 100;
+                  wPay.ledger = Array.isArray(wPay.ledger) ? wPay.ledger : [];
+                  wPay.ledger.push({
+                    day: wPay.clock?.day || 1, hour: wPay.clock?.hour || 0,
+                    delta: -price,
+                    title: String(title2 || '花销').slice(0, 24),
+                    by: mePay?.id || 'husband',
+                    balance: wPay.assets.silver,
+                  });
+                  saveState(dataDir, wPay);
+                  const note = price < quoted ? `（补足差额至 ${quoted.toFixed(2)} 两）` : '';
+                  reply += `\n【提示】已付 ${price.toFixed(2)} 两${note}：${String(title2 || '花销').slice(0, 16)}。余 ${wPay.assets.silver.toFixed(2)} 两。`;
+                  console.log(`[Pay] 即付 ${price} 两${note}：${title2}`);
+                } else {
+                  reply += `\n（要 ${price.toFixed(2)} 两，手头只有 ${silverNow.toFixed(2)} 两，这桩先记着。）`;
                 }
-                // 付了开张钱，产业总览里必须真有一间
-                try { ensureProjectProperty(wPay, projectKey, quoted, { day: wPay.clock?.day, title: title2 }); } catch { /* 忽略 */ }
               }
-              const silverNow = Number(wPay.assets?.silver) || 0;
-              if (price <= 0) {
-                saveState(dataDir, wPay);
-                reply += `\n（${String(title2 || '这桩花销').slice(0, 12)}此前已付过，不再重复扣。）`;
-                console.log(`[Pay] ${title2} 已付过，跳过重复扣款（报价 ${quoted}）`);
-              } else if (silverNow >= price) {
-                wPay.assets.silver = Math.round((silverNow - price) * 100) / 100;
-                wPay.ledger = Array.isArray(wPay.ledger) ? wPay.ledger : [];
-                wPay.ledger.push({ day: wPay.clock?.day || 1, hour: wPay.clock?.hour || 0, delta: -price, title: String(title2 || '花销').slice(0, 24), by: mePay?.id || 'husband', balance: wPay.assets.silver });
-                saveState(dataDir, wPay);
-                const note = price < quoted ? `（补足至 ${quoted.toFixed(2)} 两）` : '';
-                reply += `\n【提示】已付 ${price.toFixed(2)} 两${note}：${String(title2 || '花销').slice(0, 12)}。余 ${wPay.assets.silver.toFixed(2)} 两。`;
-                console.log(`[Pay] 即付 ${price} 两${note}：${title2}`);
-              } else {
-                reply += `\n（要 ${price.toFixed(2)} 两，手头只有 ${silverNow.toFixed(2)} 两，这桩先记着。）`;
-              }
-            }
-          } catch (err) { console.warn('[Pay] 即付失败：', err.message); }
-          // 已即付，不再挂待付单（弹窗不再出现）
-          delete wPay.pendingAction;
-          saveState(dataDir, wPay);
-          console.log(`[Pay] 天道声明待付款：${title2}，共 ${opts2.length} 项选项`);
+            } catch (err) { console.warn('[Pay] 即付失败：', err.message); }
+            // 已即付，不再挂待付单（弹窗不再出现）
+            delete wPay.pendingAction;
+            saveState(dataDir, wPay);
+            console.log(`[Pay] 天道落账：${title2}，共 ${opts2.length} 项选项`);
+          }
         }
         reply = reply.replace(/\[\[pay:[^\]]+\]\]/g, '').trim();
       }
@@ -815,13 +888,27 @@ export function executeNarrativeTags({
       }
     } catch { /* 忽略 */ }
 
-    // 8.786 旧报价作废：这一轮先说新话，上一张单子就不算数了
+    // 8.786 旧报价作废：仅在相公明确回绝（不要了/太贵了/算了/不买了）或单子已过时才清理，绝不误删本轮新挂的待定夺单
     try {
       const wQ = loadState(dataDir);
       if (wQ.pendingAction) {
-        delete wQ.pendingAction;
-        saveState(dataDir, wQ);
-        console.log('[Pay] 上一张待付单作废（对话已进入下一轮）');
+        const isThisTurn = createdPendingId && String(wQ.pendingAction.id) === String(createdPendingId);
+        const isExplicitReject = /(不要了|太贵了|算了|不买了|作罢|买不起|免了|不办了)/.test(String(sayText || ''));
+        if (isExplicitReject) {
+          delete wQ.pendingAction;
+          saveState(dataDir, wQ);
+          reply += '\n（相公已明令作罢，此项花销账目撤回。）';
+          console.log('[Pay] 相公明确回绝，待付单撤销');
+        } else if (!isThisTurn) {
+          // 非本轮新挂的旧单，跨时辰或转移话题时作废
+          const pendDay = Number(wQ.pendingAction.askedDay) || 0;
+          const curDay = Number(wQ.clock?.day) || 1;
+          if (curDay > pendDay) {
+            delete wQ.pendingAction;
+            saveState(dataDir, wQ);
+            console.log('[Pay] 隔日待付单已过期作废');
+          }
+        }
       }
     } catch { /* 忽略 */ }
 
@@ -1017,7 +1104,8 @@ export function executeNarrativeTags({
             }
             if (names.length) {
               saveState(dataDir, wF);
-              reply = `\n【提示】${names.join('、')}应声告退，各自回家去了。` + String(reply || '');
+              const actorMap = Object.fromEntries(hereActors.map((a) => [a.name, a]));
+              reply = (String(reply || '').trim() + '\n\n' + formatDepartureNotice(names, '', actorMap)).trim();
               console.log(`[Departure] 正文多人点名离场：${names.join('、')}`);
             }
             preDismissed = true;
@@ -1057,7 +1145,8 @@ export function executeNarrativeTags({
               }
               if (names.length) {
                 saveState(dataDir, wF);
-                reply = `\n【提示】${names.join('、')}应声告退，各自退了出去。` + String(reply || '');
+                const actorMap = Object.fromEntries(hereActors.map((a) => [a.name, a]));
+                reply = (String(reply || '').trim() + '\n\n' + formatDepartureNotice(names, '', actorMap)).trim();
                 console.log(`[Departure] 连写点名离场：${names.join('、')}`);
               }
               multiDismissed = true;
@@ -1120,12 +1209,15 @@ export function executeNarrativeTags({
                 who.awayUntil = { day: wF.clock?.day || 1, hour: ((Number(wF.clock?.hour) || 0) + 4) % 24 };
                 saveState(dataDir, wF);
                 const destName = wF.places[dest].name;
-                reply = `\n【提示】${who.name}应声告退，去了${destName}。` + String(reply || '').replace(new RegExp(`【提示】${who.name}[^\\n]*\\n?`, 'g'), '');
+                reply = (String(reply || '').trim() + '\n\n' + formatDepartureNotice([who.name], destName, { [who.name]: who })).trim();
                 console.log(`[Departure] 单一入口：${who.name} 离场 → ${destName}`);
               }
             }
-          } else if (!preDismissed && !multiDismissed && !targetName && (hereActors.length === 1 || isMassDismiss(sayStr))) {
-            // 未点特定人名：若场上仅1人或触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）
+          } else if (!preDismissed && !multiDismissed && !targetName) {
+            // 未点特定人名：必须明确触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）或面向单人的送客词
+            const isPersonalFarewell = /^(?:好的|那|您|好|行)?\s*(?:你|你们|都|先|那您|您)?\s*(?:走(?:吧|啦)?|回去(?:吧)?|回吧|退下(?:吧)?|下去(?:吧)?|散了(?:吧)?|去吧|出门吧|慢走|走好|再见|回见|送客|睡吧|安歇吧)[。！!~…\s]*$/.test(sayStr)
+              || /送客|慢走|走好|不送了|不远送|留步|再见|回见|改日再聚|改日再叙|告辞|你回吧|你走吧|退下吧|都散了吧|各自回房|都走吧|走吧|走啦/.test(sayStr);
+            if (isMassDismiss(sayStr) || (hereActors.length === 1 && isPersonalFarewell)) {
             // 说“家眷留下”时，妻妾丫鬟全部留下；没这句话则仍按原规矩清场。
             const names = [];
             const keepFamily = /家眷|女眷|家小|夫人留下|妻妾留下/.test(sayStr);
@@ -1143,10 +1235,11 @@ export function executeNarrativeTags({
                 role: a.role,
               }) || a.quarters || a.home;
 
-              // 外院下人防呆：若算出的住处仍是当前议事厅或内室，坚决归位到朱漆大门
-              const isOuter = /家丁|护院|门房|小厮|马夫|车夫|下人|仆/.test(String(a.role || ''));
-              if (isOuter && (back === a.location || back === 'husband_room' || /议事厅|正房/.test(String(wF.places?.[back]?.name || '')))) {
-                back = 'husband_room__gate';
+              // 官员/外客送客兜底：知县/官员归位于县衙，客商归于货栈
+              if (/知县|县令|县丞|典吏|书吏|衙门|大人/.test(String(a.role || '')) && (!back || back === a.location)) {
+                back = wF.places?.yamen ? 'yamen' : 'street';
+              } else if (/客商|货栈/.test(String(a.role || '')) && (!back || back === a.location)) {
+                back = wF.places?.goods_shop ? 'goods_shop' : 'street';
               }
 
               if (!back || !wF.places?.[back]) {
@@ -1162,8 +1255,10 @@ export function executeNarrativeTags({
             }
             if (names.length) {
               saveState(dataDir, wF);
-              reply = `\n【提示】${names.join('、')}躬身告辞，各自退了出去。` + String(reply || '');
+              const actorMap = Object.fromEntries(hereActors.map((a) => [a.name, a]));
+              reply = (String(reply || '').trim() + '\n\n' + formatDepartureNotice(names, '', actorMap)).trim();
               console.log(`[Departure] 全员清场：${names.join('、')} 离场`);
+            }
             }
           }
         }

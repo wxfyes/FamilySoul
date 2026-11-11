@@ -98,6 +98,11 @@ export function normalizeSpeakers(text, dataDir) {
       map.set('通房丫鬟', '丫鬟·小翠');
       map.set('大丫鬟', '丫鬟·小翠');
     }
+    map.set('杨采儿', '知府千金·采儿');
+    map.set('采儿', '知府千金·采儿');
+    map.set('杨大小姐', '知府千金·采儿');
+    map.set('知府千金', '知府千金·采儿');
+    map.set('知府·采儿', '知府千金·采儿');
     if (world.actors?.liuwenxia) {
       map.set('刘文霞', '老板娘·紫嫣');
       map.set('文霞', '老板娘·紫嫣');
