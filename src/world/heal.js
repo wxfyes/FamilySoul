@@ -827,13 +827,53 @@ export function healWorld(world) {
       }
     }
 
-    // 绑定采儿与父亲的亲情关系，并彻底纠正采儿的错误婚配状态
-    const caier = world.actors?.yangzhenhua;
-    if (caier) {
-      if (caier.name !== '杨采儿') {
-        caier.name = '杨采儿';
-        fixes.push('千金正名：知府千金正名为杨采儿');
+    // 🛡️ 全局人物无死角正名：全城所有人物中，凡是身为临江知府（或姓名叫杨振华且非千金者），100% 绝对正名为「杨慎之」！
+    for (const [id, a] of Object.entries(world.actors || {})) {
+      if (!a) continue;
+      if (a.name === '杨振华' || a.role === '临江知府' || id === 'yangshenzhi') {
+        if (/千金|大小姐|小姐|闺秀/.test(String(a.role || '')) || /采儿/.test(String(a.name || ''))) {
+          if (a.name !== '杨采儿') {
+            a.name = '杨采儿';
+            fixes.push('知府千金正名：杨采儿');
+          }
+          a.role = '知府千金';
+        } else {
+          if (a.name !== '杨慎之') {
+            a.name = '杨慎之';
+            fixes.push('临江知府正名：彻底取消杨振华，正名为杨慎之');
+          }
+          a.role = '临江知府';
+          a.label = '知府大人';
+        }
       }
+      // 凡是采儿（无论 id 是什么），彻底解除市井路人婚配，恢复清白名节与待字闺中
+      if (a.name === '杨采儿' || id === 'yangzhenhua' || id === 'yangcaier') {
+        if (a.spouse && a.spouse !== 'husband') {
+          const wrongSpouseId = a.spouse;
+          const wrongSpouse = world.actors?.[wrongSpouseId];
+          if (wrongSpouse) {
+            wrongSpouse.spouse = null;
+            wrongSpouse.spouseId = null;
+            wrongSpouse.spouseName = null;
+            wrongSpouse.marital = 'single';
+            wrongSpouse.maritalText = '未婚';
+          }
+          delete a.spouse;
+          a.spouseId = null;
+          a.spouseName = null;
+          a.marital = 'single';
+          a.maritalText = '未婚 · 待字闺中';
+          if (world.bonds?.[id]?.[wrongSpouseId]) delete world.bonds[id][wrongSpouseId];
+          if (wrongSpouseId && world.bonds?.[wrongSpouseId]?.[id]) delete world.bonds[wrongSpouseId][id];
+          fixes.push(`名节归位：解除知府千金杨采儿与路人${wrongSpouse?.name || wrongSpouseId}的荒唐婚配，重归未婚待字闺中`);
+        }
+      }
+    }
+
+    // 绑定采儿与父亲的亲情关系
+    const caier = world.actors?.yangzhenhua || Object.values(world.actors || {}).find(a => a.name === '杨采儿');
+    if (caier) {
+      caier.name = '杨采儿';
       caier.father = 'yangshenzhi';
       caier.family = caier.family || {};
       caier.family.father = 'yangshenzhi';
@@ -843,27 +883,6 @@ export function healWorld(world) {
         fixes.push('人物归位：知府千金杨采儿归位杨府');
       }
       caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
-
-      // 纠正知府千金被市井脚夫误结夫妻的荒唐乌龙
-      if (caier.spouse && caier.spouse !== 'husband') {
-        const wrongSpouseId = caier.spouse;
-        const wrongSpouse = world.actors?.[wrongSpouseId];
-        if (wrongSpouse) {
-          wrongSpouse.spouse = null;
-          wrongSpouse.spouseId = null;
-          wrongSpouse.spouseName = null;
-          wrongSpouse.marital = 'single';
-          wrongSpouse.maritalText = '未婚';
-        }
-        caier.spouse = null;
-        caier.spouseId = null;
-        caier.spouseName = null;
-        caier.marital = 'single';
-        caier.maritalText = '待字闺中';
-        if (world.bonds?.[caier.id]?.[wrongSpouseId]) delete world.bonds[caier.id][wrongSpouseId];
-        if (wrongSpouseId && world.bonds?.[wrongSpouseId]?.[caier.id]) delete world.bonds[wrongSpouseId][caier.id];
-        fixes.push(`婚姻归位：解除知府千金杨采儿与路人${wrongSpouse?.name || wrongSpouseId}的荒唐婚配，重归待字闺中`);
-      }
     }
 
     // 官职权威归正：临江知府大位归杨慎之，清除/退休路人知府许元朗

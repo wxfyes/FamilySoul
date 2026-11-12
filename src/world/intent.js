@@ -90,22 +90,31 @@ export function parseIntent({ text = '', actorId = 'husband', world = null, last
   }
 
   // 队伍脱队指令检测（全局生效，无论 MOVE 还是 CHAT 都可下令脱队）
-  const isLeaveParty = /(?:你留下|留在这|别跟|看好店|看好铺子|先回铺子|先回去|回你的铺子|回你家|不用陪|别来了|自己去|不用跟着|退下|留步|你先回)/.test(rawText);
+  const isLeaveParty = /(?:留下|留在这|别跟|看好店|看好铺子|先回铺子|先回去|回你的铺子|回你家|不用陪|别来了|自己去|不用跟着|退下|留步|你先回|回去吧|回去把|回房吧|回房把)/.test(rawText);
   if (isLeaveParty) {
-    let lTarget = 'all';
+    let lTarget = null;
+    const isMass = /都|全|大伙|诸位|各自|大家|所有人|众人|你们/.test(rawText);
     for (const [aId, a] of Object.entries(world?.actors || {})) {
-      if (aId !== 'husband' && (
-        (a?.name && rawText.includes(a.name)) ||
+      if (aId === 'husband' || !a?.name) continue;
+      const nm = a.name;
+      const shortNm = nm.length > 2 ? nm.slice(-2) : nm;
+      if (
+        rawText.includes(nm) ||
+        (shortNm.length >= 2 && rawText.includes(shortNm)) ||
         (aId === 'liuwenxia' && (rawText.includes('紫嫣') || rawText.includes('文霞'))) ||
         (aId === 'waner' && rawText.includes('婉儿')) ||
         (aId === 'yunnia' && rawText.includes('芸娘')) ||
-        (aId === 'xiaocui' && rawText.includes('小翠'))
-      )) {
+        (aId === 'xiaocui' && rawText.includes('小翠')) ||
+        ((nm.includes('采儿') || aId.includes('caier')) && rawText.includes('采儿')) ||
+        ((nm.includes('婉宁') || aId.includes('wanning')) && rawText.includes('婉宁'))
+      ) {
         lTarget = aId;
         break;
       }
     }
-    params.leaveParty = lTarget;
+    // 只有明确包含“都/全/大家/所有人”且未明确单人时，才允许全员脱队；绝不允许把单人打发误判为全员解散！
+    if (!lTarget && isMass) lTarget = 'all';
+    if (lTarget) params.leaveParty = lTarget;
   }
 
   // 2. 目标与伴侣提取 (Target & Companions)
@@ -236,12 +245,13 @@ export function parseIntent({ text = '', actorId = 'husband', world = null, last
       }
 
       // 队伍持久化伴侣：若相公是队长，队内在场成员自动跟随
-      const isLeaveParty = /(?:你留下|留在这|别跟|看好店|看好铺子|先回铺子|先回去|回你的铺子|回你家|不用陪|别来了|自己去|不用跟着|退下|留步|你先回)/.test(rawText);
-      if (actor === 'husband' && !isLeaveParty && world?.party?.husband) {
+      if (actor === 'husband' && world?.party?.husband) {
         const pList = Array.isArray(world.party.husband) ? world.party.husband : [];
         for (const pId of pList) {
           if (pId === 'husband') continue;
           if (foundPersonId && pId === foundPersonId) continue;
+          // 🛡️ 铁律：若相公在指令中让全员脱队(all)或指名令该成员脱队，则该成员不跟随
+          if (params.leaveParty === 'all' || params.leaveParty === pId) continue;
           const pActor = world.actors?.[pId];
           if (pActor && !pActor.dead && pActor.location === curLoc) {
             if (!companions.some((c) => c.id === pId)) {
@@ -249,16 +259,6 @@ export function parseIntent({ text = '', actorId = 'husband', world = null, last
             }
           }
         }
-      }
-      if (isLeaveParty) {
-        let lTarget = 'all';
-        for (const [aId, a] of Object.entries(world.actors || {})) {
-          if (aId !== 'husband' && a?.name && rawText.includes(a.name)) {
-            lTarget = aId;
-            break;
-          }
-        }
-        params.leaveParty = lTarget;
       }
 
       // 缺口④：反向伴随（伴侣对相公说“跟我去/随我去”），相公带人必须指名道姓，严禁模糊口语偷带身边内眷

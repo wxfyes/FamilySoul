@@ -861,7 +861,7 @@ class MessageBubble extends StatelessWidget {
     final isMale = targetName.contains('孙进') ||
         targetName.contains('鲁青') ||
         targetName.contains('何顺') ||
-        targetName.contains('杨振华') ||
+        targetName.contains('杨慎之') ||
         targetName.contains('掌柜') ||
         targetName.contains('工头') ||
         targetName.contains('捕快') ||

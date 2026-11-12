@@ -99,6 +99,43 @@ const illegalMove = moveActor(mockProtectedWorld, 'husband', 'street', 'world', 
 assertInvariant(illegalMove.ok === false, '相公绝对拒绝一切后台 world 自动位移，只能由相公界面操作');
 assertInvariant(mockProtectedWorld.actors.husband.location === 'husband_room', '相公位置在非法移动调用后必须保持原状不变');
 
+// ── 6. 智能对话指名道姓优先级不变量 ──
+const { findTargetActorInText } = await import('../src/world/naming.js');
+const mockActors = {
+  waner: { id: 'waner', name: '沈婉儿', role: '正妻' },
+  caier: { id: 'yangzhenhua', name: '杨采儿', role: '知府千金' },
+};
+const hitActor = findTargetActorInText(mockActors, '采儿，去把婉儿叫来');
+assertInvariant(hitActor && hitActor.name === '杨采儿', '相公说“采儿，去把婉儿叫来”必须精准命中杨采儿为交谈主答对象');
+
+// ── 7. 队伍脱队单一成员精准不变量 ──
+const { parseIntent } = await import('../src/world/intent.js');
+const mockWorldForParty = {
+  actors: {
+    husband: { id: 'husband', name: '王甯' },
+    waner: { id: 'waner', name: '沈婉儿' },
+    caier: { id: 'yangzhenhua', name: '杨采儿' },
+  },
+  party: { husband: ['husband', 'waner', 'yangzhenhua'] },
+};
+const leaveIntent = parseIntent({ text: '婉儿你先回去吧', actorId: 'husband', world: mockWorldForParty });
+assertInvariant(leaveIntent.params?.leaveParty === 'waner', '相公吩咐“婉儿你先回去吧”必须只令婉儿一人脱队，绝不可误判为 all 全员解散');
+
+// ── 8. 杨府对相公拜访通行不变量 ──
+const { knock } = await import('../src/world/visit.js');
+const mockYangMansion = {
+  places: {
+    yang_mansion: { id: 'yang_mansion', name: '杨府', residence: true, owner: 'yangshenzhi', rooms: { hall: { id: 'yang_mansion__hall', name: '中堂' } } },
+  },
+  actors: {
+    husband: { id: 'husband', name: '王甯' },
+    yangshenzhi: { id: 'yangshenzhi', name: '杨慎之', role: '临江知府' },
+    yangzhenhua: { id: 'yangzhenhua', name: '杨采儿', role: '知府千金' },
+  },
+};
+const knockRes = knock(mockYangMansion, 'husband', 'yang_mansion');
+assertInvariant(knockRes.allowed === true, '相公拜访杨府必须被门房恭敬迎入中堂，绝不可被拒之门外');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

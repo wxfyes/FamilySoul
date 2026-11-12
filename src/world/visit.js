@@ -96,6 +96,21 @@ export function knock(world, visitorId, residenceId) {
   if (!owner) return { allowed: false, reason: '这宅子眼下没有主事的人', place: null, owner: '', hall: null };
   if (owner === visitorId) return { allowed: true, reason: '自己的宅子', place: home.id, owner, hall: null };
 
+  // 🛡️ 权威礼遇：相公登门杨府（知府官邸），千金杨采儿深心所系，门房认得王少掌柜，恭敬通传直引中堂
+  if ((residenceId === 'yang_mansion' || home.id === 'yang_mansion') && visitorId === 'husband') {
+    const rooms = home.rooms || {};
+    const hallKey = ['hall', 'main', '正厅', '中堂'].find((k) => rooms[k]);
+    const hallId = hallKey ? rooms[hallKey].id : (rooms.main?.id || rooms.gate?.id || `${home.id}__hall`);
+    return {
+      allowed: true,
+      reason: '门房认得王少掌柜，忙躬身作揖：“少掌柜快请，大小姐正在中堂呢！”',
+      place: hallId,
+      owner,
+      hall: hallId,
+      keeper: keeperName || '杨府侍卫',
+    };
+  }
+
   const { trust, kin } = relationTo(world, owner, visitorId);
   const hour = num(world.clock?.hour);
   const night = hour >= 21 || hour < 6;

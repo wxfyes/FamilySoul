@@ -3214,11 +3214,33 @@ function __loadStateInner(dataDir) {
   }
   for (const [id, actor] of Object.entries(raw.actors || {})) {
     mergedActors[id] = { ...(base.actors?.[id] || {}), ...actor };
-    if (id === 'yangshenzhi' && mergedActors[id].name === '杨振华') {
-      mergedActors[id].name = '杨慎之';
+  }
+
+  // 核心名字权威归位：全城所有人物中，凡是身为临江知府（或姓名叫杨振华且非千金者），100% 绝对正名为「杨慎之」！
+  for (const [id, a] of Object.entries(mergedActors)) {
+    if (!a) continue;
+    if (a.name === '杨振华' || a.role === '临江知府' || id === 'yangshenzhi') {
+      if (/千金|大小姐|小姐|闺秀/.test(String(a.role || '')) || /采儿/.test(String(a.name || ''))) {
+        a.name = '杨采儿';
+        a.role = '知府千金';
+      } else {
+        a.name = '杨慎之';
+        a.role = '临江知府';
+        a.label = '知府大人';
+      }
     }
-    if (id === 'yangzhenhua' && mergedActors[id].name === '杨振华') {
-      mergedActors[id].name = '杨采儿';
+    // 凡是采儿（无论 id 是什么），解除市井路人婚配，恢复清白名节与待字闺中
+    if (a.name === '杨采儿' || id === 'yangzhenhua' || id === 'yangcaier') {
+      if (a.spouse && a.spouse !== 'husband') {
+        const wrongSpouseId = a.spouse;
+        if (mergedActors[wrongSpouseId]) {
+          mergedActors[wrongSpouseId].spouse = null;
+          mergedActors[wrongSpouseId].marital = 'single';
+        }
+        delete a.spouse;
+        a.marital = 'single';
+        a.maritalText = '未婚 · 待字闺中';
+      }
     }
   }
 

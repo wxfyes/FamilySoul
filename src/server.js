@@ -1628,9 +1628,10 @@ const server = http.createServer(async (req, res) => {
         const member = resolveMember(req, url);
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
 
-        // 确保相公随身行囊中已备有自家紫阳山头春茶（明前锡罐与雨前青瓷），呼应茶山产业与婉儿奉茶
-        const existingTea = Object.values(world.items || {}).some((it) => it && /春茶|茗茶/.test((it.name || '') + (it.kind || '')));
-        if (!existingTea) {
+        // 确保相公随身行囊中备有自家紫阳山头春茶（明前极品锡罐），呼应茶山产业与名门家底
+        const husbandItems = itemsOf(world, 'husband');
+        const husbandHasTea = husbandItems.some((it) => it && /茶/.test((it.name || '') + (it.kind || '')));
+        if (!husbandHasTea) {
           addItem(world, {
             name: '紫阳山头春茶（明前极品锡罐）',
             kind: '茗茶',
@@ -1648,7 +1649,7 @@ const server = http.createServer(async (req, res) => {
 
         const me = world.actors?.husband || world.actors?.[member.actor || 'husband'];
         const curLocation = me?.location || 'husband_room';
-        const husbandItems = itemsOf(world, 'husband');
+        const latestHusbandItems = itemsOf(world, 'husband');
 
         const hereActors = [];
         const presentItems = [];
@@ -1665,8 +1666,8 @@ const server = http.createServer(async (req, res) => {
 
         return sendJson(res, 200, {
           ok: true,
-          total: husbandItems.length,
-          items: husbandItems,
+          total: latestHusbandItems.length,
+          items: latestHusbandItems,
           presentItems,
           hereActors,
           supplyPresets: HOUSEHOLD_SUPPLY_PRESETS.map((p) => ({
@@ -1895,7 +1896,7 @@ const server = http.createServer(async (req, res) => {
             if (!verdict.allowed) {
               // 门房拦住：直接落在大门，把门房的话原样回给相公
               const gateId = world.places?.[homeId]?.rooms?.gate?.id || homeId;
-              try { moveActor(world, actorId, gateId, 'world', '叩门被拦'); saveState(DATA_DIR, world); } catch { /* 忽略 */ }
+              try { moveActor(world, actorId, gateId, 'ui', '叩门被拦'); saveState(DATA_DIR, world); } catch { /* 忽略 */ }
               const gateName = world.places?.[gateId]?.name || (home.name ? `${home.name}·大门` : '大门');
               return sendJson(res, 200, {
                 ok: true,

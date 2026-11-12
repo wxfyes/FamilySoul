@@ -135,46 +135,72 @@ export function findTargetActorInText(actors, text) {
   const list = (Array.isArray(actors) ? actors : Object.values(actors || {})).filter(
     (a) => a && a.name && !a.dead && a.id !== 'husband',
   );
-  // 1. 全名直接命中优先
+
+  const candidates = [];
+
+  // 1. 全名直接命中
   for (const a of list) {
-    if (str.includes(a.name)) return a;
-    if (a.id === 'liuwenxia' && str.includes('紫嫣')) return a;
+    let pos = str.indexOf(a.name);
+    if (pos >= 0) candidates.push({ actor: a, pos, score: 100 });
+    if (a.id === 'liuwenxia' && str.includes('紫嫣')) {
+      candidates.push({ actor: a, pos: str.indexOf('紫嫣'), score: 95 });
+    }
     if (Array.isArray(a.alias)) {
       for (const al of a.alias) {
-        if (al && str.includes(al)) return a;
+        if (al && str.includes(al)) {
+          candidates.push({ actor: a, pos: str.indexOf(al), score: 90 });
+        }
       }
     }
   }
+
   // 2. 三字姓名之双字名精准命中（如“采儿”命中“杨采儿”、“婉儿”命中“沈婉儿”、“婉宁”命中“崔婉宁”、“映雪”命中“苏映雪”）
-  // 必须在单字词根匹配之前执行，彻底杜绝“采儿”因单字“采”误命中“采云”！
   for (const a of list) {
     if (a.name.length >= 3) {
       const given2 = a.name.slice(-2);
       if (given2 && !isGenericAddress(given2) && str.includes(given2)) {
-        return a;
+        candidates.push({ actor: a, pos: str.indexOf(given2), score: 85 });
       }
     }
   }
+
   // 3. 古风称谓组合命中（姓氏/名首字 + 尊称后缀）
   const honorificRe = /([\u4e00-\u9fa5]{1,2})(娘子|大娘子|二娘子|姑娘|大小姐|小姐|掌柜|老板娘|老板|姐姐|妹妹|大人|典吏|书吏|知县|知府|千金|公子)/g;
   let m;
   while ((m = honorificRe.exec(str)) !== null) {
     const prefix = m[1];
     const suffix = m[2];
-    // 优先匹配姓氏+对应身份，其次匹配姓氏开头
     const hit = list.find((a) => a.name.startsWith(prefix) && (a.role || '').includes(suffix))
       || list.find((a) => a.name.startsWith(prefix) || a.name.includes(prefix));
-    if (hit) return hit;
+    if (hit) {
+      candidates.push({ actor: hit, pos: m.index, score: 70 });
+    }
   }
-  // 4. 根字昵称命中（如静儿、婉儿、芸娘、小翠）：先完整匹配昵称，再降级单字词根
+
+  // 4. 根字昵称命中（如静儿、婉儿、芸娘、小翠）
   const nicknameRe = /([\u4e00-\u9fa5]{1,2})(?:儿|娘)/g;
   while ((m = nicknameRe.exec(str)) !== null) {
     const fullNick = m[0];
     const prefix = m[1];
     const exactHit = list.find((a) => a.name.includes(fullNick));
-    if (exactHit) return exactHit;
-    const rootHit = list.find((a) => a.name.includes(prefix));
-    if (rootHit) return rootHit;
+    if (exactHit) {
+      candidates.push({ actor: exactHit, pos: m.index, score: 65 });
+    } else {
+      const rootHit = list.find((a) => a.name.includes(prefix));
+      if (rootHit) {
+        candidates.push({ actor: rootHit, pos: m.index, score: 50 });
+      }
+    }
   }
-  return null;
+
+  if (candidates.length === 0) return null;
+
+  // 排序原则：文本中越早出现的人（pos 越小）优先！
+  // 比如“采儿，把婉儿叫来”：“采儿”在最前（pos=0），采儿是对话主语，婉儿是被叫来的第三人！
+  candidates.sort((x, y) => {
+    if (x.pos !== y.pos) return x.pos - y.pos;
+    return y.score - x.score;
+  });
+
+  return candidates[0].actor;
 }

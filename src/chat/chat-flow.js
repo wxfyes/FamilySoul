@@ -786,7 +786,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         const allCompanionNames = companions.map((a) => `${a.name}（${a.role || a.label || '同场'}）`).join('、');
 
         if (turnTarget.named) {
-          turnDirective = `\n（【点名应答最高铁律】：相公明确点名向在场的【${tName}】说话！本轮必须首先由【${tLabel}】以「【${tActor.role || tLabel}·${tName.length > 2 ? tName.slice(-2) : tName}】：“台词”」正面开口回应相公！绝对严禁由${companions.length ? companions.map((a) => a.name).join('、') : '旁人'}越俎代庖替她回答或压制她的台词！${personaRule}${companions.length ? ` 同在现场的【${allCompanionNames}】可在其后另起一行以各自独立分角标头自然接话互动，或静立在旁。` : ''}）`;
+          turnDirective = `\n（【点名应答最高排他铁律】：相公明确指名道姓向在场的【${tName}】说话！本轮【100% 必须且只能由【${tLabel}】作为第一核心发言人】以「【${tActor.role || tLabel}·${tName.length > 2 ? tName.slice(-2) : tName}】：“台词”」正面开口回应相公！绝对严禁由${companions.length ? companions.map((a) => a.name).join('、') : '旁人'}抢白代答或压制她的台词！${personaRule}${companions.length ? ` 同在现场的【${allCompanionNames}】在此刻温言静听，绝不可喧宾夺主或霸占台词；若需应和，仅允许在【${tName}】说完整句话之后另起一行极简附和，不得抢话！` : ''}）`;
         } else {
           const isStaff = /掌柜|管事|头领|领头|护院|家丁|门房|伙计/.test(String(tActor.role || '')) || /罗叔/.test(tName);
           if (companions.length > 0 && !isStaff) {
