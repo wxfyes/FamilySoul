@@ -16,10 +16,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'update.tar.gz');
+
+// ── 强制门禁：打包前必须 100% 通过系统核心不变量守护检查 ──
+try {
+  console.log('🛡️ 正在执行打包前系统核心不变量守护检查...');
+  execSync('node scripts/test_invariants.mjs', { cwd: ROOT, stdio: 'inherit' });
+} catch (err) {
+  console.error('\n💥 打包被物理阻断：核心不变量检查失败，严禁生成更新包！');
+  process.exit(1);
+}
 
 // 默认打包运行所需的所有代码与世界数据账本；config.json 永远不进包（各家真实令牌与 Key 都在里面）
 const TARGETS = ['src', 'roles', 'web', 'data', 'scripts', 'start.sh', 'stop.sh', 'status.sh', 'package.json'];
