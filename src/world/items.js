@@ -139,6 +139,7 @@ export function askItem(world, fromId, targetActorId, itemId) {
 export const HOUSEHOLD_SUPPLY_PRESETS = [
   {
     key: 'tea_mingqian',
+    label: '春茶',
     match: /春茶|明前|雨前|紫阳|好茶|茶叶|新茶|龙井|毛尖|茶/,
     name: '紫阳山头春茶（明前极品锡罐）',
     kind: '茗茶',
@@ -146,6 +147,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'wine_huadiao',
+    label: '花雕',
     match: /酒|美酒|花雕|女儿红|竹叶青|佳酿|酒坛/,
     name: '陈年绍兴女儿红（泥封佳酿）',
     kind: '美酒',
@@ -153,6 +155,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'pastry_box',
+    label: '茶点',
     match: /点心|糕点|桂花糕|茶点|吃食|食盒|酥酪/,
     name: '江南桂花酥酪精致食盒',
     kind: '茶点',
@@ -160,6 +163,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'hairpin_gold',
+    label: '步摇',
     match: /珠钗|步摇|首饰|簪|钗|金钗|玉簪|头面/,
     name: '赤金点翠衔珠步摇',
     kind: '首饰',
@@ -167,6 +171,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'jade_bangle',
+    label: '玉镯',
     match: /玉佩|玉镯|手镯|翡翠|美玉|白玉|镯子/,
     name: '羊脂白玉玲珑腕镯',
     kind: '珍玩',
@@ -174,6 +179,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'silk_brocade',
+    label: '云锦',
     match: /绸缎|锦缎|云锦|布料|衣裳|罗裙|绫罗/,
     name: '江南苏绣流光云锦缎',
     kind: '绫罗',
@@ -181,6 +187,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'rouge_box',
+    label: '香粉',
     match: /胭脂|水粉|香粉|螺子黛|香囊|香料/,
     name: '扬州鹅蛋香粉与螺子黛礼盒',
     kind: '闺物',
@@ -188,6 +195,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'silver_note',
+    label: '银票',
     match: /银票|银子|盘缠|礼金|银两/,
     name: '大通钱庄五十两现兑银票',
     kind: '银票',
@@ -195,6 +203,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
   },
   {
     key: 'banquet_card',
+    label: '请帖',
     match: /请帖|拜帖|请柬|邀帖/,
     name: '运河大酒楼天字阁雅席请柬',
     kind: '书帖',

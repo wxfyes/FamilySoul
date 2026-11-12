@@ -1050,11 +1050,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     await sendMessage(text);
   }
 
-  /// 动身前往目标地点（消除隔空违和感）
+  /// 动身前往目标地点（真实客观场景提示，严禁凭空捏造见到某人）
   Future<String?> travelTo(String targetPlace, {String? targetName}) async {
     final res = await _apiClient.goTo(targetPlace);
-    // 在消息列表追加一条典雅的场景提示
-    final hint = '【提示】你动身前往「$targetPlace」${(targetName != null && targetName.isNotEmpty) ? '，见到了$targetName' : ''}。';
+    // 权威真实提示：客观记录动身前往该处，在场实况由服务端真实返回
+    final hint = '【提示】你动身前往「$targetPlace」。';
     _messages.add(ChatMessage(
       id: 'travel_${DateTime.now().millisecondsSinceEpoch}',
       text: hint,

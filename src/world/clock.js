@@ -2733,19 +2733,24 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
       place: '临江·王宅·朱漆大门',
       isLetter: true,
     },
-    // 10. 知府衙门 · 杨采儿
+    // 10. 知府千金 · 杨采儿（过府一叙，地点归正为杨府）
     {
       speaker: '知府千金·杨采儿',
       actorId: 'yangzhenhua',
       reason: 'official_note',
       text: '【知府千金·杨采儿】：（官笺）王少掌柜，知府衙门过堂运河茶引案，家父特意提了你王家茶船的通关文书。若得空，过府一叙。',
-      place: '临江知府衙门',
+      place: '杨府',
       isLetter: true,
     },
   ];
 
   const round = Number(world.flags.proactiveRound) || 0;
-  const pick = pool[round % pool.length];
+  const pick = { ...pool[round % pool.length] };
+
+  // 🛡️ 权威归宿锚定：发信人若是杨采儿，地点100%强制为杨府，绝不可错填为官衙公堂
+  if (pick.actorId === 'yangzhenhua' || pick.speaker?.includes('杨采儿')) {
+    pick.place = '杨府';
+  }
 
   const queued = queueProactive(world, {
     ...pick,

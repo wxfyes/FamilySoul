@@ -366,8 +366,26 @@ class _InventorySheetState extends State<InventorySheet> {
             spacing: 6,
             runSpacing: 6,
             children: presets.map((p) {
-              final key = p['key']?.toString() ?? '茶叶';
-              final name = p['name']?.toString() ?? key;
+              final key = p['key']?.toString() ?? 'tea_mingqian';
+              final name = p['name']?.toString() ?? '极品春茶';
+              const labelMap = {
+                'tea_mingqian': '春茶',
+                'wine_huadiao': '花雕',
+                'pastry_box': '茶点',
+                'hairpin_gold': '步摇',
+                'jade_bangle': '玉镯',
+                'silk_brocade': '云锦',
+                'rouge_box': '香粉',
+                'silver_note': '银票',
+                'banquet_card': '请帖',
+                '茶叶': '春茶',
+                '步摇': '步摇',
+                '玉镯': '玉镯',
+                '绸缎': '云锦',
+                '佳酿': '花雕',
+                '银票': '银票',
+              };
+              final label = p['label']?.toString() ?? labelMap[key] ?? (p['kind']?.toString() ?? '珍礼');
               return InkWell(
                 onTap: () => _handlePrepare(key, name),
                 borderRadius: BorderRadius.circular(8),
@@ -378,7 +396,7 @@ class _InventorySheetState extends State<InventorySheet> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '+ 备$key',
+                    '+ 备$label',
                     style: const TextStyle(
                       color: Color(0xFFF59E0B),
                       fontSize: 12,

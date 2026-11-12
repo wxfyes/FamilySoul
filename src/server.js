@@ -1672,6 +1672,7 @@ const server = http.createServer(async (req, res) => {
           hereActors,
           supplyPresets: HOUSEHOLD_SUPPLY_PRESETS.map((p) => ({
             key: p.key,
+            label: p.label || p.kind || '珍物',
             name: p.name,
             kind: p.kind,
             note: p.note,
