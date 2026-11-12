@@ -415,6 +415,17 @@ class SurfCoreApiClient {
     } catch (_) {}
     return null;
   }
+  /// 取消一笔待付款（从服务端彻底销毁 pendingAction，关闭黄色提示栏）
+  Future<bool> cancelPayment({String? actionId}) async {
+    try {
+      final res = await _dio.post('/world/confirm',
+          queryParameters: {'token': config.token.trim()},
+          data: {'cancel': true, if (actionId != null) 'actionId': actionId});
+      return res.statusCode == 200 && (res.data is Map) && res.data['ok'] == true;
+    } catch (_) {}
+    return false;
+  }
+
   /// 手动记一笔花销
   Future<String?> payManual(double amount, String title) async {
     try {

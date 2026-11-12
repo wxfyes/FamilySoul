@@ -1369,8 +1369,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         IconButton(
                           icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white24),
                           onPressed: () async {
-                            // 不付：只清掉提示，什么都不发生
+                            final pendId = _pendingAction?['id']?.toString();
                             setState(() => _pendingAction = null);
+                            try {
+                              await provider.api.cancelPayment(actionId: pendId);
+                            } catch (_) {}
+                            _refreshPlace();
                           },
                         ),
                       ],

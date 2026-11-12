@@ -9,7 +9,7 @@ import { resolveVoiceCasting } from '../world/voice-casting.js';
 import fs from 'node:fs';
 import { personFacts } from '../world/person-facts.js';
 import { getPlaceDisplayName, findTargetActorInText } from '../world/naming.js';
-import { moveActor, isHumanBound, healInnerFamilyAtNight } from '../world/position.js';
+import { moveActor, isHumanBound, healInnerFamilyAtNight, isSameLocation } from '../world/position.js';
 import { applyChatActions } from '../world/chat-actions.js';
 import path from 'node:path';
 
@@ -755,7 +755,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       const myActorId = svc._viewerActorId || 'husband';
       const myLoc = wTurn.actors?.[myActorId]?.location || 'husband_room';
       const hereActors = Object.values(wTurn.actors || {}).filter(
-        (a) => a && !a.dead && a.id !== myActorId && a.location === myLoc
+        (a) => a && !a.dead && a.id !== myActorId && isSameLocation(a.location, myLoc)
       );
       turnTarget = resolveTurnTarget({
         world: wTurn,
@@ -764,7 +764,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         present: hereActors,
       });
       // 指名的人不在场，就不能把发言权交给他（否则他会隔空开腔）
-      if (turnTarget && turnTarget.actor && turnTarget.actor.location !== myLoc) {
+      if (turnTarget && turnTarget.actor && !isSameLocation(turnTarget.actor.location, myLoc)) {
         console.log(`[TurnTarget] 指名者不在场：${turnTarget.actor.name}（此刻在${wTurn.places?.[turnTarget.actor.location]?.name || '别处'}），改由在场者接话`);
         turnTarget = resolveTurnTarget({ world: wTurn, viewerId: myActorId, say: '', present: hereActors });
       }
@@ -813,7 +813,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       const wNowLoc = loadState(svc.dataDir);
       const myNowLoc = (svc._viewerActorId ? wNowLoc.actors?.[svc._viewerActorId] : wNowLoc.actors?.husband)?.location || 'husband_room';
       const hereNowActors = Object.values(wNowLoc.actors || {}).filter(
-        (a) => a && !a.dead && a.id !== (svc._viewerActorId || 'husband') && a.location === myNowLoc,
+        (a) => a && !a.dead && a.id !== (svc._viewerActorId || 'husband') && isSameLocation(a.location, myNowLoc),
       );
       const isDifferentScene = lastSpeaker && !hereNowActors.some((a) => a.name.includes(lastSpeaker) || lastSpeaker.includes(a.name));
       if (isDifferentScene && hereNowActors.length > 0) {
@@ -905,7 +905,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
               const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : (me?.name || '婉儿');
               reply = `【${me?.label || '正妻'}·${short}】：${reply}`;
             } else {
-              const hereOthers = Object.values(w0.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && a.location === husLoc);
+              const hereOthers = Object.values(w0.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && isSameLocation(a.location, husLoc));
               const hit = hereOthers.find((a) => a.gender === 'female') || hereOthers[0];
               if (hit) {
                 const short = hit.name && hit.name.length > 2 ? hit.name.slice(-2) : hit.name;
@@ -1659,7 +1659,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         } else {
           // 2. 正常对话被误杀：由在场正主自然接话，绝不冷场
           const hereOthers = Object.values(wHome.actors || {}).filter(
-            (a) => a && !a.dead && a.id !== myActorId && a.location === myLoc
+            (a) => a && !a.dead && a.id !== myActorId && isSameLocation(a.location, myLoc)
           );
           if (hereOthers.length > 0) {
             const prime = (turnTarget && turnTarget.actor && hereOthers.some((x) => x.id === turnTarget.actor.id))

@@ -878,9 +878,9 @@ export function healWorld(world) {
       caier.family = caier.family || {};
       caier.family.father = 'yangshenzhi';
       caier.home = 'yang_mansion';
-      if (!caier.location) {
-        caier.location = 'yang_mansion';
-        fixes.push('人物归位：知府千金杨采儿归位杨府');
+      if (!caier.location || caier.location === 'yang_mansion') {
+        caier.location = 'yang_mansion__hall';
+        fixes.push('人物归位：知府千金杨采儿归位杨府中堂大厅');
       }
       caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
     }
@@ -996,6 +996,22 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 产业日入自愈异常：', err.message);
+  }
+
+  // ⑭ 酒楼管事与大掌柜权威归位
+  try {
+    const zhouCai = world.actors?.npc_accountant_zhou || Object.values(world.actors || {}).find(a => a.name === '周有财');
+    if (zhouCai && (!zhouCai.location || zhouCai.location === 'place_44')) {
+      zhouCai.location = 'place_44__f1';
+      fixes.push('人物归位：酒楼大掌柜周有财归位一层大堂');
+    }
+    const zhouFu = world.actors?.npc_1793788798472_568 || Object.values(world.actors || {}).find(a => a.name === '周有福');
+    if (zhouFu && (!zhouFu.location || zhouFu.location === 'place_44')) {
+      zhouFu.location = 'place_44__f1';
+      fixes.push('人物归位：酒楼总管周有福归位一层大堂');
+    }
+  } catch (err) {
+    console.warn('[Heal] 酒楼人物自愈异常：', err.message);
   }
 
   return fixes;

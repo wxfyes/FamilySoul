@@ -39,7 +39,7 @@ import { ensureCities, ensureCourt, ensureTerrain, seedPersonalMoney, loadState 
 import { applyAction } from './world/apply.js';
 import { auditAll } from './world/audit.js';
 import { ARC_HINT, arcStepText } from './world/arcs.js';
-import { moveActor, isHumanBound } from './world/position.js';
+import { moveActor, isHumanBound, isSameLocation } from './world/position.js';
 import { markHumanSeen, isHumanOnline } from './world/presence.js';
 import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
@@ -1146,7 +1146,7 @@ const server = http.createServer(async (req, res) => {
               : (a.role || ''),
             gender: a.gender || 'female',
             place: placeName(a.location || ''),
-            here: a.location === curId, group: group(a),
+            here: isSameLocation(a.location, curId), group: group(a),
             trust: Number(rel(a).trust) || 0, grievance: Number(rel(a).grievance) || 0,
             // 相公是真人账号，不能被别人"叫过来"——只能自己过去
             canSummon: !isHusbandViewer ? a.id !== 'husband' : true,
@@ -1355,7 +1355,7 @@ const server = http.createServer(async (req, res) => {
           const c = cityOf(a);
           cityCounts[c] = (cityCounts[c] || 0) + 1;
           const r = a.relations?.husband || {};
-          const isHere = a.location === curLocation;
+          const isHere = isSameLocation(a.location, curLocation);
           actorsList.push({
             id,
             name: a.name || id,
@@ -1524,7 +1524,7 @@ const server = http.createServer(async (req, res) => {
           if (age > 35) continue;
 
           const r = a.relations?.husband || {};
-          const isHere = a.location === curLocation;
+          const isHere = isSameLocation(a.location, curLocation);
           const isLove = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1;
 
           beauties.push({
@@ -1604,7 +1604,7 @@ const server = http.createServer(async (req, res) => {
               gender: a.gender || 'male',
               trust: Math.max(0, Math.min(100, Number(r.trust) || 0)),
               desire: Math.max(0, Math.min(100, Number(r.desire) || 0)),
-              here: a.location === curLocation,
+              here: isSameLocation(a.location, curLocation),
               household: Boolean(a.household),
             });
           }
@@ -1655,7 +1655,7 @@ const server = http.createServer(async (req, res) => {
         const presentItems = [];
         for (const [id, a] of Object.entries(world.actors || {})) {
           if (!a || a.dead || id === 'husband') continue;
-          if (a.location === curLocation) {
+          if (isSameLocation(a.location, curLocation)) {
             hereActors.push({ id, name: a.name || id, role: a.role || '', gender: a.gender || 'male' });
             const theirItems = itemsOf(world, id);
             for (const it of theirItems) {
@@ -1924,8 +1924,7 @@ const server = http.createServer(async (req, res) => {
         try { runBusinessTraffic(after); saveState(DATA_DIR, after); } catch { /* 忽略 */ }
         const me2 = after.actors?.[actorId] || after.actors?.husband;
         const placeName2 = after.places?.[me2?.location]?.name || me2?.location || '';
-        const isWifeChamber = (loc) => loc === 'husband_room' || loc === 'husband_room__main';
-        const isHere = (loc) => loc === me2?.location || (isWifeChamber(me2?.location) && isWifeChamber(loc));
+        const isHere = (loc) => isSameLocation(me2?.location, loc);
         const hereList = Object.values(after.actors || {})
           .filter((a) => a && !a.dead && a.name && isHere(a.location) && a.id !== (me2?.id || 'husband'))
           .slice(0, 5)
@@ -2103,6 +2102,13 @@ const server = http.createServer(async (req, res) => {
         const actorId = member?.actor || 'husband';
         const me = world.actors?.[actorId] || world.actors?.husband;
         const pend = world.pendingAction;
+
+        // 取消待付款（由客户端关闭黄色提示栏触发，彻底销毁待付单）
+        if (body.cancel || body.action === 'cancel' || body.option === 'cancel') {
+          delete world.pendingAction;
+          saveState(DATA_DIR, world);
+          return sendJson(res, 200, { ok: true, line: '（已撤销此项待付开销。）', cancelled: true });
+        }
 
         // 没有天道报的价，也可以自己记一笔（手动付账）
         if (!pend) {
@@ -2555,9 +2561,9 @@ const server = http.createServer(async (req, res) => {
       const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
       const isHusband = !actorId;
       const place = me?.location ? world.places?.[me.location] : null;
-      // 此处有谁：站在同一地点的人（不含自己）
+      // 此处有谁：站在同一地点/同堂之人（权威判定，不含自己）
       const hereNames = Object.values(world.actors || {})
-        .filter((a) => a && !a.dead && a.name && a.location === me?.location && a.id !== (actorId || 'husband'))
+        .filter((a) => a && !a.dead && a.name && isSameLocation(a.location, me?.location) && a.id !== (actorId || 'husband'))
         .map((a) => ({ name: a.name, role: a.role || '', activity: a.activity?.text || '' }))
         .slice(0, 8);
       const wd = worldDate(world);
@@ -3063,7 +3069,7 @@ const server = http.createServer(async (req, res) => {
           if (q) return String(a.name || '').includes(q) || String(a.role || '').includes(q);
           if (all) return true;
           const rel = a.relations?.husband || {};
-          const here = a.location && me?.location && a.location === me.location;
+          const here = a.location && me?.location && isSameLocation(a.location, me.location);
           const close = (Number(rel.trust) || 0) >= 20 || (Number(rel.grievance) || 0) >= 10;
           return here || close || humanActors.has(a.id);
         })
@@ -3072,7 +3078,7 @@ const server = http.createServer(async (req, res) => {
           name: a.name,
           role: a.role || '',
           place: String(world.places?.[a.location]?.name || '不知去向'),
-          here: a.location && me?.location ? a.location === me.location : false,
+          here: a.location && me?.location ? isSameLocation(a.location, me.location) : false,
           trust: Number(a.relations?.husband?.trust) || 0,
           human: humanActors.has(a.id),
         }))

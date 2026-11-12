@@ -140,3 +140,22 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   a.lastMove = { from, to: placeId, by: reason, note: String(note || '').slice(0, 30), day: world.clock?.day || 1, hour: world.clock?.hour || 0 };
   return { ok: true, moved: true, from, to: placeId };
 }
+
+/**
+ * 权威同堂同室在场判定（单一真相源）
+ * 彻底解决大宅/大酒楼父地点与默认大堂/中堂在场判定割裂的顽疾
+ */
+export function isSameLocation(loc1, loc2) {
+  if (!loc1 || !loc2) return false;
+  if (loc1 === loc2) return true;
+  // 1. 王宅正房与主寝
+  if (['husband_room', 'husband_room__main'].includes(loc1) && ['husband_room', 'husband_room__main'].includes(loc2)) return true;
+  // 2. 杨府与杨府中堂大厅（中堂即杨府正厅主客大堂，同处即在场）
+  if (['yang_mansion', 'yang_mansion__hall'].includes(loc1) && ['yang_mansion', 'yang_mansion__hall'].includes(loc2)) return true;
+  // 3. 运河大酒楼与一层大堂
+  if (['place_44', 'place_44__f1'].includes(loc1) && ['place_44', 'place_44__f1'].includes(loc2)) return true;
+  // 4. 父子主大堂判定：若一者为父地点，另一者为该父地点的默认大堂（如 X 与 X__hall 或 X__main 或 X__f1）
+  if (loc1.startsWith(loc2 + '__') && /hall|main|f1/.test(loc1)) return true;
+  if (loc2.startsWith(loc1 + '__') && /hall|main|f1/.test(loc2)) return true;
+  return false;
+}

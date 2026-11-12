@@ -661,8 +661,9 @@ export function executeNarrativeTags({
           const isInquiringOrNegotiating = /(多少钱|什么价|什么价格|贵不贵|能值多少|市价|几何|算算|合算吗|开价|怎么卖|多少银子|估摸|约多少|要多少|探探|问问|也搞一条|也要一条|也要|换成|改改|太小了|太大了|不够|再添|再加|商量|合计|看看)/.test(sayClean);
           const isExplicitPurchase = /(买了|买下|定下|准了|成交|就照这个办|支银子|给钱|掏钱|拿下|办了吧|办起来|就按这个定|拍板了|就这么定了|定了|买吧|要了|取银子|付了|给银子|就买|定这条|出银子|立下|开办|置办|做吧)/.test(sayClean);
 
-          // 核心风控：大额开销（>5两）且相公在商议调整或未明确拍板时，绝不擅自扣钱！挂入待定夺单
-          if (quoted > 5 && (isInquiringOrNegotiating || !isExplicitPurchase)) {
+          // 核心风控（军规第六条）：大额开销（>5两）严禁在聊天流中通过正则偷听扣款！
+          // 聊天文字纯属戏内商议与剧情对白，所有大额花销 100% 挂入客户端专属弹窗，由相公亲手点击确认单一入口支银！
+          if (quoted > 5) {
             createdPendingId = `pend_pay_${Date.now()}`;
             wPay.pendingAction = {
               kind: 'pay',
@@ -674,10 +675,10 @@ export function executeNarrativeTags({
               askedHour: wPay.clock?.hour || 0,
             };
             saveState(dataDir, wPay);
-            reply += `\n（【商议报价】${title2}市价约需银 ${quoted.toFixed(2)} 两，公账银两未动，待相公定夺拍板。）`;
-            console.log(`[Pay] 相公商议中尚未拍板，挂入待定夺单：${title2}（${quoted} 两）`);
+            reply += `\n（【花销商议】${title2}需银 ${quoted.toFixed(2)} 两，已在顶部列出待付选项，需相公亲手点击确认方才支银。）`;
+            console.log(`[Pay] 大额开销挂入客户端待付单，聊天流绝不扣钱：${title2}（${quoted} 两）`);
           } else {
-            // 即刻落账：相公明确拍板购买，或市井小额零花（<=5两）
+            // 即刻落账：仅限市井极小额零花（<=5两，如茶水小点）
             try {
               // 真人角色已有这个名字：不能拿钱把人家买成 NPC，直接不扣
               const humanName = Object.values(wPay.actors || {}).find((a) => a && a.name
