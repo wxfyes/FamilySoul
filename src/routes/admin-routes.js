@@ -23,7 +23,7 @@ import { ensureRealms } from '../world/realm.js';
 import { moveActor } from '../world/position.js';
 import { buildTimeline, eventText } from '../world/events-view.js';
 import { recentLedger } from '../world/ledger.js';
-import { hireStaff } from '../world/employment.js';
+import { hireStaff, isPropertyOperational, getPropertyNominalIncome } from '../world/employment.js';
 import { renameActor } from '../world/identity.js';
 import { factionSilver, factionStrength } from '../world/factions.js';
 import { upkeepOf } from '../world/warfare.js';
@@ -152,14 +152,12 @@ export async function handleAdminRoutes(req, res, ctx) {
       if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效' });
       const world = loadState(DATA_DIR);
       try { refreshPropertyIncomes(world); } catch { /* 忽略 */ }
-      // 开着的铺子按"一年挣出十倍租钱"的下限兜底（与日结同一规则）
+      // 营运产业按额定基准与经营积累统一兜底，永不缩水
       for (const p of (world.assets?.properties || [])) {
-        const open = ['已开张', '正常营业'].includes(String(p.status || ''));
+        const open = isPropertyOperational(p);
         if (!open) { p.incomePerDay = 0; continue; }
-        const isShop = /铺|店|号|栈|坊/.test(String(p.name || '')) && !/酒楼|茶坊|茶栈|货栈/.test(String(p.name || ''));
-        const rentYearly = Number(p.rentYearly || p.rentAnnual || 0);
-        const floor = isShop ? (rentYearly > 0 ? rentYearly / 365 * 10 : 1.5) : 0.15;
-        if ((Number(p.incomePerDay) || 0) < floor) p.incomePerDay = Math.round(floor * 100) / 100;
+        const nominal = getPropertyNominalIncome(p);
+        if ((Number(p.incomePerDay) || 0) < nominal) p.incomePerDay = nominal;
       }
       const n = (world.assets?.properties || []).length;
       saveState(DATA_DIR, world);
@@ -2043,8 +2041,8 @@ export async function handleAdminRoutes(req, res, ctx) {
         const husLocName = world.places?.[hus?.location]?.name || '临江茶坊';
         const silverVal = Number(world.assets?.silver || 0).toFixed(1);
         const allProps = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
-        const propList = allProps.filter((p) => p && (p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper)));
-        const dailyInc = propList.reduce((s, p) => s + (Number(p.incomePerDay) || 0), 0).toFixed(1);
+        const propList = allProps.filter((p) => p && isPropertyOperational(p) && (p.owner === 'husband' || p.keeper === 'husband' || (!p.owner && !p.keeper)));
+        const dailyInc = propList.reduce((s, p) => s + Math.max(Number(p.incomePerDay) || 0, getPropertyNominalIncome(p)), 0).toFixed(1);
         const digest = `大明江南 · 第${world.clock?.day || 1}日${shichenOf(world.clock?.hour ?? 8)}（${world.clock?.hour ?? 8}时），相公身在【${husLocName}】，现存白银 ${silverVal} 两，产业日入 ${dailyInc} 两。`;
 
         // 今日晨报

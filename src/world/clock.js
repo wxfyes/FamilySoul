@@ -36,6 +36,7 @@ import { runGentlemenTalk } from './reputation.js';
 import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
 import { addMemory } from './memory.js';
+import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
 
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -1864,25 +1865,24 @@ function dailyIncomeOf(world, prop) {
     if (st === '筹备中' || st === '筹建中' || st === '未开张') {
       const since = Number(prop.openedDay ?? prop.createdDay ?? day0);
       if (day0 - since >= 2) {
-        prop.status = '已开张';
+        prop.status = /船/.test(String(prop.name || '')) ? '正常起航' : '已开张';
         prop.openedDay = day0;
-        console.log(`[Shop] ${prop.name} 装修期满，自动开张`);
+        console.log(`[Shop] ${prop.name} 装修备齐，自动开张营业`);
       }
     }
   } catch { /* 忽略 */ }
 
-  // 只有真正开门做生意的才进账：自住府邸、筹建中、歇业一律不进项
-  const EARNING_STATUS = ['正常营业', '已开张'];
-  if (!EARNING_STATUS.includes(String(prop.status || ''))) {
+  // 只有真正营运产生收益的才进账：自住府邸、筹建中、歇业一律不进项
+  if (!isPropertyOperational(prop)) {
     prop.incomePerDay = 0;   // 不开门就没有进项，别留着昨天那个数
     return 0;
   }
 
-  // ── 本金：产业值多少钱（买价优先；老产业按日入估个底）──
+  // ── 本金：产业值多少钱（买价优先；老产业按基准日入估算）──
   let capital = Number(prop.capital);
   if (!(capital > 0)) {
     const buy = Number(prop.costSilver);
-    const est = Number(prop.baseIncome ?? prop.incomePerDay) || 0;
+    const est = getPropertyNominalIncome(prop);
     capital = buy > 0 ? buy : Math.max(100, est * 80);
     prop.capital = Math.round(capital * 100) / 100;
   }
@@ -1890,40 +1890,28 @@ function dailyIncomeOf(world, prop) {
   const city = world.cities?.[prop.city] || Object.values(world.cities || {}).find((c) => c && c.name === prop.city);
   const price = Number(city?.price) || 100;
   const unrest = Number(city?.unrest) || 0;
-  const season = String(world.clock?.season || 'spring');
   const keeper = world.actors?.[prop.keeper];
   const trust = Number(keeper?.relations?.husband?.trust ?? 30);
   const staffCount = Number(prop.staff) || 0;
   const curDay = Number(world.clock?.day) || 1;
   const daysOpen = prop.openedDay != null ? Math.max(1, curDay - Number(prop.openedDay) + 1) : 1;
 
-  // ── 日收益率：本金的百分之几（行情基准 2.5%，按各因素上下浮）──
-  let rate = 0.025;
-  rate *= 0.7 + Math.min(2.0, price / 100) * 0.3;          // 物价与市面景气
-  rate *= 1 - Math.min(0.5, unrest / 200);                 // 民心
-  rate *= 0.85 + Math.min(0.5, trust / 200);               // 掌柜得力（信任 100 → 1.35x）
-  if (staffCount > 0) rate *= 1 + Math.min(1.5, staffCount * 0.3); // 人手：每人 +30%，封顶 2.5x
-  rate *= 1 + Math.min(0.6, (daysOpen - 1) * 0.02);        // 商誉：老店常客多（封顶 1.6x）
+  // ── 基础安全底线：严格遵守相公产业基准（绝不缩水）──
+  const safeBase = getPropertyNominalIncome(prop);
 
-  // ── 基础安全底线：严格遵守相公铁律，最低绝不低于现有基准收入 ──
-  const baselineMap = {
-    canal_restaurant: 33.3, // 运河码头大酒楼基准 33.3 两
-    prop_1: 45.0,           // 鑫雅阁达官雅间基准 45.0 两
-    prop_2: 19.8,           // 运河茶栈基准 19.8 两
-    prop_3: 14.7,           // 码头茶栈基准 14.7 两
-    prop_8: 6.2,            // 王记花店基准 6.2 两
-    tea_house: 5.2,         // 临江茶坊老店基准 5.2 两
-    wine_shop: 4.8,         // 于家酒肆基准 4.8 两
-    prop_7: 3.3,            // 临街花铺基准 3.3 两
-    prop_4: 2.8,            // 苏州小茶栈基准 2.8 两
-  };
-  const safeBase = baselineMap[prop.id] || (/鑫雅阁/.test(String(prop.name || '')) ? 45.0 : (Number(prop.baseIncome) || 1.5));
+  // ── 景气系数（以 1.0 为基准微调上下浮动，绝不向下斩断收入）──
+  let marketFactor = 1.0;
+  marketFactor *= 0.85 + Math.min(0.3, (price / 100) * 0.15); // 物价行情
+  marketFactor *= 1 - Math.min(0.1, unrest / 500);            // 民心
+  marketFactor *= 0.95 + Math.min(0.2, trust / 300);          // 掌柜得力
+  if (staffCount > 0) marketFactor *= 1 + Math.min(0.25, staffCount * 0.05); // 人手充沛
+  marketFactor *= 1 + Math.min(0.15, (daysOpen - 1) * 0.005); // 老店声誉
 
-  // ── 真实江南商海风云与大客包场事件（生动鲜活，杜绝死流水）──
+  // ── 真实江南商海风云与大客包场事件（生动鲜活，锦上添花）──
   delete prop.todayHighlight;
   let eventBonus = 0;
 
-  if (prop.id === 'canal_restaurant') {
+  if (prop.id === 'canal_restaurant' || /运河码头三层大酒楼|运河大酒楼/.test(String(prop.name || ''))) {
     // 运河码头三层大酒楼：两淮漕运咽喉，豪客云集，高频大单
     const roll = Math.random();
     if (roll < 0.28) {
@@ -1943,49 +1931,62 @@ function dailyIncomeOf(world, prop) {
     // 鑫雅阁：清贵雅致、达官显贵包雅间与文墨诗会
     const roll = Math.random();
     if (roll < 0.35) {
-      eventBonus = Math.round((40 + Math.random() * 65) * 100) / 100;
+      eventBonus = Math.round((30 + Math.random() * 50) * 100) / 100;
       prop.todayHighlight = '金陵世家公子包下二层清幽雅阁大摆文墨雅宴，赏银流水进账';
     } else if (roll < 0.60) {
-      eventBonus = Math.round((25 + Math.random() * 45) * 100) / 100;
+      eventBonus = Math.round((20 + Math.random() * 35) * 100) / 100;
       prop.todayHighlight = '江南名士雅集开宴，点名品鉴阁中上等香茗与珍馐，满座皆惊';
     }
-  } else if (prop.id === 'tea_house') {
+  } else if (prop.id === 'tea_house' || /临江茶坊老店/.test(String(prop.name || ''))) {
     // 临江茶坊老店：二房芸娘打理，烟火市井，名点出笼
     if (Math.random() < 0.35) {
-      eventBonus = Math.round((8 + Math.random() * 15) * 100) / 100;
+      eventBonus = Math.round((4 + Math.random() * 8) * 100) / 100;
       prop.todayHighlight = '二房如夫人芸娘新制春茶糕出笼，街坊门前排起长龙售罄';
     }
-  } else if (prop.id === 'prop_2' || prop.id === 'prop_3') {
+  } else if (/茶栈/.test(String(prop.name || ''))) {
     // 码头茶栈 / 运河茶栈：水路大宗批发
     if (Math.random() < 0.30) {
-      eventBonus = Math.round((20 + Math.random() * 45) * 100) / 100;
+      eventBonus = Math.round((8 + Math.random() * 18) * 100) / 100;
       prop.todayHighlight = '两淮大茶船靠岸码头，客商大宗清盘数百担头春茶';
     }
-  } else if (prop.id === 'wine_shop') {
+  } else if (/船队|货船|漕运/.test(String(prop.name || ''))) {
+    // 船队与货船：顺风顺水，大宗运脚水脚银
+    if (Math.random() < 0.35) {
+      eventBonus = Math.round((10 + Math.random() * 25) * 100) / 100;
+      prop.todayHighlight = '顺风顺水，两淮商帮急件货单交船队全权押运，多收两成押金运脚水脚银！';
+    }
+  } else if (prop.id === 'wine_shop' || /于家酒肆/.test(String(prop.name || ''))) {
     // 于家酒肆：紫嫣掌柜，陈酿直供
     if (Math.random() < 0.30) {
-      eventBonus = Math.round((6 + Math.random() * 14) * 100) / 100;
+      eventBonus = Math.round((3 + Math.random() * 8) * 100) / 100;
       prop.todayHighlight = '于家酒肆起坛二十坛陈年金桂酿，供大酒楼客席一抢而空';
+    }
+  } else if (/盐铺/.test(String(prop.name || ''))) {
+    // 官盐特许专营商行：各大商号大宗采买官盐
+    if (Math.random() < 0.35) {
+      eventBonus = Math.round((8 + Math.random() * 16) * 100) / 100;
+      prop.todayHighlight = '官盐引岸拨发新盐引，四乡八镇商号争抢批销，盐铺白银流水入账！';
     }
   }
 
   // 夜市加成：这几天多进项
   try {
     if (prop.nightBoost && (Number(world.clock?.day) || 1) <= Number(prop.nightBoost.untilDay)) {
-      rate *= 1 + (Number(prop.nightBoost.rate) || 0.3);
+      marketFactor *= 1 + (Number(prop.nightBoost.rate) || 0.3);
     }
   } catch { /* 忽略 */ }
 
-  // 最终进项 = 保证底线 + 基础市面起伏 + 突发商海大单（严格不低于 safeBase 保底）
-  let gain = Math.round((Math.max(capital * rate, safeBase) + eventBonus) * 100) / 100;
+  // 最终当日实收：以额定基准为底，叠加景气与大单事件（绝对不低于 safeBase）
+  let gain = Math.round((Math.max(safeBase * marketFactor, safeBase) + eventBonus) * 100) / 100;
   if (gain < safeBase) gain = safeBase;
 
   // ── 利润再投资：赚的钱有一部分滚回本金，生意越长越大 ──
-  const reinvest = prop.status === '已开张' || prop.status === '正常营业' ? 0.25 : 0;
+  const reinvest = isPropertyOperational(prop) ? 0.25 : 0;
   if (reinvest > 0) prop.capital = Math.round((capital + gain * reinvest) * 100) / 100;
 
-  prop.incomePerDay = gain;                                 // 显示的就是今日进项
-  prop.baseIncome = Number(prop.baseIncome) || gain;        // 仅作历史参考，不再参与计算
+  // ── 核心铁律：产业核定日入绝不因为单日行情淡而反向缩水 ──
+  prop.incomePerDay = Math.round(Math.max(Number(prop.incomePerDay) || 0, safeBase, gain) * 100) / 100;
+  prop.baseIncome = safeBase;
   return gain;
 }
 __dailyIncomeFn = dailyIncomeOf;

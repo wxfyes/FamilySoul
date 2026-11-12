@@ -1,6 +1,7 @@
 import { trimMemories } from './memory.js';
 import { ensureResidence } from './residence.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
+import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -907,6 +908,75 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 大事记自愈异常：', err.message);
+  }
+
+  // ㉘ 产业核定基准日入与营运状态自愈（彻底解决日入缩水腰斩与大船队被误判为 0 的问题）
+  try {
+    world.assets = world.assets || {};
+    world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
+    for (const p of world.assets.properties) {
+      if (!p) continue;
+      const nm = String(p.name || '');
+      const id = String(p.id || '');
+
+      // 1. 运河码头三层大酒楼（军规铁律：相公全款510两盘下盛大开业，日入过百两，基准124.1两）
+      if (id === 'canal_restaurant' || /运河码头三层大酒楼|运河大酒楼/.test(nm)) {
+        if (p.status !== '正常营业') {
+          p.status = '正常营业';
+          fixes.push('大酒楼自愈：状态纠正为「正常营业」');
+        }
+        p.costSilver = Math.max(Number(p.costSilver) || 0, 510);
+        p.capital = Math.max(Number(p.capital) || 0, 626);
+        const curInc = Number(p.incomePerDay) || 0;
+        if (curInc < 124.1) {
+          fixes.push(`大酒楼自愈：额定日入从 ${curInc} 两恢复为 124.1 两（日入过百两铁律）`);
+          p.incomePerDay = 124.1;
+        }
+        p.baseIncome = 124.1;
+      }
+
+      // 2. 王家运河大船队（一大三小，20船工编制，起航漕运，基准43.8两）
+      else if (/王家运河大船队/.test(nm)) {
+        if (!/正常起航|营运中|已开张/.test(String(p.status || ''))) {
+          p.status = '正常起航';
+          fixes.push('大船队自愈：营运状态纠正为「正常起航」');
+        }
+        p.costSilver = Math.max(Number(p.costSilver) || 0, 730);
+        p.capital = Math.max(Number(p.capital) || 0, 730);
+        const curInc = Number(p.incomePerDay) || 0;
+        if (curInc < 43.8) {
+          fixes.push(`大船队自愈：额定日入从 ${curInc} 两恢复为 43.8 两`);
+          p.incomePerDay = 43.8;
+        }
+        p.baseIncome = 43.8;
+      }
+
+      // 3. 码头盐铺（两淮官盐专营暴利商行，补齐300两成本与24.5两额定日入）
+      else if (/盐铺/.test(nm)) {
+        p.costSilver = Math.max(Number(p.costSilver) || 0, 300);
+        p.capital = Math.max(Number(p.capital) || 0, 300);
+        const curInc = Number(p.incomePerDay) || 0;
+        if (curInc < 24.5) {
+          fixes.push(`盐铺自愈：码头官盐商行日入从 ${curInc} 两提升恢复为 24.5 两`);
+          p.incomePerDay = 24.5;
+        }
+        p.baseIncome = 24.5;
+        if (!isPropertyOperational(p)) p.status = '已开张';
+      }
+
+      // 4. 其他产业：核定基准兜底，防缩水
+      else if (isPropertyOperational(p)) {
+        const nominal = getPropertyNominalIncome(p);
+        const curInc = Number(p.incomePerDay) || 0;
+        if (curInc < nominal) {
+          fixes.push(`产业基准自愈：${p.name} 日入从 ${curInc} 两调整为基准 ${nominal} 两`);
+          p.incomePerDay = nominal;
+        }
+        p.baseIncome = nominal;
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 产业日入自愈异常：', err.message);
   }
 
   return fixes;

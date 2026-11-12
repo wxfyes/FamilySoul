@@ -45,7 +45,7 @@ import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
 import { getMoney, setMoney, spendMoney, syncMoney } from './world/money.js';
 import { isPlaceName } from './world/naming.js';
-import { hireStaff, visiblePropertiesOf } from './world/employment.js';
+import { hireStaff, visiblePropertiesOf, isPropertyOperational, getPropertyNominalIncome } from './world/employment.js';
 import { renameActor, syncNames } from './world/identity.js';
 import { buildOpeningFacts, buildOpeningPrompt } from './world/opening.js';
 import { ensureFactions, factionOf, factionSilver, factionStrength, spendFactionSilver } from './world/factions.js';
@@ -2686,16 +2686,16 @@ const server = http.createServer(async (req, res) => {
         assets: {
           silver: getMoney(world, actorId),
           properties: props.map((p) => {
-            const open = ['已开张', '正常营业'].includes(String(p.status || ''));
-            const floor = Math.max(0.15, (Number(p.rent || p.monthlyRent) || 0) / 30 * 1.2, (Number(p.staff) || 0) * 0.05);
-            const shown = open ? Math.max(Number(p.incomePerDay) || 0, Math.round(floor * 100) / 100) : 0;
-            return { name: p.name, income: shown, status: p.status || '', staff: p.staff || 0, city: p.city || '' };
+            const open = isPropertyOperational(p);
+            const nominal = getPropertyNominalIncome(p);
+            const shown = open ? Math.max(Number(p.incomePerDay) || 0, nominal) : 0;
+            return { name: p.name, income: Math.round(shown * 100) / 100, status: p.status || '', staff: p.staff || 0, city: p.city || '' };
           }),
-          daily: props.reduce((s, p) => {
-            const open = ['已开张', '正常营业'].includes(String(p.status || ''));
-            const floor = Math.max(0.15, (Number(p.rent || p.monthlyRent) || 0) / 30 * 1.2, (Number(p.staff) || 0) * 0.05);
-            return s + (open ? Math.max(Number(p.incomePerDay) || 0, Math.round(floor * 100) / 100) : 0);
-          }, 0),
+          daily: Math.round(props.reduce((s, p) => {
+            const open = isPropertyOperational(p);
+            const nominal = getPropertyNominalIncome(p);
+            return s + (open ? Math.max(Number(p.incomePerDay) || 0, nominal) : 0);
+          }, 0) * 100) / 100,
         },
         todos: todos
           .map((t) => ({ ...t, overdue: Number(t.day) < (Number(world.clock?.day) || 1) }))

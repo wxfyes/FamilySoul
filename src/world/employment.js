@@ -91,3 +91,83 @@ export function visiblePropertiesOf(world, actorId) {
     return p.owner === id || p.keeper === id;
   });
 }
+
+/**
+ * 产业是否处于正常营运产生收益的状态（单一规范判定）
+ * 包含：正常营业、已开张、正常起航、起航中、营运中、出海中、运营中等
+ * 排除：自住府邸、筹备中、筹建中、未开张、歇业、查封、停业
+ */
+export function isPropertyOperational(prop) {
+  if (!prop) return false;
+  const st = String(prop.status || '').trim();
+  if (['自住府邸', '筹备中', '筹建中', '未开张', '歇业', '查封', '停业'].includes(st)) return false;
+  if (/正常营业|已开张|开张|起航|营运|出海|运营|航行/.test(st)) return true;
+  // 兜底：如果 status 为空但已有 incomePerDay > 0 且不是府邸住宅，视为营业中
+  return Number(prop.incomePerDay) > 0 && !/宅|府邸|后院/.test(String(prop.name || ''));
+}
+
+/**
+ * 产业额定基准日入（单一出处，防缩水与日入稳定性锚点）
+ */
+export function getPropertyNominalIncome(prop) {
+  if (!prop) return 0;
+  const nm = String(prop.name || '');
+  const id = String(prop.id || '');
+
+  // 1. 核心重点产业基准锚定（依据军规大事记与既定契纸）
+  if (id === 'canal_restaurant' || /运河码头三层大酒楼|运河大酒楼/.test(nm)) {
+    return 124.1; // 军规铁律：相公全资盘下盛大开业，日进斗金（日入过百两）
+  }
+  if (id === 'xinyage' || /鑫雅阁/.test(nm)) {
+    return 102.6; // 达官名流清贵雅阁
+  }
+  if (/新铺/.test(nm)) {
+    return 80.7;
+  }
+  if (/王家运河大船队/.test(nm)) {
+    return 43.8; // 旗舰加三艘驳船与二十船工
+  }
+  if (/码头盐铺/.test(nm)) {
+    return 24.5; // 两淮特许官盐专营，暴利商行
+  }
+  if (/运河茶栈/.test(nm)) {
+    return 19.8;
+  }
+  if (/两条货船及船工安家银/.test(nm)) {
+    return 19.1;
+  }
+  if (/码头茶栈/.test(nm)) {
+    return 14.7;
+  }
+  if (/东跨院杂货铺/.test(nm)) {
+    return 14.7;
+  }
+  if (id === 'tea_house' || /临江茶坊老店/.test(nm)) {
+    return 12.4; // 祖传茶坊名点
+  }
+  if (/运河货船/.test(nm)) {
+    return 8.4;
+  }
+  if (id === 'wine_shop' || /于家酒肆/.test(nm)) {
+    return 7.4; // 紫嫣陈酿直供
+  }
+  if (/王记花店/.test(nm)) {
+    return 6.2;
+  }
+  if (/苏州阊门小茶栈/.test(nm)) {
+    return 4.7;
+  }
+  if (/临街花铺/.test(nm)) {
+    return 4.7;
+  }
+  if (/王记粮铺/.test(nm)) {
+    return 4.0;
+  }
+
+  // 2. 泛化保底：已有核定收入或按购入本金的 5% 估算，最低不低于 1.5 两
+  const cur = Number(prop.incomePerDay) || 0;
+  const cost = Number(prop.costSilver) || 0;
+  const base = Number(prop.baseIncome) || 0;
+  return Math.max(cur, base, Math.round(cost * 0.05 * 10) / 10, 1.5);
+}
+
