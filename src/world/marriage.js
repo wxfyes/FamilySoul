@@ -55,7 +55,28 @@ export function ensureMatchmaker(world, cityName) {
   return world.actors[id];
 }
 
-/** 这人能说亲吗 */
+// 核心保护名单：绝对严禁参与民间任何随机拉郎配结亲
+export const PROTECTED_FEMALES = new Set([
+  'waner', 'yunnia', 'yunniang', 'cuiwanning', 'wanning',
+  'yangcaier', 'yangzhenhua', 'yangshenzhi_daughter', 'liuwenxia', 'xiaocui',
+]);
+
+/**
+ * 是否属于受保护的名门千金、官宦闺秀或王家后宅眷属
+ */
+export function isProtectedFemale(world, a) {
+  if (!a) return false;
+  if (PROTECTED_FEMALES.has(a.id)) return true;
+  const nm = String(a.name || '');
+  if (/沈婉儿|林芸娘|崔婉宁|杨采儿|紫嫣|刘文霞|小翠/.test(nm)) return true;
+  if (a.household === true || a.spouse === 'husband') return true;
+  if (a.origin === 'preset') return true;
+  const roleText = String(a.role || '');
+  if (/千金|小姐|闺秀|才女|花魁|花魁娘子|行首|如夫人|大娘子|侧室|妾室|掌柜娘子/.test(roleText)) return true;
+  return false;
+}
+
+/** 这人能说亲吗（民间搭桥） */
 export function isMarriageable(world, a) {
   if (!a || a.dead || a.jailed) return false;
   if (a.spouse) return false;
@@ -65,14 +86,76 @@ export function isMarriageable(world, a) {
   if (a.id === 'husband') return false;
   if (String(a.id).startsWith('usr_')) return false;
 
-  // 严禁核心预设角色与王家眷属参与民间随机拉郎配
-  if (a.origin === 'preset' || a.household === true || a.spouse === 'husband') return false;
-
-  // 严禁千金名门闺秀、花魁才女被市井民间系统私自搭桥婚配（婚配必须走提亲/八抬大轿大礼）
-  const roleText = String(a.role || '');
-  if (/千金|小姐|闺秀|才女|花魁|花魁娘子|行首/.test(roleText)) return false;
+  // 严禁核心千金名门闺秀与后宅内眷参与民间拉郎配
+  if (isProtectedFemale(world, a)) return false;
 
   return true;
+}
+
+/**
+ * 获取相公后宅权威名分谱系（单一真相源）
+ */
+export function getHusbandHouseholdRoster(world) {
+  const roster = [];
+  const marriages = Array.isArray(world?.marriages) ? world.marriages : [];
+  const known = new Set();
+
+  // 1. 沈婉儿：正妻大娘子
+  if (world?.actors?.waner) {
+    roster.push({
+      id: 'waner',
+      name: world.actors.waner.name || '沈婉儿',
+      rank: '正妻·大娘子',
+      role: '主母',
+      location: world.actors.waner.location || 'husband_room',
+    });
+    known.add('waner');
+  }
+
+  // 2. 林芸娘：二房如夫人
+  const yunKey = world?.actors?.yunnia ? 'yunnia' : (world?.actors?.yunniang ? 'yunniang' : null);
+  if (yunKey && world.actors[yunKey]) {
+    roster.push({
+      id: yunKey,
+      name: world.actors[yunKey].name || '林芸娘',
+      rank: '二房·如夫人',
+      role: '掌柜如夫人',
+      location: world.actors[yunKey].location || 'backyard',
+    });
+    known.add(yunKey);
+    known.add('yunnia');
+    known.add('yunniang');
+  }
+
+  // 3. 崔婉宁：明媒纳聘侧室
+  const cuiKey = world?.actors?.cuiwanning ? 'cuiwanning' : (world?.actors?.wanning ? 'wanning' : null);
+  if (cuiKey && world.actors[cuiKey]) {
+    roster.push({
+      id: cuiKey,
+      name: world.actors[cuiKey].name || '崔婉宁',
+      rank: '侧室·名门千金',
+      role: '侧室',
+      location: world.actors[cuiKey].location || 'backyard',
+    });
+    known.add(cuiKey);
+  }
+
+  // 4. 其余已纳之妾
+  for (const m of marriages) {
+    if (!m || !m.who || known.has(m.who)) continue;
+    const a = world.actors?.[m.who];
+    if (!a) continue;
+    roster.push({
+      id: m.who,
+      name: a.name || m.name,
+      rank: m.rank || a.role || '如夫人',
+      role: a.role || '内眷',
+      location: a.location || 'backyard',
+    });
+    known.add(m.who);
+  }
+
+  return roster;
 }
 
 /**

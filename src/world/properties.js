@@ -232,3 +232,4 @@ export function calculateDailyIncome(world, prop) {
   prop.baseIncome = safeBase;
   return gain;
 }
+

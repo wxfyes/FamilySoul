@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { isPropertyOperational, getPropertyNominalIncome, calculateDailyIncome } from '../src/world/properties.js';
+import { isMarriageable, isProtectedFemale, getHusbandHouseholdRoster } from '../src/world/marriage.js';
+import { moveActor, isHumanBound } from '../src/world/position.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +68,36 @@ if (fs.existsSync(milestonesPath)) {
   const has510 = rawText.includes('五百一十两') && rawText.includes('大酒楼');
   assertInvariant(has510, '大事记账本 data/world/milestones.json 必须完整包含 510 两买下运河大酒楼的大事');
 }
+
+// ── 4. 核心女眷保护与民间拉郎配物理阻断断言 ──
+const mockProtectedWorld = {
+  places: { backyard: { name: '后院暖阁' }, husband_room: { name: '正房卧房' }, street: { name: '临江长街' } },
+  actors: {
+    waner: { id: 'waner', name: '沈婉儿', role: '大娘子', gender: 'female', age: 19 },
+    yunnia: { id: 'yunnia', name: '林芸娘', role: '二房如夫人', gender: 'female', age: 18 },
+    yangcaier: { id: 'yangcaier', name: '杨采儿', role: '知府千金', gender: 'female', age: 18 },
+    cuiwanning: { id: 'cuiwanning', name: '崔婉宁', role: '侧室', gender: 'female', age: 19 },
+    peddler: { id: 'npc_peddler', name: '王小二', role: '脚夫', gender: 'male', age: 22 },
+    maid: { id: 'npc_maid', name: '春花', role: '市井民女', gender: 'female', age: 20 },
+    husband: { id: 'husband', name: '王甯', location: 'husband_room' }
+  }
+};
+assertInvariant(!isMarriageable(mockProtectedWorld, mockProtectedWorld.actors.yangcaier), '知府千金杨采儿绝对严禁参与民间搭桥婚配（严禁拉郎配）');
+assertInvariant(!isMarriageable(mockProtectedWorld, mockProtectedWorld.actors.waner), '正妻沈婉儿绝对严禁参与民间搭桥婚配');
+assertInvariant(!isMarriageable(mockProtectedWorld, mockProtectedWorld.actors.yunnia), '二房林芸娘绝对严禁参与民间搭桥婚配');
+assertInvariant(!isMarriageable(mockProtectedWorld, mockProtectedWorld.actors.cuiwanning), '名门侧室崔婉宁绝对严禁参与民间搭桥婚配');
+assertInvariant(isMarriageable(mockProtectedWorld, mockProtectedWorld.actors.maid), '普通市井民女正常允许参与民间结亲');
+
+const householdRoster = getHusbandHouseholdRoster(mockProtectedWorld);
+assertInvariant(householdRoster.some((m) => m.id === 'waner' && m.rank.includes('大娘子')), '后宅谱系必须权威包含正妻沈婉儿');
+assertInvariant(householdRoster.some((m) => m.id === 'yunnia' && m.rank.includes('二房')), '后宅谱系必须权威包含二房林芸娘');
+assertInvariant(householdRoster.some((m) => m.id === 'cuiwanning' && m.rank.includes('侧室')), '后宅谱系必须权威包含侧室崔婉宁');
+
+// ── 5. 真人（相公）物理移动防护断言 ──
+assertInvariant(isHumanBound(mockProtectedWorld, 'husband'), '相公 husband 必须恒等于真人绑定状态');
+const illegalMove = moveActor(mockProtectedWorld, 'husband', 'street', 'world', '系统后台试图挪动');
+assertInvariant(illegalMove.ok === false, '相公绝对拒绝一切后台 world 自动位移，只能由相公界面操作');
+assertInvariant(mockProtectedWorld.actors.husband.location === 'husband_room', '相公位置在非法移动调用后必须保持原状不变');
 
 // ── 4. 总结与退出码 ──
 console.log('');

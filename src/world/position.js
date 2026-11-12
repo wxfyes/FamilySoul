@@ -22,6 +22,7 @@ function humanBoundSet(world) {
 }
 
 export function isHumanBound(world, actorId) {
+  if (actorId === 'husband') return true;
   return humanBoundSet(world).has(String(actorId));
 }
 
@@ -64,6 +65,12 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   const a = world?.actors?.[actorId];
   if (!a || a.dead) return { ok: false, error: '没有这个人' };
   if (!placeId || !world.places?.[placeId]) return { ok: false, error: '没有这个地点' };
+
+  // 最高军规铁律：相公（husband）乃天命第一男主角，任何后台世界逻辑 ('world') 绝对严禁搬动相公，只能由用户在界面显式操作 ('ui')！
+  if (actorId === 'husband' && reason !== 'ui') {
+    return { ok: false, error: '相公真人角色绝不接受世界自动位移' };
+  }
+
   // 单一入口铁律：私密寝室（正房/东跨院/西厢房）仅限相公与内宅妻妾；外人与下人（伙计/家丁/护院）无相公特召一律阻断或引至门房/茶坊
   try {
     const destPlace = world.places[placeId];
