@@ -163,11 +163,57 @@ export function healWorld(world) {
     }
   }
 
-  // ⑧ 记忆里空文本
+  // ⑧ 记忆净化与去重（消除前20字符重复的陈旧记忆）
   if (Array.isArray(world.memories)) {
     const before = world.memories.length;
     world.memories = world.memories.filter((m) => m && String(m.text || '').trim());
-    if (world.memories.length !== before) fixes.push(`清理 ${before - world.memories.length} 条空记忆`);
+    const seenMem = new Map();
+    const dedupedMem = [];
+    let dupCount = 0;
+    for (const m of world.memories) {
+      const key = String(m.text || '').trim().slice(0, 20);
+      if (seenMem.has(key)) {
+        dupCount += 1;
+        const old = seenMem.get(key);
+        if (String(m.text || '').length > String(old.text || '').length) {
+          const idx = dedupedMem.indexOf(old);
+          if (idx !== -1) dedupedMem[idx] = m;
+          seenMem.set(key, m);
+        }
+      } else {
+        seenMem.set(key, m);
+        dedupedMem.push(m);
+      }
+    }
+    world.memories = dedupedMem;
+    if (dupCount > 0) fixes.push(`记忆去重：清理并合并 ${dupCount} 条重复记忆`);
+  }
+
+  // ⑧.1 地点归属自愈（酒楼、院落子房间继承 owner，公共设施补齐 public 属性）
+  if (world.places && typeof world.places === 'object') {
+    for (const [id, p] of Object.entries(world.places)) {
+      if (!p) continue;
+      // 公共场所补齐 public
+      if (/长街|街|码头|城门|公堂|牢|大牢|衙门|寺|桥|驿站|客栈大堂|集市|市井/.test(p.name || id)) {
+        if (!p.public) p.public = true;
+        continue;
+      }
+      // 大酒楼子房间归属相公
+      if (id.startsWith('place_44__') || p.parent === 'place_44') {
+        if (!p.owner) { p.owner = 'husband'; fixes.push(`地点归属：补全大酒楼房间「${p.name || id}」归相公`); }
+        continue;
+      }
+      // 鑫雅阁子房间归属苏迎雪
+      if (id.startsWith('res_xinyage__') || p.parent === 'res_xinyage') {
+        if (!p.owner) { p.owner = world.places.res_xinyage?.owner || 'suyingxue'; fixes.push(`地点归属：补全鑫雅阁房间「${p.name || id}」归苏迎雪`); }
+        continue;
+      }
+      // 通用父地点继承
+      if (p.parent && world.places[p.parent]?.owner && !p.owner) {
+        p.owner = world.places[p.parent].owner;
+        fixes.push(`地点归属：补全「${p.name || id}」归属 ${p.owner}`);
+      }
+    }
   }
 
   // ⑨ 居所不变量守护：随科与静儿的家为随家小院，绝不可将县衙当作家

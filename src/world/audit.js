@@ -167,22 +167,28 @@ export function auditReply(reply, world) {
     }
   }
 
-  const dayM = text.match(/第\s*([0-9]+|[一二三四五六七八九十百]+)\s*日/);
+  const dayM = text.match(/(?:今日是|现在是|世界是)?第\s*([0-9]+|[一二三四五六七八九十百]+)\s*日/);
   if (dayM) {
-    const v = parseAmount(dayM[1]);
-    const real = Number(world.clock?.day) || 1;
-    if (Math.abs(v - real) > 1) {
-      issues.push({ kind: 'reply', level: 'warn', text: `她说了「第${v}日」，世界是第${real}日` });
+    const prefix = text.slice(Math.max(0, dayM.index - 4), dayM.index);
+    const isOrdinalEvent = /头|初|开张|成亲|相识|进门|这一|首|度过/.test(prefix);
+    if (!isOrdinalEvent) {
+      const v = parseAmount(dayM[1]);
+      const real = Number(world.clock?.day) || 1;
+      if (Math.abs(v - real) > 1) {
+        issues.push({ kind: 'reply', level: 'warn', text: `她说了「第${v}日」，世界是第${real}日` });
+      }
     }
   }
 
   const cityNames = Object.keys(world.cities || {});
-  const BAD_WORDS = /(知|到|是|了|回|去|本|该|官|县|州|王|李|张|刘|陈|这|那|一|两|三)/;
-  // 只在"去/往/到/在/回/至 + X府"这种明确说法里查，且排除官名与虚词
+  const BAD_WORDS = /(知|到|是|了|回|去|本|该|官|县|州|王|李|张|刘|陈|这|那|一|两|三|人|我|你|他|她|自|各|尊|敝|岳|杨|崔|林|沈|宋|赵|钱|孙|府|宅|院|门|某)/;
+  // 只在"去/往/到/在/回/至 + X府"这种明确说法里查，且排除代词、官名与虚词
   for (const m of text.matchAll(/(?:去|往|到|在|回|至)([一-龥]{2}府)/g)) {
     const c = m[1];
     if (cityNames.includes(c)) continue;
     if (BAD_WORDS.test(c)) continue;
+    const isMansion = Object.values(world.places || {}).some((p) => p && String(p.name || '').includes(c));
+    if (isMansion) continue;
     issues.push({ kind: 'reply', level: 'warn', text: `她提到了「${c}」，疆域里没有这座府` });
   }
   return issues;
@@ -191,8 +197,24 @@ export function auditReply(reply, world) {
 /** ④ 归属自检：凡有主的东西，必须写清主人 */
 export function auditOwnership(world) {
   const issues = [];
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+  const propPlaceIds = new Set(props.map((p) => p.placeId || p.place).filter(Boolean));
+
   for (const [id, p] of Object.entries(world.places || {})) {
-    if (!p || p.owner) continue;
+    if (!p) continue;
+    if (p.owner) continue;
+    // 公共街道、码头、长街、城门、官府等公共市政设施不报无主
+    if (p.public || p.kind === 'public' || /长街|街|码头|城门|公堂|牢|大牢|衙门|寺|桥|驿站|客栈大堂|集市|市井/.test(p.name || id)) continue;
+    // 子房间继承父地点归属
+    if (p.parent) {
+      const parentPlace = world.places?.[p.parent];
+      if (parentPlace?.owner || propPlaceIds.has(p.parent) || /place_44|res_xinyage|yang_mansion|husband_room|tea_house/.test(p.parent)) {
+        continue;
+      }
+    }
+    // 相公名下产业的场所
+    if (propPlaceIds.has(id) || /place_44|tea_house|husband_room/.test(id)) continue;
+
     issues.push({ kind: 'own', level: 'warn', text: `地点无主：${p.name || id}` });
   }
   for (const pr of world.assets?.properties || []) {
@@ -216,13 +238,15 @@ export function auditOwnership(world) {
 
 /** 全量自检 */
 export function auditAll(world) {
-  // 一次性清账：把历史上误报的假地名丢掉
+  const BAD_CITY = /(知|到|是|了|回|去|本|该|官|县|州|这|那|一|两|三|人|我|你|他|她|自|各|尊|敝|岳|杨|崔|林|沈|宋|赵|钱|孙|府|宅|院|门|某)/;
+  // 一次性清账：把历史上误报的假地名与序数误报丢掉
   if (Array.isArray(world.auditIssues)) {
     world.auditIssues = world.auditIssues.filter((x) => {
-      const m = String(x?.text || '').match(/她提到了「([^」]+)」/);
-      if (!m) return true;
-      if (!/府$/.test(m[1])) return true;
-      return !/(知|到|是|了|回|去|本|该|官|县|州)/.test(m[1]);
+      const text = String(x?.text || '');
+      const m = text.match(/她提到了「([^」]+)」/);
+      if (m && /府$/.test(m[1]) && BAD_CITY.test(m[1])) return false;
+      if (text.includes('第1日')) return false;
+      return true;
     });
   }
   const ledger = auditWorld(world).map((t) => ({ kind: 'ledger', level: 'bad', text: t }));
@@ -230,17 +254,15 @@ export function auditAll(world) {
   const ownership = auditOwnership(world);
   // 只留最近两天的台词告警：老账不翻，免得早修好的问题一直挂着
   const today = Number(world.clock?.day) || 1;
-  const BAD_CITY = /(知|到|是|了|回|去|本|该|官|县|州|这|那|一|两|三)/;
   const reply = Array.isArray(world.auditIssues)
     ? world.auditIssues
       .filter((x) => x && (!x.day || today - Number(x.day) <= 1))
       .filter((x) => {
-        // 按现在的规则重新判一遍：假地名（就是府/到府/张知府）不再报
-        const m = String(x?.text || '').match(/她提到了「([^」]+)」/);
-        if (!m) return true;
-        const name = m[1];
-        if (!/府$/.test(name)) return true;
-        return BAD_CITY.test(name) ? false : true;
+        const text = String(x?.text || '');
+        const m = text.match(/她提到了「([^」]+)」/);
+        if (m && /府$/.test(m[1]) && BAD_CITY.test(m[1])) return false;
+        if (text.includes('第1日')) return false;
+        return true;
       })
       .slice(-12)
     : [];

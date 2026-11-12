@@ -120,7 +120,14 @@ export function addMemory(world, { text, about = [], visible = 'private', kind =
   const t = String(text || '').trim().slice(0, 160);
   if (!t) return null;
   world.memories = Array.isArray(world.memories) ? world.memories : [];
-  if (world.memories.some((m) => m && String(m.text || '').trim() === t)) return null;
+  const key20 = t.slice(0, 20);
+  if (world.memories.some((m) => {
+    if (!m?.text) return false;
+    const mt = String(m.text).trim();
+    return mt === t || (key20.length >= 12 && mt.startsWith(key20));
+  })) {
+    return null;
+  }
   const resolvedKind = /^新面孔入城/.test(t) ? 'notice' : String(kind || 'event');
   const rec = {
     ...(id ? { id } : {}),
