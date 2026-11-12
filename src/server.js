@@ -1814,6 +1814,17 @@ const server = http.createServer(async (req, res) => {
           }
         } catch { /* 忽略 */ }
 
+        // 说的是人（如“去找杨采儿”）：先换成她此刻所在的地方，再由地点与门禁决定能不能进
+        {
+          const meName = String((world.actors?.[actorId] || world.actors?.husband)?.name || '');
+          const person = Object.values(world.actors || {}).find(
+            (a) => a && !a.dead && a.name && a.name !== meName && (a.name === target || target.includes(a.name)),
+          );
+          if (person) {
+            target = person.location || person.home || target;
+          }
+        }
+
         // 说的是本城某个地方（集市/客栈/米行…）：先在本城找，不要跑到临江去
         try {
           const labelOf2 = (nm) => {
@@ -1830,52 +1841,37 @@ const server = http.createServer(async (req, res) => {
             if (exactPl) {
               target = exactPl[0];
             } else {
-              const alreadyCity = /府|州|县/.test(String(target));
-              if (!alreadyCity) {
-                const hit = Object.entries(world.places || {}).find(([, pl]) => pl && pl.name
-                  && labelOf2(pl.name) === myCity2 && (String(pl.name).includes(target) || target.includes(String(pl.name).split('·').pop())));
-                if (hit) target = hit[0];
+              // 遍历所有宅院/产业下的 rooms 子房间（支持如 "杨府·中堂大厅"、"中堂大厅"、"临波后花园" 等）
+              let roomMatched = false;
+              for (const [pid, pl] of Object.entries(world.places || {})) {
+                if (!pl || !pl.rooms) continue;
+                for (const [k, rec] of Object.entries(pl.rooms)) {
+                  if (!rec || !rec.name) continue;
+                  const fullName = `${String(pl.name || '').split('·').pop()}·${rec.name}`;
+                  const fullWithCity = `${pl.name}·${rec.name}`;
+                  if (rec.name === target || fullName === target || fullWithCity === target || rec.id === target) {
+                    const { materializeRoom } = await import('./world/residence.js');
+                    const made = materializeRoom(world, pid, k);
+                    target = (made && world.places?.[made]) ? made : (rec.id || target);
+                    roomMatched = true;
+                    break;
+                  }
+                }
+                if (roomMatched) break;
+              }
+              if (!roomMatched) {
+                const alreadyCity = /府|州|县/.test(String(target));
+                if (!alreadyCity) {
+                  const hit = Object.entries(world.places || {}).find(([, pl]) => pl && pl.name
+                    && labelOf2(pl.name) === myCity2 && (String(pl.name).includes(target) || target.includes(String(pl.name).split('·').pop())));
+                  if (hit) target = hit[0];
+                }
               }
             }
           }
         } catch { /* 忽略 */ }
 
-        // 说的是人（去找王甯）：先换成他此刻所在的地方，再由门禁决定能不能进
-        {
-          const meName = String((world.actors?.[actorId] || world.actors?.husband)?.name || '');
-          const person = Object.values(world.actors || {}).find(
-            (a) => a && !a.dead && a.name && a.name !== meName && (a.name === target || target.includes(a.name)),
-          );
-          if (person && world.places?.[person.location]) target = person.location;
-        }
-        // 叫门：要去的是别人的内院，先在门口递帖，允了才进
-        let knockLine = '';
-        {
-          const dest = world.places?.[target];
-          const home = dest ? residenceOf(world, dest.id) : null;
-          const gateId0 = home?.rooms?.gate?.id || null;
-          if (home && String(home.owner || '') !== actorId && target !== gateId0) {
-            const verdict = knock(world, actorId, home.id);
-            if (!verdict.allowed) {
-              // 门房拦住：直接落在大门，把门房的话原样回给相公
-              const gateId = world.places?.[home.id]?.rooms?.gate?.id || home.id;
-              try { moveActor(world, actorId, gateId, 'world', '叩门被拦'); saveState(DATA_DIR, world); } catch { /* 忽略 */ }
-              const gateName = world.places?.[gateId]?.name || '';
-              return sendJson(res, 200, {
-                ok: true,
-                applied: false,
-                denied: true,
-                place: gateName,
-                line: `（${verdict.reason}）你到了「${gateName}」，门房没让进。`,
-              });
-            } else {
-              grantPass(world, actorId, home.id, world.clock?.day);
-              if (verdict.place) target = verdict.place;
-              knockLine = `（${verdict.reason}）`;
-            }
-          }
-        }
-        // 目标若是尚未展开的房间 id（如 yang_mansion__hall），先落地；落不了就退回父地点
+        // 目标若是尚未展开的房间 id（如 yang_mansion__hall），在门禁检查前先行实体化落地！
         try {
           if (target && !world.places?.[target] && String(target).includes('__')) {
             const [parentId, roomKey] = String(target).split('__');
@@ -1885,6 +1881,36 @@ const server = http.createServer(async (req, res) => {
             console.log(`[Go] 房间实体落地：${target}`);
           }
         } catch { /* 忽略 */ }
+
+        // 叫门：要去的是别人的内院，先在门口递帖，允了才进
+        let knockLine = '';
+        {
+          const dest = world.places?.[target];
+          const destId = dest?.id || target;
+          const home = dest ? residenceOf(world, destId) : null;
+          const homeId = home?.id || (Object.entries(world.places || {}).find(([, pl]) => pl === home)?.[0]) || null;
+          const gateId0 = home?.rooms?.gate?.id || null;
+          if (home && homeId && String(home.owner || '') !== actorId && target !== gateId0) {
+            const verdict = knock(world, actorId, homeId);
+            if (!verdict.allowed) {
+              // 门房拦住：直接落在大门，把门房的话原样回给相公
+              const gateId = world.places?.[homeId]?.rooms?.gate?.id || homeId;
+              try { moveActor(world, actorId, gateId, 'world', '叩门被拦'); saveState(DATA_DIR, world); } catch { /* 忽略 */ }
+              const gateName = world.places?.[gateId]?.name || (home.name ? `${home.name}·大门` : '大门');
+              return sendJson(res, 200, {
+                ok: true,
+                applied: false,
+                denied: true,
+                place: gateName,
+                line: `（${verdict.reason}）你到了「${gateName}」，门房没让进。`,
+              });
+            } else {
+              grantPass(world, actorId, homeId, world.clock?.day);
+              if (verdict.place) target = verdict.place;
+              knockLine = `（${verdict.reason}）`;
+            }
+          }
+        }
         const intent = {
           id: `ui_go_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           actor: actorId, verb: 'MOVE', target, companions: [],

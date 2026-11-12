@@ -21,16 +21,27 @@ const num = (v) => {
 export function residenceOf(world, placeId) {
   let p = world?.places?.[placeId];
   if (!p) return null;
-  if (p.residence) return p;
+  if (p.residence) {
+    if (!p.id) p.id = placeId;
+    return p;
+  }
   let guard = 0;
   while (p && p.parent && guard < 4) {
-    const parent = world.places?.[p.parent];
+    const parentKey = p.parent;
+    const parent = world.places?.[parentKey];
     if (!parent) break;
-    if (parent.residence) return parent;
+    if (parent.residence) {
+      if (!parent.id) parent.id = parentKey;
+      return parent;
+    }
     p = parent;
     guard += 1;
   }
-  return p && p.residence ? p : null;
+  if (p && p.residence) {
+    if (!p.id) p.id = placeId;
+    return p;
+  }
+  return null;
 }
 
 /** 这门亲不亲：本家、姻亲、老交情，各有各的待遇 */
@@ -39,15 +50,33 @@ export function relationTo(world, ownerId, visitorId) {
   if (ownerId === visitorId) return { trust: 100, kin: true };
   const owner = world.actors?.[ownerId];
   const visitor = world.actors?.[visitorId];
-  const kin = Boolean(
+  let kin = Boolean(
     (owner && visitor && (owner.spouse === visitorId || visitor.spouse === ownerId))
     || (visitor?.household && owner?.household)
     || (Array.isArray(visitor?.relations?.[ownerId]?.tags) && visitor.relations[ownerId].tags.includes('kin')),
   );
-  const trust = Math.max(
+  let trust = Math.max(
     num(visitor?.relations?.[ownerId]?.trust),
     num(owner?.relations?.[visitorId]?.trust),
   );
+
+  // 家族眷属亲情连带：相公访友时，若宅中千金/眷属与相公互许心意（如知府千金杨采儿与相公信任90），信任与亲缘连通
+  if (visitorId === 'husband' && owner) {
+    const daughterId = owner.daughter;
+    if (daughterId && world.actors?.[daughterId]) {
+      const d = world.actors[daughterId];
+      const dTrust = Math.max(num(visitor?.relations?.[daughterId]?.trust), num(d?.relations?.[visitorId]?.trust));
+      if (dTrust > trust) trust = dTrust;
+      if (dTrust >= 60) kin = true;
+    }
+    const fatherId = owner.father;
+    if (fatherId && world.actors?.[fatherId]) {
+      const f = world.actors[fatherId];
+      const fTrust = Math.max(num(visitor?.relations?.[fatherId]?.trust), num(f?.relations?.[visitorId]?.trust));
+      if (fTrust > trust) trust = fTrust;
+    }
+  }
+
   return { trust, kin };
 }
 

@@ -1,5 +1,6 @@
 import { trimMemories } from './memory.js';
-﻿import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
+import { ensureResidence } from './residence.js';
+import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -726,6 +727,24 @@ export function healWorld(world) {
     console.warn('[Heal] 杨采儿正名自愈异常：', err.message);
   }
 
+  // ㉕ 杨府（知府私宅）等第七进自愈与门禁房间健全
+  try {
+    world.places = world.places || {};
+    if (!world.places.yang_mansion) {
+      world.places.yang_mansion = { name: '杨府', exits: ['street'], owner: 'yangzhenhua', city: '临江府' };
+    }
+    const yangMansion = world.places.yang_mansion;
+    yangMansion.id = 'yang_mansion';
+    yangMansion.name = '杨府';
+    yangMansion.owner = yangMansion.owner || 'yangzhenhua';
+    yangMansion.city = yangMansion.city || '临江府';
+    ensureResidence(world, 'yang_mansion', { grade: 7, ownerId: yangMansion.owner });
+    yangMansion.residence = true;
+    fixes.push('私宅自愈：杨府确立为七进显贵名门私宅，门禁房间齐备');
+  } catch (err) {
+    console.warn('[Heal] 杨府私宅自愈异常：', err.message);
+  }
+
   // ㉔ 临江知府杨慎之大人实体人物自愈、官职归正与父女羁绊自愈（彻底取消杨振华名字）
   try {
     world.actors = world.actors || {};
@@ -817,6 +836,11 @@ export function healWorld(world) {
       caier.father = 'yangshenzhi';
       caier.family = caier.family || {};
       caier.family.father = 'yangshenzhi';
+      caier.home = 'yang_mansion';
+      if (!caier.location) {
+        caier.location = 'yang_mansion';
+        fixes.push('人物归位：知府千金杨采儿归位杨府');
+      }
       caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
 
       // 纠正知府千金被市井脚夫误结夫妻的荒唐乌龙
