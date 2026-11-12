@@ -7,6 +7,8 @@ import { arcViewFor } from './arcs.js';
 import { describeScene } from './scene.js';
 import { recentActivities } from './actors.js';
 import { recallMemories } from './memory.js';
+import { getHusbandOfficialInfo, ensureOfficialCredentials } from './items.js';
+import { isSameLocation } from './position.js';
 
 function money(assets) {
   const parts = [];
@@ -117,6 +119,8 @@ function describeEvent(e) {
 export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband', viewer = null } = {}) {
   try {
     const world = loadState(dataDir);
+    try { ensureOfficialCredentials(world); } catch { /* 忽略 */ }
+    const offInfo = getHusbandOfficialInfo(world);
     const lines = [];
 
     // ── 真人扮演某个世界里的人物：只给她自己该知道的视角 ──
@@ -133,14 +137,15 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       lines.push(`【所在】${placeV}`);
       // 同处的人（不透露别人对你的好感数值，只给人名与身份）
       const othersV = Object.values(world.actors || {}).filter(
-        (a) => a && a.id !== viewer && a.id !== 'husband' && a.kind !== 'human' && a.location === meV.location,
+        (a) => a && a.id !== viewer && a.id !== 'husband' && a.kind !== 'human' && isSameLocation(a.location, meV.location),
       );
-      const husbandHere = world.actors?.husband?.location === meV.location;
+      const husbandHere = isSameLocation(world.actors?.husband?.location, meV.location);
       const spouseV = Object.values(world.actors || {}).find(
         (x) => x && x.id !== viewer && x.id !== 'husband' && x.gender === 'male' && x.home && meV.home && x.home === meV.home,
       );
+      const husTitleV = offInfo.hasOffice ? `${offInfo.rank}·${offInfo.highestTitle}、临江王家大东家` : '临江茶坊少掌柜';
       const presentNames = [
-        ...(husbandHere ? ['王甯（临江茶坊少掌柜，与她相好）'] : []),
+        ...(husbandHere ? [`王甯（${husTitleV}，与她相好）`] : []),
         ...othersV.map((a) => {
           const isSpouse = spouseV && a.id === spouseV.id;
           return `${a.name}（${a.role || ''}${isSpouse ? '·她的丈夫' : ''}）`;
@@ -177,10 +182,13 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
       if (myMem.length) lines.push(`【你记得的旧事（铁证事实，绝不可忘）】${myMem.join('；')}`);
       // 她认得的人：至少有相公/东家这一层关系，别装作不认识
       try {
-                if (viewer === 'liuwenxia') {
-          lines.push('【你认得的人】你的正牌丈夫是「于子归」（营造行工头，你叫他相公/当家的/子归）；王甯只是临江茶坊少东家，是你的地下相好（私下往来，有人叫「王掌柜」「王甯」说的是他，但王甯绝不是你的相公！）。');
+        const husDesc = offInfo.hasOffice
+          ? `朝廷兵部实授「${offInfo.rank}·${offInfo.highestTitle}」（手握兵部正式告身敕牒与紫金虎符官印，满城官民皆知），兼临江茶坊与运河大酒楼大东家`
+          : '临江茶坊少东家';
+        if (viewer === 'liuwenxia') {
+          lines.push(`【你认得的人】你的正牌丈夫是「于子归」（营造行工头，你叫他相公/当家的/子归）；王甯是${husDesc}，是你的地下相好（私下往来，有人叫「王都司」「王掌柜」「王甯」说的是他，但王甯绝不是你的正牌丈夫！）。`);
         } else {
-          lines.push('【你认得的人】王甯（相公，临江茶坊少东家）——有人叫「王掌柜」「王甯」，说的就是他。');
+          lines.push(`【你认得的人】王甯（相公，${husDesc}）——有人叫「王都司」「王大人」「王掌柜」「王甯」，说的就是他。`);
         }
       } catch {
         /* 忽略 */
@@ -275,12 +283,18 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         );
       }
       lines.push('【明媒妻妾】正妻 沈婉儿（掌中馈大娘子，契约正配）、二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室）；名分早定，全府上下人尽皆知，绝不可说“还没定名分/张罗名分”。');
+      if (offInfo.hasOffice) {
+        const troopsTotal = Number(world.factions?.wangjia?.troops) || Number(world.military?.army) || 250;
+        lines.push(
+          `【相公朝廷官身与武勋文凭（满城官民皆知·铁定事实）】相公王甯已率部剿平 ${offInfo.quelled} 股巨寇，获朝廷兵部武选司正式核发勘合文书，实授「${offInfo.rank}·${offInfo.highestTitle}」（历任：${offInfo.allTitles.join('、')}），钦颁《兵部武选司·${offInfo.highestTitle}实授敕牒》与《${offInfo.highestTitle}·紫金虎符与官印》均随身佩带入册，统领麾下精兵 ${troopsTotal} 人！绝非白身纯商人，更非口头应承虚衔！合城知府、知县、书吏、差役、商帮、百姓人尽皆知，下级官吏差役见之须执下属礼尊称「王都司 / 都司大人」，商绅百姓敬称「王都司 / 都司老爷 / 大东家」，绝对严禁任何角色装作不知其官身或索要所谓上任文书！`,
+        );
+      }
     } catch {
       /* 忽略 */
     }
 
     const presentActors = Object.values(world.actors || {})
-      .filter((a) => a && a.id !== 'husband' && a.kind !== 'human' && a.location === here && !SERVANT_IDS.has(a.id));
+      .filter((a) => a && a.id !== 'husband' && a.kind !== 'human' && isSameLocation(a.location, here) && !SERVANT_IDS.has(a.id));
     const present = presentActors.map(relationLine).filter(Boolean);
     if (present.length > 0) {
       lines.push(`【在场】${present.join('、')}`);

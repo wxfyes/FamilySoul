@@ -2320,6 +2320,9 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (ctx) => InventorySheet(
         api: provider.api,
         onAction: (line) {
+          if (line.trim().isNotEmpty) {
+            provider.addLocalNarrative(line);
+          }
           _refreshPlace();
         },
       ),

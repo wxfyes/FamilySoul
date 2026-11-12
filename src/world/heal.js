@@ -1,7 +1,9 @@
-import { trimMemories } from './memory.js';
+import { trimMemories, addMemory } from './memory.js';
 import { ensureResidence } from './residence.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
+import { ensureOfficialCredentials, getHusbandOfficialInfo } from './items.js';
+import { ensureActiveBanditWaves } from './bandits.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -163,57 +165,11 @@ export function healWorld(world) {
     }
   }
 
-  // ⑧ 记忆净化与去重（消除前20字符重复的陈旧记忆）
+  // ⑧ 记忆里空文本
   if (Array.isArray(world.memories)) {
     const before = world.memories.length;
     world.memories = world.memories.filter((m) => m && String(m.text || '').trim());
-    const seenMem = new Map();
-    const dedupedMem = [];
-    let dupCount = 0;
-    for (const m of world.memories) {
-      const key = String(m.text || '').trim().slice(0, 20);
-      if (seenMem.has(key)) {
-        dupCount += 1;
-        const old = seenMem.get(key);
-        if (String(m.text || '').length > String(old.text || '').length) {
-          const idx = dedupedMem.indexOf(old);
-          if (idx !== -1) dedupedMem[idx] = m;
-          seenMem.set(key, m);
-        }
-      } else {
-        seenMem.set(key, m);
-        dedupedMem.push(m);
-      }
-    }
-    world.memories = dedupedMem;
-    if (dupCount > 0) fixes.push(`记忆去重：清理并合并 ${dupCount} 条重复记忆`);
-  }
-
-  // ⑧.1 地点归属自愈（酒楼、院落子房间继承 owner，公共设施补齐 public 属性）
-  if (world.places && typeof world.places === 'object') {
-    for (const [id, p] of Object.entries(world.places)) {
-      if (!p) continue;
-      // 公共场所补齐 public
-      if (/长街|街|码头|城门|公堂|牢|大牢|衙门|寺|桥|驿站|客栈大堂|集市|市井/.test(p.name || id)) {
-        if (!p.public) p.public = true;
-        continue;
-      }
-      // 大酒楼子房间归属相公
-      if (id.startsWith('place_44__') || p.parent === 'place_44') {
-        if (!p.owner) { p.owner = 'husband'; fixes.push(`地点归属：补全大酒楼房间「${p.name || id}」归相公`); }
-        continue;
-      }
-      // 鑫雅阁子房间归属苏迎雪
-      if (id.startsWith('res_xinyage__') || p.parent === 'res_xinyage') {
-        if (!p.owner) { p.owner = world.places.res_xinyage?.owner || 'suyingxue'; fixes.push(`地点归属：补全鑫雅阁房间「${p.name || id}」归苏迎雪`); }
-        continue;
-      }
-      // 通用父地点继承
-      if (p.parent && world.places[p.parent]?.owner && !p.owner) {
-        p.owner = world.places[p.parent].owner;
-        fixes.push(`地点归属：补全「${p.name || id}」归属 ${p.owner}`);
-      }
-    }
+    if (world.memories.length !== before) fixes.push(`清理 ${before - world.memories.length} 条空记忆`);
   }
 
   // ⑨ 居所不变量守护：随科与静儿的家为随家小院，绝不可将县衙当作家
@@ -1058,6 +1014,50 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 酒楼人物自愈异常：', err.message);
+  }
+
+  // ⑮ 相公朝廷武勋正式文书凭证（兵部告身敕牒 + 虎符官印）入随身行囊与大事记自愈
+  try {
+    const newCreds = ensureOfficialCredentials(world);
+    if (newCreds && newCreds.length > 0) {
+      fixes.push(`核发朝廷正式文书官印入随身行囊：${newCreds.map((c) => `《${c.name}》`).join('、')}`);
+    }
+    const offInfo = getHusbandOfficialInfo(world);
+    if (offInfo.hasOffice) {
+      world.milestones = Array.isArray(world.milestones) ? world.milestones : [];
+      const msTitle = `【朝廷叙功实授·${offInfo.highestTitle}】`;
+      if (!world.milestones.some((m) => String(m).includes(offInfo.highestTitle))) {
+        world.milestones.push(`${msTitle}王甯屡平巨寇（累计剿平 ${offInfo.quelled} 股），朝廷兵部武选司核发正式《告身敕牒》与《虎符官印》，实授「${offInfo.rank}·${offInfo.highestTitle}」，统兵镇守一方，满城官绅百姓莫不钦服。`);
+        fixes.push(`大事记补录：${msTitle}`);
+      }
+      const hasMem = (world.memories || []).some((m) => m && String(m.text || '').includes(offInfo.highestTitle) && /敕牒|虎符|兵部/.test(String(m.text || '')));
+      if (!hasMem) {
+        addMemory(world, {
+          text: `朝廷兵部武选司叙剿匪大功，正式下达勘合敕牒与紫金虎符官印，实授相公王甯为「${offInfo.rank}·${offInfo.highestTitle}」（历任：${offInfo.allTitles.join('、')}），文书官印均随身佩带，全城官吏商民人尽皆知。`,
+          about: ['husband', 'waner', 'yangshenzhi', 'yangzhenhua'],
+          visible: 'public',
+          kind: 'major',
+          day: Number(world.clock?.day) || 1,
+        });
+        fixes.push(`长期记忆补录：朝廷实授${offInfo.highestTitle}敕牒与虎符`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 官凭敕牒自愈异常：', err.message);
+  }
+
+  // ⑯ 江淮多波次匪患常备补充（确保相公随时有多股匪患可出征讨伐、立功升官）
+  try {
+    if (Object.keys(world.cities || {}).length >= 3 && Object.keys(world.bandits || {}).length < 5) {
+      const beforeCount = Object.keys(world.bandits || {}).length;
+      ensureActiveBanditWaves(world, 5);
+      const afterCount = Object.keys(world.bandits || {}).length;
+      if (afterCount > beforeCount) {
+        fixes.push(`江淮匪患涌现：补充 ${afterCount - beforeCount} 股流寇山匪（现存 ${afterCount} 股可供出征立功）`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 匪患补充异常：', err.message);
   }
 
   return fixes;

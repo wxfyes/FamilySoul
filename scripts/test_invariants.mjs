@@ -136,6 +136,43 @@ const mockYangMansion = {
 const knockRes = knock(mockYangMansion, 'husband', 'yang_mansion');
 assertInvariant(knockRes.allowed === true, '相公拜访杨府必须被门房恭敬迎入中堂，绝不可被拒之门外');
 
+// ── 9. 朝廷武勋正式文书官印入随身行囊与多波次匪患不变量 ──
+const { ensureOfficialCredentials, getHusbandOfficialInfo, itemsOf, showItem } = await import('../src/world/items.js');
+const { ensureActiveBanditWaves } = await import('../src/world/bandits.js');
+const mockOffWorld = {
+  clock: { day: 25, hour: 10 },
+  court: {
+    offices: {
+      tuanlian: { holder: 'husband', title: '临江府乡勇团练使' },
+      shoubei: { holder: 'husband', title: '临江府守备' },
+      dusi: { holder: 'husband', title: '临江府都司' },
+    },
+  },
+  cities: {
+    临江府: { name: '临江府', region: '江南道' },
+    扬州府: { name: '扬州府', region: '淮南道' },
+    苏州府: { name: '苏州府', region: '江南道' },
+    淮安府: { name: '淮安府', region: '淮南道' },
+  },
+  actors: {
+    husband: { id: 'husband', name: '王甯' },
+    clerk: { id: 'clerk', name: '钱书办', relations: { husband: { trust: 50 } } },
+  },
+  items: [],
+  bandits: {},
+};
+ensureOfficialCredentials(mockOffWorld);
+const offInfoTest = getHusbandOfficialInfo(mockOffWorld);
+const husItemsTest = itemsOf(mockOffWorld, 'husband');
+assertInvariant(offInfoTest.hasOffice && offInfoTest.highestTitle === '临江府都司', '相公官职信息必须准确识别最高实授官衔「临江府都司」');
+assertInvariant(husItemsTest.some((it) => it.name.includes('临江府都司实授敕牒') && it.kind === '敕牒'), '相公随身行囊必须核发正式《兵部武选司·临江府都司实授敕牒》');
+assertInvariant(husItemsTest.some((it) => it.name.includes('紫金虎符与官印') && it.kind === '官印'), '相公随身行囊必须核发正式《临江府都司·紫金虎符与官印》');
+const sealItem = husItemsTest.find((it) => it.kind === '官印');
+const showRes = showItem(mockOffWorld, 'husband', 'clerk', sealItem.id);
+assertInvariant(showRes.ok && showRes.trustDelta >= 8 && showRes.line.includes('朝廷命官'), '相公当众亮出虎符官印必须展现朝廷命官威仪并提升在场者敬畏信任');
+ensureActiveBanditWaves(mockOffWorld, 5);
+assertInvariant(Object.keys(mockOffWorld.bandits).length >= 5, '江淮匪患池必须常备至少 5 波不同阶位匪患供相公出征立功升官');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

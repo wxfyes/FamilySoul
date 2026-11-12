@@ -425,6 +425,8 @@ class _InventorySheetState extends State<InventorySheet> {
         final name = it['name']?.toString() ?? '未知宝物';
         final kind = it['kind']?.toString() ?? '杂物';
         final note = it['note']?.toString() ?? '';
+        final isOfficial = kind == '官印' || kind == '敕牒';
+        final isNonGiftable = isOfficial || kind == '契纸';
 
         return Container(
           padding: const EdgeInsets.all(12),
@@ -432,7 +434,9 @@ class _InventorySheetState extends State<InventorySheet> {
             color: isDark ? const Color(0xFF1B1E28) : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+              color: isOfficial
+                  ? const Color(0xFFF59E0B).withValues(alpha: 0.45)
+                  : (isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0)),
             ),
           ),
           child: Row(
@@ -441,10 +445,16 @@ class _InventorySheetState extends State<InventorySheet> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                  color: (isOfficial ? const Color(0xFFEF4444) : const Color(0xFFF59E0B)).withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.description_outlined, color: Color(0xFFF59E0B), size: 20),
+                child: Icon(
+                  kind == '官印'
+                      ? Icons.military_tech_rounded
+                      : (kind == '敕牒' ? Icons.verified_rounded : Icons.description_outlined),
+                  color: isOfficial ? const Color(0xFFF59E0B) : const Color(0xFFF59E0B),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -453,24 +463,34 @@ class _InventorySheetState extends State<InventorySheet> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          name,
-                          style: TextStyle(
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              color: isOfficial
+                                  ? const Color(0xFFFBBF24)
+                                  : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                            color: (isOfficial ? const Color(0xFFEF4444) : const Color(0xFF8B5CF6)).withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             kind,
-                            style: const TextStyle(color: Color(0xFFA78BFA), fontSize: 10.5, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              color: isOfficial ? const Color(0xFFFCA5A5) : const Color(0xFFA78BFA),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -480,7 +500,7 @@ class _InventorySheetState extends State<InventorySheet> {
                       Text(
                         note,
                         style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 12),
-                        maxLines: 1,
+                        maxLines: isOfficial ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -495,40 +515,53 @@ class _InventorySheetState extends State<InventorySheet> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF38BDF8).withValues(alpha: 0.14),
+                    color: (isOfficial ? const Color(0xFFF59E0B) : const Color(0xFF38BDF8)).withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.remove_red_eye_outlined, size: 14, color: Color(0xFF38BDF8)),
-                      SizedBox(width: 3),
-                      Text('出示', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.w600)),
+                      Icon(
+                        isOfficial ? Icons.verified_user_outlined : Icons.remove_red_eye_outlined,
+                        size: 14,
+                        color: isOfficial ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        isOfficial ? '亮印出示' : '出示',
+                        style: TextStyle(
+                          color: isOfficial ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              // 赠予送人
-              InkWell(
-                onTap: () => _handleGive(it),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEC4899).withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.card_giftcard_rounded, size: 14, color: Color(0xFFEC4899)),
-                      SizedBox(width: 3),
-                      Text('赠予', style: TextStyle(color: Color(0xFFEC4899), fontSize: 12, fontWeight: FontWeight.w600)),
-                    ],
+              if (!isNonGiftable) ...[
+                const SizedBox(width: 6),
+                // 赠予送人
+                InkWell(
+                  onTap: () => _handleGive(it),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEC4899).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.card_giftcard_rounded, size: 14, color: Color(0xFFEC4899)),
+                        SizedBox(width: 3),
+                        Text('赠予', style: TextStyle(color: Color(0xFFEC4899), fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         );

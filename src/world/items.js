@@ -21,14 +21,14 @@ export function ensureItems(world) {
 
 export function addItem(world, { name, kind = '杂物', holder = 'husband', note = '' } = {}) {
   ensureItems(world);
-  const nm = String(name || '').trim().slice(0, 24);
+  const nm = String(name || '').trim().slice(0, 28);
   if (!nm) return null;
   world.flags.itemSeq += 1;
   const id = `item_${world.flags.itemSeq}`;
   world.items[id] = {
     id, name: nm, kind: String(kind || '杂物').slice(0, 10),
     holder: String(holder || 'husband'), from: '', day: num(world.clock?.day) || 1,
-    note: String(note || '').slice(0, 50),
+    note: String(note || '').slice(0, 80),
   };
   return world.items[id];
 }
@@ -54,6 +54,14 @@ export function giveItem(world, fromId, toId, itemId) {
   if (it.holder !== String(fromId)) return { ok: false, line: `（这件东西不在${world.actors?.[fromId]?.name || '你'}手里。）` };
   const to = world.actors?.[toId];
   if (!to) return { ok: false, line: '（没有这个人。）' };
+
+  // 朝廷告身敕牒与虎符官印乃命官身家所系，只可出示亮印，不可送人
+  if (/告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方/.test(String(it.name || '') + String(it.kind || ''))) {
+    return {
+      ok: false,
+      line: `（《${it.name}》乃朝廷兵部颁授的命官告身与兵符重器，干系身家性命与军权，只可当众【出示】亮明官威，绝不可赠予他人！）`,
+    };
+  }
 
   it.holder = String(toId);
   it.from = String(fromId);
@@ -90,8 +98,23 @@ export function showItem(world, holderId, toId, itemId) {
   if (!it) return { ok: false, line: '（没有这件东西。）' };
   if (it.holder !== String(holderId)) return { ok: false, line: `（这件东西不在手里。）` };
   const to = toId ? world.actors?.[toId] : null;
-  const holderName = world.actors?.[holderId]?.name || (holderId === 'husband' ? '相公' : holderId);
-  const toName = to?.name || '众人';
+  const holderName = world.actors?.[holderId]?.name || (holderId === 'husband' ? '王都司' : holderId);
+  const toName = to?.name || '在场众人';
+  const isOfficialCred = /告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方/.test(String(it.name || '') + String(it.kind || ''));
+  if (isOfficialCred) {
+    let trustDelta = 8;
+    if (to) {
+      to.relations = to.relations || {};
+      to.relations.husband = to.relations.husband || { trust: 20, desire: 10, grievance: 0 };
+      to.relations.husband.trust = Math.min(100, (Number(to.relations.husband.trust) || 0) + trustDelta);
+    }
+    return {
+      ok: true,
+      line: `（${holderName}自怀中取出朝廷兵部颁授的《${it.name}》，鲜红兵部朱印与虎符寒光凛然，当众亮明大明朝廷命官真凭实据！${toName}见状凛然肃立、躬身抱拳行礼！）`,
+      item: it,
+      trustDelta,
+    };
+  }
   return {
     ok: true,
     line: `（${holderName}自袖中取出一纸《${it.name}》，平摊在案前让${toName}当面勘验。）`,
@@ -221,6 +244,9 @@ export function prepareHouseholdItem(world, rawWord = '', fromName = '府库') {
     .replace(/(?:来|吧|呀|啊|呢|给我|准备好)+$/g, '')
     .trim();
   const preset = HOUSEHOLD_SUPPLY_PRESETS.find((p) => p.key === w || p.match.test(w || rawWord));
+  if (!preset && /^(想想|办法|递信|回信|去看看|看看|问问|商议|过去|去找|知道|明白|安排|吩咐)/.test(w)) {
+    return null;
+  }
   const itemName = preset ? preset.name : (w.length >= 2 && w.length <= 14 ? w : '紫阳山头春茶（明前极品锡罐）');
   const itemKind = preset ? preset.kind : '随身礼';
   const itemNote = preset ? preset.note : `由${fromName}遵命备妥并放入相公随身储物空间`;
@@ -238,5 +264,209 @@ export function prepareHouseholdItem(world, rawWord = '', fromName = '府库') {
   if (created && fromName) created.from = fromName;
   return { item: created, created: true };
 }
+
+/**
+ * 朝廷武勋官阶与正式文书凭证、官印虎符映射表（单一真相源）
+ */
+export const OFFICIAL_CREDENTIAL_DEFS = [
+  {
+    officeKey: 'tuanlian',
+    rank: '正七品',
+    title: '临江府乡勇团练使',
+    rankTitle: '正七品·临江府乡勇团练使',
+    shortCall: '王团练',
+    credentials: [
+      {
+        name: '临江府衙·乡勇团练使委任牌票',
+        kind: '敕牒',
+        from: '临江知府衙门',
+        note: '临江知府杨慎之大人亲批红押委任状，准统领乡勇团练弹压地方匪盗',
+      },
+    ],
+  },
+  {
+    officeKey: 'shoubei',
+    rank: '从五品',
+    title: '临江府守备',
+    rankTitle: '从五品·临江府守备',
+    shortCall: '王守备',
+    credentials: [
+      {
+        name: '兵部勘合·临江府守备告身文凭',
+        kind: '敕牒',
+        from: '朝廷兵部武选司',
+        note: '兵部武选清吏司勘合实授从五品临江府守备告身，掌一府城池守御之权',
+      },
+    ],
+  },
+  {
+    officeKey: 'dusi',
+    rank: '正四品',
+    title: '临江府都司',
+    rankTitle: '正四品·临江府都司',
+    shortCall: '王都司',
+    credentials: [
+      {
+        name: '兵部武选司·临江府都司实授敕牒',
+        kind: '敕牒',
+        from: '朝廷兵部武选司',
+        note: '朝廷兵部尚书省朱印勘合敕牒，叙剿匪大功实授正四品临江府都指挥佥事（都司）',
+      },
+      {
+        name: '临江府都司·紫金虎符与官印',
+        kind: '官印',
+        from: '朝廷兵部与礼部铸印局',
+        note: '正四品武官紫金调兵虎符与「临江府都司之印」铜印、玄铁嵌金腰牌',
+      },
+    ],
+  },
+  {
+    officeKey: 'canjiang',
+    rank: '从三品',
+    title: '江淮参将',
+    rankTitle: '从三品·江淮参将',
+    shortCall: '王参将',
+    credentials: [
+      {
+        name: '兵部奉旨·江淮参将诰命敕书',
+        kind: '敕牒',
+        from: '朝廷兵部与司礼监',
+        note: '奉天承运皇帝制曰：实授从三品江淮分守参将，节制江淮水陆诸营兵马',
+      },
+      {
+        name: '江淮参将·调兵银虎符',
+        kind: '官印',
+        from: '朝廷兵部',
+        note: '从三品江淮参将虎符关防大印，持符可调遣江淮各州府驻军协剿',
+      },
+    ],
+  },
+  {
+    officeKey: 'fuzongbing',
+    rank: '正三品',
+    title: '江北副总兵',
+    rankTitle: '正三品·江北副总兵',
+    shortCall: '王总戎',
+    credentials: [
+      {
+        name: '兵部尚书省·江北副总兵金册诰命',
+        kind: '敕牒',
+        from: '朝廷兵部',
+        note: '正三品昭勇将军、协守江北副总兵官金册诰命与总戎虎符关防',
+      },
+    ],
+  },
+  {
+    officeKey: 'zongbing',
+    rank: '正二品',
+    title: '镇守两淮总兵官',
+    rankTitle: '正二品·镇守两淮总兵官',
+    shortCall: '王大帅',
+    credentials: [
+      {
+        name: '敕谕·镇守两淮总兵官平贼将军金印',
+        kind: '官印',
+        from: '当今天子钦颁',
+        note: '正二品镇守两淮地方总兵官、挂平贼将军金印，开府建牙，节制两淮军政',
+      },
+    ],
+  },
+  {
+    officeKey: 'tiduzongbing',
+    rank: '从一品',
+    title: '江南水陆提督总兵官',
+    rankTitle: '从一品·江南水陆提督总兵官',
+    shortCall: '王提督',
+    credentials: [
+      {
+        name: '钦赐尚方剑·江南水陆提督军务诏书',
+        kind: '官印',
+        from: '当今天子钦赐',
+        note: '从一品江南江北水陆提督军务总兵官诏书并钦赐尚方宝剑，副将以下先斩后奏',
+      },
+    ],
+  },
+];
+
+/**
+ * 提取相公当前持有的朝廷最高官职与全部官衔信息
+ */
+export function getHusbandOfficialInfo(world) {
+  const offices = world?.court?.offices || {};
+  const heldDefs = OFFICIAL_CREDENTIAL_DEFS.filter(
+    (d) => offices[d.officeKey] && String(offices[d.officeKey].holder || '') === 'husband'
+  );
+  if (heldDefs.length === 0) {
+    return {
+      hasOffice: false,
+      rank: '',
+      highestTitle: '',
+      fullTitle: '',
+      shortCall: '王少掌柜',
+      quelled: Number(world?.flags?.quelledTotal) || 0,
+      allTitles: [],
+    };
+  }
+  const highest = heldDefs[heldDefs.length - 1];
+  return {
+    hasOffice: true,
+    officeKey: highest.officeKey,
+    rank: highest.rank,
+    highestTitle: highest.title,
+    fullTitle: highest.rankTitle,
+    shortCall: highest.shortCall,
+    quelled: Math.max(Number(world?.flags?.quelledTotal) || 0, heldDefs.length * 2),
+    allTitles: heldDefs.map((d) => d.title),
+  };
+}
+
+/**
+ * 核发并补齐相公已获授官职对应的正式兵部告身敕牒与官印虎符入随身行囊（幂等）
+ */
+export function ensureOfficialCredentials(world) {
+  ensureItems(world);
+  if (Array.isArray(world.items)) {
+    for (let i = world.items.length - 1; i >= 0; i--) {
+      const it = world.items[i];
+      if (it && it.kind === '随身礼' && /^(想想办法|递信|回信|去看看|看看|问问|商议|过去|去找)$/.test(String(it.name || '').trim())) {
+        world.items.splice(i, 1);
+      }
+    }
+  }
+  const offices = world?.court?.offices || {};
+  const myItems = itemsOf(world, 'husband');
+  const issued = [];
+
+  for (const def of OFFICIAL_CREDENTIAL_DEFS) {
+    const off = offices[def.officeKey];
+    if (!off || String(off.holder || '') !== 'husband') continue;
+    for (const cred of def.credentials) {
+      const exists = myItems.some((it) => it && it.name === cred.name);
+      if (!exists) {
+        const added = addItem(world, {
+          name: cred.name,
+          kind: cred.kind,
+          holder: 'husband',
+          note: cred.note,
+        });
+        if (added) {
+          added.from = cred.from;
+          added.day = Number(off.at?.day) || Number(world.clock?.day) || 1;
+          issued.push(added);
+        }
+      }
+    }
+  }
+
+  // 同步更新相公的权威身份标签（朝廷命官 + 商界巨擘双重尊荣）
+  const info = getHusbandOfficialInfo(world);
+  if (info.hasOffice && world.actors?.husband) {
+    world.actors.husband.officialTitle = info.highestTitle;
+    world.actors.husband.role = `${info.highestTitle}·临江王氏家主`;
+  }
+
+  return issued;
+}
+
 
 

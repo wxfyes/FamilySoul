@@ -11,6 +11,7 @@
  */
 
 import { gatekeeperOf } from './posts.js';
+import { getHusbandOfficialInfo } from './items.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -96,18 +97,37 @@ export function knock(world, visitorId, residenceId) {
   if (!owner) return { allowed: false, reason: '这宅子眼下没有主事的人', place: null, owner: '', hall: null };
   if (owner === visitorId) return { allowed: true, reason: '自己的宅子', place: home.id, owner, hall: null };
 
-  // 🛡️ 权威礼遇：相公登门杨府（知府官邸），千金杨采儿深心所系，门房认得王少掌柜，恭敬通传直引中堂
+  // 🛡️ 权威礼遇：相公登门杨府（知府官邸），千金杨采儿深心所系，门房按相公朝廷官衔恭敬通传直引中堂
+  const offInfo = visitorId === 'husband' ? getHusbandOfficialInfo(world) : null;
+  const honorific = offInfo?.hasOffice
+    ? (offInfo.highestTitle.includes('都司') ? '王都司' : (offInfo.highestTitle.includes('参将') ? '王参将' : (offInfo.highestTitle.includes('总兵') ? '王总兵' : (offInfo.highestTitle.includes('守备') ? '王守备' : '王大人'))))
+    : '王少掌柜';
   if ((residenceId === 'yang_mansion' || home.id === 'yang_mansion') && visitorId === 'husband') {
     const rooms = home.rooms || {};
     const hallKey = ['hall', 'main', '正厅', '中堂'].find((k) => rooms[k]);
     const hallId = hallKey ? rooms[hallKey].id : (rooms.main?.id || rooms.gate?.id || `${home.id}__hall`);
     return {
       allowed: true,
-      reason: '门房认得王少掌柜，忙躬身作揖：“少掌柜快请，大小姐正在中堂呢！”',
+      reason: `门房认得${honorific}，忙躬身作揖：“${honorific}快请，大小姐正在中堂候着呢！”`,
       place: hallId,
       owner,
       hall: hallId,
       keeper: keeperName || '杨府侍卫',
+    };
+  }
+
+  // 朝廷武勋命官亲临城中宅院：门房见官身威仪，不敢怠慢阻拦，恭敬迎入中堂
+  if (visitorId === 'husband' && offInfo?.hasOffice) {
+    const rooms = home.rooms || {};
+    const hallKey = ['hall', 'main', '正厅', '中堂'].find((k) => rooms[k]);
+    const hallId = hallKey ? rooms[hallKey].id : (rooms.main?.id || rooms.gate?.id || home.id);
+    return {
+      allowed: true,
+      reason: `${keeperName || '门房'}见是朝廷実授「${offInfo.highestTitle}」${honorific}亲临，忙躬身唱喏迎入中堂`,
+      place: hallId || home.id,
+      owner,
+      hall: hallId,
+      keeper: keeperName || '门房',
     };
   }
 

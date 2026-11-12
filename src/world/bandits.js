@@ -12,6 +12,8 @@ import { factionOf, factionStrength, syncWangjiaToMilitary } from './factions.js
 import { changeCityOwner, troopsAt, setWarEventSink } from './warfare.js';
 import { addFame } from './reputation.js';
 import { addRumor } from './rumors.js';
+import { ensureOfficialCredentials } from './items.js';
+import { addMemory } from './memory.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -28,7 +30,9 @@ export const MILITARY_LADDER = [
   { key: 'shoubei', title: '临江府守备', need: 3, fame: 60, court: -99 },
   { key: 'dusi', title: '临江府都司', need: 6, fame: 75, court: 10 },
   { key: 'canjiang', title: '江淮参将', need: 10, fame: 90, court: 20 },
-  { key: 'fuzongbing', title: '副总兵', need: 15, fame: 100, court: 35 },
+  { key: 'fuzongbing', title: '江北副总兵', need: 15, fame: 100, court: 35 },
+  { key: 'zongbing', title: '镇守两淮总兵官', need: 20, fame: 100, court: 50 },
+  { key: 'tiduzongbing', title: '江南水陆提督总兵官', need: 26, fame: 100, court: 65 },
 ];
 
 function courtRelOf(world) {
@@ -52,19 +56,47 @@ export function nextPromotion(world) {
   };
 }
 
-/** 达标就授下一阶；返回授职文案（没升则为空串） */
+/** 达标就授下一阶；自动核发正式兵部告身敕牒与虎符官印入随身行囊，并昭告全城 */
 function maybePromote(world) {
   const n = nextPromotion(world);
   if (!n || !n.ready) return '';
+  const day = Number(world.clock?.day) || 1;
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};
   world.court.offices[n.key] = {
     holder: 'husband',
     title: n.title,
-    at: { day: Number(world.clock?.day) || 1 },
+    at: { day },
     note: `剿匪累功，朝廷叙功授${n.title}`,
   };
-  return `，朝廷叙功，升授「${n.title}」`;
+  // 核发兵部正式告身敕牒与虎符官印入随身行囊
+  let credNames = '';
+  try {
+    const newCreds = ensureOfficialCredentials(world);
+    if (newCreds && newCreds.length > 0) {
+      credNames = `，钦颁《${newCreds.map((c) => c.name).join('》《')}》已收入随身行囊`;
+    }
+  } catch { /* 忽略 */ }
+  // 记入永久核心记忆与大事记
+  try {
+    addMemory(world, {
+      text: `第${day}日，朝廷兵部武选司叙剿匪大功，正式实授相公王甯为「${n.title}」${credNames}，合城官绅百姓人人敬仰。`,
+      about: ['husband', 'waner', 'yangshenzhi'],
+      visible: 'public',
+      kind: 'major',
+      day,
+    });
+    world.milestones = Array.isArray(world.milestones) ? world.milestones : [];
+    const msText = `【朝廷叙功实授·${n.title}】王甯率部屡平巨寇，兵部武选司下达正式勘合敕牒与虎符官印，实授「${n.title}」，名震江淮。`;
+    if (!world.milestones.some((m) => String(m).includes(n.title))) {
+      world.milestones.push(msText);
+    }
+    addRumor(world, {
+      text: `朝廷兵部快马传旨临江，叙王家剿匪平乱大功，实授王甯为「${n.title}」，钦颁兵部敕牒与虎符官印，满城官绅轰动道贺`,
+      tone: 1, weight: 9, reach: 95,
+    });
+  } catch { /* 忽略 */ }
+  return `，朝廷兵部叙功升授「${n.title}」${credNames}`;
 }
 
 const LEADERS = ['翻江蛟', '过山虎', '黑面判官', '独眼狼', '铁臂熊', '野狐', '穿山甲', '秃鹫', '一阵风', '活阎王'];
@@ -216,7 +248,15 @@ export function quellBandits(world, banditId, troops, fromCity) {
   if (!b) return { ok: false, error: '没有这股匪' };
   const f = factionOf(world, 'wangjia');
   if (!f) return { ok: false, error: '没有王家势力' };
-  const city = fromCity && world.cities?.[fromCity] ? fromCity : (Object.keys(f.stationed || {})[0] || '');
+
+  // 选出兵驻地：若指定城有驻兵则用指定城，否则自动从王家兵马最盛的驻地（如临江府大营）点兵跨府出征
+  let city = (fromCity && world.cities?.[fromCity] && troopsAt(world, f, fromCity) > 0) ? fromCity : '';
+  if (!city) {
+    const stationedEntries = Object.entries(f.stationed || {})
+      .filter(([, n]) => num(n) > 0)
+      .sort((x, y) => num(y[1]) - num(x[1]));
+    city = stationedEntries[0]?.[0] || (fromCity && world.cities?.[fromCity] ? fromCity : (Object.keys(f.stationed || {})[0] || '临江府'));
+  }
 
   // 可派的人 = 营兵（出征） + 府里的护院/家丁（平民也能带出去打匪，募护院不犯法）
   const armyHere = troopsAt(world, f, city);
@@ -240,11 +280,11 @@ export function quellBandits(world, banditId, troops, fromCity) {
   const baseMan = 0.9 * (q / 50) * (0.6 + morale / 100) * 0.7;
   const armyMan = armyHere > 0 ? Math.max(baseMan, factionStrength(world, f) / Math.max(1, armyHere)) : 0;
   const power = fromArmy * armyMan + fromRetainer * baseMan * 0.7 + fromGuard * baseMan * 0.45;
-  const foe = num(b.strength) * (b.tier >= 3 ? 1.3 : b.tier === 2 ? 1.1 : 1);
-  const win = power * (0.85 + Math.random() * 0.4) > foe;
+  const foe = num(b.strength) * (b.tier >= 3 ? 1.25 : b.tier === 2 ? 1.1 : 1);
+  const win = power * (0.9 + Math.random() * 0.35) > foe;
 
   // 伤亡：先扣营兵，再扣护院，最后家丁
-  const loss = Math.round(send * (win ? 0.05 + Math.random() * 0.1 : 0.25 + Math.random() * 0.15));
+  const loss = Math.round(send * (win ? 0.03 + Math.random() * 0.06 : 0.2 + Math.random() * 0.12));
   let cut = loss;
   const cutArmy = Math.min(cut, fromArmy); cut -= cutArmy;
   const cutRetainer = Math.min(cut, fromRetainer); cut -= cutRetainer;
@@ -267,6 +307,7 @@ export function quellBandits(world, banditId, troops, fromCity) {
   // 剿平：钱粮兵马都归相公
   const lootSilver = round2(num(b.silver));
   const lootGrain = round2(num(b.grain));
+  const banditTier = Math.max(1, Math.min(3, Math.round(num(b.tier) || 1)));
   delete world.bandits[banditId];
   world.assets.silver = round2(num(world.assets.silver) + lootSilver);
   // 粮不再充公，入王家随军粮
@@ -319,20 +360,34 @@ export function quellBandits(world, banditId, troops, fromCity) {
     });
   } catch { /* 忽略 */ }
 
-  // 累功：剿平股数 + 升迁判定（守备→都司→参将→副总兵）
+  // 累功：按匪患阶位计功（一阶1功、二阶2功、三阶巨寇3功）+ 升迁判定（守备→都司→参将→副总兵→总兵→提督）
+  const quelledGain = banditTier >= 3 ? 3 : (banditTier === 2 ? 2 : 1);
+  const courtGain = banditTier >= 3 ? 12 : (banditTier === 2 ? 8 : 5);
   world.flags = world.flags || {};
-  world.flags.quelledTotal = Math.round(Number(world.flags.quelledTotal) || 0) + 1;
-  // 剿匪叙功：朝中关系缓慢积累（都司/参将要看它，不能永远卡在 0）
+  world.flags.quelledTotal = Math.round(Number(world.flags.quelledTotal) || 0) + quelledGain;
+  // 剿匪叙功：朝中关系积累
   try {
     world.factions = world.factions || {};
     world.factions.court = world.factions.court || {};
     world.factions.court.relations = world.factions.court.relations || {};
     const cr = Number(world.factions.court.relations.wangjia) || 0;
-    // 一股 +5：都司（6 股/朝中10）约两股可达，参将/副总兵也都有台阶
-    world.factions.court.relations.wangjia = Math.min(100, cr + 5);
+    world.factions.court.relations.wangjia = Math.min(100, cr + courtGain);
   } catch { /* 忽略 */ }
-  const promo = maybePromote(world);
-  if (promo) appoint += promo;
+
+  // 支持连升并即时核发正式告身敕牒与虎符官印入随身行囊
+  for (let step = 0; step < 3; step += 1) {
+    const promo = maybePromote(world);
+    if (!promo) break;
+    appoint += promo;
+  }
+  try { ensureOfficialCredentials(world); } catch { /* 忽略 */ }
+
+  // 若余寇已少（且处于完整世界），自动涌现新一批江淮流寇山匪供相公继续征讨升迁
+  try {
+    if (Object.keys(world.cities || {}).length >= 3 && Object.keys(world.bandits || {}).length < 4) {
+      ensureActiveBanditWaves(world, 5);
+    }
+  } catch { /* 忽略 */ }
 
   return {
     ok: true,
@@ -347,6 +402,54 @@ export function quellBandits(world, banditId, troops, fromCity) {
     appoint: appoint || '',
     text: `剿平「${b.name}」，缴银 ${lootSilver} 两、粮 ${lootGrain} 石（入随军粮）${captured > 0 ? `，收降卒 ${captured} 人` : ''}${loss > 0 ? `，折兵 ${loss} 人` : ''}，民心大振${appoint}`,
   };
+}
+
+/**
+ * 江淮/江南多波次匪患常备池：确保相公随时有多股一阶、二阶、三阶鲜活匪患可出征讨伐、立功升官
+ */
+const BANDIT_WAVE_TEMPLATES = [
+  { city: '临江府', name: '临江黑风岭悍匪', leader: '过山虎', strength: 42, tier: 1, silver: 38, grain: 65 },
+  { city: '临江府', name: '芦苇荡翻江水寨', leader: '翻江蛟', strength: 68, tier: 2, silver: 65, grain: 110 },
+  { city: '扬州府', name: '高邮湖连环水盗', leader: '独眼狼', strength: 85, tier: 2, silver: 88, grain: 145 },
+  { city: '苏州府', name: '太湖七十二峰水帮', leader: '黑面判官', strength: 96, tier: 2, silver: 105, grain: 160 },
+  { city: '淮安府', name: '洪泽湖铁索水寨', leader: '铁臂熊', strength: 135, tier: 3, silver: 150, grain: 220 },
+  { city: '庐州府', name: '大别山流寇马帮', leader: '活阎王', strength: 155, tier: 3, silver: 175, grain: 260 },
+  { city: '应天府', name: '采石矶江盗水帮', leader: '穿山甲', strength: 58, tier: 2, silver: 56, grain: 95 },
+  { city: '杭州府', name: '天目山绿林山寨', leader: '一阵风', strength: 48, tier: 1, silver: 45, grain: 80 },
+];
+
+export function ensureActiveBanditWaves(world, minCount = 5) {
+  ensureBandits(world);
+  const existing = Object.values(world.bandits).filter(Boolean);
+  if (existing.length >= minCount) return existing;
+
+  const existingNames = new Set(existing.map((b) => b.name));
+  const day = Number(world.clock?.day) || 1;
+  let seq = 1;
+
+  for (const tpl of BANDIT_WAVE_TEMPLATES) {
+    if (Object.keys(world.bandits).length >= Math.max(minCount, 6)) break;
+    if (existingNames.has(tpl.name)) continue;
+    const cityName = world.cities?.[tpl.city] ? tpl.city : (Object.keys(world.cities || {})[0] || '临江府');
+    const ct = world.cities?.[cityName] || { region: '江南道', name: cityName };
+    const id = `bandit_wave_${day}_${seq++}_${Math.floor(Math.random() * 9000 + 1000)}`;
+    world.bandits[id] = {
+      id,
+      name: tpl.name,
+      kind: kindOf(ct),
+      region: ct.region || '江南道',
+      homeCity: cityName,
+      leader: tpl.leader,
+      strength: tpl.strength,
+      tier: tpl.tier,
+      silver: tpl.silver,
+      grain: tpl.grain,
+      infamy: 25 + tpl.tier * 15,
+      createdDay: day,
+    };
+    existingNames.add(tpl.name);
+  }
+  return Object.values(world.bandits);
 }
 
 /**

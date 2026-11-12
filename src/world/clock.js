@@ -1658,7 +1658,7 @@ function onNewDay(world, events) {
       if (dayNow % 30 === 0 && world.assets && Number(world.flags?.lastStipendDay) !== dayNow) {
         world.flags = world.flags || {};
         world.flags.lastStipendDay = dayNow;
-        const pays = { tuanlian: 3, shoubei: 6, dusi: 10, canjiang: 16, fuzongbing: 24 };
+        const pays = { tuanlian: 3, shoubei: 6, dusi: 10, canjiang: 16, fuzongbing: 24, zongbing: 36, tiduzongbing: 50 };
         let total = 0;
         const titles = [];
         for (const [key, o] of Object.entries(world.court?.offices || {})) {
@@ -2517,7 +2517,7 @@ function advanceHour(world, events, nowMs) {
         speaker: '门房·老周',
         actorId: 'staff_gatekeeper',
         reason: 'visitor_notice',
-        text: '【门房·老周】：少掌柜，外头有两淮客商递了拜帖名帖，说仰慕少掌柜大名，求见商议茶叶专供之事，拜帖已呈在门房。',
+        text: '【门房·老周】：老爷，外头有两淮客商与地方乡绅递了拜帖名帖，说仰慕都司老爷威名，求见商议两淮水运与茶叶专供之事，拜帖已呈在门房。',
         place: '临江·王宅·朱漆大门',
       },
     ];
@@ -2729,7 +2729,7 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
       speaker: '门房·老周',
       actorId: 'staff_gatekeeper',
       reason: 'visitor_notice',
-      text: '【门房·老周】：少掌柜，外头有两淮客商递了拜帖名帖，说仰慕少掌柜大名，求见商议茶叶专供之事，拜帖已呈在门房。',
+      text: '【门房·老周】：老爷，外头有两淮客商与地方乡绅递了拜帖名帖，说仰慕都司老爷威名，求见商议两淮水运与茶叶专供之事，拜帖已呈在门房。',
       place: '临江·王宅·朱漆大门',
       isLetter: true,
     },
@@ -2738,7 +2738,7 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
       speaker: '知府千金·杨采儿',
       actorId: 'yangzhenhua',
       reason: 'official_note',
-      text: '【知府千金·杨采儿】：（官笺）王少掌柜，知府衙门过堂运河茶引案，家父特意提了你王家茶船的通关文书。若得空，过府一叙。',
+      text: '【知府千金·杨采儿】：（官笺）王都司，知府衙门议及两淮河防与运河茶引，家父特意提了你的都司兵符与王家茶船文书。若得空，过府中堂一叙。',
       place: '杨府',
       isLetter: true,
     },

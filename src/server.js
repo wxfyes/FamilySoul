@@ -27,7 +27,7 @@ import { maybeOfferAlliance } from './world/marriage.js';
 import { advanceWorldTick } from './world/tick.js';
 import { ensureCityBase, streetOfCity, cityOfPlace } from './world/city.js';
 import { isPlaceNameOk } from './world/ledger-rules.js';
-import { itemsOf, giveItem, showItem, askItem, addItem, prepareHouseholdItem, HOUSEHOLD_SUPPLY_PRESETS } from './world/items.js';
+import { itemsOf, giveItem, showItem, askItem, addItem, prepareHouseholdItem, HOUSEHOLD_SUPPLY_PRESETS, ensureOfficialCredentials, getHusbandOfficialInfo } from './world/items.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -55,7 +55,7 @@ import { marketSnapshot, grainPrice } from './world/prices.js';
 import { roomPriceAt, propertyPriceAt, priceOf } from './world/pricing.js';
 import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { materializeMigrant, fallbackName } from './world/migration.js';
-import { quellBandits, banditStrengthTotal, nextPromotion, spawnBandit } from './world/bandits.js';
+import { quellBandits, banditStrengthTotal, nextPromotion, spawnBandit, ensureActiveBanditWaves } from './world/bandits.js';
 import { RECRUIT_KINDS } from './world/warfare.js';
 import { maritalTextOf, mensesStatusText } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
@@ -1137,12 +1137,13 @@ const server = http.createServer(async (req, res) => {
           if (friendIds.has(a.id)) return '熟人';
           return '其他人';
         };
+        const offInfoMenu = getHusbandOfficialInfo(world);
         const peopleOut = people
           .map((a) => ({
             id: a.id, name: a.name,
-            // 王甯的头衔：他的妻妾看到"相公"，外人只看到"东家"
+            // 王甯的头衔：他的妻妾看到"相公"，外人看到朝廷实授官衔与大东家身份
             role: (a.id === 'husband' && !isHusbandViewer && !isWifeOfHusband)
-              ? '临江茶坊少东家'
+              ? (offInfoMenu.hasOffice ? `${offInfoMenu.rank}·${offInfoMenu.highestTitle}` : '临江茶坊少东家')
               : (a.role || ''),
             gender: a.gender || 'female',
             place: placeName(a.location || ''),
@@ -1628,7 +1629,10 @@ const server = http.createServer(async (req, res) => {
         const member = resolveMember(req, url);
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
 
-        // 确保相公随身行囊中备有自家紫阳山头春茶（明前极品锡罐），呼应茶山产业与名门家底
+        // 确保相公随身行囊中已核发所有朝廷武勋告身敕牒、虎符官印及自家紫阳山头春茶
+        let dirtyItems = false;
+        const addedCreds = ensureOfficialCredentials(world);
+        if (addedCreds && addedCreds.length > 0) dirtyItems = true;
         const husbandItems = itemsOf(world, 'husband');
         const husbandHasTea = husbandItems.some((it) => it && /茶/.test((it.name || '') + (it.kind || '')));
         if (!husbandHasTea) {
@@ -1644,12 +1648,22 @@ const server = http.createServer(async (req, res) => {
             holder: 'husband',
             note: '自家紫阳山茶园雨前鲜焙嫩芽，青瓷小瓮装盛，清冽回甘',
           });
-          saveState(DATA_DIR, world);
+          dirtyItems = true;
         }
+        if (dirtyItems) saveState(DATA_DIR, world);
 
         const me = world.actors?.husband || world.actors?.[member.actor || 'husband'];
         const curLocation = me?.location || 'husband_room';
-        const latestHusbandItems = itemsOf(world, 'husband');
+        const latestHusbandItems = itemsOf(world, 'husband').slice().sort((a, b) => {
+          const rankKind = (it) => {
+            const k = String(it?.kind || '');
+            if (k === '官印') return 0;
+            if (k === '敕牒') return 1;
+            if (k === '契纸') return 2;
+            return 3;
+          };
+          return rankKind(a) - rankKind(b);
+        });
 
         const hereActors = [];
         const presentItems = [];
@@ -1731,6 +1745,17 @@ const server = http.createServer(async (req, res) => {
           }
         } else if (action === 'show') {
           result = showItem(world, 'husband', targetActorId, itemId);
+          if (result.ok) {
+            world.notes = Array.isArray(world.notes) ? world.notes : [];
+            const toName = targetActorId ? (world.actors?.[targetActorId]?.name || targetActorId) : '在场众人';
+            world.notes.push({
+              day: world.clock?.day || 1,
+              hour: world.clock?.hour || 0,
+              text: `相公当着${toName}的面亮出《${result.item?.name}》（${result.item?.note || ''}）`,
+            });
+            world.notes = world.notes.slice(-60);
+            saveState(DATA_DIR, world);
+          }
         } else if (action === 'ask') {
           if (!targetActorId) return sendJson(res, 400, { ok: false, error: '请指定索取的对象' });
           result = askItem(world, 'husband', targetActorId, itemId);
@@ -2560,6 +2585,18 @@ const server = http.createServer(async (req, res) => {
       console.log(`[Me] 请求者=${member.memberKey || '-'} actor=${actorId || 'husband'}`);
       const me = actorId ? world.actors?.[actorId] : world.actors?.husband;
       const isHusband = !actorId;
+      if (isHusband) {
+        try {
+          let meDirty = false;
+          const newCreds = ensureOfficialCredentials(world);
+          if (newCreds && newCreds.length > 0) meDirty = true;
+          if (Object.keys(world.cities || {}).length >= 3 && Object.keys(world.bandits || {}).length < 5) {
+            ensureActiveBanditWaves(world, 5);
+            meDirty = true;
+          }
+          if (meDirty) saveState(DATA_DIR, world);
+        } catch { /* 忽略 */ }
+      }
       const place = me?.location ? world.places?.[me.location] : null;
       // 此处有谁：站在同一地点/同堂之人（权威判定，不含自己）
       const hereNames = Object.values(world.actors || {})
@@ -2620,12 +2657,15 @@ const server = http.createServer(async (req, res) => {
             : res?.type === 'rent' ? `租住${resName || ''}`
             : res?.type === 'inn' ? '住客栈'
             : res?.type === 'family' ? `寄居${resName || ''}` : '';
+          const offInfoMe = isHusband ? getHusbandOfficialInfo(world) : null;
           return {
-            name: me?.name || '', role: me?.role || '', place: place?.name || '', isHusband,
+            name: me?.name || '',
+            role: (isHusband && offInfoMe?.hasOffice) ? `${offInfoMe.rank}·${offInfoMe.highestTitle}` : (me?.role || ''),
+            place: place?.name || '', isHusband,
             homeId: me?.home || null,
             homeName: me?.home ? (world.places?.[me.home]?.name || '') : '',
-            married: maritalMap[me?.marital || 'single'] || '未婚',
-            spouseName,
+            married: isHusband ? '已婚' : (maritalMap[me?.marital || 'single'] || '未婚'),
+            spouseName: isHusband ? (spouseName || '沈婉儿') : spouseName,
             residence: resText,
             isHusband,
           };
