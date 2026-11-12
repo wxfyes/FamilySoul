@@ -36,9 +36,8 @@ class MessageBubble extends StatelessWidget {
     final speakerName = displaySpeakerName;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final chatProvider = context.watch<ChatProvider>();
-    final currentPlace = chatProvider.currentPlace;
-    final hereNames = chatProvider.hereNames;
+    final currentPlace = context.select<ChatProvider, String>((p) => p.currentPlace);
+    final hereNames = context.select<ChatProvider, List<String>>((p) => p.hereNames);
 
     // 提取人名核心名（去除头衔前缀如"正妻·"、"侧妾·"与单字姓氏如"林"、"沈"、"崔"）：
     String extractCoreName(String raw) {

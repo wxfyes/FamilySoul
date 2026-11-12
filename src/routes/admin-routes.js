@@ -1009,8 +1009,9 @@ export async function handleAdminRoutes(req, res, ctx) {
           'mkdir -p $TMP',
           `wget -q -O $TMP/u.tgz '${url}'`,
           'tar -xzf $TMP/u.tgz -C $TMP',
-          // 只同步代码与脚本，data/ 世界数据一律不动
+          // 只同步代码与脚本，data/ 世界数据中仅同步 milestones 既定账本，其余一律不动
           `for d in src web scripts docs mobile; do if [ -d $TMP/$d ]; then rm -rf '${root}'/$d && cp -r $TMP/$d '${root}'/$d; fi; done`,
+          `if [ -f $TMP/data/world/milestones.json ]; then mkdir -p '${root}'/data/world && cp -f $TMP/data/world/milestones.json '${root}'/data/world/milestones.json; fi`,
           `for f in package.json index.html '*.sh'; do true; done`,
           `cp -f $TMP/package.json '${root}'/package.json 2>/dev/null || true`,
           `cp -f $TMP/*.sh '${root}'/ 2>/dev/null || true`,

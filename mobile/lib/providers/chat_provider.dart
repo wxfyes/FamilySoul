@@ -50,6 +50,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   final AudioPlayer _keeperPlayer = AudioPlayer();
   bool _isKeeperActive = false;
   bool _isAppInBackground = false;
+  bool _audioContextInitialized = false;
+
+  bool get isAppInBackground => _isAppInBackground;
 
   /// 地点变动全局通知回调（用于顶部导航条即时刷新）
   VoidCallback? onPlaceChanged;
@@ -142,6 +145,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     try {
+      await _ensureAudioContext();
       if (!_isKeeperActive) {
         await _keeperPlayer.setReleaseMode(ReleaseMode.loop);
         await _keeperPlayer.setVolume(0.01);
@@ -156,26 +160,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      debugPrint('[Lifecycle] App 进入后台/锁屏状态，准备按需启动后台守护');
-      _isAppInBackground = true;
-      _updateKeeperState();
-    } else if (state == AppLifecycleState.resumed) {
-      debugPrint('[Lifecycle] App 返回前台，立即关闭静音播放器降温省电并校准状态');
-      _isAppInBackground = false;
-      _updateKeeperState();
-      refreshStatus();
-    }
-  }
-
-  Future<void> _init() async {
-    WidgetsBinding.instance.addObserver(this);
-    final prefs = await SharedPreferences.getInstance();
-    _isVoiceReplyEnabled = prefs.getBool(_prefKeyVoiceReply) ?? false;
-
-    // 配置全局 AudioContext，打通 iOS/Android 锁屏后台播放通道
+  Future<void> _ensureAudioContext() async {
+    if (_audioContextInitialized) return;
+    _audioContextInitialized = true;
     try {
       await AudioPlayer.global.setAudioContext(AudioContext(
         iOS: AudioContextIOS(
@@ -196,6 +183,28 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[Audio] 配置全局音频上下文失败: $e');
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      debugPrint('[Lifecycle] App 进入后台/锁屏状态，暂停非必要定时器降温省电');
+      _isAppInBackground = true;
+      _statusTimer?.cancel();
+      _updateKeeperState();
+    } else if (state == AppLifecycleState.resumed) {
+      debugPrint('[Lifecycle] App 返回前台，立即关闭静音播放器降温省电并校准状态');
+      _isAppInBackground = false;
+      _updateKeeperState();
+      _startPeriodicStatusCheck();
+      refreshStatus();
+    }
+  }
+
+  Future<void> _init() async {
+    WidgetsBinding.instance.addObserver(this);
+    final prefs = await SharedPreferences.getInstance();
+    _isVoiceReplyEnabled = prefs.getBool(_prefKeyVoiceReply) ?? false;
 
     _audioPlayer.onPlayerStateChanged.listen((state) {
       final playing = state == PlayerState.playing;
@@ -306,8 +315,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void _startLocalRoutineTimer() {
     _localRoutineTimer?.cancel();
-    _localRoutineTimer = Timer.periodic(const Duration(seconds: 20), (_) async {
+    _localRoutineTimer = Timer.periodic(const Duration(seconds: 60), (_) async {
       if (!_isConnected) return;
+      if (_isAppInBackground && !_routineConfig.keepAliveEnabled) return;
       final now = DateTime.now();
       String pad(int n) => n.toString().padLeft(2, '0');
       final dateStr = '${now.year}-${pad(now.month)}-${pad(now.day)}';
@@ -351,6 +361,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   int _healthFailStreak = 0;
 
   Future<bool> refreshStatus() async {
+    final prevConnected = _isConnected;
+    final prevOnline = _petStatus.online;
+    final prevChar = _petStatus.characterName;
     final ok = await _apiClient.checkHealth();
     if (ok) {
       _healthFailStreak = 0;
@@ -364,13 +377,18 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       // 只失败一次：保持在线状态，等下一轮再判
     }
-    notifyListeners();
+    if (prevConnected != _isConnected ||
+        prevOnline != _petStatus.online ||
+        prevChar != _petStatus.characterName) {
+      notifyListeners();
+    }
     return _isConnected;
   }
 
   void _startPeriodicStatusCheck() {
     _statusTimer?.cancel();
-    _statusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _statusTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (_isAppInBackground) return;
       refreshStatus();
     });
   }
@@ -384,7 +402,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _runPollingLoop() async {
     while (_pollingActive) {
-      if (!_isConnected || _config.token.isEmpty) {
+      if (!_isConnected || _config.token.isEmpty || (_isAppInBackground && !_routineConfig.keepAliveEnabled)) {
         await Future.delayed(const Duration(seconds: 5));
         continue;
       }
@@ -471,6 +489,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 播放音频（支持气泡点击播放或自动播报）
   Future<void> playAudio(String rawUrl) async {
     try {
+      await _ensureAudioContext();
       String url = rawUrl.trim();
       if (url.startsWith('/')) {
         url = '${_config.baseUrl}$url';

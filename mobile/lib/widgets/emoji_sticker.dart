@@ -18,11 +18,11 @@ class _EmojiStickerState extends State<EmojiSticker> with SingleTickerProviderSt
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 700),
+    )..forward();
 
-    _scaleAnimation = Tween<double>(begin: 0.94, end: 1.05).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOutBack),
+    _scaleAnimation = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
   }
 

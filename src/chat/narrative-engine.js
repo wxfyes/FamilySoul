@@ -1124,9 +1124,10 @@ export function executeNarrativeTags({
               console.log(`[Departure] 正文多人点名离场：${names.join('、')}`);
             }
             preDismissed = true;
-          } else if (namedHere.length === 1 && !dismissName) {
+          } else if (namedHere.length === 1) {
+            // 只要原话里精准出现了某位在场者的名字（如“婉儿你先回去吧”），直接锁定该在场者，绝不被正则噪音词干扰！
             dismissName = namedHere[0].name;
-            dismissWhere = '回房';
+            dismissWhere = dismissWhere || '回房';
           }
 
           // 1. 是否是点名某人？（解析结果来自 parseDismissIntent）
@@ -1171,7 +1172,8 @@ export function executeNarrativeTags({
             // 在【当前在场的人】中精确或模糊匹配
             const matched = multiDismissed ? [] : hereActors.filter((a) => {
               if (a.name === targetName) return true;
-              if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName))) return true;
+              if (targetName.length >= 2 && (a.name.endsWith(targetName) || a.name.includes(targetName) || targetName.includes(a.name))) return true;
+              if (a.name.length >= 3 && targetName.includes(a.name.slice(-2))) return true;
               return false;
             });
 
@@ -1200,7 +1202,7 @@ export function executeNarrativeTags({
               dest = 'wang_mansion_east';
             } else if (/西厢/.test(targetWhere || '')) {
               dest = 'wang_mansion_west';
-            } else if (/房间|回房|屋|歇着|等我|候着|退下|出去|睡/.test(targetWhere || '')) {
+            } else if (/房间|回房|回家|回去|屋|歇着|等我|候着|退下|出去|睡/.test(targetWhere || '')) {
               // 王宅内眷与下人规制（纯映射见 homeRoomForName）
               dest = homeRoomForName(who.name, {
                 includeWife: true,
@@ -1216,6 +1218,10 @@ export function executeNarrativeTags({
             if (!dest) dest = who.quarters || who.home || null;
             if (!dest || !wF.places?.[dest]) {
               try { dest = ensureDwelling(wF, who.id, who.name, 'street'); } catch { dest = null; }
+            }
+            // 若在正房让正妻沈婉儿退下/出去/回避，不能仍留在 husband_room 原地不动，自动移步至后院或书斋
+            if (dest === who.location && who.location === 'husband_room') {
+              dest = wF.places?.['husband_room__study'] ? 'husband_room__study' : (wF.places?.['backyard'] ? 'backyard' : 'tea_house');
             }
 
             if (dest && wF.places?.[dest] && dest !== who.location) {

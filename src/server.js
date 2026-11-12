@@ -27,7 +27,7 @@ import { maybeOfferAlliance } from './world/marriage.js';
 import { advanceWorldTick } from './world/tick.js';
 import { ensureCityBase, streetOfCity, cityOfPlace } from './world/city.js';
 import { isPlaceNameOk } from './world/ledger-rules.js';
-import { itemsOf, giveItem, showItem, askItem, addItem } from './world/items.js';
+import { itemsOf, giveItem, showItem, askItem, addItem, prepareHouseholdItem, HOUSEHOLD_SUPPLY_PRESETS } from './world/items.js';
 import { pursueGoals, refreshGoals } from './world/goals.js';
 import { describeScene, moveMember, readSceneMessages } from './world/scene.js';
 import { auditWorld, inspectStructure, buildRepairPrompt, applyRepairs } from './world/audit.js';
@@ -1624,9 +1624,27 @@ const server = http.createServer(async (req, res) => {
     // GET /api/world/items - 随身行囊与储物空间（含相公随身物与在场之人持有物）
     if (req.method === 'GET' && matchRoute('/world/items')) {
       try {
-        const world = peek(DATA_DIR);
+        const world = loadState(DATA_DIR);
         const member = resolveMember(req, url);
         if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        // 确保相公随身行囊中已备有自家紫阳山头春茶（明前锡罐与雨前青瓷），呼应茶山产业与婉儿奉茶
+        const existingTea = Object.values(world.items || {}).some((it) => it && /春茶|茗茶/.test((it.name || '') + (it.kind || '')));
+        if (!existingTea) {
+          addItem(world, {
+            name: '紫阳山头春茶（明前极品锡罐）',
+            kind: '茗茶',
+            holder: 'husband',
+            note: '自家紫阳山茶园头采明前嫩芽，沈婉儿亲手以锡罐封存备妥',
+          });
+          addItem(world, {
+            name: '紫阳山头春茶（雨前嫩芽青瓷瓮）',
+            kind: '茗茶',
+            holder: 'husband',
+            note: '自家紫阳山茶园雨前鲜焙嫩芽，青瓷小瓮装盛，清冽回甘',
+          });
+          saveState(DATA_DIR, world);
+        }
 
         const me = world.actors?.husband || world.actors?.[member.actor || 'husband'];
         const curLocation = me?.location || 'husband_room';
@@ -1651,13 +1669,19 @@ const server = http.createServer(async (req, res) => {
           items: husbandItems,
           presentItems,
           hereActors,
+          supplyPresets: HOUSEHOLD_SUPPLY_PRESETS.map((p) => ({
+            key: p.key,
+            name: p.name,
+            kind: p.kind,
+            note: p.note,
+          })),
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }
     }
 
-    // POST /api/world/items/action { action: 'give'|'show'|'ask', itemId, targetActorId }
+    // POST /api/world/items/action { action: 'give'|'show'|'ask'|'prepare', itemId, targetActorId, itemKey }
     if (req.method === 'POST' && matchRoute('/world/items/action')) {
       try {
         const body = await parseJsonBody(req, 32 * 1024);
@@ -1666,16 +1690,31 @@ const server = http.createServer(async (req, res) => {
 
         const action = String(body.action || '').trim();
         const itemId = String(body.itemId || '').trim();
+        const itemKey = String(body.itemKey || body.itemName || itemId || '').trim();
         const targetActorId = String(body.targetActorId || '').trim();
 
-        if (!action || !itemId) {
+        if (!action || (!itemId && !itemKey)) {
           return sendJson(res, 400, { ok: false, error: '参数不齐：缺少 action 或 itemId' });
         }
 
         const world = loadState(DATA_DIR);
         let result = null;
 
-        if (action === 'give') {
+        if (action === 'prepare') {
+          const prep = prepareHouseholdItem(world, itemKey, '府库总管');
+          if (prep?.item) {
+            saveState(DATA_DIR, world);
+            result = {
+              ok: true,
+              line: prep.created
+                ? `（已从自家府库/茶坊备妥《${prep.item.name}》，放入您的随身储物空间。）`
+                : `（《${prep.item.name}》已在您的随身储物空间中，可随时出示或赠人。）`,
+              item: prep.item,
+            };
+          } else {
+            result = { ok: false, line: '（备物未成。）' };
+          }
+        } else if (action === 'give') {
           if (!targetActorId) return sendJson(res, 400, { ok: false, error: '请指定赠予的对象' });
           result = giveItem(world, 'husband', targetActorId, itemId);
           if (result.ok) {

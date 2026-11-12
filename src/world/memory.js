@@ -60,7 +60,7 @@ function resolveId(world, token) {
 }
 
 /** 正文里点到名的人（含丈夫称谓）→ id 列表 */
-function mentionedIds(world, text) {
+export function mentionedIds(world, text) {
   const t = String(text || '');
   const ids = [];
   for (const id of Object.keys(world.actors || {})) {
@@ -164,8 +164,10 @@ export function migrateMemories(world) {
  */
 export function recallMemories(world, ids = [], { limit = 16, query = '' } = {}) {
   const rawIds = (ids || []).filter(Boolean);
+  const q = String(query || '');
+  const qMentioned = q ? mentionedIds(world, q) : [];
   const want = new Set();
-  for (const rawId of rawIds) {
+  for (const rawId of [...rawIds, ...qMentioned]) {
     want.add(rawId);
     const resolved = resolveId(world, rawId);
     if (resolved) want.add(resolved);
@@ -180,7 +182,7 @@ export function recallMemories(world, ids = [], { limit = 16, query = '' } = {})
     const about = Array.isArray(m.about) ? m.about : [];
     const mappedAbout = about.map((x) => LEGACY_ID_ALIASES[x] || x);
     if (mappedAbout.some((x) => want.has(x))) {
-      // 如果只是泛泛的 husband 相关，但当前有具体在场 NPC，优先看跟在场 NPC 有关的
+      // 如果只是泛泛的 husband 相关，但当前有具体在场/提及 NPC，优先看跟具体 NPC 有关的
       if (want.size > 1 && want.has('husband')) {
         const nonHusIds = [...want].filter((id) => id !== 'husband');
         const nonHusNames = [];
@@ -207,23 +209,29 @@ export function recallMemories(world, ids = [], { limit = 16, query = '' } = {})
     return hits.map((m) => String(m.text));
   }
 
-  // 如果超出 limit，确保重要里程碑（如赎契、身孕、立约、2026、老公）与最近记忆同时保留
-  const q = String(query || '');
+  // 如果超出 limit，确保重要里程碑（如赎契、身孕、立约、2026、老公、婚配、共管底档）与玩家当前提及的内容优先保留
   const qTokens = (q.match(/[\u4e00-\u9fa5]{2,4}|\d+/g) || []).filter((w) => !/^(我们|你们|他们|这个|那个|什么|怎么|觉得|现在|今天|昨天|前天|记得|知道)$/.test(w));
 
   const pinned = [];
   const rest = [];
   for (const m of hits) {
     const t = String(m.text);
-    const isCore = /(契纸|赎|还清|归到.*名下|身孕|骨肉|2026|老公|托付终身|立约|私情|上房|留宿|侍寝|肌肤|定情|认下.*(关系|私情)|应了.*(相公|王甯)|同床|云雨|圆房|收了房|夫妻之实)/.test(t) ||
+    const about = Array.isArray(m.about) ? m.about : [];
+    const isTargetMention = qMentioned.length > 0 && (
+      qMentioned.some((id) => about.includes(id) || aliasesOf(world, id).some((n) => t.includes(n)))
+    );
+    const isCore = isTargetMention ||
+      /(契纸|赎|还清|归到.*名下|身孕|骨肉|2026|老公|托付终身|立约|私情|上房|留宿|侍寝|肌肤|定情|认下.*(关系|私情)|应了.*(相公|王甯)|同床|云雨|圆房|收了房|夫妻之实|姐妹|侧室|和离|过门|底档|核账|大门|相称|摊明|相好|答应|妆匣)/.test(t) ||
       (qTokens.length > 0 && qTokens.some((tk) => t.includes(tk)));
     if (isCore) pinned.push(t);
     else rest.push(t);
   }
 
-  const maxPinned = Math.min(pinned.length, Math.ceil(limit * 0.6));
-  const selectedPinned = pinned.slice(-maxPinned);
-  const selectedRest = rest.slice(-(limit - selectedPinned.length));
+  // 命中的关键旧事优先保留（最多占满 limit-2，给最新闲事留 2 条空间；若闲事不足则关键事全占）
+  const keepRestCount = rest.length > 0 ? Math.min(rest.length, Math.max(0, Math.min(2, limit - pinned.length || 2))) : 0;
+  const maxPinned = Math.min(pinned.length, limit - keepRestCount);
+  const selectedPinned = maxPinned > 0 ? pinned.slice(-maxPinned) : [];
+  const selectedRest = keepRestCount > 0 ? rest.slice(-keepRestCount) : [];
   // 保持原有时间顺序输出
   const selectedSet = new Set([...selectedPinned, ...selectedRest]);
   return hits.map((m) => String(m.text)).filter((t) => selectedSet.has(t));

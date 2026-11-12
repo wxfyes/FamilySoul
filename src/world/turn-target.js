@@ -10,14 +10,23 @@ export function actorSeniority(a) {
   if (/正妻|发妻|大娘子/.test(role) || a.id === 'waner') return 1000;
   // 2. 侧室如夫人/二房
   if (/如夫人|二房|侧室|妾/.test(role) || a.id === 'yunnia') return 900;
+  // 2.5 官宦名门千金、朝廷官员、诰命夫人（如知府千金杨采儿、知县周文达、知府杨振华等，绝非下人跟班！）
+  if (/千金|大小姐|闺秀|知府|县令|知县|知州|巡抚|尚书|大人|太守|通判|县丞|主簿|夫人|员外|老爷|山长/.test(role)
+      || /千金|大小姐|大人|知府|知县/.test(title)) {
+    return 880 + (Number(a.age) || 20);
+  }
   // 3. 其他内眷/侍妾
   if (/通房|姨娘/.test(role) || a.id === 'wanning') return 800;
+  // 3.2 商界老板娘、东家、青楼花魁、头牌、红颜正主（如柳如烟、紫嫣、苏映雪等）
+  if (/老板娘|东家|楼主|花魁|头牌|班主|坊主|掌院|先生|娘子/.test(role) || /老板娘|花魁/.test(title)) {
+    return 680 + (Number(a.age) || 22);
+  }
   // 3.5 客人/乡绅/客商只是客人，不能凭“叔/伯”压过掌柜账房，也不能代报产业内部账
   if (/乡绅|客商|公子|富商|茶客|酒客|顾客|客人|买主|贵客/.test(role)) {
     return 100 + (Number(a.age) || 20);
   }
-  // 4. 掌柜/总管/管事/头领（或尊称叔、伯的长者）
-  if (/掌柜|管事|头领|领头|头目|总管|教头/.test(role) || /掌柜|管事|领头/.test(title) || /叔|伯|老/.test(name)) {
+  // 4. 掌柜/总管/管事/头领/典吏（或尊称叔、伯的长者）
+  if (/掌柜|管事|头领|领头|头目|总管|教头|典吏|书吏|捕头/.test(role) || /掌柜|管事|领头/.test(title) || /叔|伯|老/.test(name)) {
     return 600 + (Number(a.age) || 30);
   }
   // 5. 贴身大丫鬟
@@ -34,7 +43,7 @@ export function actorSeniority(a) {
 
 /**
  * 这一轮该谁说话：唯一的发言权判定处。
- * 优先级：相公指名呼唤在场者 > 呼唤领头人/管事 > 现场唯一在场活人 > 场景位尊领头正主。
+ * 优先级：相公指名呼唤在场者 > 呼唤领头人/管事 > 现场唯一在场活人 > 上次对话且仍在场的非随从对象 > 场景位尊领头正主。
  */
 export function resolveTurnTarget({ world, viewerId = 'husband', say = '', present = [] }) {
   const said = String(say || '');
@@ -43,7 +52,7 @@ export function resolveTurnTarget({ world, viewerId = 'husband', say = '', prese
 
   // ⓪ 点王甯的名：不管他在哪都应声
   const hus = actors.husband;
-  if (hus && /(王甯|王掌柜|少掌柜)/.test(said)) {
+  if (hus && /(王甯|王掌柜|少掌柜)/.test(said) && viewerId !== 'husband') {
     return { kind: 'husband', actor: hus, actorId: 'husband', named: true };
   }
 
@@ -55,12 +64,16 @@ export function resolveTurnTarget({ world, viewerId = 'husband', say = '', prese
     }
   }
 
-  // ② 相公指名道姓/古风称呼呼唤（如"杨娘子"、"静儿"、"婉儿"）
-  const named = findTargetActorInText(actors, said);
-  if (named) {
-    const isHere = here.some((a) => a.id === named.id);
+  // ② 相公指名道姓/古风称呼呼唤（优先在当前在场者 here 中匹配，彻底防止同名/同字根的场外人干扰！）
+  const namedHere = findTargetActorInText(here, said);
+  if (namedHere) {
+    return { kind: namedHere.id === 'husband' ? 'husband' : 'npc', actor: namedHere, actorId: namedHere.id, named: true };
+  }
+  const namedGlobal = findTargetActorInText(actors, said);
+  if (namedGlobal) {
+    const isHere = here.some((a) => a.id === namedGlobal.id);
     if (isHere) {
-      return { kind: named.id === 'husband' ? 'husband' : 'npc', actor: named, actorId: named.id, named: true };
+      return { kind: namedGlobal.id === 'husband' ? 'husband' : 'npc', actor: namedGlobal, actorId: namedGlobal.id, named: true };
     }
   }
 
@@ -74,7 +87,8 @@ export function resolveTurnTarget({ world, viewerId = 'husband', say = '', prese
   const partner = partnerId ? actors[partnerId] : null;
   const partnerHere = partner && !partner.dead && here.some((a) => a.id === partnerId);
   if (partnerHere) {
-    // 礼法不变量：普通随从跟班不得越过在场的总管/头领长久霸占麦克风
+    // 礼法不变量：只有真正的下人随从（<500）才不得越过在场主事人长久霸占麦克风；
+    // 若 partner 是知府千金、名门闺秀、老板娘、官员或妻妾（>=500），即使沈婉儿同场，也保持当前对话对象的连续发言权！
     const leader = [...here].sort((x, y) => actorSeniority(y) - actorSeniority(x))[0];
     const partnerIsSubordinate = actorSeniority(partner) < 500 && actorSeniority(leader) >= 600;
     if (!partnerIsSubordinate) {

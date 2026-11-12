@@ -20,6 +20,8 @@ export function composeSystemPrompt({
 
   // 🌟 物理空间解耦判定
   let isHusbandOutAndWifeAbsent = false;
+  let isHusbandOutWithCompany = false;
+  let wanerHereInScene = false;
   let presentOutActors = [];
   let outPlaceName = '';
   try {
@@ -29,11 +31,18 @@ export function composeSystemPrompt({
       const isInnerHome = ['husband_room', 'tea_house', 'backyard'].includes(husLoc) || (wSt.places?.[husLoc]?.owner === 'husband' && !['canal_restaurant'].includes(husLoc));
       outPlaceName = String(wSt.places?.[husLoc]?.name || husLoc);
       const hereActors = Object.values(wSt.actors || {}).filter((a) => a && !a.dead && a.id !== 'husband' && a.location === husLoc);
-      const wanerHere = hereActors.some((a) => a.id === 'waner');
-      if (!isInnerHome && !wanerHere && hereActors.length > 0) {
-        isHusbandOutAndWifeAbsent = true;
+      wanerHereInScene = hereActors.some((a) => a.id === 'waner');
+      const hasNonHouseholdHere = hereActors.some((a) => !a.household && !['waner', 'yunnia', 'wanning', 'xiaocui'].includes(a.id));
+      if (!isInnerHome && hereActors.length > 0) {
+        isHusbandOutWithCompany = true;
+        isHusbandOutAndWifeAbsent = !wanerHereInScene;
         presentOutActors = hereActors;
-        persona = null;
+        if (!wanerHereInScene) {
+          persona = null;
+        }
+      } else if (hasNonHouseholdHere && hereActors.length > 0) {
+        isHusbandOutWithCompany = true;
+        presentOutActors = hereActors;
       }
     }
   } catch (_) {}
@@ -152,19 +161,24 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
     } else if (history?.inPrivateWorld === '柳儿') {
       lines.push('【现场调度·二人世界】');
       lines.push('此刻正妻婉儿已掩门退出，房内仅有你「侍妾·柳儿」与相公独处，撒娇温存！');
-    } else if (isHusbandOutAndWifeAbsent && presentOutActors.length > 0) {
+    } else if (isHusbandOutWithCompany && presentOutActors.length > 0) {
       lines.push('【相公亲临现场 · 多人在场群戏演译铁律】');
       lines.push(`相公王甯此刻亲临「${outPlaceName}」！`);
-      lines.push('- 正妻沈婉儿留在茶坊后院打理中馈账本，【沈婉儿绝不在场，严禁开口插话】！');
+      if (isHusbandOutAndWifeAbsent) {
+        lines.push('- 正妻沈婉儿留在茶坊后院打理中馈账本，【沈婉儿绝不在场，严禁开口插话】！');
+      } else if (wanerHereInScene) {
+        lines.push('- 正妻【沈婉儿】此刻亦随侍/应召在场，与现场其他人物同处一室！');
+        lines.push('- 【严禁沈婉儿霸屏压制在场他人】：沈婉儿绝不可一人包揽全场或替在场东道主/其他主角代答！相公点名跟谁说话（如唤“采儿”），必须由被点名者亲自首位开口回应！若相公吩咐取物转赠或让双方互动，必须由在场两人各自独立分角对答！');
+      }
       const namesDesc = presentOutActors.map((a) => `【${a.name}】（${a.role || ''}）`).join('、');
       lines.push(`- 【现场在场所有人】：${namesDesc}。所有人就在同一现场跟前！`);
       lines.push('- 【对话指向与第一应答者法则】：');
-      lines.push('  1. 【呼名必应，谁被问谁答】：相公若明确叫了某人（如叫随科、或向随科发问），被问者必须首先以自身独立身份正面开口回应！绝不可由其他人替其代言或冒名答非所问！');
-      lines.push('  2. 【同场鲜活群戏】：现场在场其他人就在身旁，可在主应答者说话后，根据各自立场、性格或恩怨自然插话、斥责、补充或表态；');
-      lines.push('  3. 【每人独立分角】：每位开口的人物必须各自独立成行，且必须以「【身份·姓名】：“台词”」（如【客栈掌柜·孙进】、【伙计·罗河】）严格标明分角，呈现真实生动的同场多人交涉！');
+      lines.push('  1. 【呼名必应，谁被问谁答】：相公若明确叫了某人（如叫采儿、随科，或向某人发问/递物），被点名者必须首先以自身独立身份正面开口回应！绝不可由沈婉儿或其他人替其代言或抢答！');
+      lines.push('  2. 【同场鲜活群戏】：现场在场其他人就在身旁，可在主应答者说话后，根据各自立场、性格自然插话、应和、补充或表态；');
+      lines.push('  3. 【每人独立分角】：每位开口的人物必须各自独立成行，且必须以「【身份·姓名】：“台词”」（如【知府千金·采儿】、【正妻·婉儿】、【客栈掌柜·孙进】）严格标明分角，呈现真实生动的同场多人互动！');
       lines.push('  4. 【严禁一人包揽多人对话】：绝不可在一个人名下把其他角色的应答塞在同一段或同一气泡里；');
       lines.push('  5. 【严禁裸露孤立冒号】：严禁输出如“： “台词””这样不带人名的残缺格式，下属领命或伙计应声也必须明确写出【某某】！');
-      lines.push('  4. 【严禁空间失忆妄语】：在场之人就在眼前同一桌/同一屋，绝不许说"我去找他"、"我回去敲打他"等把眼前人当成不在场的失忆怪话！');
+      lines.push('  6. 【严禁空间失忆妄语】：在场之人就在眼前同一桌/同一屋，绝不许说"我去找他"、"我回去敲打他"等把眼前人当成不在场的失忆怪话！');
       lines.push('- 【在场人物立场与身份特征】：');
       for (const actor of presentOutActors) {
         const rel = actor.relations?.husband || {};
@@ -173,7 +187,11 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
         const hasHusbandBaby = actor.pregnancy && actor.pregnancy.father === 'husband';
         const isConsummated = actor.intimacy?.consummated || hasHusbandBaby || (rel.trust >= 75 && rel.desire >= 55) || actor.intimacy?.level >= 3;
         let actorNote = `  * 【${actor.name}】（${actor.role || '在场者'}，性格：${actor.personality || '鲜活真实'}）：`;
-        if (actor.id === 'suike' || actor.name.includes('随科')) {
+        if (actor.id === 'waner' || actor.name === '沈婉儿') {
+          actorNote += '相公明媒正娶的名门正妻，自称「妾身」，称相公「相公/夫君」；在外场随侍或送物到场时端庄贤淑、给足相公体面，绝不抢在场东道主或贵客的话头，被相公问及或吩咐备茶取物时温婉奉上。';
+        } else if (actor.id === 'yangzhenhua' || actor.name.includes('采儿') || /知府千金/.test(String(actor.role || ''))) {
+          actorNote += '临江知府杨大人十九岁掌上明珠千金贵女，性格英姿飒爽、傲娇清高、口嫌体正直；自称「我/本姑娘/采儿」，称相公「你/少掌柜/王少掌柜/王甯」；绝不自称妾身/奴家，面对相公赠茶献礼或表白夸赞时，傲娇中泛起少女娇羞与欣喜，当场品评回应！';
+        } else if (actor.id === 'suike' || actor.name.includes('随科')) {
           actorNote += '县衙典吏/书吏，管底册文书，性格贪财、软弱、畏事、想推脱责任，但在相公和发妻当面质问逼视下不敢明着撒谎，只能交代实情。';
         } else if (actor.id === 'zhanjing' || actor.name.includes('静儿')) {
           actorNote += '随科发妻，端庄清冷，受尽丈夫牵连与委屈；相公特来为她撑腰讨回公道，她对相公心怀感激信赖，但碍于名节在丈夫面前保持克制，对丈夫随科的软弱推脱深恶痛绝。';
@@ -231,7 +249,7 @@ lines.push('- 【离场要写标签】：真有人起身走了（回房、出府
       `- 当前场景：${
         history?.inPrivateWorld
           ? `【相公与${history.inPrivateWorld}的厢房二人世界】（正妻婉儿已掩门回避退下）`
-          : isHusbandOutAndWifeAbsent ? `【相公亲临${outPlaceName}】` : '【后院正堂·茶坊雅致厢房】'
+          : isHusbandOutWithCompany ? `【相公亲临${outPlaceName}】` : '【后院正堂·茶坊雅致厢房】'
       }。`,
     );
     lines.push('- 【认人铁律】：相公提到府里任何一个人的名字（如芸娘、小翠），必须当场认出来接话，绝对严禁反问「她是谁」。');

@@ -8,7 +8,7 @@ import { planNamedNpcMoves } from './plan-moves.js';
 import { resolveVoiceCasting } from '../world/voice-casting.js';
 import fs from 'node:fs';
 import { personFacts } from '../world/person-facts.js';
-import { getPlaceDisplayName } from '../world/naming.js';
+import { getPlaceDisplayName, findTargetActorInText } from '../world/naming.js';
 import { moveActor, isHumanBound, healInnerFamilyAtNight } from '../world/position.js';
 import { applyChatActions } from '../world/chat-actions.js';
 import path from 'node:path';
@@ -25,7 +25,7 @@ import { buildMemberCard } from '../world/member-card.js';
 import { placeFacts } from '../world/state.js';
 import { arcStepPrompt } from '../world/arcs.js';
 import { normalizeMemberReply } from '../world/member-reply.js';
-import { resolveTurnTarget } from '../world/turn-target.js';
+import { resolveTurnTarget, rememberPartner } from '../world/turn-target.js';
 import { describeBonds } from '../world/bonds.js';
 import { rumorsKnownBy } from '../world/rumors.js';
 import { recordHumanLine, memberKeyOfActor } from '../world/co-presence.js';
@@ -356,9 +356,9 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         void namesPH;
         if (poolPH.length) {
           contextHint += `（【账本·旧事】${poolPH.join('；')}\n`;
-          contextHint += '——她要问这些，就照这条说；账本里没有的，只说记不得。）\n';
+          contextHint += '——相公若问及这些既定旧事，务必据实以答、顺畅承接，切勿推托不认。）\n';
         } else {
-          contextHint += '（【账本·旧事】关于这件事，账本里什么都没有。你只能说自己记不得/没这回事，绝不许编细节，也不要编她的身世或往事。）\n';
+          contextHint += '（【账本·旧事提示】若涉及账本未载之新奇外事，勿凭空捏造官府文书或契纸；涉及既定人物与情分，依常理自然承接。）\n';
         }
       }
     } catch { /* 忽略 */ }
@@ -600,7 +600,12 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             (namePattern && namePattern.test(a.name || '')) || (idPattern && idPattern.test(a.id || ''))
           );
 
-          if (/采云|杨采云|翟长盛|翟家货栈/i.test(say)) {
+          const namedPresentActor = findTargetActorInText(currentHereActors, say);
+          if (namedPresentActor && namedPresentActor.name) {
+            targetSpeaker = namedPresentActor.name;
+            const roleDesc = namedPresentActor.role || '在场角色';
+            haremNotice = `（【相公点名交谈对象：${namedPresentActor.name}（${roleDesc}）】：${namedPresentActor.name}此刻就在相公跟前，必须由【${namedPresentActor.name}】亲自以第一人称首位开口回应相公，绝不可由在场其他人代答或压制其台词！）`;
+          } else if (/采云|杨采云|翟长盛|翟家货栈/i.test(say)) {
             if (isActorPresent(/杨采云|采云/, /yangcaiyun/)) {
               targetSpeaker = '杨采云';
               haremNotice = '（【在场交谈对象：杨采云】：杨采云就在相公跟前，由其根据自身身份与当前事实应答。）';
@@ -647,8 +652,10 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、跑腿传话、端茶递水，灵动可爱向相公回话并推进剧情！）';
           } else if (/婉儿|大娘子|娘子|主母|夫人/i.test(say)) {
             targetSpeaker = '婉儿';
-          } else if (history.activeSpeaker && history.activeSpeaker !== 'all') {
+          } else if (history.activeSpeaker && history.activeSpeaker !== 'all' && currentHereActors.some((a) => a.name && (a.name.includes(history.activeSpeaker) || history.activeSpeaker.includes(a.name)))) {
             targetSpeaker = history.activeSpeaker;
+          } else if (currentHereActors.length === 1) {
+            targetSpeaker = currentHereActors[0].name;
           } else {
             targetSpeaker = '婉儿';
           }
@@ -765,26 +772,30 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         const tActor = turnTarget.actor;
         const tName = tActor.name;
         const tLabel = tActor.label || tName;
+        rememberPartner(wTurn, myActorId, tActor.id);
+        saveState(svc.dataDir, wTurn);
+
+        let personaRule = '';
+        if (/千金|采儿|大小姐/.test(tName) || /知府千金|名门闺秀/.test(String(tActor.role || ''))) {
+          personaRule = `【${tLabel}】乃十九岁名门知府千金，性子英姿飒爽、傲娇清高、口嫌体正直！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」；【绝对严禁自称“本官/老夫/妾身/奴家”】！【绝对严禁称相公“东家/老爷”】！【最高互动铁律】：私下相伴乃男女风月雅叙，面对相公赠茶、表白、豪气或夸赞，她心如鹿撞、假意薄怒娇嗔或欢喜品评，绝不可化身官府公堂酷吏不断盘问索要“凭据/盐引/船号”，顺着相公的话聊，展现傲娇名媛的娇羞与灵动！`;
+        } else if ((/知县|大人|官员|府尹|通判/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
+          personaRule = `【${tLabel}】乃朝廷命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
+        }
+
+        const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
+        const allCompanionNames = companions.map((a) => `${a.name}（${a.role || a.label || '同场'}）`).join('、');
+
         if (turnTarget.named) {
-          turnDirective = `\n（相公指名向【${tName}】问话，此刻由【${tLabel}】接话作答。）`;
+          turnDirective = `\n（【点名应答最高铁律】：相公明确点名向在场的【${tName}】说话！本轮必须首先由【${tLabel}】以「【${tActor.role || tLabel}·${tName.length > 2 ? tName.slice(-2) : tName}】：“台词”」正面开口回应相公！绝对严禁由${companions.length ? companions.map((a) => a.name).join('、') : '旁人'}越俎代庖替她回答或压制她的台词！${personaRule}${companions.length ? ` 同在现场的【${allCompanionNames}】可在其后另起一行以各自独立分角标头自然接话互动，或静立在旁。` : ''}）`;
         } else {
-          const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
-          const wifeCompanions = companions.filter((a) => a.household || ['waner', 'yunnia'].includes(a.id));
-          const companionNames = wifeCompanions.map((a) => a.label || a.name).join('、');
           const isStaff = /掌柜|管事|头领|领头|护院|家丁|门房|伙计/.test(String(tActor.role || '')) || /罗叔/.test(tName);
-          if (companionNames) {
-            turnDirective = `\n（此刻由【${tLabel}】主持回应相公，在场眷属【${companionNames}】自然随侍相伴。）`;
+          if (companions.length > 0 && !isStaff) {
+            turnDirective = `\n（【同场多人互动法则】：此刻在场的有【${tLabel}】与【${allCompanionNames}】。本轮由【${tLabel}】主答，在场的【${allCompanionNames}】亦在同一屋中，若话语涉及双方（如取茶、赠礼、引荐、闲叙），须由双方各自另起一行以「【身份·姓名】：“台词”」独立分角对答，绝不可一人包揽或抹杀另一人的存在！${personaRule}）`;
           } else if (isStaff && companions.length > 0) {
             turnDirective = `\n（主仆礼制：由掌事领头人【${tLabel}】上前从容回话，余人肃立各司其职。）`;
           } else {
             const locName = wTurn.places?.[myLoc]?.name || '客栈·上房';
-            let personaRule = '';
-            if (/千金|采儿|大小姐/.test(tName) || /知府千金|名门闺秀/.test(String(tActor.role || ''))) {
-              personaRule = `【${tLabel}】乃十九岁名门知府千金，性子英姿飒爽、傲娇清高、口嫌体正直！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」；【绝对严禁自称“本官/老夫/妾身/奴家”】！【绝对严禁称相公“东家/老爷”】！【最高互动铁律】：私下雅阁相伴乃男女风月雅叙，面对相公的表白、豪气或夸赞，她心如鹿撞、假意薄怒娇嗔，绝不可化身官府公堂酷吏不断盘问索要“凭据/盐引/船号”，顺着相公的话聊，展现傲娇名媛的娇羞与灵动！`;
-            } else if ((/知县|大人|官员|府尹|通判/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
-              personaRule = `【${tLabel}】乃朝廷命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
-            }
-            turnDirective = `\n（现场法则：此刻相公身处【${locName}】，室内唯有【${tLabel}】一人在场相伴！沈婉儿、林芸娘等府内眷属此刻皆在王宅深闺安歇，绝不在场，严禁以沈婉儿或府内妻妾口吻发言！本轮回复必须且只能由【${tLabel}】一人接话答复相公。${personaRule}）`;
+            turnDirective = `\n（现场法则：此刻相公身处【${locName}】，室内唯有【${tLabel}】一人在场相伴！不在场之人绝不可隔空插嘴！本轮回复必须且只能由【${tLabel}】一人接话答复相公。${personaRule}）`;
           }
         }
         console.log(`[TurnTarget] 发言权锁定: ${tName}(${tActor.id}) reason=${turnTarget.named ? '指名道姓' : (turnTarget.solePresent ? '唯一在场' : '场景正主')}`);
@@ -858,15 +869,16 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       try {
         const hasMarker = /【[^】\n]{1,12}】/.test(reply);
         const isMainPersona = profileKey === 'husband' || activeRole === '傲娇助手';
-        // 开头那段没有标记的旁白，也补上主角花名，否则会显示成账号名「温柔小娘子」
+        // 开头那段没有标记的旁白，也补上当前正主花名，否则会显示成账号名「温柔小娘子」
         if (hasMarker && isMainPersona) {
           const lead = reply.match(/^([\s\S]*?)(?=【[^】\n]{1,12}】)/);
           if (lead && lead[1].trim().length > 0) {
             try {
               const w0 = loadState(svc.dataDir);
-              const me = w0.actors?.waner;
-              const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : me?.name || '婉儿';
-              const label = svc._viewerActorId ? '王甯' : `${me?.label || '正妻'}·${short}`;
+              const tAct = turnTarget?.actor || w0.actors?.waner;
+              const short = tAct?.name && tAct.name.length > 2 ? tAct.name.slice(-2) : tAct?.name || '婉儿';
+              const rolePre = tAct?.label || tAct?.role || '正妻';
+              const label = svc._viewerActorId ? '王甯' : (rolePre.includes(short) ? rolePre : `${rolePre}·${short}`);
               reply = `【${label}】：${lead[1].trim()}\n${reply.slice(lead[1].length)}`;
             } catch {
               /* 忽略 */
@@ -882,7 +894,13 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             const husLoc = w0.actors?.husband?.location;
             const wanerLoc = w0.actors?.waner?.location;
             const wanerHere = husLoc && wanerLoc && husLoc === wanerLoc;
-            if (wanerHere) {
+            if (turnTarget && turnTarget.actor && turnTarget.actor.location === husLoc) {
+              const tAct = turnTarget.actor;
+              const short = tAct.name && tAct.name.length > 2 ? tAct.name.slice(-2) : tAct.name;
+              const rolePre = tAct.label || tAct.role || '';
+              const label = rolePre ? (rolePre.includes(short) ? rolePre : `${rolePre}·${short}`) : (tAct.name || short);
+              reply = `【${label}】：${reply}`;
+            } else if (wanerHere) {
               const me = w0.actors?.waner;
               const short = me?.name && me.name.length > 2 ? me.name.slice(-2) : (me?.name || '婉儿');
               reply = `【${me?.label || '正妻'}·${short}】：${reply}`;
@@ -1323,16 +1341,20 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
 
     // 记下这一轮是谁在说话：下一句接着他说
     try {
-      if (svc._viewerActorId && reply) {
+      const viewerKey = svc._viewerActorId || 'husband';
+      if (reply) {
         const spoken = String(reply).match(/【([^】]+)】/g) || [];
-        const names = spoken.map((x) => x.replace(/[【】]/g, '')).filter((n) => n && !/(屋里|街|茶坊|酒肆|府衙|码头|河|院|门|街面上)/.test(n));
+        const names = spoken.map((x) => x.replace(/[【】]/g, '')).filter((n) => n && !/(屋里|街|茶坊|酒肆|府衙|码头|河|院|门|街面上|旁白|提示|天道)/.test(n));
         if (names.length) {
           const last = names[names.length - 1];
+          const coreLast = last.includes('·') ? last.split('·').pop().trim() : last.trim();
           const wp3 = loadState(svc.dataDir);
-          const hit = Object.values(wp3.actors || {}).find((a) => a && a.name === last);
+          const hit = Object.values(wp3.actors || {}).find(
+            (a) => a && a.name && a.id !== viewerKey && (a.name === last || a.name === coreLast || (coreLast.length >= 2 && a.name.endsWith(coreLast))),
+          );
           if (hit) {
             wp3.chatPartners = wp3.chatPartners || {};
-            wp3.chatPartners[svc._viewerActorId] = hit.id;
+            wp3.chatPartners[viewerKey] = hit.id;
             saveState(svc.dataDir, wp3);
           }
         }

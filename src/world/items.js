@@ -135,3 +135,99 @@ export function askItem(world, fromId, targetActorId, itemId) {
   };
 }
 
+/** 府库/茶坊/酒楼常备礼单模板：支持口语要茶、备礼或储物空间一键取用 */
+export const HOUSEHOLD_SUPPLY_PRESETS = [
+  {
+    key: 'tea_mingqian',
+    match: /春茶|明前|雨前|紫阳|好茶|茶叶|新茶|龙井|毛尖|茶/,
+    name: '紫阳山头春茶（明前极品锡罐）',
+    kind: '茗茶',
+    note: '自家紫阳山茶园头采明前嫩芽，锡罐严封，汤清叶绿、兰香沁脾',
+  },
+  {
+    key: 'wine_huadiao',
+    match: /酒|美酒|花雕|女儿红|竹叶青|佳酿|酒坛/,
+    name: '陈年绍兴女儿红（泥封佳酿）',
+    kind: '美酒',
+    note: '运河码头大酒楼地窖珍藏十载花雕佳酿，醇厚回甘',
+  },
+  {
+    key: 'pastry_box',
+    match: /点心|糕点|桂花糕|茶点|吃食|食盒|酥酪/,
+    name: '江南桂花酥酪精致食盒',
+    kind: '茶点',
+    note: '临江茶坊老店秘制细点，甜而不腻，最宜佐茶',
+  },
+  {
+    key: 'hairpin_gold',
+    match: /珠钗|步摇|首饰|簪|钗|金钗|玉簪|头面/,
+    name: '赤金点翠衔珠步摇',
+    kind: '首饰',
+    note: '临江银楼赤金累丝镶东珠步摇，华贵典雅，宜赠佳人',
+  },
+  {
+    key: 'jade_bangle',
+    match: /玉佩|玉镯|手镯|翡翠|美玉|白玉|镯子/,
+    name: '羊脂白玉玲珑腕镯',
+    kind: '珍玩',
+    note: '温润无瑕羊脂白玉镯，雕工精湛，触手生温',
+  },
+  {
+    key: 'silk_brocade',
+    match: /绸缎|锦缎|云锦|布料|衣裳|罗裙|绫罗/,
+    name: '江南苏绣流光云锦缎',
+    kind: '绫罗',
+    note: '上等苏绣流光云锦，色泽柔美，裁衣绝佳',
+  },
+  {
+    key: 'rouge_box',
+    match: /胭脂|水粉|香粉|螺子黛|香囊|香料/,
+    name: '扬州鹅蛋香粉与螺子黛礼盒',
+    kind: '闺物',
+    note: '江南名坊贡品香粉黛墨，香气幽雅持久',
+  },
+  {
+    key: 'silver_note',
+    match: /银票|银子|盘缠|礼金|银两/,
+    name: '大通钱庄五十两现兑银票',
+    kind: '银票',
+    note: '大通钱庄朱印官票，凭票即兑纹银五十两',
+  },
+  {
+    key: 'banquet_card',
+    match: /请帖|拜帖|请柬|邀帖/,
+    name: '运河大酒楼天字阁雅席请柬',
+    kind: '书帖',
+    note: '王少掌柜亲笔泥金雅席邀帖，三层天字阁凭江设宴',
+  },
+];
+
+/**
+ * 从自家府库/茶坊/酒楼备妥一件物品放入相公随身储物空间
+ */
+export function prepareHouseholdItem(world, rawWord = '', fromName = '府库') {
+  ensureItems(world);
+  const w = String(rawWord || '').trim()
+    .replace(/^(?:一点|一些|一罐|两罐|一盒|一份|一坛|一支|一件|个|点|好|上好|新焙的)+/g, '')
+    .replace(/(?:来|吧|呀|啊|呢|给我|准备好)+$/g, '')
+    .trim();
+  const preset = HOUSEHOLD_SUPPLY_PRESETS.find((p) => p.key === w || p.match.test(w || rawWord));
+  const itemName = preset ? preset.name : (w.length >= 2 && w.length <= 14 ? w : '紫阳山头春茶（明前极品锡罐）');
+  const itemKind = preset ? preset.kind : '随身礼';
+  const itemNote = preset ? preset.note : `由${fromName}遵命备妥并放入相公随身储物空间`;
+
+  // 若行囊中已有同名物品，直接返回该物品（或若明确要茶/礼也可新增一件）
+  const existing = itemsOf(world, 'husband').find((it) => it.name === itemName);
+  if (existing) return { item: existing, created: false };
+
+  const created = addItem(world, {
+    name: itemName,
+    kind: itemKind,
+    holder: 'husband',
+    note: itemNote,
+  });
+  if (created && fromName) created.from = fromName;
+  return { item: created, created: true };
+}
+
+

@@ -23,6 +23,7 @@ class _InventorySheetState extends State<InventorySheet> {
   List<Map<String, dynamic>> _myItems = [];
   List<Map<String, dynamic>> _presentItems = [];
   List<Map<String, dynamic>> _hereActors = [];
+  List<Map<String, dynamic>> _supplyPresets = [];
   int _activeTab = 0; // 0: 随身行囊, 1: 眼前他人随身
 
   @override
@@ -43,6 +44,7 @@ class _InventorySheetState extends State<InventorySheet> {
         _myItems = ((res['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
         _presentItems = ((res['presentItems'] as List?) ?? const []).cast<Map<String, dynamic>>();
         _hereActors = ((res['hereActors'] as List?) ?? const []).cast<Map<String, dynamic>>();
+        _supplyPresets = ((res['supplyPresets'] as List?) ?? const []).cast<Map<String, dynamic>>();
         _loading = false;
       });
     } else {
@@ -51,6 +53,19 @@ class _InventorySheetState extends State<InventorySheet> {
         _error = '未能取出随身行囊，请稍后再试';
       });
     }
+  }
+
+  // 从府库/茶坊备礼入囊
+  Future<void> _handlePrepare(String itemKey, String itemName) async {
+    HapticFeedback.lightImpact();
+    final res = await widget.api.itemAction(action: 'prepare', itemKey: itemKey);
+    if (!mounted) return;
+    final line = res?['line'] ?? '（已从府库备好《$itemName》收入相公随身储物空间。）';
+    widget.onAction?.call(line);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(line), behavior: SnackBarBehavior.floating),
+    );
+    _load();
   }
 
   // 出示验看
@@ -308,25 +323,87 @@ class _InventorySheetState extends State<InventorySheet> {
     );
   }
 
-  Widget _buildMyItemsList(bool isDark) {
-    if (_myItems.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40),
-          child: Text(
-            '随身行囊空空如也，未装有契纸宝物',
-            style: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
-          ),
+  Widget _buildSupplyBar(bool isDark) {
+    final presets = _supplyPresets.isNotEmpty
+        ? _supplyPresets
+        : const [
+            {'key': '茶叶', 'name': '紫阳山头春茶（明前极品锡罐）'},
+            {'key': '步摇', 'name': '赤金点翠步摇'},
+            {'key': '玉镯', 'name': '羊脂白玉腕镯'},
+            {'key': '绸缎', 'name': '江南苏绣云锦一匹'},
+            {'key': '佳酿', 'name': '陈年女儿红一坛'},
+            {'key': '银票', 'name': '五十两会票礼封'},
+          ];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E222D) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
         ),
-      );
-    }
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.add_box_outlined, size: 15, color: Color(0xFFF59E0B)),
+              const SizedBox(width: 6),
+              Text(
+                '从府库 / 茶坊备礼入囊（点击即刻收入储物空间）',
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : const Color(0xFF334155),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: presets.map((p) {
+              final key = p['key']?.toString() ?? '茶叶';
+              final name = p['name']?.toString() ?? key;
+              return InkWell(
+                onTap: () => _handlePrepare(key, name),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '+ 备$key',
+                    style: const TextStyle(
+                      color: Color(0xFFF59E0B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildMyItemsList(bool isDark) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-      itemCount: _myItems.length,
+      itemCount: _myItems.length + 1,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
-        final it = _myItems[i];
+        if (i == 0) {
+          return _buildSupplyBar(isDark);
+        }
+        final it = _myItems[i - 1];
         final name = it['name']?.toString() ?? '未知宝物';
         final kind = it['kind']?.toString() ?? '杂物';
         final note = it['note']?.toString() ?? '';
@@ -549,3 +626,4 @@ class _InventorySheetState extends State<InventorySheet> {
     );
   }
 }
+

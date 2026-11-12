@@ -8,7 +8,8 @@
 import { moveActor } from './position.js';
 import { buyRice, sellRice, gamble, bribeOfficials, ensureDen, stockOf } from './goods.js';
 import { startTradeRun, startNightMarket, drainBizNotices } from './business.js';
-import { ensureItems, itemsOf, findItem, giveItem } from './items.js';
+import { ensureItems, itemsOf, findItem, giveItem, prepareHouseholdItem } from './items.js';
+import { findTargetActorInText } from './naming.js';
 import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
 import { quellBandits } from './bandits.js';
@@ -544,38 +545,17 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 给东西：给/赏/送/递 某人 某物（支持指定收件人或指代在场之人）
+  // 备物/取物/要东西入随身储物空间（支持："把春茶准备好给我"、"把茶给我"、"给我带点好茶叶来"、"拿银票给我"、"向某人要某物"）
   {
-    const mGive = /(?:给|赏|送|递|把\s*([\u4e00-\u9fa5]{2,12})\s*(?:递给|交给|赏给|送给))\s*([\u4e00-\u9fa5]{1,6})?\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})?/.exec(say);
-    if (mGive && !/[泡倒斟烧做洗煮切]/.test(say)) {
-      const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
-      let recipientName = mGive[2] || mGive[1] || '';
-      let itemWord = mGive[3] || mGive[1] || '';
+    const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
+    const mAsk = /(?:向|问|跟|找)\s*([\u4e00-\u9fa5]{1,4})\s*(?:要|讨|索取|借|拿)\s*(?:一[份张封件罐盒坛支点些])?\s*([\u4e00-\u9fa5]{1,12})/.exec(say);
+    const mFetch = /(?:把|将)\s*([\u4e00-\u9fa5]{1,10}?)\s*(?:给我)?\s*(?:准备好|备好|拿来|取来|带来|端来|递我|交给我|给我|拿给我)/.exec(say)
+      || /(?:给我|替我|帮我)\s*(?:准备|备好|拿|取|带|装)\s*(?:一点|一些|一罐|两罐|一盒|一份|一坛|一支|点|些|好)?\s*([\u4e00-\u9fa5]{1,10}?)(?:来|吧|呀|啊|呢|给我)?(?:[，,。！？\s]|$)/.exec(say)
+      || /(?:拿|取|带)\s*(?:一点|一些|一罐|两罐|一盒|一份|点|些|好)?\s*([\u4e00-\u9fa5]{1,10}?)\s*(?:过来|来)?\s*给我/.exec(say);
 
-      // 代词“你/她”自动匹配当前在场之人
-      let who = null;
-      if (/^(你|她|您|姑娘|大小姐|掌柜)$/.test(recipientName) && othersHere.length > 0) {
-        who = othersHere[0];
-      } else {
-        who = findByName(world, recipientName) || othersHere.find((a) => recipientName.includes(a.name));
-      }
-
-      if (who && who.location === me.location && itemWord) {
-        const it = findItem(world, me.id, itemWord) || itemsOf(world, me.id).find((x) => itemWord.includes(x.name) || x.name.includes(itemWord));
-        if (it) {
-          const r = giveItem(world, me.id, who.id, it.id);
-          if (r.ok) notices.push(r.line.replace(/^（|）$/g, ''));
-        }
-      }
-    }
-  }
-
-  // 要东西：向/问/跟 某人 要/讨/索取 某物
-  {
-    const mAsk = /(?:向|问|跟|找)\s*([\u4e00-\u9fa5]{1,4})\s*(?:要|讨|索取|借|拿)\s*(?:一[份张封件])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
     if (mAsk) {
-      const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
       const targetWord = mAsk[1];
+      const itemWord = mAsk[2];
       let who = null;
       if (/^(你|她|您)$/.test(targetWord) && othersHere.length > 0) {
         who = othersHere[0];
@@ -583,18 +563,106 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         who = findByName(world, targetWord) || othersHere.find((a) => targetWord.includes(a.name));
       }
       if (who) {
-        const it = findItem(world, who.id, mAsk[2]);
-        if (!it) {
-          notices.push(`（${who.name}手里没有「${mAsk[2]}」。）`);
-        } else {
+        const it = findItem(world, who.id, itemWord);
+        if (it) {
           const trust = Number(who.relations?.[me.id]?.trust ?? who.relations?.husband?.trust ?? 0);
           const willing = trust >= 20 || String(who.spouse || '') === me.id || /正妻|如夫人|侧室|丫鬟/.test(String(who.role || ''));
           if (!willing) {
             notices.push(`（${who.name}没应声，把那件东西往身后收了收。）`);
           } else {
             const r = giveItem(world, who.id, me.id, it.id);
-            if (r.ok) notices.push(`（${who.name}把《${it.name}》递了过来。）`);
+            if (r.ok) notices.push(`（${who.name}把《${it.name}》递了过来，已收入您的随身储物空间。）`);
           }
+        } else if (who.household || String(who.spouse || '') === 'husband' || /掌柜|管事|伙计|丫鬟/.test(String(who.role || ''))) {
+          const prep = prepareHouseholdItem(world, itemWord, who.name);
+          if (prep?.item) {
+            notices.push(`（${who.name}应声取来《${prep.item.name}》双手奉上，已放入您的随身储物空间。）`);
+          }
+        } else {
+          notices.push(`（${who.name}手里没有「${itemWord}」。）`);
+        }
+      }
+    } else if (mFetch && !/给(?:你|她|他|采儿|婉儿|芸娘|婉宁|静儿)/.test(say)) {
+      const rawItemWord = (mFetch[1] || '').trim();
+      if (rawItemWord && !/^(我|你|他|她|它|谁|什么|哪)$/.test(rawItemWord)) {
+        // 先看在场人手里有没有现成的
+        const holderHere = othersHere.find((a) => findItem(world, a.id, rawItemWord));
+        if (holderHere) {
+          const it = findItem(world, holderHere.id, rawItemWord);
+          const r = giveItem(world, holderHere.id, me.id, it.id);
+          if (r.ok) notices.push(`（${holderHere.name}把《${it.name}》递了过来，已放入您的随身储物空间。）`);
+        } else {
+          const helper = othersHere.find((a) => a.household || String(a.spouse || '') === 'husband' || /正妻|如夫人|侧室|丫鬟|掌柜|伙计|小厮/.test(String(a.role || '')))
+            || world.actors?.waner;
+          const helperName = helper?.name || '府中管事';
+          const prep = prepareHouseholdItem(world, rawItemWord, helperName);
+          if (prep?.item) {
+            notices.push(`（${helperName}已为您备妥《${prep.item.name}》，已存入您的随身储物空间。）`);
+          }
+        }
+      }
+    }
+  }
+
+  // 给东西：给/赏/送/递 某人 某物，或承接上文直接对在场人说“给你/送给你/拿去尝尝”
+  {
+    const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
+    const mGiveExplicit = /(?:把|将)\s*([\u4e00-\u9fa5]{1,12}?)\s*(?:递给|交给|赏给|送给|给)\s*([\u4e00-\u9fa5]{1,6})/.exec(say)
+      || /(?:递给|交给|赏给|送给|送|赏|给)\s*([\u4e00-\u9fa5]{1,6}?)\s*(?:一[份张封件罐盒坛支])?\s*([\u4e00-\u9fa5]{2,12})/.exec(say);
+    const mGiveShort = /(?:这(?:茶|春茶|茶叶|酒|礼|东西|簪子|步摇|手镯)?\s*(?:就)?\s*(?:送给你|给你|孝敬您|赏你|送你|拿去尝尝|你尝尝|你收下)|(?:肯定啊|好啊|拿着|给你|送给你|送你了|给你吧|给你尝尝)[，,。！!~\s]*$)/.test(say);
+
+    if (othersHere.length > 0 && !/[泡倒斟烧做洗煮切]/.test(say) && !/给我|带点.*给我|准备好给我/.test(say)) {
+      // 确定受赠人：优先匹配句子里点名的在场非家眷（如在杨府把茶送给杨采儿），其次上次对话对象，再次在场首选对象
+      const namedTarget = findTargetActorInText(othersHere, say);
+      const partnerId = String((world.chatPartners || {})[me.id] || '');
+      const partnerHere = othersHere.find((a) => a.id === partnerId);
+      const nonHouseholdHere = othersHere.find((a) => !a.household && !['waner', 'yunnia', 'wanning', 'xiaocui'].includes(a.id));
+      let who = namedTarget || nonHouseholdHere || partnerHere || othersHere[0];
+
+      let itemWord = '';
+      if (mGiveExplicit) {
+        // 判断捕获组哪个是人、哪个是物
+        const g1 = mGiveExplicit[1] || '';
+        const g2 = mGiveExplicit[2] || '';
+        const a1 = findTargetActorInText(othersHere, g1) || (/^(你|她|您|姑娘|大小姐|千金|掌柜)$/.test(g1) ? who : null);
+        const a2 = findTargetActorInText(othersHere, g2) || (/^(你|她|您|姑娘|大小姐|千金|掌柜)$/.test(g2) ? who : null);
+        if (a1 && !a2) {
+          who = a1;
+          itemWord = g2;
+        } else if (a2) {
+          who = a2;
+          itemWord = g1;
+        } else {
+          itemWord = g1;
+        }
+      } else if (/茶|春茶|明前|雨前/.test(say)) {
+        itemWord = '茶';
+      } else if (/酒|花雕|女儿红/.test(say)) {
+        itemWord = '酒';
+      } else if (/步摇|珠钗|首饰|簪/.test(say)) {
+        itemWord = '步摇';
+      }
+
+      if (who && who.location === me.location && (mGiveExplicit || mGiveShort)) {
+        const myItems = itemsOf(world, me.id);
+        let it = itemWord
+          ? (findItem(world, me.id, itemWord) || myItems.find((x) => itemWord.includes(x.name) || x.name.includes(itemWord)))
+          : null;
+        // 若说的是简短“给你/送给你”，自动选取随身储物空间中最近备好的礼品/茗茶（绝不误送房契地契！）
+        if (!it && mGiveShort) {
+          const giftItems = myItems.filter((x) => !/房契|地契|红契|官契/.test(x.name + x.kind));
+          if (giftItems.length > 0) {
+            it = giftItems[giftItems.length - 1];
+          }
+        }
+        // 若明确说了把茶/礼给对方，但行囊里还没生成，且婉儿或家眷在场，当场自动从府库补入并转交
+        if (!it && itemWord && /茶|酒|点心|糕点|步摇|珠钗|玉镯|云锦|银票/.test(itemWord)) {
+          const prep = prepareHouseholdItem(world, itemWord, '沈婉儿');
+          it = prep?.item || null;
+        }
+        if (it) {
+          const r = giveItem(world, me.id, who.id, it.id);
+          if (r.ok) notices.push(r.line.replace(/^（|）$/g, ''));
         }
       }
     }

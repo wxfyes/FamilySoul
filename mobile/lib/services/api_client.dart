@@ -596,11 +596,12 @@ class SurfCoreApiClient {
     return null;
   }
 
-  /// 物品交互：赠送 (give) / 出示验看 (show) / 当面索取 (ask)
+  /// 物品交互：赠送 (give) / 出示验看 (show) / 当面索取 (ask) / 府库备礼入囊 (prepare)
   Future<Map<String, dynamic>?> itemAction({
     required String action,
-    required String itemId,
+    String itemId = '',
     String? targetActorId,
+    String? itemKey,
   }) async {
     try {
       final res = await _dio.post(
@@ -608,8 +609,9 @@ class SurfCoreApiClient {
         queryParameters: {'token': config.token.trim()},
         data: {
           'action': action,
-          'itemId': itemId,
+          if (itemId.isNotEmpty) 'itemId': itemId,
           if (targetActorId != null && targetActorId.isNotEmpty) 'targetActorId': targetActorId,
+          if (itemKey != null && itemKey.isNotEmpty) 'itemKey': itemKey,
         },
       );
       if (res.statusCode == 200 && res.data is Map) {

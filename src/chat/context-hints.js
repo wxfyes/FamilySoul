@@ -156,7 +156,7 @@ export function buildContextHints(svc, { say, recent, summonedNames, contextHint
         const bondLines = describeBonds(wHere, hereIds);
         // 旧事：写进账本的永久记忆（亲密、承诺、翻脸）——别让它们随时间消失
         try {
-          const olds = recallMemories(wHere, hereIds, { limit: 12 });
+          const olds = recallMemories(wHere, hereIds, { limit: 16, query: say });
           if (olds.length) {
             bits.push(`你记得的旧事：${olds.join('；')}（提起来要照这些说，别说不记得）`);
             console.log(`[Memory] 旧事 ${olds.length} 条进上下文：${olds[0].slice(0, 24)}`);

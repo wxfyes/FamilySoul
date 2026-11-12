@@ -98,11 +98,14 @@ class _ChatScreenState extends State<ChatScreen> {
         };
       }
     });
-    _locTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refreshPlace());
+    _locTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (!mounted) return;
+      final p = context.read<ChatProvider>();
+      if (p.isAppInBackground) return;
+      _refreshPlace();
+    });
     if (Platform.isAndroid) {
       OfflineAsrService.instance.ensureInitialized();
-    } else {
-      _initSpeech();
     }
   }
 

@@ -16,7 +16,7 @@ class RoutineConfig {
     this.idleChatEnabled = true,
     this.idleChatIntervalHours = 3,
     this.voiceEnabled = true,
-    this.keepAliveEnabled = true,
+    this.keepAliveEnabled = false,
   });
 
   RoutineConfig copyWith({
@@ -60,6 +60,6 @@ class RoutineConfig {
         idleChatEnabled: json['idleChatEnabled'] as bool? ?? true,
         idleChatIntervalHours: (json['idleChatIntervalHours'] as num?)?.toInt() ?? 3,
         voiceEnabled: json['voiceEnabled'] as bool? ?? true,
-        keepAliveEnabled: json['keepAliveEnabled'] as bool? ?? true,
+        keepAliveEnabled: json['keepAliveEnabled'] as bool? ?? false,
       );
 }
