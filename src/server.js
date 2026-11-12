@@ -1587,7 +1587,7 @@ const server = http.createServer(async (req, res) => {
           if (id === 'husband') continue;
           const name = String(a.name || '').toLowerCase();
           const role = String(a.role || '').toLowerCase();
-          const alias = String(a.alias || '').toLowerCase();
+          const alias = Array.isArray(a.alias) ? a.alias.join(' ').toLowerCase() : String(a.alias || '').toLowerCase();
           const pName = String(placeName(a.location || '')).toLowerCase();
           const city = String(a.city || '').toLowerCase();
           const tags = Array.isArray(a.tags) ? a.tags.join(' ').toLowerCase() : '';

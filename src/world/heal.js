@@ -726,6 +726,112 @@ export function healWorld(world) {
     console.warn('[Heal] 杨采儿正名自愈异常：', err.message);
   }
 
+  // ㉔ 临江知府杨振华大人（字慎之）实体人物自愈、官职归正与父女羁绊自愈
+  try {
+    world.actors = world.actors || {};
+    world.court = world.court || {};
+    world.court.offices = world.court.offices || {};
+    world.places = world.places || {};
+
+    const govPlace = 'gov_临江府';
+    if (!world.places[govPlace]) {
+      world.places[govPlace] = { name: '临江府府衙', exits: ['street'], owner: 'court', dynamic: false };
+    }
+
+    let prefect = world.actors.yangshenzhi;
+    if (!prefect) {
+      prefect = {
+        id: 'yangshenzhi',
+        name: '杨振华',
+        label: '知府大人',
+        role: '临江知府',
+        gender: 'male',
+        age: 46,
+        kind: 'official',
+        office: 'prefect',
+        household: false,
+        home: 'yang_mansion',
+        location: govPlace,
+        alias: ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'],
+        daughter: 'yangzhenhua',
+        relations: {
+          husband: { trust: 40, desire: 0, fear: 0, grievance: 0 },
+        },
+        goals: ['考察王家少掌柜是否堪配采儿', '整饬两淮茶盐漕运防范亏空', '查清沈家旧案留下底档'],
+        secret: '当年沈侍郎被权相诬陷时暗中留存了卷宗副本；看好相公的经商担当与胆识，但身为正三品封疆重臣，绝不会轻易把独生女许配给市井白丁，需看聘礼规矩与真才实学',
+        desc: '大乾正三品临江知府杨振华大人（字慎之），杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。',
+        schedule: [
+          { at: 7, do: '乘轿前往临江府衙升堂', place: govPlace },
+          { at: 8, do: '在临江府衙升堂理事', place: govPlace },
+          { at: 12, do: '在府衙后堂批阅商税公文', place: govPlace },
+          { at: 17, do: '乘轿回杨府', place: 'yang_mansion' },
+          { at: 18, do: '在杨府后堂用晚膳休憩', place: 'yang_mansion' },
+          { at: 22, do: '在杨府书斋安歇', place: 'yang_mansion' },
+        ],
+      };
+      world.actors.yangshenzhi = prefect;
+      fixes.push('岳父归位：临江知府杨振华大人（字慎之）实体入世');
+    } else {
+      if (prefect.dead) {
+        prefect.dead = false;
+        delete prefect.deadDay;
+        fixes.push('岳父归位：临江知府杨振华大人（杨慎之）正名为存活并回朝主政');
+      }
+      if (!prefect.location || prefect.location === '') {
+        prefect.location = govPlace;
+      }
+      if (prefect.name !== '杨振华') {
+        prefect.name = '杨振华';
+        fixes.push('知府正名：杨慎之 → 杨振华（字慎之）');
+      }
+      prefect.role = '临江知府';
+      prefect.label = '知府大人';
+      prefect.home = 'yang_mansion';
+      prefect.daughter = 'yangzhenhua';
+      prefect.relations = prefect.relations || {};
+      prefect.relations.husband = prefect.relations.husband || { trust: 40, desire: 0, fear: 0, grievance: 0 };
+      if ((Number(prefect.relations.husband.trust) || 0) < 40) {
+        prefect.relations.husband.trust = 40;
+      }
+      if (!Array.isArray(prefect.alias) || !prefect.alias.includes('杨大人')) {
+        prefect.alias = ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'];
+      }
+      if (!Array.isArray(prefect.schedule) || prefect.schedule.length === 0) {
+        prefect.schedule = [
+          { at: 7, do: '乘轿前往临江府衙升堂', place: govPlace },
+          { at: 8, do: '在临江府衙升堂理事', place: govPlace },
+          { at: 12, do: '在府衙后堂批阅商税公文', place: govPlace },
+          { at: 17, do: '乘轿回杨府', place: 'yang_mansion' },
+          { at: 18, do: '在杨府后堂用晚膳休憩', place: 'yang_mansion' },
+          { at: 22, do: '在杨府书斋安歇', place: 'yang_mansion' },
+        ];
+      }
+    }
+
+    // 绑定采儿与父亲的亲情关系
+    const caier = world.actors?.yangzhenhua;
+    if (caier) {
+      caier.father = 'yangshenzhi';
+      caier.family = caier.family || {};
+      caier.family.father = 'yangshenzhi';
+      if (!caier.desc || !caier.desc.includes('杨振华')) {
+        caier.desc = '临江知府杨振华大人（字慎之）的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+      }
+    }
+
+    // 官职权威归正：临江知府大位归杨振华，清除/退休路人知府许元朗
+    world.court.offices.prefect = { title: '临江知府', holder: 'yangshenzhi', vacant: false };
+    world.court.offices['city:临江府'] = { title: '临江知府', holder: 'yangshenzhi', vacant: false, city: '临江府' };
+
+    const fakeOff = world.actors['off_临江府'];
+    if (fakeOff && fakeOff.name === '许元朗') {
+      delete world.actors['off_临江府'];
+      fixes.push('官职归位：移除误占临江知府之职的路人许元朗');
+    }
+  } catch (err) {
+    console.warn('[Heal] 知府杨振华自愈异常：', err.message);
+  }
+
   // ⑬ 大事记自愈与知府千金杨采儿正名
   try {
     if (Array.isArray(world.milestones)) {

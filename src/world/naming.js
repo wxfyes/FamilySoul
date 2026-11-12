@@ -115,6 +115,7 @@ export function matchActor(actors, searchName) {
   return Object.values(actors || {}).find((a) => {
     if (!a || !a.name || a.id === 'husband') return false;
     if (a.name === s || a.id === s || a.name === coreName || a.id === coreName) return true;
+    if (Array.isArray(a.alias) && a.alias.some((al) => al === s || al === coreName)) return true;
     if ((s === '紫嫣' || coreName === '紫嫣') && (a.id === 'liuwenxia' || a.name === '刘文霞')) return true;
     if (a.label && (a.label === s || a.label === coreName)) return true;
     if (a.role && (a.role === s || a.role === coreName)) return true;
@@ -138,6 +139,11 @@ export function findTargetActorInText(actors, text) {
   for (const a of list) {
     if (str.includes(a.name)) return a;
     if (a.id === 'liuwenxia' && str.includes('紫嫣')) return a;
+    if (Array.isArray(a.alias)) {
+      for (const al of a.alias) {
+        if (al && str.includes(al)) return a;
+      }
+    }
   }
   // 2. 三字姓名之双字名精准命中（如“采儿”命中“杨采儿”、“婉儿”命中“沈婉儿”、“婉宁”命中“崔婉宁”、“映雪”命中“苏映雪”）
   // 必须在单字词根匹配之前执行，彻底杜绝“采儿”因单字“采”误命中“采云”！

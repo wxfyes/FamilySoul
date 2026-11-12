@@ -55,6 +55,7 @@ export function belongsTo(world, actor, home) {
   // 宅子的主人当然是本家（否则自己的正房反而进不去）
   if (home.owner && String(home.owner) === String(actor.id)) return true;
   if (String(actor.home || '') === String(home.id)) return true;
+  if (home.id === 'yang_mansion' && (actor.id === 'yangshenzhi' || actor.id === 'yangzhenhua' || actor.id === 'luchen')) return true;
   if (actor.household && String(home.owner || '') === 'husband') return true;
   const duty = actor.duty;
   if (duty && String(duty.home || '') === String(home.id)) return true;
