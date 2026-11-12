@@ -64,6 +64,14 @@ export function isMarriageable(world, a) {
   if (age && (age < 16 || age > 45)) return false;
   if (a.id === 'husband') return false;
   if (String(a.id).startsWith('usr_')) return false;
+
+  // 严禁核心预设角色与王家眷属参与民间随机拉郎配
+  if (a.origin === 'preset' || a.household === true || a.spouse === 'husband') return false;
+
+  // 严禁千金名门闺秀、花魁才女被市井民间系统私自搭桥婚配（婚配必须走提亲/八抬大轿大礼）
+  const roleText = String(a.role || '');
+  if (/千金|小姐|闺秀|才女|花魁|花魁娘子|行首/.test(roleText)) return false;
+
   return true;
 }
 

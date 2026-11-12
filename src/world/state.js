@@ -329,21 +329,21 @@ export function createInitialState(dataDir) {
       },
       yangshenzhi: {
         id: 'yangshenzhi', gender: 'male', home: 'yang_mansion', age: 46,
-        name: '杨振华',
+        name: '杨慎之',
         label: '知府大人',
         role: '临江知府',
         kind: 'official',
         office: 'prefect',
         household: false,
         location: 'gov_临江府',
-        alias: ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'],
+        alias: ['知府大人', '杨知府', '杨大人', '临江知府', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳父', '岳丈'],
         daughter: 'yangzhenhua',
         goals: ['考察王家少掌柜是否堪配采儿', '整饬两淮茶盐漕运防范亏空', '查清沈家旧案留下底档'],
         secret: '当年沈侍郎被权相诬陷时暗中留存了卷宗副本；看好相公的经商担当与胆识，但身为正三品封疆重臣，绝不会轻易把独生女许配给市井白丁，需看聘礼规矩与真才实学',
         relations: {
           husband: { trust: 40, desire: 0, fear: 0, grievance: 0 },
         },
-        desc: '大乾正三品临江知府杨振华大人（字慎之），杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。',
+        desc: '大乾正三品临江知府杨慎之大人，杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。',
         schedule: [
           { at: 7, do: '乘轿前往临江府衙升堂', place: 'gov_临江府' },
           { at: 8, do: '在临江府衙升堂理事', place: 'gov_临江府' },
@@ -847,7 +847,7 @@ export function ensureCourt(world) {
     ['luchengye', '卢承业', '户部尚书', 'revenue', '京城'],
     ['hanchong', '韩崇', '兵部尚书', 'war', '京城'],
     ['zhenghuaian', '郑怀安', '江南巡抚', 'governor', '苏州府'],
-    ['yangshenzhi', '杨振华', '临江知府', 'prefect', '临江府'],
+    ['yangshenzhi', '杨慎之', '临江知府', 'prefect', '临江府'],
   ];
   // 每个府都要有父母官，不然攻城就是打空城（临江府由正三品杨大人坐镇，不生成路人知府）
   for (const cityName of Object.keys(world.cities || {})) {
@@ -886,7 +886,7 @@ export function ensureCourt(world) {
     world.court.offices[post] = { title: `${cityName}知府`, holder: id, vacant: false, city: cityName };
   }
 
-  // 临江府官职唯一正统：大乾正三品杨大人（杨振华，字慎之）
+  // 临江府官职唯一正统：大乾正三品杨大人（杨慎之，临江知府）
   world.court.offices['city:临江府'] = { title: '临江知府', holder: 'yangshenzhi', vacant: false, city: '临江府' };
   world.court.offices['prefect'] = { title: '临江知府', holder: 'yangshenzhi', vacant: false };
   if (world.actors?.['off_临江府']) {
@@ -909,7 +909,7 @@ export function ensureCourt(world) {
         household: false,
         home: isYang ? 'yang_mansion' : ensureGovPlace(world, city),
         location: ensureGovPlace(world, city),
-        alias: isYang ? ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'] : [],
+        alias: isYang ? ['知府大人', '杨知府', '杨大人', '临江知府', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳父', '岳丈'] : [],
         daughter: isYang ? 'yangzhenhua' : undefined,
         relations: { husband: { trust: isYang ? 40 : 20, desire: 0, fear: 0, grievance: 0 } },
         goals: id === 'emperor'
@@ -922,7 +922,7 @@ export function ensureCourt(world) {
           : isYang
             ? '当年沈侍郎被权相诬陷时暗中留存了卷宗副本；看好相公的经商担当与胆识，但身为正三品封疆重臣，绝不会轻易把独生女许配给市井白丁，需看聘礼规矩与真才实学'
             : '府里上下都收过银子',
-        desc: isYang ? '大乾正三品临江知府杨振华大人（字慎之），杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。' : undefined,
+        desc: isYang ? '大乾正三品临江知府杨慎之大人，杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。' : undefined,
         schedule: isYang ? [
           { at: 7, do: '乘轿前往临江府衙升堂', place: ensureGovPlace(world, '临江府') },
           { at: 8, do: '在临江府衙升堂理事', place: ensureGovPlace(world, '临江府') },
@@ -941,13 +941,14 @@ export function ensureCourt(world) {
       if (!a.location || a.location === '') {
         a.location = ensureGovPlace(world, '临江府');
       }
-      a.name = '杨振华';
+      a.name = '杨慎之';
       a.role = '临江知府';
       a.label = '知府大人';
       a.home = 'yang_mansion';
       a.daughter = 'yangzhenhua';
-      if (!Array.isArray(a.alias) || !a.alias.includes('杨大人')) {
-        a.alias = ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'];
+      a.desc = '大乾正三品临江知府杨慎之大人，杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。';
+      if (!Array.isArray(a.alias) || !a.alias.includes('杨知府')) {
+        a.alias = ['知府大人', '杨知府', '杨大人', '临江知府', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳父', '岳丈'];
       }
     }
     const off = world.court.offices[post];
@@ -3198,9 +3199,12 @@ function __loadStateInner(dataDir) {
   // 轻量补全：老文件缺字段时不报错，按初始值补齐（不做破坏性迁移）
   const base = createInitialState(dataDir);
   // 人物逐个合并：新版本补进来的目标/秘密/日程要能生效，同时保留线上已有的位置与关系
-  // 核心名字归位：大小姐 yangzhenhua 正名为杨采儿，其父亲 yangshenzhi 方为杨振华知府大人，绝非重名冲突
-  if (raw.actors?.yangzhenhua && raw.actors.yangzhenhua.name === '杨振华') {
+  // 核心名字归位：彻底取消「杨振华」这名字！大小姐 yangzhenhua 正名为杨采儿，其父亲 yangshenzhi 正名为杨慎之临江知府！
+  if (raw.actors?.yangzhenhua && (raw.actors.yangzhenhua.name === '杨振华' || !raw.actors.yangzhenhua.name)) {
     raw.actors.yangzhenhua.name = '杨采儿';
+  }
+  if (raw.actors?.yangshenzhi && raw.actors.yangshenzhi.name === '杨振华') {
+    raw.actors.yangshenzhi.name = '杨慎之';
   }
   const liveNames = new Set(Object.values(raw.actors || {}).map((a) => String(a?.name || '')).filter(Boolean));
   const mergedActors = {};
@@ -3210,6 +3214,12 @@ function __loadStateInner(dataDir) {
   }
   for (const [id, actor] of Object.entries(raw.actors || {})) {
     mergedActors[id] = { ...(base.actors?.[id] || {}), ...actor };
+    if (id === 'yangshenzhi' && mergedActors[id].name === '杨振华') {
+      mergedActors[id].name = '杨慎之';
+    }
+    if (id === 'yangzhenhua' && mergedActors[id].name === '杨振华') {
+      mergedActors[id].name = '杨采儿';
+    }
   }
 
   // 物理空间解耦自愈：非王府同住内宅女眷（如紫嫣、杨采云等），绝不滞留在正房寝居或后院私宅
@@ -3355,7 +3365,14 @@ function __loadStateInner(dataDir) {
       for (const m of rawMs) {
         const text = typeof m === 'string' ? m : (m?.text || m?.title || '');
         if (!text) continue;
-        const clean = text.replace(/知府千金杨振华/g, '知府千金杨采儿').replace(/知府杨振华大小姐/g, '知府千金杨采儿小姐');
+        const clean = text
+          .replace(/知府千金杨振华/g, '知府千金杨采儿')
+          .replace(/知府杨振华大小姐/g, '知府千金杨采儿小姐')
+          .replace(/杨振华大小姐/g, '知府千金杨采儿')
+          .replace(/杨振华知府/g, '知府杨慎之')
+          .replace(/知府杨振华/g, '知府杨慎之')
+          .replace(/杨振华大人/g, '知府杨慎之大人')
+          .replace(/杨振华/g, '杨慎之');
         const key = clean.split('：')[0] || clean.slice(0, 10);
         if (!merged.some((x) => (typeof x === 'string' ? x : (x?.text || x?.title || '')).includes(key))) {
           merged.push(clean);

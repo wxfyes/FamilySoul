@@ -710,7 +710,7 @@ export function healWorld(world) {
         fixes.push(`年龄归位：杨采儿 ${caier.age}岁 → 19岁芳华`);
         caier.age = 19;
       }
-      caier.desc = '临江知府杨振华大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+      caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
       caier.relations = caier.relations || {};
       const mine = (caier.relations.husband = caier.relations.husband || { trust: 55, desire: 35, fear: 0, grievance: 0 });
       if (Number(mine.trust || 0) < 55) {
@@ -726,7 +726,7 @@ export function healWorld(world) {
     console.warn('[Heal] 杨采儿正名自愈异常：', err.message);
   }
 
-  // ㉔ 临江知府杨振华大人（字慎之）实体人物自愈、官职归正与父女羁绊自愈
+  // ㉔ 临江知府杨慎之大人实体人物自愈、官职归正与父女羁绊自愈（彻底取消杨振华名字）
   try {
     world.actors = world.actors || {};
     world.court = world.court || {};
@@ -742,7 +742,7 @@ export function healWorld(world) {
     if (!prefect) {
       prefect = {
         id: 'yangshenzhi',
-        name: '杨振华',
+        name: '杨慎之',
         label: '知府大人',
         role: '临江知府',
         gender: 'male',
@@ -752,14 +752,14 @@ export function healWorld(world) {
         household: false,
         home: 'yang_mansion',
         location: govPlace,
-        alias: ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'],
+        alias: ['知府大人', '杨知府', '杨大人', '临江知府', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳父', '岳丈'],
         daughter: 'yangzhenhua',
         relations: {
           husband: { trust: 40, desire: 0, fear: 0, grievance: 0 },
         },
         goals: ['考察王家少掌柜是否堪配采儿', '整饬两淮茶盐漕运防范亏空', '查清沈家旧案留下底档'],
         secret: '当年沈侍郎被权相诬陷时暗中留存了卷宗副本；看好相公的经商担当与胆识，但身为正三品封疆重臣，绝不会轻易把独生女许配给市井白丁，需看聘礼规矩与真才实学',
-        desc: '大乾正三品临江知府杨振华大人（字慎之），杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。',
+        desc: '大乾正三品临江知府杨慎之大人，杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。',
         schedule: [
           { at: 7, do: '乘轿前往临江府衙升堂', place: govPlace },
           { at: 8, do: '在临江府衙升堂理事', place: govPlace },
@@ -770,32 +770,31 @@ export function healWorld(world) {
         ],
       };
       world.actors.yangshenzhi = prefect;
-      fixes.push('岳父归位：临江知府杨振华大人（字慎之）实体入世');
+      fixes.push('岳父归位：临江知府杨慎之大人实体入世');
     } else {
       if (prefect.dead) {
         prefect.dead = false;
         delete prefect.deadDay;
-        fixes.push('岳父归位：临江知府杨振华大人（杨慎之）正名为存活并回朝主政');
+        fixes.push('岳父归位：临江知府杨慎之大人正名为存活并回朝主政');
       }
       if (!prefect.location || prefect.location === '') {
         prefect.location = govPlace;
       }
-      if (prefect.name !== '杨振华') {
-        prefect.name = '杨振华';
-        fixes.push('知府正名：杨慎之 → 杨振华（字慎之）');
+      if (prefect.name !== '杨慎之') {
+        prefect.name = '杨慎之';
+        fixes.push('知府正名：彻底取消杨振华，正名为杨慎之');
       }
       prefect.role = '临江知府';
       prefect.label = '知府大人';
       prefect.home = 'yang_mansion';
       prefect.daughter = 'yangzhenhua';
+      prefect.desc = '大乾正三品临江知府杨慎之大人，杨采儿之父。为人沉稳威严、为官清正精明，深谙两淮漕运官商之道，极疼爱独生女采儿。';
       prefect.relations = prefect.relations || {};
       prefect.relations.husband = prefect.relations.husband || { trust: 40, desire: 0, fear: 0, grievance: 0 };
       if ((Number(prefect.relations.husband.trust) || 0) < 40) {
         prefect.relations.husband.trust = 40;
       }
-      if (!Array.isArray(prefect.alias) || !prefect.alias.includes('杨大人')) {
-        prefect.alias = ['杨慎之', '杨大人', '杨知府', '知府大人', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳丈'];
-      }
+      prefect.alias = ['知府大人', '杨知府', '杨大人', '临江知府', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳父', '岳丈'];
       if (!Array.isArray(prefect.schedule) || prefect.schedule.length === 0) {
         prefect.schedule = [
           { at: 7, do: '乘轿前往临江府衙升堂', place: govPlace },
@@ -808,18 +807,41 @@ export function healWorld(world) {
       }
     }
 
-    // 绑定采儿与父亲的亲情关系
+    // 绑定采儿与父亲的亲情关系，并彻底纠正采儿的错误婚配状态
     const caier = world.actors?.yangzhenhua;
     if (caier) {
+      if (caier.name !== '杨采儿') {
+        caier.name = '杨采儿';
+        fixes.push('千金正名：知府千金正名为杨采儿');
+      }
       caier.father = 'yangshenzhi';
       caier.family = caier.family || {};
       caier.family.father = 'yangshenzhi';
-      if (!caier.desc || !caier.desc.includes('杨振华')) {
-        caier.desc = '临江知府杨振华大人（字慎之）的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+      caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+
+      // 纠正知府千金被市井脚夫误结夫妻的荒唐乌龙
+      if (caier.spouse && caier.spouse !== 'husband') {
+        const wrongSpouseId = caier.spouse;
+        const wrongSpouse = world.actors?.[wrongSpouseId];
+        if (wrongSpouse) {
+          wrongSpouse.spouse = null;
+          wrongSpouse.spouseId = null;
+          wrongSpouse.spouseName = null;
+          wrongSpouse.marital = 'single';
+          wrongSpouse.maritalText = '未婚';
+        }
+        caier.spouse = null;
+        caier.spouseId = null;
+        caier.spouseName = null;
+        caier.marital = 'single';
+        caier.maritalText = '待字闺中';
+        if (world.bonds?.[caier.id]?.[wrongSpouseId]) delete world.bonds[caier.id][wrongSpouseId];
+        if (wrongSpouseId && world.bonds?.[wrongSpouseId]?.[caier.id]) delete world.bonds[wrongSpouseId][caier.id];
+        fixes.push(`婚姻归位：解除知府千金杨采儿与路人${wrongSpouse?.name || wrongSpouseId}的荒唐婚配，重归待字闺中`);
       }
     }
 
-    // 官职权威归正：临江知府大位归杨振华，清除/退休路人知府许元朗
+    // 官职权威归正：临江知府大位归杨慎之，清除/退休路人知府许元朗
     world.court.offices.prefect = { title: '临江知府', holder: 'yangshenzhi', vacant: false };
     world.court.offices['city:临江府'] = { title: '临江知府', holder: 'yangshenzhi', vacant: false, city: '临江府' };
 
@@ -829,19 +851,27 @@ export function healWorld(world) {
       fixes.push('官职归位：移除误占临江知府之职的路人许元朗');
     }
   } catch (err) {
-    console.warn('[Heal] 知府杨振华自愈异常：', err.message);
+    console.warn('[Heal] 知府杨慎之自愈异常：', err.message);
   }
 
-  // ⑬ 大事记自愈与知府千金杨采儿正名
+  // ⑬ 大事记自愈与知府千金杨采儿正名（彻底清洗杨振华）
   try {
     if (Array.isArray(world.milestones)) {
       world.milestones = world.milestones.map((m) => {
         if (typeof m !== 'string') return m;
-        if (m.includes('杨振华') && (m.includes('千金') || m.includes('大小姐') || m.includes('包下一半'))) {
-          fixes.push('大事记正名：杨振华千金 → 知府千金杨采儿');
-          return m.replace(/知府千金杨振华/g, '知府千金杨采儿').replace(/知府杨振华大小姐/g, '知府千金杨采儿小姐');
+        let res = m;
+        if (res.includes('杨振华')) {
+          res = res
+            .replace(/知府千金杨振华/g, '知府千金杨采儿')
+            .replace(/知府杨振华大小姐/g, '知府千金杨采儿小姐')
+            .replace(/杨振华大小姐/g, '知府千金杨采儿')
+            .replace(/杨振华知府/g, '知府杨慎之')
+            .replace(/知府杨振华/g, '知府杨慎之')
+            .replace(/杨振华大人/g, '知府杨慎之大人')
+            .replace(/杨振华/g, '知府杨慎之');
+          fixes.push('大事记正名：彻底将杨振华清洗为杨采儿（千金）或杨慎之（知府）');
         }
-        return m;
+        return res;
       });
       // 检查是否包含置办船队的大事，若无且产业中有货船，则自动归入大事记
       const hasShipMilestone = world.milestones.some((m) => typeof m === 'string' && m.includes('运河大货船队'));

@@ -1411,7 +1411,7 @@ function filterActors(term = '', category = '') {
   });
 
   rows.forEach(tr => {
-    const text = (tr.textContent || '').toLowerCase();
+    const text = ((tr.textContent || '') + ' ' + (tr.getAttribute('data-alias') || '')).toLowerCase();
     const city = tr.getAttribute('data-city') || '临江府';
 
     // 1. 城市匹配
@@ -2335,7 +2335,8 @@ function render(w){
       }
     }
 
-    return `<tr style="cursor:pointer" data-city="${c}" onclick="openActor('${a.id}')">
+    const aliasAttr = Array.isArray(a.alias) ? a.alias.join(' ') : '';
+    return `<tr style="cursor:pointer" data-city="${c}" data-alias="${aliasAttr}" onclick="openActor('${a.id}')">
       <td><b>${a.name}</b></td>
       <td><span class="tag">📍 ${c}</span></td>
       <td class="muted">${a.role || '市井百姓'}</td>

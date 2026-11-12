@@ -55,7 +55,7 @@ import { composeSystemPrompt } from './system-prompt.js';
 export async function runChat(svc, { text = '', modality = 'text', profileKey = 'husband', roleName = null, isVideoCall = false, actorId = null } = {}) {
     const say = String(text || '').trim();
     if (!say) return { ok: false, error: '输入内容为空' };
-    // 账号（memberKey）与世界实体（actor）可以不同：女主人账号可以绑定到「杨振华」这个 actor
+    // 账号（memberKey）与世界实体（actor）可以不同：女主人账号可以绑定到「杨采儿」这个 actor
     const selfId = actorId || profileKey;
     // 记录开局位置：这一轮如果换了地方，末尾补一行"你到了"
     const __locAtStart = (() => { try { const w0 = loadState(svc.dataDir); return (svc._viewerActorId ? w0.actors?.[svc._viewerActorId] : w0.actors?.husband)?.location || null; } catch { return null; } })();
