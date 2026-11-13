@@ -100,25 +100,35 @@ export function showItem(world, holderId, toId, itemId) {
   const to = toId ? world.actors?.[toId] : null;
   const holderName = world.actors?.[holderId]?.name || (holderId === 'husband' ? '王都司' : holderId);
   const toName = to?.name || '在场众人';
-  const isOfficialCred = /告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方/.test(String(it.name || '') + String(it.kind || ''));
+  const isOfficialCred = /告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方|诏书/.test(String(it.name || '') + String(it.kind || ''));
   if (isOfficialCred) {
-    let trustDelta = 8;
+    let trustDelta = 12;
     if (to) {
       to.relations = to.relations || {};
-      to.relations.husband = to.relations.husband || { trust: 20, desire: 10, grievance: 0 };
+      to.relations.husband = to.relations.husband || { trust: 30, desire: 10, grievance: 0 };
       to.relations.husband.trust = Math.min(100, (Number(to.relations.husband.trust) || 0) + trustDelta);
+    }
+    let salutation = '见状凛然肃立、躬身抱拳行礼！';
+    if (/尚方|提督/.test(it.name)) {
+      salutation = '见状大惊失色、离席肃立下拜：“吾皇万岁！卑职参见水陆提督军门大人！”';
+    } else if (/总兵|平贼将军|金印/.test(it.name)) {
+      salutation = '见状神色骤变，离席恭敬作揖行大礼：“下官参见平贼总兵大将军！”';
+    } else if (/都司|参将|副总兵|虎符/.test(it.name)) {
+      salutation = '见状肃然起敬、离席躬身行礼：“下官/卑职参见上宪大人！”';
     }
     return {
       ok: true,
-      line: `（${holderName}自怀中取出朝廷兵部颁授的《${it.name}》，鲜红兵部朱印与虎符寒光凛然，当众亮明大明朝廷命官真凭实据！${toName}见状凛然肃立、躬身抱拳行礼！）`,
+      line: `（${holderName}自怀中取重大明朝廷钦颁的《${it.name}》，鲜红朱印与虎符宝剑寒光凛然，当众亮明大明朝廷命官真凭实据！${toName}${salutation}）`,
       item: it,
       trustDelta,
+      isOfficialCred: true,
     };
   }
   return {
     ok: true,
     line: `（${holderName}自袖中取出一纸《${it.name}》，平摊在案前让${toName}当面勘验。）`,
     item: it,
+    isOfficialCred: false,
   };
 }
 
@@ -236,6 +246,7 @@ export const HOUSEHOLD_SUPPLY_PRESETS = [
 
 /**
  * 从自家府库/茶坊/酒楼备妥一件物品放入相公随身储物空间
+ * 严守白名单模式：仅允许准备 HOUSEHOLD_SUPPLY_PRESETS 名录内的受控物资，严禁随意将口语/动词创建为物品！
  */
 export function prepareHouseholdItem(world, rawWord = '', fromName = '府库') {
   ensureItems(world);
@@ -244,14 +255,14 @@ export function prepareHouseholdItem(world, rawWord = '', fromName = '府库') {
     .replace(/(?:来|吧|呀|啊|呢|给我|准备好)+$/g, '')
     .trim();
   const preset = HOUSEHOLD_SUPPLY_PRESETS.find((p) => p.key === w || p.match.test(w || rawWord));
-  if (!preset && /^(想想|办法|递信|回信|去看看|看看|问问|商议|过去|去找|知道|明白|安排|吩咐)/.test(w)) {
+  if (!preset) {
     return null;
   }
-  const itemName = preset ? preset.name : (w.length >= 2 && w.length <= 14 ? w : '紫阳山头春茶（明前极品锡罐）');
-  const itemKind = preset ? preset.kind : '随身礼';
-  const itemNote = preset ? preset.note : `由${fromName}遵命备妥并放入相公随身储物空间`;
+  const itemName = preset.name;
+  const itemKind = preset.kind;
+  const itemNote = preset.note;
 
-  // 若行囊中已有同名物品，直接返回该物品（或若明确要茶/礼也可新增一件）
+  // 若行囊中已有同名物品，直接返回该物品
   const existing = itemsOf(world, 'husband').find((it) => it.name === itemName);
   if (existing) return { item: existing, created: false };
 
@@ -421,18 +432,62 @@ export function getHusbandOfficialInfo(world) {
 }
 
 /**
+ * 清洗行囊中的非法瞎造物品（垃圾口语短语、动词句子等）
+ * 遵循严格白名单机制：只保留合法官凭印信、真房契地契、正规物资与银票
+ */
+export function sanitizeHusbandItems(world) {
+  if (!world || !world.items || typeof world.items !== 'object') return 0;
+  const validPresetNames = new Set(HOUSEHOLD_SUPPLY_PRESETS.map((p) => p.name));
+  const validOfficialNames = new Set();
+  for (const def of OFFICIAL_CREDENTIAL_DEFS) {
+    for (const c of def.credentials) validOfficialNames.add(c.name);
+  }
+
+  const isLegalItem = (it) => {
+    if (!it || !it.name) return false;
+    const name = String(it.name).trim();
+    // 1. 朝廷武勋官凭与印信
+    if (validOfficialNames.has(name) || (/告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方|诏书/.test(name) && (it.kind === '官印' || it.kind === '敕牒'))) {
+      return true;
+    }
+    // 2. 正规地契房契请帖
+    if (it.kind === '契纸' || it.kind === '请帖' || /房契|酒楼契|茶坊契|茶山契|请帖|地契|字据/.test(name)) {
+      return true;
+    }
+    // 3. 正规府库物资礼品与银票
+    if (validPresetNames.has(name) || /紫阳山头春茶|女儿红|绍兴|桂花酥酪|赤金|白玉|云锦|鹅蛋香粉|大通钱庄.*银票|天字阁雅席请柬/.test(name)) {
+      return true;
+    }
+    // 其余非白名单物品（特别是口语、动词短语垃圾，如《办了》、《拟个章程出》、《说即可》等）一律清理
+    return false;
+  };
+
+  let removed = 0;
+  if (Array.isArray(world.items)) {
+    const before = world.items.length;
+    world.items = world.items.filter(isLegalItem);
+    removed = before - world.items.length;
+  } else {
+    for (const [id, it] of Object.entries(world.items)) {
+      if (!isLegalItem(it)) {
+        console.log(`[ItemsCleanup] 物理清除行囊非法物品：${it?.name} (${id})`);
+        delete world.items[id];
+        removed++;
+      }
+    }
+  }
+  if (removed > 0) {
+    console.log(`[ItemsCleanup] 成功物理清除 ${removed} 件非法假物品，行囊已纯净`);
+  }
+  return removed;
+}
+
+/**
  * 核发并补齐相公已获授官职对应的正式兵部告身敕牒与官印虎符入随身行囊（幂等）
  */
 export function ensureOfficialCredentials(world) {
   ensureItems(world);
-  if (Array.isArray(world.items)) {
-    for (let i = world.items.length - 1; i >= 0; i--) {
-      const it = world.items[i];
-      if (it && it.kind === '随身礼' && /^(想想办法|递信|回信|去看看|看看|问问|商议|过去|去找)$/.test(String(it.name || '').trim())) {
-        world.items.splice(i, 1);
-      }
-    }
-  }
+  sanitizeHusbandItems(world);
   const offices = world?.court?.offices || {};
   const myItems = itemsOf(world, 'husband');
   const issued = [];

@@ -15,7 +15,11 @@ import '../services/role_reply_parser.dart';
 
 class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   static const String _prefKeyConfig = 'surfcore_server_config';
-  static const String _prefKeyMessages = 'surfcore_chat_history';
+  String get _userMessagesPrefKey {
+    final tk = _config.token.trim();
+    if (tk.isEmpty) return 'surfcore_chat_history_default';
+    return 'surfcore_chat_history_${tk.hashCode.abs()}';
+  }
   static const String _prefKeyVoiceReply = 'surfcore_voice_reply_enabled';
   static const String _prefKeyRoutine = 'surfcore_routine_config';
 
@@ -241,13 +245,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    final historyStr = prefs.getString(_prefKeyMessages);
-    if (historyStr != null) {
-      try {
-        final list = jsonDecode(historyStr) as List<dynamic>;
-        _messages = list.map((item) => ChatMessage.fromJson(item as Map<String, dynamic>)).toList();
-      } catch (_) {}
-    }
+    await _loadUserMessages(prefs);
 
     final routineStr = prefs.getString(_prefKeyRoutine);
     if (routineStr != null) {
@@ -345,14 +343,52 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _loadUserMessages(SharedPreferences prefs) async {
+    final historyStr = prefs.getString(_userMessagesPrefKey);
+    if (historyStr != null && historyStr.isNotEmpty) {
+      try {
+        final list = jsonDecode(historyStr) as List<dynamic>;
+        _messages = list.map((item) => ChatMessage.fromJson(item as Map<String, dynamic>)).toList();
+        return;
+      } catch (_) {}
+    }
+    // 本地无缓存，尝试从服务端拉取属于该 Token 用户的远端历史
+    try {
+      final remoteHistory = await _apiClient.fetchHistory(limit: 50);
+      if (remoteHistory.isNotEmpty) {
+        _messages = remoteHistory;
+        _persistMessages();
+        return;
+      }
+    } catch (_) {}
+    _messages = [];
+  }
+
   Future<bool> saveConfig(ServerConfig newConfig) async {
+    final tokenChanged = newConfig.token.trim() != _config.token.trim();
     _config = newConfig;
     _apiClient.updateConfig(newConfig);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKeyConfig, jsonEncode(newConfig.toJson()));
 
+    if (tokenChanged) {
+      await stopAudio();
+      _messages.clear();
+      _currentPlace = '';
+      _hereNames = [];
+      await _loadUserMessages(prefs);
+      notifyListeners();
+    }
+
     final ok = await refreshStatus();
+
+    if (tokenChanged && ok) {
+      if (_messages.isEmpty) {
+        await ensureOpening();
+      }
+    }
+
     notifyListeners();
     return ok;
   }
@@ -1110,7 +1146,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     _messages.clear();
     await stopAudio();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefKeyMessages);
+    await prefs.remove(_userMessagesPrefKey);
     notifyListeners();
   }
 
@@ -1118,7 +1154,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonList = _messages.map((m) => m.toJson()).toList();
-      await prefs.setString(_prefKeyMessages, jsonEncode(jsonList));
+      await prefs.setString(_userMessagesPrefKey, jsonEncode(jsonList));
     } catch (_) {}
   }
 

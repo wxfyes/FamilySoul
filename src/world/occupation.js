@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 身份与营生：标签跟着日子走，不是出生就定死。
  *
  * 规矩：
@@ -55,8 +55,29 @@ export function deriveTitle(world, actor) {
   // 当差的
   if (actor.duty?.post === 'gate') return '门房';
 
-  // 官身
-  if (actor.office) return String(actor.office);
+  // 官身（严格返回纯正古风中文头衔，绝对严禁泄漏英文代码代号）
+  if (actor.office) {
+    const off = world?.court?.offices?.[actor.office];
+    if (off && off.title && !/^[a-zA-Z_-]+$/.test(off.title)) return String(off.title);
+    const OFFICE_TITLES = {
+      prefect: '知府',
+      magistrate: '县令',
+      tuanlian: '团练使',
+      governor: '巡抚',
+      viceroy: '总督',
+      commander: '总兵',
+      dusi: '都司',
+      tongzhi: '同知',
+      tongpan: '通判',
+      xunjian: '巡检',
+      dianli: '典吏',
+      zongbing: '总兵',
+      censor: '御史',
+      minister: '尚书',
+    };
+    if (OFFICE_TITLES[actor.office]) return OFFICE_TITLES[actor.office];
+    return '官员';
+  }
 
   // 已有的固定身份（NPC 生成时带的）
   const role = String(actor.role || '').trim();
@@ -76,7 +97,9 @@ export function refreshTitles(world) {
     if (!a || a.dead) continue;
     const next = deriveTitle(world, a);
     if (!next) continue;
-    if (a.title !== next) {
+    // 只要现存 title 含有英文字符，无条件强制清洗
+    const hasEnglish = /[a-zA-Z]/.test(String(a.title || ''));
+    if (a.title !== next || hasEnglish) {
       a.title = next;
       changed += 1;
     }

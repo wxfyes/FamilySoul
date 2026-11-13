@@ -124,6 +124,7 @@ export function resolveMember(req, url, { config, lockFile, userRegistry } = {})
         title: regUser.name,
         name: regUser.name,
         token: regUser.token,
+        role: regUser.role || '布衣',
         isRegisteredPlayer: true,
       };
     }

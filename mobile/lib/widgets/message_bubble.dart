@@ -1075,8 +1075,20 @@ class _SpeakerMeta {
     final sep = s.contains('·') ? '·' : (s.contains('・') ? '・' : null);
     if (sep != null) {
       final parts = s.split(sep);
-      final t = parts.first.trim();
+      var t = parts.first.trim();
       final n = parts.sublist(1).join(sep).trim();
+      const englishTitleMap = {
+        'prefect': '知府',
+        'magistrate': '县令',
+        'tuanlian': '团练使',
+        'governor': '巡抚',
+        'viceroy': '总督',
+        'commander': '总兵',
+        'dusi': '都司',
+      };
+      if (englishTitleMap.containsKey(t.toLowerCase())) {
+        t = englishTitleMap[t.toLowerCase()]!;
+      }
       if (t.isNotEmpty && n.isNotEmpty) {
         final palette2 = [Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFF0EA5E9), Color(0xFFF59E0B), Color(0xFF10B981)];
         var h2 = 0;

@@ -200,6 +200,83 @@ const pollutedWorld = {
 healWorld(pollutedWorld);
 assertInvariant(pollutedWorld.assets.silver === 1250 && pollutedWorld.ledger.length === 1, '自愈系统必须自动抹除同日重复扣款流水并将 750 两全额退回相公公账');
 
+// ── 11. 随身行囊白名单备物与非法垃圾物品自愈清洗不变量 ──
+const { prepareHouseholdItem, sanitizeHusbandItems } = await import('../src/world/items.js');
+const testSupplyWorld = {
+  items: [
+    { id: 'it_ok1', name: '临江府都司·紫金虎符与官印', kind: '官印', holder: 'husband' },
+    { id: 'it_ok2', name: '紫阳山头春茶（明前极品锡罐）', kind: '茗茶', holder: 'husband' },
+    { id: 'it_ok3', name: '运河酒楼契', kind: '契纸', holder: 'husband' },
+    { id: 'it_bad1', name: '办了', kind: '随身礼', holder: 'husband' },
+    { id: 'it_bad2', name: '拟个章程出', kind: '随身礼', holder: 'husband' },
+    { id: 'it_bad3', name: '说即可', kind: '随身礼', holder: 'husband' },
+    { id: 'it_bad4', name: '口一会儿', kind: '随身礼', holder: 'husband' },
+  ],
+  actors: { husband: { id: 'husband', name: '王甯' } },
+};
+// 验证自然语言口语严禁被创建为物品
+const badPrep1 = prepareHouseholdItem(testSupplyWorld, '办了', '沈婉儿');
+const badPrep2 = prepareHouseholdItem(testSupplyWorld, '拟个章程出来', '沈婉儿');
+const goodPrep = prepareHouseholdItem(testSupplyWorld, '明前春茶', '沈婉儿');
+assertInvariant(badPrep1 === null && badPrep2 === null, '非白名单日常口语或动词短语绝对严禁被创建为随身物品');
+assertInvariant(goodPrep?.item?.name.includes('春茶'), '白名单物资（如春茶）必须正常备置');
+
+// 验证自愈净化函数清洗掉所有非法动词垃圾
+const cleanedCount = sanitizeHusbandItems(testSupplyWorld);
+assertInvariant(cleanedCount === 4, '行囊自愈净化必须准确识别并清除 4 件垃圾动词物品');
+assertInvariant(testSupplyWorld.items.length === 3 && !testSupplyWorld.items.some(x => ['办了', '拟个章程出', '说即可', '口一会儿'].includes(x.name)), '非法垃圾物品必须彻底从行囊中扫除');
+
+// ── 12. 古风官员与闺秀尊称社会身份排他性不变量 ──
+const yangHousePresent = [
+  { id: 'xiaocui', name: '小翠', role: '通房大丫鬟' },
+  { id: 'yangzhenhua', name: '杨采儿', role: '知府千金' },
+  { id: 'yangshenzhi', name: '杨慎之', role: '临江知府' },
+  { id: 'luchen', name: '陆沉', role: '统领' },
+];
+const hitOfficial = findTargetActorInText(yangHousePresent, '杨大人好');
+const hitMaiden = findTargetActorInText(yangHousePresent, '杨千金好');
+const hitDirectMaiden = findTargetActorInText(yangHousePresent, '采儿近来可好');
+assertInvariant(hitOfficial?.id === 'yangshenzhi', '在中堂呼唤「杨大人」必须 100% 命中正三品知府杨慎之，严禁被同姓千金杨采儿冒领');
+assertInvariant(hitMaiden?.id === 'yangzhenhua', '在中堂呼唤「杨千金」必须 100% 命中千金杨采儿，严禁冒领给知府老父');
+assertInvariant(hitDirectMaiden?.id === 'yangzhenhua', '在中堂呼唤「采儿」必须精准命中杨采儿');
+
+// ── 13. 递信在场绝对排他与提笔回信生效不变量 ──
+const { dispatchNaturalProactive } = await import('../src/world/clock.js');
+const testProactiveWorld = {
+  clock: { day: 25, hour: 19 },
+  flags: { lastNaturalProactiveRealMs: 0, proactiveRound: 9 }, // 第 10 条本来是杨采儿
+  actors: {
+    husband: { id: 'husband', location: 'yang_mansion__hall' },
+    yangzhenhua: { id: 'yangzhenhua', name: '杨采儿', location: 'yang_mansion__hall' },
+  },
+  places: {
+    yang_mansion__hall: { id: 'yang_mansion__hall', name: '杨府·中堂大厅' },
+  },
+  proactive: [],
+  correspondence: [],
+};
+dispatchNaturalProactive(testProactiveWorld, Date.now());
+const queuedItem = testProactiveWorld.proactive[0];
+assertInvariant(!queuedItem || (!queuedItem.speaker.includes('杨采儿') && queuedItem.actorId !== 'yangzhenhua'), '当相公与杨采儿同在杨府中堂时，系统绝对严禁分发采儿的来信/递信');
+
+// ── 14. 官职称号纯正古风中文与杜绝裸露英文不变量 ──
+const { deriveTitle, refreshTitles } = await import('../src/world/occupation.js');
+const testOfficialWorld = {
+  court: {
+    offices: {
+      prefect: { title: '临江知府', holder: 'yangshenzhi', vacant: false },
+    },
+  },
+  actors: {
+    yangshenzhi: { id: 'yangshenzhi', name: '杨慎之', office: 'prefect', role: '临江知府' },
+  },
+};
+const derivedPrefect = deriveTitle(testOfficialWorld, testOfficialWorld.actors.yangshenzhi);
+assertInvariant(!/[a-zA-Z]/.test(derivedPrefect) && (derivedPrefect.includes('知府') || derivedPrefect === '临江知府'), '官职 prefect 必须被推导为纯正古风「知府」，严禁输出裸露英文代码');
+testOfficialWorld.actors.yangshenzhi.title = 'prefect';
+refreshTitles(testOfficialWorld);
+assertInvariant(testOfficialWorld.actors.yangshenzhi.title !== 'prefect' && !/[a-zA-Z]/.test(testOfficialWorld.actors.yangshenzhi.title), 'refreshTitles 必须自动将任何英文 title 清洗为纯正古风中文官名');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

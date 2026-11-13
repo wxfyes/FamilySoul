@@ -282,7 +282,20 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
             .join('、')}`,
         );
       }
-      lines.push('【明媒妻妾】正妻 沈婉儿（掌中馈大娘子，契约正配）、二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室）；名分早定，全府上下人尽皆知，绝不可说“还没定名分/张罗名分”。');
+      // 明媒妻妾与议亲大事记（全家大账）
+      const wifeLines = [];
+      wifeLines.push('正妻 沈婉儿（掌中馈大娘子，契约正配，身怀相公骨肉身孕）');
+      wifeLines.push('二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室）');
+      wifeLines.push('侧室 崔婉宁（临江士绅名门崔府千金，相公出资三百两交其筹备打理新铺）');
+      lines.push(`【明媒妻妾】${wifeLines.join('、')}；名分早定，全府上下人尽皆知，绝不可说“还没定名分/张罗名分”。`);
+
+      // 议娶平妻知府千金杨采儿之大事
+      const hasYangProposal = (world.promises || []).some((p) => /采儿|知府.*求娶|求娶.*采儿/.test(String(p?.text || '')))
+        || (world.tasks || []).some((t) => /杨府|采儿|大婚/.test(String(t?.what || '')));
+      if (hasYangProposal) {
+        lines.push('【议娶平妻·临江知府千金杨采儿】：相公已决意明媒正娶知府杨大人千金杨采儿为平妻！正妻沈婉儿深明大义已欣然应允并亲自主理婚嫁中馈，备足六百两双份聘礼与庚帖章程递往杨府知府知县过目，知府已向夫人回禀并候吉日！全府皆知此天大喜事！');
+      }
+
       if (offInfo.hasOffice) {
         const troopsTotal = Number(world.factions?.wangjia?.troops) || Number(world.military?.army) || 250;
         lines.push(
@@ -503,6 +516,17 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         .map((p) => `第${p.due}日「${String(p.text || '').slice(0, 30)}」${day > Number(p.due) ? '（已逾期）' : '（未到期）'}`);
       lines.push(`【待兑现】${items.join('；')}`);
     }
+
+    // 差事与实务（沈婉儿打理内宅中馈、产业筹备与掌柜伙计分派事务）：主母与经办人必须清清楚楚！
+    try {
+      const activeTasks = (world.tasks || [])
+        .filter((t) => t && t.status === 'doing' && (sceneNames.length <= 1 || sceneNames.some((n) => (t.name || '').includes(n) || (t.who || '').includes(n) || n === '沈婉儿' || n === '小翠')))
+        .slice(-6);
+      if (activeTasks.length > 0) {
+        const tItems = activeTasks.map((t) => `【${t.name || t.who || '经办'}】${t.what}（第${t.dueDay || day}日完成）`);
+        lines.push(`【当前督办要务与差事】${tItems.join('；')} —— 经办主事与主母心中有数，面对相公垂询当从容据实回禀！`);
+      }
+    } catch { /* 忽略 */ }
 
     // 约定：约好某日某时见面，到点她会自己上门
     try {

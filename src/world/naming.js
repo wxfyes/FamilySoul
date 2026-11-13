@@ -164,16 +164,62 @@ export function findTargetActorInText(actors, text) {
     }
   }
 
-  // 3. 古风称谓组合命中（姓氏/名首字 + 尊称后缀）
-  const honorificRe = /([\u4e00-\u9fa5]{1,2})(娘子|大娘子|二娘子|姑娘|大小姐|小姐|掌柜|老板娘|老板|姐姐|妹妹|大人|典吏|书吏|知县|知府|千金|公子)/g;
+  // 3. 古风称谓组合精准命中（姓氏/名首字 + 尊称后缀，按古代官阶身份分类对齐）
+  const honorificRe = /([\u4e00-\u9fa5]{1,2})(大人|知府|知县|府尹|知州|通判|同知|巡抚|总兵|提督|都司|参将|太守|道台|使君|官爷|老爷|千金|大小姐|二小姐|小姐|姑娘|闺秀|娘子|大娘子|二娘子|夫人|少夫人|太太|掌柜|大掌柜|老板娘|老板|朝奉|大厨|管事|头领|姐姐|妹妹|公子|少爷|典吏|书吏)/g;
   let m;
   while ((m = honorificRe.exec(str)) !== null) {
     const prefix = m[1];
     const suffix = m[2];
-    const hit = list.find((a) => a.name.startsWith(prefix) && (a.role || '').includes(suffix))
-      || list.find((a) => a.name.startsWith(prefix) || a.name.includes(prefix));
-    if (hit) {
-      candidates.push({ actor: hit, pos: m.index, score: 70 });
+
+    const isOfficialHonorific = /大人|知府|知县|府尹|知州|通判|同知|巡抚|总兵|提督|都司|参将|太守|道台|使君|官爷|老爷|典吏|书吏/.test(suffix);
+    const isMaidenHonorific = /千金|大小姐|二小姐|小姐|姑娘|闺秀/.test(suffix);
+    const isWifeHonorific = /娘子|大娘子|二娘子|夫人|少夫人|太太/.test(suffix);
+    const isMerchantHonorific = /掌柜|大掌柜|老板娘|老板|朝奉|大厨|管事|头领/.test(suffix);
+
+    // 第一优先：姓氏匹配 且 身份分类100%相符（高优先级命中国家印绶命官/名门闺秀/主母掌柜）
+    const exactCategoryHit = list.find((a) => {
+      const nameMatch = a.name.startsWith(prefix) || a.name.includes(prefix);
+      if (!nameMatch) return false;
+      const roleStr = `${a.role || ''} ${a.title || ''}`;
+      if (isOfficialHonorific) {
+        // 官场尊称：必须是官员/命官/衙门长官，绝对严禁将千金小姐或家眷认作“大人”
+        const isOfficial = /知府|知县|官员|府尹|通判|同知|巡抚|总兵|提督|都司|参将|太守|道台|布政使|按察使|县令|县丞|主簿|典吏|书吏|书办|捕头|官|大人/.test(roleStr);
+        const isDaughter = /千金|大小姐|小姐|闺秀|丫鬟|侍女/.test(roleStr);
+        return isOfficial && !isDaughter;
+      }
+      if (isMaidenHonorific) {
+        // 闺秀千金尊称：必须是名门千金、小姐、未婚闺秀，严禁命中官员老父
+        return /千金|大小姐|小姐|姑娘|闺秀/.test(roleStr);
+      }
+      if (isWifeHonorific) {
+        // 内宅主母妻妾尊称
+        return /妻|妾|如夫人|侧室|娘子|大娘子|二娘子|夫人|主母/.test(roleStr);
+      }
+      if (isMerchantHonorific) {
+        // 商贾掌柜管事尊称
+        return /掌柜|老板|朝奉|大厨|管事|头领|东家/.test(roleStr);
+      }
+      return (a.role || '').includes(suffix);
+    });
+
+    if (exactCategoryHit) {
+      candidates.push({ actor: exactCategoryHit, pos: m.index, score: 92 });
+      continue;
+    }
+
+    // 第二优先：普通角色名称包含 suffix
+    const roleSubHit = list.find((a) => (a.name.startsWith(prefix) || a.name.includes(prefix)) && (a.role || '').includes(suffix));
+    if (roleSubHit) {
+      candidates.push({ actor: roleSubHit, pos: m.index, score: 80 });
+      continue;
+    }
+
+    // 第三优先（保底兜底）：仅当未命中特殊排他尊称（大人/千金/小姐）时才允许弱匹配前缀，防止把杨大人匹配给杨采儿
+    if (!isOfficialHonorific && !isMaidenHonorific) {
+      const weakHit = list.find((a) => a.name.startsWith(prefix) || a.name.includes(prefix));
+      if (weakHit) {
+        candidates.push({ actor: weakHit, pos: m.index, score: 60 });
+      }
     }
   }
 

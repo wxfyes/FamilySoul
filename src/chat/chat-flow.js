@@ -37,6 +37,7 @@ import { addMemory, recallMemories } from '../world/memory.js';
 import { stripForVoice, mergeSameSpeaker } from './text-utils.js';
 import { cleanReply } from './reply-sanitizer.js';
 import { composeViewerPersona, composeWorldRules } from './prompt-composer.js';
+import { getHusbandOfficialInfo } from '../world/items.js';
 import {
   parseSummonTarget, pickSummonActor,
   parseDismissIntent, isMassDismiss, homeRoomForName,
@@ -57,8 +58,10 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
     if (!say) return { ok: false, error: '输入内容为空' };
     // 账号（memberKey）与世界实体（actor）可以不同：女主人账号可以绑定到「杨采儿」这个 actor
     const selfId = actorId || profileKey;
+    const viewerActorId = (actorId && actorId !== 'husband') ? actorId : null;
+    svc._viewerActorId = viewerActorId;
     // 记录开局位置：这一轮如果换了地方，末尾补一行"你到了"
-    const __locAtStart = (() => { try { const w0 = loadState(svc.dataDir); return (svc._viewerActorId ? w0.actors?.[svc._viewerActorId] : w0.actors?.husband)?.location || null; } catch { return null; } })();
+    const __locAtStart = (() => { try { const w0 = loadState(svc.dataDir); return (viewerActorId ? w0.actors?.[viewerActorId] : w0.actors?.husband)?.location || null; } catch { return null; } })();
 
     // 0. 夜半自愈：王宅内眷若被误挪到府外，先请回各自房中，再走在场过滤
     //    （差事/旧 bug 都可能把人半夜扔到长街，导致下一轮"人不在场"把回复全掐灭）
@@ -778,8 +781,16 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         let personaRule = '';
         if (/千金|采儿|大小姐/.test(tName) || /知府千金|名门闺秀/.test(String(tActor.role || ''))) {
           personaRule = `【${tLabel}】乃十九岁名门知府千金，性子英姿飒爽、傲娇清高、口嫌体正直！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」；【绝对严禁自称“本官/老夫/妾身/奴家”】！【绝对严禁称相公“东家/老爷”】！【最高互动铁律】：私下相伴乃男女风月雅叙，面对相公赠茶、表白、豪气或夸赞，她心如鹿撞、假意薄怒娇嗔或欢喜品评，绝不可化身官府公堂酷吏不断盘问索要“凭据/盐引/船号”，顺着相公的话聊，展现傲娇名媛的娇羞与灵动！`;
-        } else if ((/知县|大人|官员|府尹|通判/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
-          personaRule = `【${tLabel}】乃朝廷命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
+        } else if (/知府|慎之/.test(tName) || (/知府|巡抚|布政使/.test(String(tActor.role || '')) && !/千金|小姐|闺秀/.test(String(tActor.role || '')))) {
+          const offHus = getHusbandOfficialInfo(wTurn);
+          personaRule = `【${tLabel}】乃大乾正三品临江知府杨慎之（杨大人，采儿之父），封疆大吏，官威沉稳、洞察世事！自称「本府/老夫/为父」，称呼相公「${offHus.hasOffice ? offHus.shortCall : '王都司'}/贤契/贤侄」；深知相公统领雄兵、战功彪炳，且相公与爱女采儿情投意合、正在纳为平妻！面对相公问好，杨知府须首位正襟危坐、温和威严地捋须从容回应，商议大婚或政商正事！绝对严禁由女儿采儿代替父亲发言！`;
+        } else if ((/知县|县令|大人|官员|通判|典吏|书吏/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
+          const offHus = getHusbandOfficialInfo(wTurn);
+          if (offHus.hasOffice) {
+            personaRule = `【${tLabel}】乃大明朝廷地方官员（正七品知县），深知相公王甯乃朝廷实授【${offHus.fullTitle}】（从一品/二品/四品重臣，统帅三军，手握金印虎符与尚方敕令），其官品远在知县之上！知县在相公面前必须执下官参见上宪之礼，自称「下官/文达/卑职」，恭敬尊称相公为「${offHus.shortCall}/大人/大将军/都司大人」，言辞恭谨严整、恪尽职守协助办理公牒文书，绝对严禁自称本官，绝对严禁称相公为贤契、少掌柜或小友！`;
+          } else {
+            personaRule = `【${tLabel}】乃朝廷正印命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
+          }
         }
 
         const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
@@ -819,8 +830,39 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       if (isDifferentScene && hereNowActors.length > 0) {
         const curLocName = wNowLoc.places?.[myNowLoc]?.name || '王宅正房';
         const hereNames = hereNowActors.map((a) => a.name).join('、');
-        sceneBoundaryHint = `\n（【场景切换与信息隔离屏障】：相公刚才是在外面别处与【${lastSpeaker}】交谈，此刻相公已回到【${curLocName}】！在场众人（${hereNames}）一直在此处内宅，绝不在外头，对相公此前在外与官员、客商、红颜谈论的盐引、底档、官商机密或外室私房一概不知！绝对严禁当“相公肚子里的蛔虫”主动泄露或提及外面的机密词汇！只能以内宅眷属/在场人本分关切迎侯相公！）`;
+        sceneBoundaryHint = `\n（【场景切换与信息隔离屏障】：相公刚才是在外面别处与【${lastSpeaker}】交谈，此刻相公已回到【${curLocName}】！在场众人（${hereNames}）此前一直在此处内宅，对相公适才在外与外人私下密谈的官商交易细节未曾耳闻，绝不可当肚里蛔虫抢话！但【最高铁律】：王家自家产业（四海钱庄、王记当铺、茶坊、大酒楼、码头堆栈、大船队）、内宅婚嫁（立杨采儿为平妻备六百两聘礼）及相公都司总兵官爵，皆为全家上下老幼皆知的既定大账与要务！主母沈婉儿亲自主理大账，面对相公垂询产业或大婚进展，必须从容接话据实回禀，绝对严禁反问“谁提钱庄了/没有这回事”等荒唐失忆之语！）`;
         console.log(`[SceneBoundary] 触发跨场景信息隔离屏障：${lastSpeaker} (外场) → ${hereNames} (${curLocName})`);
+      }
+    } catch { /* 忽略 */ }
+
+    // 亮印出示动作强感知：相公当面亮出了官印、虎符、宝剑或契纸，必须第一反应认出，但必须恪守内外尊卑且单次消费！
+    let shownItemHint = '';
+    try {
+      const wShown = loadState(svc.dataDir);
+      const lastShown = wShown.flags?.lastShownItem;
+      if (lastShown && !lastShown.consumed && (Date.now() - Number(lastShown.time || 0) < 5 * 60 * 1000)) {
+        const targetActor = turnTarget?.actor;
+        const isInnerWife = targetActor && (/正妻|发妻|妻|妾|如夫人|侧室|丫鬟|通房/.test(String(targetActor.role || '')) || ['waner', 'yunnia', 'wanning', 'xiaocui'].includes(targetActor.id));
+        const isOfficialSubordinate = targetActor && (/知县|大人|官员|府尹|通判|典吏|书吏|书办|捕头|差役/.test(String(targetActor.role || '')) || targetActor.id.startsWith('county_') || targetActor.id === 'official_zhou');
+
+        if (lastShown.isOfficial) {
+          if (isInnerWife) {
+            // 内宅妻妾闺房礼法：妻子以相公为荣，欢喜崇拜、娇嗔赞叹，严禁自称卑职或叩见大人！
+            shownItemHint = `\n（【当前场面事实·相公亮印与娇妻分享荣耀】：相公方才当面自怀中取出大明朝廷钦颁的《${lastShown.name}》（${lastShown.note || ''}）给在场的【${targetActor.name}】等内眷验看！此乃天大荣耀与夫君威仪！作为结发名门正妻/温顺妾室，自称必须用「妾身」，称相公「相公/夫君」！看到夫君手握兵权金印与尚方敕令，满心欢喜骄傲、崇拜依偎、替相公拭印温茶，夸赞夫君威风！【绝对严禁像下属衙门官员那样自称卑职/下官，绝对严禁诚惶诚恐长揖下拜或口称“叩见大人/拜见大人”】！）`;
+          } else if (isOfficialSubordinate) {
+            // 下级地方官与衙门差役：执下属参拜上宪之礼
+            shownItemHint = `\n（【当前场面最高强制事实·相公亮印震慑下属】：相公刚刚当面取出大明朝廷钦颁的《${lastShown.name}》（${lastShown.note || ''}）亮在案前！鲜红兵部朱印与尚方宝剑寒光凛然！在场的【${targetActor.name}】已亲眼目睹这一铁证，本轮第一句话必须立即对此做出强烈的敬畏遵奉反应（离席肃立、躬身长揖、口称卑职参见/下官参见提督大人/总兵大人，遵奉号令），绝对严禁视而不见或说“眼生、把关”等昏话！）`;
+          } else {
+            shownItemHint = `\n（【当前场面事实·相公亮出朝廷官印威仪】：相公方才取出了大明朝廷《${lastShown.name}》（${lastShown.note || ''}），在场众人见此重器凛然敬畏，恭敬相待。）`;
+          }
+        } else {
+          shownItemHint = `\n（【当前场面事实·相公出示凭据】：相公刚刚当面取出了《${lastShown.name}》（${lastShown.note || ''}）让在场众人验看，在场人员须顺理成章承接勘验。）`;
+        }
+
+        // 单次消费机制：本轮注入后立即消费清空，绝不在后续轮次无休止重复触发！
+        lastShown.consumed = true;
+        wShown.flags.lastShownItem = null;
+        saveState(svc.dataDir, wShown);
       }
     } catch { /* 忽略 */ }
 
@@ -828,7 +870,7 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
     const sceneAction = leftScene
       ? '\n（相公已移步离去，回到临江茶坊。此处由临江茶坊在场之人相迎。）'
       : '';
-    const mergedHints = [contextHint, turnDirective, sceneBoundaryHint].filter(Boolean).join('\n');
+    const mergedHints = [contextHint, turnDirective, shownItemHint, sceneBoundaryHint].filter(Boolean).join('\n');
     const currentContent = mergedHints ? `${say}${sceneAction}\n${mergedHints}` : `${say}${sceneAction}`;
     messages.push({ role: 'user', content: currentContent });
 
@@ -1908,7 +1950,11 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         if (/[·・]/.test(nm) || /天道|旁白|众人/.test(nm)) return m0;
         const a = Object.values(wS.actors || {}).find((x) => x && !x.dead && x.name === nm);
         if (!a) return m0;
-        const role = String(a.title || a.role || '').trim() || (a.humanBound ? '布衣' : '');
+        let role = String(a.title || a.role || '').trim() || (a.humanBound ? '布衣' : '');
+        if (/[a-zA-Z]/.test(role)) {
+          const OFFICE_TITLES = { prefect: '知府', magistrate: '县令', tuanlian: '团练使', governor: '巡抚', viceroy: '总督', dusi: '都司', commander: '总兵' };
+          role = OFFICE_TITLES[role.toLowerCase()] || (a.office && OFFICE_TITLES[a.office.toLowerCase()]) || '知府';
+        }
         let title = role
           .replace(/^临江府?/, '')
           .replace(/（.*?）/g, '')

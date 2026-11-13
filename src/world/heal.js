@@ -2,7 +2,7 @@ import { trimMemories, addMemory } from './memory.js';
 import { ensureResidence } from './residence.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
-import { ensureOfficialCredentials, getHusbandOfficialInfo } from './items.js';
+import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems } from './items.js';
 import { ensureActiveBanditWaves } from './bandits.js';
 import { isSameSpendSubject } from './ledger.js';
 /**
@@ -1110,6 +1110,16 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 重复扣款退银自愈异常：', err.message);
+  }
+
+  // ⑱ 行囊非法垃圾随身礼自愈净化
+  try {
+    const cleaned = sanitizeHusbandItems(world);
+    if (cleaned > 0) {
+      fixes.push(`随身行囊净化：清理 ${cleaned} 件口语动词垃圾物品（办了、拟个章程出、说即可等全部清除出随身空间）`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 行囊自愈净化异常：', err.message);
   }
 
   return fixes;

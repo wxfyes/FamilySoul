@@ -34,7 +34,7 @@ export function cleanReply(rawReply, userText = '', isVideoCall = false) {
   out = out.replace(/[（(][^）)]*?[）)]/g, (match) => {
     if (match.includes('image:') || match.includes('music:') || match.includes('compare:')) return match;
     return '';
-  }).replace(/[ \t]{2,}/g, ' ').replace(/([：:])\s*/g, '$1 ').replace(/^\s*[\r\n]+/gm, '').trim();
+  }).replace(/^[>|]\s*/gm, '').replace(/[ \t]{2,}/g, ' ').replace(/([：:])\s*/g, '$1 ').replace(/^\s*[\r\n]+/gm, '').trim();
 
   // 彻底剔除大模型审题/思维链反刍（如“先说清楚谁能说，再让xx说”、“现场发言权调度”等）
   out = out.replace(/(?:^|\n)\s*(?:请?先(?:说清楚|理清|弄清|判断|明确)?谁(?:能|可以|在场)?(?:说|开口|回话|发言).*?再让.*?(?:说|开口|回话|发言)[：:。\s]*)+/g, '\n');

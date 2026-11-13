@@ -19,7 +19,7 @@ import { healWorld } from './heal.js';
 import { ensureCourt, forceOf, ensureTerrain } from './state.js';
 import { advanceArcs, ensureArcs, resolveArc } from './arcs.js';
 import { spreadRumors, addRumor } from './rumors.js';
-import { moveActor } from './position.js';
+import { moveActor, isSameLocation } from './position.js';
 import { businessHoursFor } from './projects.js';
 import { runMilitaryDay, setWarEventSink, runPayday } from './warfare.js';
 import { npcStrategyTurn, maybeSpawnWarlord } from './strategy.js';
@@ -2744,8 +2744,46 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
     },
   ];
 
+  // 🛡️ 在场绝对排他铁律：严禁当面当场、就在身旁同处一室的人还搞“飞鸽传书/递信”！
+  const husLoc = world.actors?.husband?.location || 'husband_room';
+  const husPlaceName = world.places?.[husLoc]?.name || husLoc;
+  const hereActors = Object.values(world.actors || {}).filter(
+    (a) => a && !a.dead && a.id !== 'husband' && isSameLocation(a.location, husLoc)
+  );
+  const hereIds = new Set(hereActors.map((a) => a.id));
+  const hereNames = new Set(hereActors.flatMap((a) => [a.name, a.name.length > 2 ? a.name.slice(-2) : a.name]));
+
+  // 检查已结案或正在等待的信件，避免重复发送相同文本
+  world.correspondence = Array.isArray(world.correspondence) ? world.correspondence : [];
+  const pendingKeys = new Set(
+    world.correspondence
+      .filter((c) => c && c.status === 'pending')
+      .map((c) => `${c.fromId}_${String(c.messages?.[0]?.text || '').slice(0, 20)}`)
+  );
+
+  // 严格过滤：在场之人不递信、同府同室不递信、未结案重复事项不递信
+  const validCandidates = pool.filter((p) => {
+    // 1. 发信人就在眼前现场：绝对严禁递信！
+    if (p.actorId && hereIds.has(p.actorId)) return false;
+    for (const hn of hereNames) {
+      if (hn && (p.speaker || '').includes(hn)) return false;
+    }
+    // 2. 空间排他：相公在杨府，杨采儿就在府内，绝不递信
+    if (/杨府/.test(husPlaceName) && (/采儿|杨慎之/.test(p.speaker || '') || p.actorId === 'yangzhenhua')) return false;
+    // 3. 相公在王宅正房，正房大娘子婉儿绝不递信
+    if (/正房/.test(husPlaceName) && (/婉儿/.test(p.speaker || '') || p.actorId === 'waner')) return false;
+    // 4. 内容排重：同一件事情如果还在等待回复，绝对严禁重复推送
+    const cKey = `${p.actorId}_${p.text.slice(0, 20)}`;
+    if (pendingKeys.has(cKey)) return false;
+    return true;
+  });
+
+  if (validCandidates.length === 0) {
+    return false;
+  }
+
   const round = Number(world.flags.proactiveRound) || 0;
-  const pick = { ...pool[round % pool.length] };
+  const pick = { ...validCandidates[round % validCandidates.length] };
 
   // 🛡️ 权威归宿锚定：发信人若是杨采儿，地点100%强制为杨府，绝不可错填为官衙公堂
   if (pick.actorId === 'yangzhenhua' || pick.speaker?.includes('杨采儿')) {

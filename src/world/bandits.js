@@ -482,3 +482,4 @@ export function spawnBandit(world, { city = '临江府', strength = 8, tier = 1,
   };
   return world.bandits[id];
 }
+

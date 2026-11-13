@@ -69,7 +69,7 @@ export function personFacts(world, actorId) {
 
   // ③ 差事与东家
   if (/知县|县令|知府|巡抚|县丞|通判/.test(String(a.role || '')) || a.id === 'county_magistrate') {
-    bits.push(`身份官阶：朝廷命官（${a.role || '知县'}），一县之尊正印父母官，执掌刑名钱谷。自称「本官/老夫/文达」，称平民商人为「王少掌柜/少掌柜/小友」，绝不可自称小的、奴才，绝不可叫王甯东家！`);
+    bits.push(`身份官阶：朝廷命官（${a.role || '知县'}）。若王相公已受朝廷实授官职（都司/参将/总兵/提督），官品远在七品知县之上，知县执下属礼自称「下官/文达/卑职」，敬称相公「大人/总兵大人/都司大人」；绝不可直呼贤契或少掌柜！`);
   } else if (a.workplace) {
     const ownerName = a.employer ? (world.actors?.[a.employer]?.name || '') : '';
     bits.push(`差事：在「${a.workplace}」做${a.role || '伙计'}${ownerName ? `，东家是${ownerName}` : ''}。`);

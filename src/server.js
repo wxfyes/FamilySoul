@@ -1755,7 +1755,47 @@ const server = http.createServer(async (req, res) => {
               text: `相公当着${toName}的面亮出《${result.item?.name}》（${result.item?.note || ''}）`,
             });
             world.notes = world.notes.slice(-60);
+
+            // 记录当前场面高光印信事实，供大模型提示词直接感知
+            world.flags = world.flags || {};
+            world.flags.lastShownItem = {
+              id: result.item?.id,
+              name: result.item?.name,
+              kind: result.item?.kind,
+              note: result.item?.note || '',
+              rank: result.item?.rank || '',
+              isOfficial: Boolean(result.isOfficialCred),
+              toActorId: targetActorId || null,
+              toName,
+              day: world.clock?.day || 1,
+              hour: world.clock?.hour || 0,
+              time: Date.now(),
+              line: result.line,
+            };
+
             saveState(DATA_DIR, world);
+
+            // 沉淀至相公真实聊天记录流，让后续所有在场角色有据可查、第一反应认出
+            try {
+              const h = petService.readHistory('husband') || { messages: [] };
+              h.messages = Array.isArray(h.messages) ? h.messages : [];
+              h.messages.push({
+                role: 'assistant',
+                text: result.line,
+                at: Date.now(),
+                isActionNarration: true,
+              });
+              if (h.messages.length > 100) h.messages = h.messages.slice(-100);
+              petService.saveHistory('husband', h);
+            } catch (err) {
+              console.warn('[ShowItem] 写入历史失败:', err.message);
+            }
+
+            appendEvents(DATA_DIR, [nextEvent(world, 'item_show', {
+              desc: `相公当面亮出《${result.item?.name}》`,
+              actor: 'husband',
+              target: targetActorId || 'all',
+            })]);
           }
         } else if (action === 'ask') {
           if (!targetActorId) return sendJson(res, 400, { ok: false, error: '请指定索取的对象' });
@@ -2314,30 +2354,120 @@ const server = http.createServer(async (req, res) => {
         thread.status = 'replied';
         thread.unread = false;
 
-        // 1. 记忆沉淀：让发信人（如二房芸娘）永久记住相公亲笔写的手书内容
         const senderId = thread.fromId || '';
         const senderName = thread.fromName || '对方';
+        const origText = String(thread.messages?.[0]?.text || '');
+
         if (replyText) {
+          // 意图解析：相公是否准奏/同意
+          const isApproved = /(准|允|照办|去办|办了|买|接下|交割|好|成|行|可以|同意|速办|批|要|收下)/.test(replyText)
+            && !/(不准|不妥|拒|休得|暂缓|退了|作罢|不买|不要|免了)/.test(replyText);
+          const isRejected = /(不准|不妥|拒|休得|暂缓|退了|作罢|不买|不要|免了)/.test(replyText);
+
+          // 1. 物理动作执行与差事落地（绝非死文字，真正落地执行！）
+          let executionLog = '';
+          if (isApproved) {
+            if (/细瓷|茶叶行市|伍兰/.test(origText) || /伍兰/.test(senderName)) {
+              // 运河货船细瓷与两淮茶叶交割入库，公账进银
+              world.assets = world.assets || { silver: 0 };
+              world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + 80) * 100) / 100;
+              world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+              world.ledger.push({
+                day: world.clock?.day || 1, hour: world.clock?.hour || 0,
+                desc: '运河货船交割景德镇细瓷与两淮茶叶，批复入库',
+                delta: 80, silver: world.assets.silver, type: 'business',
+              });
+              executionLog = '运河货船景德镇细瓷与两淮茶叶交割入库，公账进银 80 两';
+            } else if (/淮盐官船|上等席面|周有财/.test(origText) || /周有财/.test(senderName)) {
+              // 运河码头大酒楼天字阁接下大席，预收包席定金
+              world.assets = world.assets || { silver: 0 };
+              world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + 120) * 100) / 100;
+              world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+              world.ledger.push({
+                day: world.clock?.day || 1, hour: world.clock?.hour || 0,
+                desc: '运河大酒楼接下淮盐官船天字阁包席预收定金',
+                delta: 120, silver: world.assets.silver, type: 'business',
+              });
+              executionLog = '大酒楼接下两淮盐运包席，预收定金 120 两，大掌柜周有财调度后厨齐备';
+            } else if (/紫檀案头|新铺屏风|婉宁/.test(origText) || /婉宁/.test(senderName)) {
+              // 侧室崔婉宁置办东跨院与新铺陈设
+              executionLog = '侧室崔婉宁领相公手书定夺东跨院紫檀案头与新铺屏风样式，内宅陈设已定';
+            } else if (/鑫雅阁|刘主簿|钱书办/.test(origText) || /钱书办/.test(senderName)) {
+              // 鑫雅阁腾出清幽雅座
+              world.factions = world.factions || {};
+              world.factions.county = Math.min(100, (Number(world.factions.county) || 0) + 3);
+              executionLog = '掌柜钱书办领命腾出清幽雅座，县衙刘主簿欣然受领，官绅交好';
+            } else if (/春茶|定金|罗叔/.test(origText) || /罗叔/.test(senderName)) {
+              // 老茶坊结算茶农定金
+              world.assets = world.assets || { silver: 0 };
+              if (Number(world.assets.silver) >= 50) {
+                world.assets.silver = Math.round(((Number(world.assets.silver) || 0) - 50) * 100) / 100;
+                world.ledger = Array.isArray(world.ledger) ? world.ledger : [];
+                world.ledger.push({
+                  day: world.clock?.day || 1, hour: world.clock?.hour || 0,
+                  desc: '老茶坊炒制结算紫阳山茶农二道茶定金',
+                  delta: -50, silver: world.assets.silver, type: 'business',
+                });
+              }
+              executionLog = '账房罗叔领命拨付茶农二道茶定金，老茶坊春茶供应无虞';
+            }
+          } else if (isRejected) {
+            executionLog = `${senderName}接相公手书，吩咐暂缓作罢，下人谨遵法度`;
+          }
+
+          // 2. 记忆沉淀：让发信人（如二房芸娘、侧室婉宁）永久记住相公手书内容与执行
           addMemory(world, {
-            text: `相公亲笔给${senderName}手书回信：“${replyText}”`,
+            text: `相公亲笔给${senderName}手书批复：“${replyText}”${executionLog ? `（已落地执行：${executionLog}）` : ''}`,
             about: [senderId, actorId, 'husband'].filter(Boolean),
             kind: 'letter',
           });
-          // 2. 好感与心意沉淀：相公亲笔回信，对方内心踏实温存
+
+          // 3. 好感与心意沉淀：相公亲笔批复，对方内心踏实温存
           const sender = world.actors?.[senderId] || Object.values(world.actors || {}).find((a) => a && a.name === senderName);
           if (sender) {
             sender.relations = sender.relations || {};
             sender.relations.husband = sender.relations.husband || { trust: 50, desire: 30, fear: 0, grievance: 0 };
-            sender.relations.husband.trust = Math.min(100, (Number(sender.relations.husband.trust) || 0) + 3);
-            sender.relations.husband.desire = Math.min(100, (Number(sender.relations.husband.desire) || 0) + 2);
+            sender.relations.husband.trust = Math.min(100, (Number(sender.relations.husband.trust) || 0) + 4);
+            sender.relations.husband.desire = Math.min(100, (Number(sender.relations.husband.desire) || 0) + 3);
           }
-          // 3. 事件流记录
+
+          // 4. 事件流记录
           world.events = world.events || [];
           world.events.push({
             day: world.clock?.day || 1,
             hour: world.clock?.hour || 0,
-            text: `信使将相公手书送抵${senderName}处，信中写道：“${replyText}”`,
+            text: `信使将相公手书送抵${senderName}处，信中写道：“${replyText}”${executionLog ? `。已执行：${executionLog}` : ''}`,
           });
+
+          // 5. 🌟 双通道汇流：回信与执行回执真实沉淀入主线对话历史
+          try {
+            const h = petService.readHistory(actorId) || { messages: [] };
+            h.messages = Array.isArray(h.messages) ? h.messages : [];
+            const nowMs = Date.now();
+            h.messages.push({
+              id: `u-reply-${nowMs}`,
+              role: 'user',
+              text: `（提笔手书回复「${senderName}」：“${replyText}”）`,
+              at: nowMs,
+            });
+            const ackLine = executionLog
+              ? `（信使快马折返向「${senderName}」呈递相公手书批复，${senderName}领命照办，${executionLog}，已入公账案卷。）`
+              : (isApproved
+                  ? `（信使快马折返向「${senderName}」呈递手书批复，${senderName}领命照办，差事已妥善落定并入公账案卷。）`
+                  : (isRejected
+                      ? `（信使快马折返向「${senderName}」呈递手书批复，${senderName}领命暂缓作罢。）`
+                      : `（信使收下手书，快马折返向「${senderName}」呈递。）`));
+            h.messages.push({
+              id: `a-ack-${nowMs + 10}`,
+              role: 'assistant',
+              text: ackLine,
+              speaker: '旁白',
+              at: nowMs + 10,
+            });
+            petService.saveHistory(actorId, h);
+          } catch (e) {
+            console.warn('[Correspondence] 写入主线历史失败:', e.message);
+          }
         }
 
         saveState(DATA_DIR, world);
@@ -3453,11 +3583,7 @@ const server = http.createServer(async (req, res) => {
           world.proactive = queue.filter((item) => !due.includes(item));
           saveState(DATA_DIR, world);
           console.log(`[Push] 主动送达 ${due.length} 条 → 成员 [${currentMember.memberKey}]`);
-          return sendJson(res, 200, {
-            ok: true,
-            lastSeq: now,
-            cursor: now,
-            events: due.map((item, i) => {
+          const payloadEvents = due.map((item, i) => {
               const textSpk = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
               let spk = (textSpk ? textSpk[1].trim() : item.speaker) || '';
               // 彻底杜绝拼音变量、系统代号或裸露英文污染（如 an, usr_, ancient, system）
@@ -3538,7 +3664,40 @@ const server = http.createServer(async (req, res) => {
                 messageId: `push_${now}_${i}`,
                 modality: item.audioKey ? 'audio' : 'text',
               };
-            }),
+            });
+
+          // 🌟 双通道汇流：将主动送达的信函与传书真实持久化至主聊天历史流（刷新不丢、因果连贯）
+          try {
+            const h = petService.readHistory(currentMember.memberKey) || { messages: [] };
+            h.messages = Array.isArray(h.messages) ? h.messages : [];
+            let histDirty = false;
+            for (const ev of payloadEvents) {
+              if (ev && ev.text && !h.messages.some((m) => m.text === ev.text)) {
+                h.messages.push({
+                  id: `u-push-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  role: 'assistant',
+                  text: ev.text,
+                  speaker: ev.speaker || '信使',
+                  place: ev.place || null,
+                  isLetter: Boolean(ev.isLetter),
+                  at: Date.now(),
+                });
+                histDirty = true;
+              }
+            }
+            if (histDirty) {
+              h.messages = h.messages.slice(-100);
+              petService.saveHistory(currentMember.memberKey, h);
+            }
+          } catch (err) {
+            console.warn('[Push] 沉淀主历史异常:', err.message);
+          }
+
+          return sendJson(res, 200, {
+            ok: true,
+            lastSeq: now,
+            cursor: now,
+            events: payloadEvents,
           });
         }
         if (now >= deadline || res.destroyed) {
