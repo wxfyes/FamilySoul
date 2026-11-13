@@ -216,6 +216,12 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
         const targetActor = String(args.who || (selfId !== 'husband' ? selfId : 'husband'));
         const reasonTitle = String(args.reason || (delta > 0 ? '产业大单进账' : '公账开销')).slice(0, 24);
         if (targetActor === 'husband') {
+          // 军规第六条最高铁律：相公（真人玩家）的一切花销支出严禁由聊天标签或记账员静默扣除！
+          // 所有扣银必须且只能走客户端确认弹窗单一入口（POST /api/world/confirm），杜绝与确认弹窗形成双倍扣款。
+          if (delta < 0) {
+            applied.push(`忽略静默扣款:${Math.abs(delta)}两（${reasonTitle}，花销由相公界面确认单一入口结算）`);
+            continue;
+          }
           // 防重锁：定金/寿宴等大单，单日同额定金只许落账一次，绝不允许连续多轮对话重复叠加
           if (delta > 0 && /(?:定金|定银|寿宴|大单)/.test(reasonTitle)) {
             const recent = Array.isArray(world.ledger) ? world.ledger.slice(-12) : [];

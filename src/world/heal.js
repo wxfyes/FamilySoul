@@ -4,6 +4,7 @@ import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } fro
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
 import { ensureOfficialCredentials, getHusbandOfficialInfo } from './items.js';
 import { ensureActiveBanditWaves } from './bandits.js';
+import { isSameSpendSubject } from './ledger.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -1058,6 +1059,57 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 匪患补充异常：', err.message);
+  }
+
+  // ⑰ 同日同标的重复大额扣款流水自动抹除与全额退银自愈（杜绝开张/置办双倍扣银）
+  try {
+    if (Array.isArray(world.ledger) && world.ledger.length > 1) {
+      for (let i = 0; i < world.ledger.length; i++) {
+        const cur = world.ledger[i];
+        if (!cur || !(Number(cur.delta) <= -20)) continue;
+        const absAmt = Math.abs(Number(cur.delta));
+        const day = Number(cur.day);
+        // 查找同日是否已有另一条同金额、同标的的负向扣款
+        let prevIdx = -1;
+        for (let j = 0; j < i; j++) {
+          const prev = world.ledger[j];
+          if (!prev || Number(prev.day) !== day || !(Number(prev.delta) <= -20)) continue;
+          if (Math.abs(Math.abs(Number(prev.delta)) - absAmt) > 0.01) continue;
+          if (isSameSpendSubject(prev.title, cur.title)) {
+            prevIdx = j;
+            break;
+          }
+        }
+        if (prevIdx === -1) continue;
+
+        // 检查同日是否已经有一笔对应的正数退银沖正（如 +400）
+        const alreadyRefunded = world.ledger.some(
+          (r) => r && Number(r.day) === day && Number(r.delta) > 0
+            && Math.abs(Number(r.delta) - absAmt) <= 0.01
+            && isSameSpendSubject(r.title, cur.title)
+        );
+        if (alreadyRefunded) continue;
+
+        // 优先移除带「取银入公账/本钱」的静默记账员重复行，保留标准「·开张」行
+        const prevEntry = world.ledger[prevIdx];
+        const removeIdx = /取银入公账|本钱/.test(String(cur.title || '')) ? i : (/取银入公账|本钱/.test(String(prevEntry.title || '')) ? prevIdx : i);
+        const removedEntry = world.ledger[removeIdx];
+        world.ledger.splice(removeIdx, 1);
+
+        // 全额退还多扣的银两至相公公账，并同步修正后续流水结余
+        world.assets = world.assets || {};
+        world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + absAmt) * 100) / 100;
+        for (let k = removeIdx; k < world.ledger.length; k++) {
+          if (world.ledger[k] && typeof world.ledger[k].balance === 'number') {
+            world.ledger[k].balance = Math.round((world.ledger[k].balance + absAmt) * 100) / 100;
+          }
+        }
+        fixes.push(`账本去重退银：抹除第${day}日重复扣款「${removedEntry.title}」(-${absAmt}两)，已全额退还 ${absAmt} 两入公账（现银 ${world.assets.silver} 两）`);
+        i--; // 数组缩短，回退游标继续扫描
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 重复扣款退银自愈异常：', err.message);
   }
 
   return fixes;

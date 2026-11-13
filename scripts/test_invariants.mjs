@@ -173,6 +173,33 @@ assertInvariant(showRes.ok && showRes.trustDelta >= 8 && showRes.line.includes('
 ensureActiveBanditWaves(mockOffWorld, 5);
 assertInvariant(Object.keys(mockOffWorld.bandits).length >= 5, '江淮匪患池必须常备至少 5 波不同阶位匪患供相公出征立功升官');
 
+// ── 10. 银两扣款单一写入口幂等防重与自愈退银不变量 ──
+const { spendSilver } = await import('../src/world/ledger.js');
+const { healWorld } = await import('../src/world/heal.js');
+const mockLedgerWorld = {
+  clock: { day: 25, hour: 1 },
+  assets: { silver: 2000, properties: [] },
+  ledger: [],
+  actors: { husband: { id: 'husband', name: '王甯' } },
+};
+const s1 = spendSilver(mockLedgerWorld, 750, '王记当铺开张·开张', 'husband');
+const s2 = spendSilver(mockLedgerWorld, 750, '王记当铺开张本钱，取银入公账', 'husband');
+assertInvariant(s1.ok && !s1.deduplicated && mockLedgerWorld.assets.silver === 1250, '首笔合法开张支出必须正常扣减银两');
+assertInvariant(s2.ok && s2.deduplicated === true && mockLedgerWorld.assets.silver === 1250 && mockLedgerWorld.ledger.length === 1, '同日同标的「王记当铺」二次扣款必须被单一写入口拦截，严禁双倍扣银');
+
+// 模拟历史污染双倍流水，验证 healWorld 自动抹除重复行并全额退还 750 两
+const pollutedWorld = {
+  clock: { day: 25, hour: 1 },
+  assets: { silver: 500, properties: [] },
+  ledger: [
+    { day: 25, hour: 1, delta: -750, title: '王记当铺开张·开张', by: 'husband', balance: 1250 },
+    { day: 25, hour: 1, delta: -750, title: '王记当铺开张本钱，取银入公账', by: 'husband', balance: 500 },
+  ],
+  actors: { husband: { id: 'husband', name: '王甯' } },
+};
+healWorld(pollutedWorld);
+assertInvariant(pollutedWorld.assets.silver === 1250 && pollutedWorld.ledger.length === 1, '自愈系统必须自动抹除同日重复扣款流水并将 750 两全额退回相公公账');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

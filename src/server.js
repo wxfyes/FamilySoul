@@ -43,6 +43,7 @@ import { moveActor, isHumanBound, isSameLocation } from './world/position.js';
 import { markHumanSeen, isHumanOnline } from './world/presence.js';
 import { buildTimeline, eventText } from './world/events-view.js';
 import { spendSilver, recentLedger } from './world/ledger.js';
+import { ensureProjectProperty } from './world/projects.js';
 import { getMoney, setMoney, spendMoney, syncMoney } from './world/money.js';
 import { isPlaceName } from './world/naming.js';
 import { hireStaff, visiblePropertiesOf, isPropertyOperational, getPropertyNominalIncome } from './world/employment.js';
@@ -2188,16 +2189,27 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 200, { ok: false, error: `钱不够：要 ${price} 两，手头只有 ${silver.toFixed(2)} 两` });
         }
 
-        // 扣钱
+        // 扣钱（由 spendSilver 单一写入口幂等保护，同日同标的同金额自动防重）
+        let isDeduplicated = false;
+        let duplicateTitle = '';
         if (actorId === 'husband') {
           const spent1 = spendSilver(world, price, `${pend.title || '花销'}·${opt?.label || ''}`, 'husband');
           if (!spent1.ok) return sendJson(res, 200, { ok: false, error: spent1.error });
+          if (spent1.deduplicated) {
+            isDeduplicated = true;
+            duplicateTitle = spent1.duplicateOf || pend.title || '花销';
+          }
+          if (price >= 20 && /开张|盘铺|置办|开业|买船|打船|造船|建厂|设坊|当铺|钱庄|银号|酒楼|堆栈|货栈|镖局|茶庄|绸缎|布庄|药铺|医馆/.test(String(pend.title || ''))) {
+            try { ensureProjectProperty(world, pend.title, price, { day: world.clock?.day, title: pend.title }); } catch { /* 忽略 */ }
+          }
         } else {
           const spent2 = spendMoney(world, actorId, price, `${pend.title || '花销'}·${opt?.label || ''}`);
           if (!spent2.ok) return sendJson(res, 200, { ok: false, error: spent2.error });
         }
 
-        let line = `（付了 ${price} 两。）`;
+        let line = isDeduplicated
+          ? `（【账房核销】「${pend.title || '该项开支'}」今日已由「${duplicateTitle}」入账核销，未重复扣银。）`
+          : `（付了 ${price} 两。）`;
         const comers = [];
 
         if (pend.kind === 'lodging') {
@@ -2239,7 +2251,7 @@ const server = http.createServer(async (req, res) => {
             comers.push(a.name);
           }
           line = `（你付了 ${price} 两，进了「${world.places[roomId].name}」。${comers.length ? comers.join('、') + '也进来了。' : ''}）`;
-        } else {
+        } else if (!isDeduplicated) {
           // 其它花销：只记账 + 事件，具体效果交给天道下一轮演
           world.events = world.events || [];
           world.events.push({
@@ -2251,8 +2263,8 @@ const server = http.createServer(async (req, res) => {
 
         delete world.pendingAction;
         saveState(DATA_DIR, world);
-        console.log(`[Pay] ${pend.kind} ${opt?.label || ''} ${price} 两 → ${line.slice(0, 40)}`);
-        return sendJson(res, 200, { ok: true, line, paid: price, place: world.places?.[me?.location]?.name || '' });
+        console.log(`[Pay] ${pend.kind} ${opt?.label || ''} ${isDeduplicated ? 0 : price} 两 → ${line.slice(0, 40)}`);
+        return sendJson(res, 200, { ok: true, line, paid: isDeduplicated ? 0 : price, deduplicated: isDeduplicated, place: world.places?.[me?.location]?.name || '' });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

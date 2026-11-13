@@ -15,6 +15,7 @@ import { proposeMarriage, acceptAlliance, declineAlliance } from '../world/marri
 import { quellBandits } from '../world/bandits.js';
 import { addMemory } from '../world/memory.js';
 import { ensureProjectProperty } from '../world/projects.js';
+import { findSameDayDuplicateSpend } from '../world/ledger.js';
 import {
   parseSummonTarget, pickSummonActor,
   parseDismissIntent, isMassDismiss, homeRoomForName,
@@ -664,19 +665,27 @@ export function executeNarrativeTags({
           // 核心风控（军规第六条）：大额开销（>5两）严禁在聊天流中通过正则偷听扣款！
           // 聊天文字纯属戏内商议与剧情对白，所有大额花销 100% 挂入客户端专属弹窗，由相公亲手点击确认单一入口支银！
           if (quoted > 5) {
-            createdPendingId = `pend_pay_${Date.now()}`;
-            wPay.pendingAction = {
-              kind: 'pay',
-              id: createdPendingId,
-              title: title2,
-              options: opts2,
-              by: mePay?.id || 'husband',
-              askedDay: wPay.clock?.day || 1,
-              askedHour: wPay.clock?.hour || 0,
-            };
-            saveState(dataDir, wPay);
-            reply += `\n（【花销商议】${title2}需银 ${quoted.toFixed(2)} 两，已在顶部列出待付选项，需相公亲手点击确认方才支银。）`;
-            console.log(`[Pay] 大额开销挂入客户端待付单，聊天流绝不扣钱：${title2}（${quoted} 两）`);
+            const dupSpend = findSameDayDuplicateSpend(wPay, quoted, title2, wPay.clock?.day || 1);
+            if (dupSpend) {
+              delete wPay.pendingAction;
+              saveState(dataDir, wPay);
+              reply += `\n（【账房核销】「${title2}」今日已由「${dupSpend.title}」核销支银 ${quoted.toFixed(2)} 两，不再重复挂单扣款。）`;
+              console.log(`[Pay] 拦截同日重复挂待付单：${title2} (${quoted}两) 已由 ${dupSpend.title} 入账`);
+            } else {
+              createdPendingId = `pend_pay_${Date.now()}`;
+              wPay.pendingAction = {
+                kind: 'pay',
+                id: createdPendingId,
+                title: title2,
+                options: opts2,
+                by: mePay?.id || 'husband',
+                askedDay: wPay.clock?.day || 1,
+                askedHour: wPay.clock?.hour || 0,
+              };
+              saveState(dataDir, wPay);
+              reply += `\n（【花销商议】${title2}需银 ${quoted.toFixed(2)} 两，已在顶部列出待付选项，需相公亲手点击确认方才支银。）`;
+              console.log(`[Pay] 大额开销挂入客户端待付单，聊天流绝不扣钱：${title2}（${quoted} 两）`);
+            }
           } else {
             // 即刻落账：仅限市井极小额零花（<=5两，如茶水小点）
             try {

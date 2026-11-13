@@ -129,7 +129,7 @@ export function composeSystemPrompt({
   lines.push('【天道回执（强制格式，相公看不到，系统自动摘除）】');
   lines.push('- 每轮回复末尾必须有一行回执；什么可变的事都没发生，就只写 [[world:none]]。');
   lines.push('- 改变了世界才写，可多行：');
-  lines.push('  [[world:relation who=waner field=trust delta=+3]]  [[world:asset delta=-12.5 reason="买茶苗"]]');
+  lines.push('  [[world:relation who=waner field=trust delta=+3]]  [[world:asset delta=+50 reason="客商定金"]]');
   lines.push('  [[world:promise due=132 text="三日内把酒楼开起来"]]  [[world:move who=qiantonghai to=dock]]');
   lines.push('  [[world:spawn name="柳儿" role="邻家浣衣女" goals="赎身;照顾幼弟"]]  [[world:arrive who=yunnia in=2]]');
   lines.push('  [[world:appointment who=liuwenxia day=世界日+1 hour=12 text="提两坛茶酒样来茶坊"]]');
@@ -137,7 +137,8 @@ export function composeSystemPrompt({
   lines.push('  [[world:income id=canal_restaurant set=18 status="已开张"]]');
   lines.push('  [[world:pregnant who=liuwenxia]]');
   lines.push('  [[world:marriage who=liuwenxia rank="三房如夫人" dowry=50]]');
-  lines.push('  [[world:troops field=guards delta=10]]  [[world:infra name=granary delta=1]]  [[world:spend amount=32 unit=文]]');
+  lines.push('  [[world:troops field=guards delta=10]]  [[world:infra name=granary delta=1]]');
+  lines.push('- 【银两铁律】：严禁写负数 [[world:asset delta=-...]] 或 [[world:spend]] 静默扣银！凡需相公花银子（盘铺开张、置办产业、采买），一律只写 [[pay:名目|选项=金额]]，由相公在客户端顶部弹窗亲手点击确认单一入口支银。');
   lines.push('- 字段：relation 只有 trust/desire/fear/grievance（0~100）；who 可写 id 或姓名；严禁写台词或复述天机。');
   lines.push('- 【凡发生了值得记一辈子的事（第一次、亲密、翻脸、重大决定），必须记 remember】，它会永久留存。');
   lines.push('- 【凡约定了具体日子时辰见面（如"后天晌午你来寻我"），必须记 appointment】，day/hour 用世界日历（hour 为 24 小时制），否则到点不会有人来。');
