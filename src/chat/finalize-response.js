@@ -484,6 +484,7 @@ export async function finalizeResponse(svc, ctx) {
             { name: '《沈家旧案·户部核报亏空底册残页》', kind: '卷宗', note: '沈侍郎抄家年份临江府库出入底册残页，记载当年亏空系人为核销抹平' },
             { name: '《随科手抄·沈家案县衙私档小样》', kind: '密件', note: '随科在县衙夜班私自抄录留底之密录，详载底册被调包挪用之时间暗记' },
             { name: '《随科贴身收藏沈案证物油布包》', kind: '证据', note: '随科贴身藏匿沈案关键证据之陈年油布包，沾有库房封泥' },
+            { name: '《随科密匣夹板隐匿抄纸半页》', kind: '密件', note: '随科夜间书房木匣夹层所藏未抄完之半页旧档，记有当年户部行文去向' },
           ];
           let addedCount = 0;
           for (const sd of suikeDefs) {
@@ -493,11 +494,13 @@ export async function finalizeResponse(svc, ctx) {
               addedCount++;
             }
           }
+          svc._turnNotices = svc._turnNotices || [];
           if (addedCount > 0) {
             saveState(svc.dataDir, wDev);
-            svc._turnNotices = svc._turnNotices || [];
             svc._turnNotices.push(`（随科已将《沈家旧案·朱笔签押勘验样纸》、《沈家旧案·户部核报亏空底册残页》等关键铁证双手呈递奉上，已稳妥存入您的随身行囊。）`);
             console.log(`[ItemDelivery] 台词承诺已闭环落地：随科关键证物 ${addedCount} 件入库相公行囊`);
+          } else if (!svc._turnNotices.some((n) => n.includes('随身行囊') || n.includes('随科'))) {
+            svc._turnNotices.push(`（【随身行囊查验】：随科所呈之朱笔样纸、底册残页与油布包等物此前已悉数收缴入库，现正稳妥收存在您的随身行囊中，可随时在随身物产查验。）`);
           }
         }
       }

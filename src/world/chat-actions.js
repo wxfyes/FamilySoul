@@ -550,10 +550,11 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
     const sayClean = String(say || '').trim();
 
-    // 1. 广义证据/密件/东西/账册索要与勒令呈交判断
+    // 1. 广义证据/密件/东西/账册索要与勒令呈交、追问核对判断
     const isDemandingEvidenceOrItems = /(?:把|将|拿)?\s*(?:所有的?|你的|他的|这[些个]|那些|手头的?|藏的?|私存的?)?\s*(?:证据|罪证|账本|账册|底册|残页|小样|密件|密信|卷宗|供状|画样|册子|字据|案卷|油布包|东西|物件|物什)\s*(?:都|全部|一并)?\s*(?:给我|交给我|交出来|呈上来|拿来|取来|拿给我|呈上|奉上|递过来|递给我|取出来)/.test(sayClean)
       || /(?:把东西都给我|把东西给我|东西都给我|东西给我|都给我|全给我|交出来吧|交出来|呈上来吧|呈上来|拿出来吧|拿出来|证据交出来|账本交出来)/.test(sayClean)
-      || /(?:我是说|我是要|我要的是)\s*([\u4e00-\u9fa5]{1,8}?)\s*(?:的)?\s*(证据|罪证|账本|账册|底册|残页|小样|密件|密信|卷宗|供状|画样|册子|字据|案卷|油布包|东西|物件|物什)/.test(sayClean);
+      || /(?:我是说|我是要|我要的是)\s*([\u4e00-\u9fa5]{1,8}?)\s*(?:的)?\s*(证据|罪证|账本|账册|底册|残页|小样|密件|密信|卷宗|供状|画样|册子|字据|案卷|油布包|东西|物件|物什)/.test(sayClean)
+      || /(?:东西呢|证据呢|账本呢|怎么还没给我|怎么还没交|还没给我|还没交出来|在哪呢|给我了没有|东西在哪|拿到没有|交出来了吗|给我看看|给我瞧瞧)/.test(sayClean);
 
     const mAsk = /(?:向|问|跟|找)\s*([\u4e00-\u9fa5]{1,4})\s*(?:要|讨|索取|借|拿)\s*(?:一[份张封件罐盒坛支点些])?\s*([\u4e00-\u9fa5]{1,16})/.exec(sayClean);
     const mFetch = /(?:把|将)\s*([\u4e00-\u9fa5]{1,16}?)\s*(?:给我)?\s*(?:准备好|备好|拿来|取来|带来|端来|递我|交给我|给我|拿给我)/.exec(sayClean)
@@ -599,6 +600,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
             { name: '《沈家旧案·户部核报亏空底册残页》', kind: '卷宗', note: '沈侍郎抄家年份临江府库出入底册残页，记载当年亏空系人为核销抹平' },
             { name: '《随科手抄·沈家案县衙私档小样》', kind: '密件', note: '随科在县衙夜班私自抄录留底之密录，详载底册被调包挪用之时间暗记' },
             { name: '《随科贴身收藏沈案证物油布包》', kind: '证据', note: '随科贴身藏匿沈案关键证据之陈年油布包，沾有库房封泥' },
+            { name: '《随科密匣夹板隐匿抄纸半页》', kind: '密件', note: '随科夜间书房木匣夹层所藏未抄完之半页旧档，记有当年户部行文去向' },
           ];
           for (const ed of suikeEvidenceDefs) {
             const alreadyHas = Object.values(world.items || {}).some((it) => it && it.holder === me.id && it.name === ed.name);
@@ -630,8 +632,13 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
         }
 
         if (deliveredItems.length > 0) {
-          const listStr = deliveredItems.slice(0, 4).join('、') + (deliveredItems.length > 4 ? '等物' : '');
-          notices.push(`（${targetActor.name}神色恭谨，不敢私藏，当即双手将${listStr}悉数呈递奉上，已稳妥存入您的随身行囊。）`);
+          const listStr = deliveredItems.slice(0, 5).join('、');
+          notices.push(`（${targetActor.name}神色震动恭谨，当即双手将${listStr}悉数呈递奉上，已稳妥存入您的随身行囊！可随时点击下方随身物产查阅。）`);
+        } else if (isSuike) {
+          const suikeNames = ['《沈家旧案·朱笔签押勘验样纸》', '《沈家旧案·户部核报亏空底册残页》', '《随科手抄·沈家案县衙私档小样》', '《随科贴身收藏沈案证物油布包》'];
+          const held = Object.values(world.items || {}).filter((it) => it && it.holder === me.id && suikeNames.includes(it.name));
+          const listStr = held.map((h) => h.name).join('、');
+          notices.push(`（【随身行囊查验】：回禀大人，随科所交之${listStr}方才已悉数收缴归案，现正稳妥收存在您的随身行囊中！可随时打开随身物产查阅。）`);
         } else {
           notices.push(`（${targetActor.name}躬身禀道：“大人明鉴，卑职手头该交的物件前番已悉数呈交大人，眼下身上并无私藏。”）`);
         }

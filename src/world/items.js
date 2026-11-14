@@ -472,11 +472,26 @@ export function sanitizeHusbandItems(world) {
     world.items = world.items.filter(isLegalItem);
     removed = before - world.items.length;
   } else {
+    const seenHusbandItems = new Set();
+    const allowMultiples = /茗茶|美酒|茶点|银票/;
     for (const [id, it] of Object.entries(world.items)) {
       if (!isLegalItem(it)) {
         console.log(`[ItemsCleanup] 物理清除行囊非法物品：${it?.name} (${id})`);
         delete world.items[id];
         removed++;
+        continue;
+      }
+      if (it && it.holder === 'husband') {
+        const isMulti = allowMultiples.test(it.kind || '');
+        if (!isMulti) {
+          if (seenHusbandItems.has(it.name)) {
+            console.log(`[ItemsCleanup] 清除重复行囊物品：${it.name} (${id})`);
+            delete world.items[id];
+            removed++;
+            continue;
+          }
+          seenHusbandItems.add(it.name);
+        }
       }
     }
   }

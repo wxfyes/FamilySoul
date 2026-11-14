@@ -648,6 +648,27 @@ assertInvariant(
   '随身物产清洗后 4 件铁证必须完好保留在相公行囊',
 );
 
+// 追问查验断言：相公说“东西呢”或“怎么还没给我”必须返回明确的行囊查验回执
+const evActions2 = applyChatActions({
+  world: testEvidenceWorld,
+  viewerId: 'husband',
+  sayText: '东西呢',
+});
+assertInvariant(
+  evActions2.some((n) => n.includes('随身行囊查验') && n.includes('朱笔签押')),
+  '相公追问“东西呢”必须返回明确的随身行囊查验确认回执',
+);
+
+const evActions3 = applyChatActions({
+  world: testEvidenceWorld,
+  viewerId: 'husband',
+  sayText: '怎么还没给我',
+});
+assertInvariant(
+  evActions3.some((n) => n.includes('随身行囊查验') && n.includes('朱笔签押')),
+  '相公追问“怎么还没给我”必须返回明确的随身行囊查验确认回执',
+);
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {
