@@ -2916,11 +2916,33 @@ const server = http.createServer(async (req, res) => {
         } catch { /* 忽略 */ }
       }
       const place = me?.location ? world.places?.[me.location] : null;
-      // 此处有谁：站在同一地点/同堂之人（权威判定，不含自己）
-      const hereNames = Object.values(world.actors || {})
-        .filter((a) => a && !a.dead && a.name && isSameLocation(a.location, me?.location) && a.id !== (actorId || 'husband'))
-        .map((a) => ({ name: a.name, role: a.role || '', activity: a.activity?.text || '' }))
-        .slice(0, 8);
+      // 此处有谁：站在同一地点/同堂之人（权威判定，不含自己，按身份权重排序，去重，全量返回绝不硬编码丢弃）
+      const seenHereNames = new Set();
+      const rawHere = Object.values(world.actors || {})
+        .filter((a) => a && !a.dead && a.name && isSameLocation(a.location, me?.location) && a.id !== (actorId || 'husband'));
+
+      const rankWeight = (a) => {
+        if (a.household || a.spouse === 'husband' || /正妻|平妻|如夫人|侧室/.test(a.role || '')) return 100;
+        if (/亲兵|统领|副将|战将|随侍/.test(a.role || '') || String(a.id || '').startsWith('general_')) return 80;
+        if (/知府|知县|大人|主簿/.test(a.role || '')) return 60;
+        if (/客商|掌柜/.test(a.role || '')) return 40;
+        return 10;
+      };
+      rawHere.sort((x, y) => rankWeight(y) - rankWeight(x));
+
+      const hereNames = [];
+      for (const a of rawHere) {
+        if (seenHereNames.has(a.name)) continue;
+        seenHereNames.add(a.name);
+        hereNames.push({
+          id: a.id,
+          name: a.name,
+          role: a.role || '',
+          activity: a.activity?.text || '',
+          gender: a.gender || 'unknown',
+        });
+        if (hereNames.length >= 40) break; // 足够同堂展示全员
+      }
       const wd = worldDate(world);
       const todos = [];
       const myName = me?.name || "";
@@ -2979,7 +3001,7 @@ const server = http.createServer(async (req, res) => {
           return {
             name: me?.name || '',
             role: (isHusband && offInfoMe?.hasOffice) ? `${offInfoMe.rank}·${offInfoMe.highestTitle}` : (me?.role || ''),
-            place: place?.name || '', isHusband,
+            place: place?.name ? place.name.replace(/（[^）]+）/g, '').trim() : '', isHusband,
             homeId: me?.home || null,
             homeName: me?.home ? (world.places?.[me.home]?.name || '') : '',
             married: isHusband ? '已婚' : (maritalMap[me?.marital || 'single'] || '未婚'),
@@ -3124,9 +3146,9 @@ const server = http.createServer(async (req, res) => {
               });
             }
 
-            // 大事记是王家的账，只有王家人看得到（展现全部已完成重大里程碑）
+            // 大事记是王家的账，只有王家人看得到（展现全部已完成重大里程碑，严格单一去重）
             const big = isBoss
-              ? (world.milestones || []).map((m) => (typeof m === 'string' ? m : (m?.text || m?.title || ''))).filter(Boolean).slice(0, 10)
+              ? Array.from(new Set((world.milestones || []).map((m) => (typeof m === 'string' ? m : (m?.text || m?.title || ''))).filter(Boolean))).slice(0, 10)
               : [];
             const hist = (world.history || []).slice(-3);
             const h1 = hist[hist.length - 1];

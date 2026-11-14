@@ -37,6 +37,50 @@ import { runClanVisits } from './clans.js';
 import { driftMarket, bumpMarket, ensureMarket } from './prices.js';
 import { addMemory } from './memory.js';
 import { isPropertyOperational, getPropertyNominalIncome, calculateDailyIncome } from './properties.js';
+import { getHusbandOfficialInfo } from './items.js';
+
+/**
+ * 权威推导相公尊称与门房称谓（单一真相源，绝不硬编码都司）
+ */
+function getHusbandProactiveHonor(world) {
+  const off = getHusbandOfficialInfo(world);
+  if (!off || !off.hasOffice) {
+    return {
+      lordCall: '老爷',
+      merchantCall: '大东家',
+      letterCall: '王少掌柜',
+      gatePlace: '临江·王宅·朱漆大门',
+    };
+  }
+  const isTidu = off.highestTitle.includes('提督') || off.officeKey === 'tiduzongbing' || off.rank.includes('一品');
+  const isZongbing = off.highestTitle.includes('总兵') || off.rank.includes('二品');
+  const gatePlace = (world.places?.wang_mansion || String(world.actors?.husband?.location || '').includes('wang_mansion'))
+    ? '临江·提督王府·正门'
+    : '临江·王宅·朱漆大门';
+
+  if (isTidu) {
+    return {
+      lordCall: '大帅',
+      merchantCall: '提督大帅',
+      letterCall: '大帅',
+      gatePlace,
+    };
+  }
+  if (isZongbing) {
+    return {
+      lordCall: '总镇大人',
+      merchantCall: '总兵大人',
+      letterCall: '王总兵',
+      gatePlace,
+    };
+  }
+  return {
+    lordCall: `${off.shortCall || '都司'}大人`,
+    merchantCall: `${off.shortCall || '都司'}老爷`,
+    letterCall: `${off.shortCall || '王都司'}`,
+    gatePlace,
+  };
+}
 
 
 export const DEFAULT_MS_PER_WORLD_HOUR = 2.5 * 60 * 1000;
@@ -2505,6 +2549,7 @@ function advanceHour(world, events, nowMs) {
 
   // 2. 午后申时（15时）：名流往来与新铺筹备
   if (chour === 15) {
+    const husHonor = getHusbandProactiveHonor(world);
     const sOptions = [
       {
         speaker: '侧室·婉宁',
@@ -2517,8 +2562,8 @@ function advanceHour(world, events, nowMs) {
         speaker: '门房·老周',
         actorId: 'staff_gatekeeper',
         reason: 'visitor_notice',
-        text: '【门房·老周】：老爷，外头有两淮客商与地方乡绅递了拜帖名帖，说仰慕都司老爷威名，求见商议两淮水运与茶叶专供之事，拜帖已呈在门房。',
-        place: '临江·王宅·朱漆大门',
+        text: `【门房·老周】：${husHonor.lordCall}，外头有两淮客商与地方乡绅递了拜帖名帖，说仰慕${husHonor.merchantCall}威名，求见商议两淮水运与茶叶专供之事，拜帖已呈在门房。`,
+        place: husHonor.gatePlace,
       },
     ];
     const pick = sOptions[cday % sOptions.length];
@@ -2651,6 +2696,12 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
     return false;
   }
 
+  const husHonor = getHusbandProactiveHonor(world);
+  const isMarriedYang = (world.marriages || []).some((m) => m.name?.includes('采儿') || m.who === 'yangzhenhua');
+  const yangText = isMarriedYang
+    ? '【正室·采儿】：相公，知府衙门议及两淮河防与运河茶引，我爹特意夸赞了相公整肃沿江卫所之大功。相公今晚可回房用膳？妾身亲手备了江南糕点候着相公。'
+    : `【知府千金·杨采儿】：（官笺）${husHonor.letterCall}，知府衙门议及两淮河防与运河茶引，家父特意提了你的兵符文书与王家茶船条陈。若得空，过府中堂一叙。`;
+
   const pool = [
     // 1. 运河码头大酒楼 · 大掌柜周有财
     {
@@ -2729,17 +2780,17 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
       speaker: '门房·老周',
       actorId: 'staff_gatekeeper',
       reason: 'visitor_notice',
-      text: '【门房·老周】：老爷，外头有两淮客商与地方乡绅递了拜帖名帖，说仰慕都司老爷威名，求见商议两淮水运与茶叶专供之事，拜帖已呈在门房。',
-      place: '临江·王宅·朱漆大门',
+      text: `【门房·老周】：${husHonor.lordCall}，外头有两淮客商与地方乡绅递了拜帖名帖，说仰慕${husHonor.merchantCall}威名，求见商议两淮水运与茶叶专供之事，拜帖已呈在门房。`,
+      place: husHonor.gatePlace,
       isLetter: true,
     },
     // 10. 知府千金 · 杨采儿（过府一叙，地点归正为杨府）
     {
-      speaker: '知府千金·杨采儿',
+      speaker: isMarriedYang ? '正室·采儿' : '知府千金·杨采儿',
       actorId: 'yangzhenhua',
       reason: 'official_note',
-      text: '【知府千金·杨采儿】：（官笺）王都司，知府衙门议及两淮河防与运河茶引，家父特意提了你的都司兵符与王家茶船文书。若得空，过府中堂一叙。',
-      place: '杨府',
+      text: yangText,
+      place: isMarriedYang ? '临江·提督王府·正房暖阁' : '杨府',
       isLetter: true,
     },
   ];

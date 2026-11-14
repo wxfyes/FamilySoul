@@ -195,12 +195,32 @@ export function ensureCourtSystem(world) {
     }
   }
 
-  // 3. 确保相公持有水陆提督最高权位
-  if (world.court.offices.tiduzongbing) {
+  // 3. 确保相公持有水陆提督最高权位与从一品军门尊荣
+  if (!world.court.offices.tiduzongbing) {
+    const spec = COURT_OFFICE_SPECS.tiduzongbing;
+    world.court.offices.tiduzongbing = {
+      title: spec.title,
+      rank: spec.rank,
+      category: spec.category,
+      holder: 'husband',
+      holderName: world.actors?.husband?.name || '王甯',
+      faction: 'husband',
+      vacant: false,
+      desc: spec.desc,
+    };
+  } else {
     world.court.offices.tiduzongbing.holder = 'husband';
     world.court.offices.tiduzongbing.holderName = world.actors?.husband?.name || '王甯';
     world.court.offices.tiduzongbing.faction = 'husband';
     world.court.offices.tiduzongbing.vacant = false;
+  }
+
+  if (world.actors?.husband) {
+    const me = world.actors.husband;
+    me.role = '江南水陆提督总兵官·临江王氏家主';
+    me.rank = '从一品';
+    me.title = '水陆提督';
+    me.office = 'tiduzongbing';
   }
 
   return true;

@@ -164,7 +164,54 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           [...(svc.readHistory(profileKey).messages || [])].reverse().find((m) => m.role !== 'user')?.text || '';
         // 相公传唤内眷/仆从到场单一权威入口（纯解析见 chat/intent-pipeline.js，位移仍走 moveActor）
         try {
-          const targetName = parseSummonTarget(text, svc.readHistory(profileKey).messages || []);
+          const isMassSummonCmd = /(?:所有人|大家|大伙|诸位|全府|府里人|全都|全员|眷属|下人|亲兵|侍卫)\s*(?:过来|到这|到这来|到议事厅|来一趟|来前堂|过来听令|集合|到场|来跟前)|^所有人过来$|^都过来$|^全都过来$/.test(text);
+          if (isMassSummonCmd) {
+            const wS = loadState(svc.dataDir);
+            const meS = wS.actors?.[svc._viewerActorId || 'husband'] || wS.actors?.husband;
+            if (meS) {
+              const hereLoc = meS.location;
+              const herePlace = wS.places?.[hereLoc];
+              const isCouncilOrMilitary = /议事厅|帅堂|校场|前堂|大堂|白虎堂|值房|门房/.test(String(herePlace?.name || '')) || String(hereLoc || '').includes('council');
+
+              const candidateIds = isCouncilOrMilitary
+                ? ['general_zhaolei', 'general_zhouwu', 'general_lishitou', 'shenwaner', 'yangcaier']
+                : ['shenwaner', 'yangcaier', 'linyunniang', 'cuiwanning', 'zhanjing', 'xiaocui', 'general_zhaolei'];
+
+              const arrived = [];
+              for (const id of candidateIds) {
+                const a = wS.actors[id];
+                if (!a || a.dead) continue;
+                if (a.location !== meS.location) {
+                  delete a.awayUntil;
+                  const r = moveActor(wS, a.id, meS.location, 'world', '相公全员宣召到场');
+                  if (r?.ok) arrived.push(a);
+                } else {
+                  arrived.push(a);
+                }
+              }
+
+              if (arrived.length > 0) {
+                wS.chatPartners = wS.chatPartners || {};
+                const primaryActor = isCouncilOrMilitary
+                  ? (wS.actors.general_zhaolei || arrived[0])
+                  : (wS.actors.shenwaner || arrived[0]);
+                wS.chatPartners[meS.id] = primaryActor.id;
+                saveState(svc.dataDir, wS);
+                summonedNames = arrived.map((a) => a.name);
+
+                if (isCouncilOrMilitary) {
+                  contextHintEarly += `（【帅府议事大厅·全员奉召列队】：相公提督大帅大令已下，亲军统领赵雷、副将周武率甲士按刀疾步列阵堂前，夫人沈婉儿等亦在旁听候！【必须】由【亲卫统领·赵雷】率先抱拳出列：“末将等在此！请大帅示下！”）\n`;
+                  svc._lastSummonNotice = `【号令】亲卫统领赵雷、副将周武及众家眷亲兵闻令疾步赶至议事厅前听候差遣！`;
+                } else {
+                  contextHintEarly += `（【王府眷属下人·全员奉召齐聚】：相公有召，正妻沈婉儿率采儿、芸娘、婉宁、静儿、小翠齐齐移步堂前相见，盈盈敛衽万福！【必须】由【正妻·沈婉儿】代表全家温婉行礼应承问安！）\n`;
+                  svc._lastSummonNotice = `【传唤】正妻沈婉儿率采儿、芸娘、婉宁、静儿、小翠齐齐移步堂前相见！`;
+                }
+                console.log(`[Summon] 全员召集成功：${summonedNames.join('、')} 齐聚 ${herePlace?.name || hereLoc}`);
+              }
+            }
+          }
+
+          const targetName = !isMassSummonCmd ? parseSummonTarget(text, svc.readHistory(profileKey).messages || []) : null;
           if (targetName) {
             const wS = loadState(svc.dataDir);
             const meS = wS.actors?.[svc._viewerActorId || 'husband'] || wS.actors?.husband;
@@ -255,13 +302,20 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           console.warn('[Residence] 王府升格指令处理异常:', eUpg.message);
         }
 
-        // 后宅居所调配：相公自由分房令（如让采儿住正房、婉宁住东跨院、小翠住后罩房）
+        // 后宅居所调配：相公自由分房令（如让静儿住东厢房、采儿住正房、婉宁住东跨院）
         try {
-          const roomAssignMatch = text.match(/(?:安排|让|叫|调|把)\s*(采儿|杨采儿|婉儿|沈婉儿|芸娘|林芸娘|婉宁|崔婉宁|小翠|紫嫣|如烟)\s*(?:搬到|搬去|住|住进|迁到|迁入|居于|换到)\s*(正房暖阁|正房|上房|寝堂|东跨院|东厢房|东厢|西跨院|西厢房|西厢|后罩房|下房|临波后花园|花园暖阁)/)
-            || text.match(/(?:让|安排)\s*(采儿|杨采儿|婉儿|沈婉儿|芸娘|林芸娘|婉宁|崔婉宁|小翠)\s*住\s*(正房暖阁|正房|上房|东厢|西厢|东跨院|西跨院|后罩房)/);
+          const roomAssignMatch = text.match(/(?:安排|让|叫|调|把|使)\s*([^\s，。！？]{2,8}?)\s*(?:搬到|搬去|去|住|住进|迁到|迁入|居于|换到|安置在|定在)\s*(正房暖阁|正殿|正房|上房|寝堂|东跨院|东配殿|东厢房|东厢|西跨院|西配殿|西厢房|西厢|后罩房|下房|临波后花园|花园暖阁|偏厅|书房)/)
+            || text.match(/(?:让|安排)\s*([^\s，。！？]{2,8}?)\s*住\s*(正房暖阁|正殿|正房|上房|东配殿|西配殿|东厢|西厢|东跨院|西跨院|后罩房)/)
+            || text.match(/(?:把|将)\s*(正房暖阁|正殿|正房|上房|东配殿|西配殿|东厢房|西厢房|东厢|西厢|东跨院|西跨院|后罩房)\s*(?:分给|安排给|留给|赏给|许给)\s*([^\s，。！？]{2,8})/);
           if (roomAssignMatch) {
-            const whoName = roomAssignMatch[1];
-            const targetRoomName = roomAssignMatch[2];
+            let whoName = roomAssignMatch[1];
+            let targetRoomName = roomAssignMatch[2];
+            // 若匹配的是第 3 种模式（如“把东厢房分给静儿”）
+            if (/正房|东厢|西厢|东跨|西跨|后罩|正殿|配殿/.test(whoName)) {
+              const tmp = whoName;
+              whoName = targetRoomName;
+              targetRoomName = tmp;
+            }
             const { assignChamber } = await import('../world/residence.js');
             const wR = loadState(svc.dataDir);
             const assignRes = assignChamber(wR, whoName, targetRoomName, { orderedBy: 'husband' });
@@ -955,11 +1009,13 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           personaRule = `【${tLabel}】乃十九岁名门知府千金，性子英姿飒爽、傲娇清高、口嫌体正直！自称必须用「我/本姑娘/采儿」，称呼对方「你/少掌柜/王少掌柜/王甯」；【绝对严禁自称“本官/老夫/妾身/奴家”】！【绝对严禁称相公“东家/老爷”】！【最高互动铁律】：私下相伴乃男女风月雅叙，面对相公赠茶、表白、豪气或夸赞，她心如鹿撞、假意薄怒娇嗔或欢喜品评，绝不可化身官府公堂酷吏不断盘问索要“凭据/盐引/船号”，顺着相公的话聊，展现傲娇名媛的娇羞与灵动！`;
         } else if (/知府|慎之/.test(tName) || (/知府|巡抚|布政使/.test(String(tActor.role || '')) && !/千金|小姐|闺秀/.test(String(tActor.role || '')))) {
           const offHus = getHusbandOfficialInfo(wTurn);
-          personaRule = `【${tLabel}】乃大乾正三品临江知府杨慎之（杨大人，采儿之父），封疆大吏，官威沉稳、洞察世事！自称「本府/老夫/为父」，称呼相公「${offHus.hasOffice ? offHus.shortCall : '王都司'}/贤契/贤侄」；深知相公统领雄兵、战功彪炳，且相公与爱女采儿情投意合、正在纳为平妻！面对相公问好，杨知府须首位正襟危坐、温和威严地捋须从容回应，商议大婚或政商正事！绝对严禁由女儿采儿代替父亲发言！`;
+          const husFatherCall = offHus.hasOffice ? (offHus.highestTitle.includes('提督') ? '大帅/贤婿' : `${offHus.shortCall}/贤婿`) : '贤婿/贤契';
+          personaRule = `【${tLabel}】乃大乾正三品临江知府杨慎之（杨大人，采儿之父），封疆大吏，官威沉稳、洞察世事！自称「本府/老夫/为父」，称呼相公「${husFatherCall}」；深知相公官居一品提督、统领雄兵、战功彪炳，且相公与爱女采儿情投意合、已纳为正室平妻！面对相公问好，杨知府须首位正襟危坐、温和威严地捋须从容回应，商议政商军政大事！绝对严禁由女儿采儿代替父亲发言！`;
         } else if ((/知县|县令|大人|官员|通判|典吏|书吏/.test(String(tActor.role || '')) || /文达/.test(tName)) && !/千金|小姐|闺秀/.test(String(tActor.role || ''))) {
           const offHus = getHusbandOfficialInfo(wTurn);
           if (offHus.hasOffice) {
-            personaRule = `【${tLabel}】乃大明朝廷地方官员（正七品知县），深知相公王甯乃朝廷实授【${offHus.fullTitle}】（从一品/二品/四品重臣，统帅三军，手握金印虎符与尚方敕令），其官品远在知县之上！知县在相公面前必须执下官参见上宪之礼，自称「下官/文达/卑职」，恭敬尊称相公为「${offHus.shortCall}/大人/大将军/都司大人」，言辞恭谨严整、恪尽职守协助办理公牒文书，绝对严禁自称本官，绝对严禁称相公为贤契、少掌柜或小友！`;
+            const subordinateCall = (offHus.highestTitle.includes('提督') || offHus.rank.includes('一品')) ? '大帅/军门大人/提督大人' : (offHus.highestTitle.includes('总兵') ? '总镇大人/总兵大人' : `${offHus.shortCall || '大人'}`);
+            personaRule = `【${tLabel}】乃朝廷地方官员（正七品知县），深知相公王甯乃朝廷实授【${offHus.fullTitle}】（从一品提督重臣，统帅三军，手握金印虎符与尚方敕令），其官品远在知县之上！知县在相公面前必须执下官参见上宪之大礼，自称「下官/文达/卑职」，恭敬尊称相公为「${subordinateCall}」，言辞恭谨严整、恪尽职守协助办理公牒文书，绝对严禁叫错旧官职（严禁叫都司），绝对严禁自称本官！`;
           } else {
             personaRule = `【${tLabel}】乃朝廷正印命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
           }
@@ -2111,7 +2167,13 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           }
           console.log(`[Presence] 该句只剩不在场者，改由在场者 ${presentOne.name} 回答`);
         } else {
-          reply = '（你问的人此刻不在跟前，四下无人接话。）';
+          // 府邸尊严与军门威仪守护：若相公身处王府私宅或发出召见号令，相公发话绝非"四下无人接话"的荒宅鬼域！
+          const isAtMansion = String(wPres.places?.[hereLoc]?.name || '').includes('王府') || String(wPres.places?.[hereLoc]?.name || '').includes('王宅');
+          if (isAtMansion || /(?:过来|来人|叫人|人呢|侍卫|亲兵|所有人|大家|诸位|都来)/.test(say)) {
+            reply = '【值守亲随】：“大帅稍候！标下这就前去传唤各处！”\n（脚步声急促，值房亲随躬身快步退下通传。）';
+          } else {
+            reply = '（你问的人此刻不在跟前，四下无人接话。）';
+          }
           console.log('[Presence] 该句只剩不在场者，且场上无人');
         }
       }

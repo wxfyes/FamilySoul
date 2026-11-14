@@ -826,29 +826,40 @@ export function assignChamber(world, actorQuery, roomQuery, { orderedBy = 'husba
   }
   if (!targetActor) return { ok: false, error: `府内查无此人：${actorStr}` };
 
-  // 2. 查找府内房间
+  // 2. 查找府内房间（动态自适应临江提督王府与京师提督王府）
   const places = Object.values(world.places || {});
+  const me = world.actors?.husband;
+  const isCapital = me?.city === '京城' || (me?.location && String(me.location).startsWith('capital_'));
+
   const mansionPlaces = places.filter((p) => p && (
     p.id === 'husband_room' ||
-    (p.id && String(p.id).startsWith('wang_mansion')) ||
-    (p.parent && (p.parent === 'wang_mansion' || p.parent === 'husband_room')) ||
+    (p.id && (String(p.id).startsWith('wang_mansion') || String(p.id).startsWith('capital_mansion'))) ||
+    (p.parent && (p.parent === 'wang_mansion' || p.parent === 'capital_mansion' || p.parent === 'husband_room')) ||
     String(p.name || '').includes('王府') ||
     String(p.name || '').includes('王宅')
   ));
 
   let targetPlace = mansionPlaces.find((p) => p && (p.id === roomStr || p.name === roomStr));
   if (!targetPlace) {
-    // 模糊匹配
-    if (/正房|暖阁|上房|上堂|寝堂/.test(roomStr)) {
-      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion__main_room' || p.id === 'husband_room' || /正房/.test(p.name)));
-    } else if (/东跨|东院|东厢/.test(roomStr)) {
-      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion_east' || p.id === 'wang_mansion__east' || /东厢|东跨/.test(p.name)));
-    } else if (/西跨|西院|西厢/.test(roomStr)) {
-      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion_west' || p.id === 'wang_mansion__west' || /西厢|西跨/.test(p.name)));
-    } else if (/后罩|下房|丫鬟房/.test(roomStr)) {
-      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion__servant' || /后罩|下房/.test(p.name)));
+    // 模糊匹配（按当前城池优先）
+    if (/正房|暖阁|上房|上堂|寝堂|正殿/.test(roomStr)) {
+      targetPlace = isCapital
+        ? mansionPlaces.find((p) => p && (p.id === 'capital_mansion__main' || /正房|正殿/.test(p.name)))
+        : mansionPlaces.find((p) => p && (p.id === 'wang_mansion__main_room' || p.id === 'husband_room' || /正房/.test(p.name)));
+    } else if (/东跨|东院|东厢|东配殿/.test(roomStr)) {
+      targetPlace = isCapital
+        ? mansionPlaces.find((p) => p && (p.id === 'capital_mansion__east' || /东配殿|东厢/.test(p.name)))
+        : mansionPlaces.find((p) => p && (p.id === 'wang_mansion_east' || p.id === 'wang_mansion__east' || /东厢|东跨/.test(p.name)));
+    } else if (/西跨|西院|西厢|西配殿/.test(roomStr)) {
+      targetPlace = isCapital
+        ? mansionPlaces.find((p) => p && (p.id === 'capital_mansion__west' || /西配殿|西厢/.test(p.name)))
+        : mansionPlaces.find((p) => p && (p.id === 'wang_mansion_west' || p.id === 'wang_mansion__west' || /西厢|西跨/.test(p.name)));
+    } else if (/后罩|下房|丫鬟房|佣人/.test(roomStr)) {
+      targetPlace = isCapital
+        ? mansionPlaces.find((p) => p && (p.id === 'capital_mansion__servant' || /后罩|下房/.test(p.name)))
+        : mansionPlaces.find((p) => p && (p.id === 'wang_mansion__servant' || /后罩|下房/.test(p.name)));
     } else if (/花园|临波/.test(roomStr)) {
-      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion__garden' || /花园/.test(p.name)));
+      targetPlace = mansionPlaces.find((p) => p && (p.id.includes('garden') || /花园/.test(p.name)));
     }
   }
 
@@ -890,19 +901,22 @@ export function upgradeToMansionPalace(world, { force = false } = {}) {
   if (!mansionProp) return false;
 
   const oldName = mansionProp.name;
-  const newMansionTitle = '临江·提督王府（一品军门府邸）';
+  const newMansionTitle = '临江·提督王府';
   const prefix = '临江·提督王府·';
 
   // 1. 更新资产表
-  mansionProp.name = newMansionTitle;
-  mansionProp.desc = '临江城中七进三进三出深宅大院，飞檐斗拱、气势恢宏，乃从一品水陆提督军门府邸，开府建牙、中军亲卫列宿。后宅正房、东跨院、西厢房一应俱全。';
+  mansionProp.name = '临江·提督王府';
+  mansionProp.desc = '临江城中七进三出深宅大院，气势恢宏，乃从一品水陆提督军门府邸，开府建牙、中军亲卫列宿。后宅正房、东配殿、西配殿一应俱全。';
 
-  // 2. 更新主地点与所有子地点名称
+  // 2. 更新主地点与所有子地点名称（彻底去除冗长括号，防手机顶栏截断）
   let renamedPlaces = 0;
   for (const [pid, p] of Object.entries(world.places || {})) {
     if (!p) continue;
     if (pid === 'husband_room' || pid === 'wang_mansion' || pid.startsWith('wang_mansion_') || pid.startsWith('wang_mansion__')) {
-      const roomPart = String(p.name || '').replace(/^临江·(王宅|提督王府)·?/, '') || '正房暖阁';
+      const roomPart = String(p.name || '')
+        .replace(/（[^）]+）/g, '')
+        .replace(/^临江·(王宅|提督王府)·?/, '')
+        .trim() || '正房暖阁';
       const newPlaceName = `${prefix}${roomPart}`;
       if (p.name !== newPlaceName) {
         p.name = newPlaceName;

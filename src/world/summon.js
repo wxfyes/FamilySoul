@@ -604,6 +604,33 @@ function __applySummonInner(dataDir, text, lastBotSaid = '', selfId = 'husband')
     }
   }
 
+  // 「所有人过来 / 都过来 / 大家都过来 / 府里人都来」→ 全员奉召真实到场
+  const isMassSummonCmd = /(?:所有人|大家|大伙|诸位|全府|府里人|全都|全员|眷属|下人|亲兵|侍卫)\s*(?:过来|到这|到这来|到议事厅|来一趟|来前堂|过来听令|集合|到场|来跟前)|^所有人过来$|^都过来$|^全都过来$/.test(say);
+  if (isMassSummonCmd) {
+    const hereLoc = me.location;
+    const herePlace = world.places?.[hereLoc];
+    const isCouncilOrMilitary = /议事厅|帅堂|校场|前堂|大堂|白虎堂|值房|门房/.test(String(herePlace?.name || '')) || String(hereLoc || '').includes('council');
+
+    const candidateIds = isCouncilOrMilitary
+      ? ['general_zhaolei', 'general_zhouwu', 'general_lishitou', 'shenwaner', 'yangcaier']
+      : ['shenwaner', 'yangcaier', 'linyunniang', 'cuiwanning', 'zhanjing', 'xiaocui', 'general_zhaolei'];
+
+    const movedIn = [];
+    for (const id of candidateIds) {
+      const a = world.actors[id];
+      if (!a || a.dead) continue;
+      if (a.location !== me.location) {
+        a.location = me.location;
+        a.activity = { text: '奉召到堂', at: world.clock?.hour || 0, day: world.clock?.day || 1 };
+        movedIn.push(a.name);
+      }
+    }
+    if (movedIn.length) {
+      saveState(dataDir, world);
+      return { moved: movedIn, summoned: movedIn, visited: null, cameToMe: true, isMassSummon: true };
+    }
+  }
+
   // 「婉儿、芸娘，都过来」→ 点到的人都真的走过来
   if (mentioned.length >= 1 && /(过来|都来|叫|唤|请|来一趟|来一下)/.test(say)) {
     const movedIn = [];

@@ -185,10 +185,13 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
         const husDesc = offInfo.hasOffice
           ? `朝廷兵部实授「${offInfo.rank}·${offInfo.highestTitle}」（手握兵部正式告身敕牒与紫金虎符官印，满城官民皆知），兼临江茶坊与运河大酒楼大东家`
           : '临江茶坊少东家';
+        const aliasList = offInfo.hasOffice
+          ? (offInfo.highestTitle.includes('提督') ? '「王大帅」「大帅」「军门大人」「大东家」「相公」' : `「${offInfo.shortCall || '相公'}」「王大人」「大东家」`)
+          : '「王掌柜」「少东家」「相公」';
         if (viewer === 'liuwenxia') {
-          lines.push(`【你认得的人】你的正牌丈夫是「于子归」（营造行工头，你叫他相公/当家的/子归）；王甯是${husDesc}，是你的地下相好（私下往来，有人叫「王都司」「王掌柜」「王甯」说的是他，但王甯绝不是你的正牌丈夫！）。`);
+          lines.push(`【你认得的人】你的正牌丈夫是「于子归」（营造行工头，你叫他相公/当家的/子归）；王甯是${husDesc}，是你的地下相好（私下往来，有人叫${aliasList}说的是他，但王甯绝不是你的正牌丈夫！）。`);
         } else {
-          lines.push(`【你认得的人】王甯（相公，${husDesc}）——有人叫「王都司」「王大人」「王掌柜」「王甯」，说的就是他。`);
+          lines.push(`【你认得的人】王甯（相公，${husDesc}）——有人尊称${aliasList}，说的就是他。`);
         }
       } catch {
         /* 忽略 */
@@ -282,24 +285,55 @@ export function buildStateSummary(dataDir, { roleName = '', memberKey = 'husband
             .join('、')}`,
         );
       }
-      // 明媒妻妾与议亲大事记（全家大账）
+      // 明媒妻妾全动态大账（以婚姻账本为单一真相源）
       const wifeLines = [];
-      wifeLines.push('正妻 沈婉儿（掌中馈大娘子，契约正配，身怀相公骨肉身孕）');
-      wifeLines.push('二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室）');
-      wifeLines.push('侧室 崔婉宁（临江士绅名门崔府千金，相公出资三百两交其筹备打理新铺）');
+      const mList = Array.isArray(world.marriages) && world.marriages.length > 0 ? world.marriages : null;
+      if (mList) {
+        for (const m of mList) {
+          if (!m || !m.name) continue;
+          const pName = m.placeName || (m.location && world.places?.[m.location]?.name) || '';
+          if (m.name.includes('婉儿')) {
+            wifeLines.push(`正妻 沈婉儿（掌中馈大娘子，契约正配${m.pregnancy ? '，身怀相公骨肉身孕' : ''}${pName ? `，住${pName}` : ''}）`);
+          } else if (m.name.includes('芸娘')) {
+            wifeLines.push(`二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室${pName ? `，住${pName}` : ''}）`);
+          } else if (m.name.includes('婉宁')) {
+            wifeLines.push(`侧室 崔婉宁（临江士绅名门崔府千金，相公出资三百两交其筹备打理新铺${pName ? `，住${pName}` : ''}）`);
+          } else if (m.name.includes('采儿')) {
+            wifeLines.push(`正室·平妻 杨采儿（临江知府千金${pName ? `，住${pName}` : ''}）`);
+          } else if (m.name.includes('静儿')) {
+            wifeLines.push(`二房如夫人 静儿（官准和离纳聘入府${pName ? `，住${pName}` : ''}）`);
+          } else {
+            const rName = m.rank || '侧室';
+            wifeLines.push(`${rName} ${m.name}（已入王府家谱${pName ? `，住${pName}` : ''}）`);
+          }
+        }
+      }
+      if (wifeLines.length === 0) {
+        wifeLines.push('正妻 沈婉儿（掌中馈大娘子，契约正配，身怀相公骨肉身孕）');
+        wifeLines.push('二房侧室 林芸娘（如夫人，早已行过册礼纳为侧室）');
+        wifeLines.push('侧室 崔婉宁（临江士绅名门崔府千金，相公出资三百两交其筹备打理新铺）');
+      }
       lines.push(`【明媒妻妾】${wifeLines.join('、')}；名分早定，全府上下人尽皆知，绝不可说“还没定名分/张罗名分”。`);
 
       // 议娶平妻知府千金杨采儿之大事
       const hasYangProposal = (world.promises || []).some((p) => /采儿|知府.*求娶|求娶.*采儿/.test(String(p?.text || '')))
         || (world.tasks || []).some((t) => /杨府|采儿|大婚/.test(String(t?.what || '')));
-      if (hasYangProposal) {
+      if (hasYangProposal && !wifeLines.some((l) => l.includes('杨采儿'))) {
         lines.push('【议娶平妻·临江知府千金杨采儿】：相公已决意明媒正娶知府杨大人千金杨采儿为平妻！正妻沈婉儿深明大义已欣然应允并亲自主理婚嫁中馈，备足六百两双份聘礼与庚帖章程递往杨府知府知县过目，知府已向夫人回禀并候吉日！全府皆知此天大喜事！');
       }
 
       if (offInfo.hasOffice) {
         const troopsTotal = Number(world.factions?.wangjia?.troops) || Number(world.military?.army) || 250;
+        const isTidu = offInfo.highestTitle.includes('提督') || offInfo.officeKey === 'tiduzongbing' || offInfo.rank.includes('一品');
+        const isZongbing = offInfo.highestTitle.includes('总兵') || offInfo.rank.includes('二品');
+        const subordinateCall = isTidu
+          ? '「大帅 / 军门大人 / 提督大人」'
+          : (isZongbing ? '「总镇大人 / 总兵大人」' : `「${offInfo.shortCall || '都司'}大人」`);
+        const merchantCall = isTidu
+          ? '「大帅 / 军门老爷 / 大东家」'
+          : (isZongbing ? '「王总镇 / 总兵老爷 / 大东家」' : `「${offInfo.shortCall || '都司'}老爷 / 大东家」`);
         lines.push(
-          `【相公朝廷官身与武勋文凭（满城官民皆知·铁定事实）】相公王甯已率部剿平 ${offInfo.quelled} 股巨寇，获朝廷兵部武选司正式核发勘合文书，实授「${offInfo.rank}·${offInfo.highestTitle}」（历任：${offInfo.allTitles.join('、')}），钦颁《兵部武选司·${offInfo.highestTitle}实授敕牒》与《${offInfo.highestTitle}·紫金虎符与官印》均随身佩带入册，统领麾下精兵 ${troopsTotal} 人！绝非白身纯商人，更非口头应承虚衔！合城知府、知县、书吏、差役、商帮、百姓人尽皆知，下级官吏差役见之须执下属礼尊称「王都司 / 都司大人」，商绅百姓敬称「王都司 / 都司老爷 / 大东家」，绝对严禁任何角色装作不知其官身或索要所谓上任文书！`,
+          `【相公朝廷官身与武勋文凭（满城官民皆知·铁定事实）】相公王甯已率部剿平 ${offInfo.quelled} 股巨寇，获朝廷兵部武选司正式核发勘合文书，实授「${offInfo.rank}·${offInfo.highestTitle}」（历任：${offInfo.allTitles.join('、')}），钦颁《兵部武选司·${offInfo.highestTitle}实授敕牒》与《${offInfo.highestTitle}·紫金虎符与官印》均随身佩带入册，统领麾下精兵 ${troopsTotal} 人！绝非白身纯商人，更非口头应承虚衔！合城知府、知县、书吏、差役、商帮、百姓人尽皆知，下级官吏差役与麾下副将亲兵见之须执属下重礼尊称${subordinateCall}，商绅百姓敬称${merchantCall}，绝对严禁任何角色装作不知其官身、叫错旧官职（严禁叫都司或白身）或索要所谓上任文书！`,
         );
       }
     } catch {

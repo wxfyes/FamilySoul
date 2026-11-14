@@ -2168,15 +2168,71 @@ export async function handleAdminRoutes(req, res, ctx) {
         bondEdges: (() => {
           const seen = new Set();
           const out = [];
+
+          // 1. 核心枢纽：相公王甯与全域关键人物（后宅妻妾、麾下战将、当朝文武、地方父母官）
+          const husbandActor = world.actors?.husband || { name: '王甯' };
+          const husbandName = husbandActor.name || '王甯';
+
+          for (const [id, a] of Object.entries(world.actors || {})) {
+            if (!a || a.dead || id === 'husband') continue;
+            // 坚决过滤无名、纯英文动态无用 ID 或占位符
+            if (!a.name || /^actor_dyn_|^off_/.test(a.name) || /^off_|^actor_dyn_/.test(id) || /^[a-zA-Z0-9_]+$/.test(a.name)) continue;
+
+            const rel = a.relations?.husband;
+            if (rel || a.household || a.spouse === 'husband' || /正妻|侧室|妾|自立娘子|如夫人|千金/.test(a.role || '')) {
+              const favor = Number(rel?.favor) || 0;
+              const loyalty = Number(rel?.loyalty) || 0;
+              let score = favor;
+              let type = '相识';
+
+              if (a.household || a.spouse === 'husband' || ['waner', 'shenwaner', 'caier', 'yangcaier', 'yunniang', 'linyunniang', 'cuiwanning', 'zhanjing'].includes(id)) {
+                type = '情深眷侣';
+                score = Math.max(88, favor || 90);
+              } else if (/亲兵|侍卫|统领|副将|水师|游击/.test(a.role || '') || id.startsWith('general_')) {
+                type = '效忠麾下';
+                score = Math.max(80, loyalty || favor || 85);
+              } else if (id === 'emperor') {
+                type = '天子倚重';
+                score = 80;
+              } else if (id === 'cuiyuanli') {
+                type = '暗中掣肘';
+                score = -25;
+              } else if (id === 'hanchong') {
+                type = '兵部同盟';
+                score = 75;
+              } else if (id === 'luchengye') {
+                type = '户部忌惮';
+                score = 35;
+              } else if (id === 'yangshenzhi' || (a.role && a.role.includes('知府') && !a.role.includes('千金'))) {
+                type = '岳丈器重';
+                score = 85;
+              } else if (id === 'county_magistrate' || a.name === '周文达') {
+                type = '恭敬效命';
+                score = 80;
+              }
+
+              const key = `husband|${id}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                out.push({ a: husbandName, b: a.name, type, score });
+              }
+            }
+          }
+
+          // 2. 世界关键人物之间的固有羁绊（严格过滤掉所有英文孤儿ID）
           for (const [a, m] of Object.entries(world.bonds || {})) {
+            const actorA = world.actors?.[a];
+            if (!actorA || !actorA.name || /^actor_dyn_|^off_/.test(actorA.name) || /^off_|^actor_dyn_/.test(a) || /^[a-zA-Z0-9_]+$/.test(actorA.name)) continue;
             for (const [b, v] of Object.entries(m || {})) {
+              const actorB = world.actors?.[b];
+              if (!actorB || !actorB.name || /^actor_dyn_|^off_/.test(actorB.name) || /^off_|^actor_dyn_/.test(b) || /^[a-zA-Z0-9_]+$/.test(actorB.name)) continue;
               const key = a < b ? `${a}|${b}` : `${b}|${a}`;
               if (seen.has(key)) continue;
               seen.add(key);
-              out.push({ a: world.actors?.[a]?.name || a, b: world.actors?.[b]?.name || b, type: v.type, score: v.score });
+              out.push({ a: actorA.name, b: actorB.name, type: v.type || '故交', score: Number(v.score) || 0 });
             }
           }
-          return out.slice(0, 80);
+          return out.slice(0, 100);
         })(),
         npcArcs: Object.entries(world.npcArcs || {})
           .filter(([, a]) => a && a.lastStep)

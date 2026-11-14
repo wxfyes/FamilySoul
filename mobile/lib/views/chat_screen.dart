@@ -56,6 +56,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _locTimer;
   List<String> _partyNames = const [];
   List<String> _hereNames = const [];
+  List<Map<String, dynamic>> _hereActors = const [];
   String _homeName = '';
   Map? _pendingAction;
 
@@ -708,11 +709,16 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       final day = (date['day'] ?? 0) is int ? date['day'] as int : int.tryParse('${date['day']}') ?? 0;
       final hour = (date['hour'] ?? 0) is int ? date['hour'] as int : int.tryParse('${date['hour']}') ?? 0;
-      // 此处有谁
+      // 此处有谁（支持全员同堂名录与详细信息）
       List<String> here = const [];
+      List<Map<String, dynamic>> hereActors = const [];
       if (d['here'] is List) {
-        here = (d['here'] as List)
-            .map((x) => (x is Map) ? (x['name'] ?? '').toString() : '')
+        hereActors = (d['here'] as List)
+            .whereType<Map>()
+            .map((m) => m.cast<String, dynamic>())
+            .toList();
+        here = hereActors
+            .map((x) => (x['name'] ?? '').toString())
             .where((x) => x.isNotEmpty)
             .toList();
       }
@@ -729,6 +735,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _worldHour = hour;
           _partyNames = names;
           _hereNames = here;
+          _hereActors = hereActors;
           _homeName = homeName2;
           _pendingAction = pend;
         });
@@ -745,6 +752,201 @@ class _ChatScreenState extends State<ChatScreen> {
     _inputFocus.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// 点击顶部「此处有谁」弹出同堂在场全员名录（彻底解决多人8人以上看不到具体名字的痛点）
+  void _showHereActorsSheet(BuildContext context) {
+    HapticFeedback.lightImpact();
+    if (_hereActors.isEmpty && _hereNames.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('此处身旁四下清静，暂无其他人在场'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.groups_rounded, size: 21, color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '同堂在场全员名录 · 共 ${_hereActors.isNotEmpty ? _hereActors.length : _hereNames.length} 人',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              Text(
+                '当前在「${_placeName.replaceAll(RegExp(r'（[^）]+）'), '')}」随侍、议事或同处之全员',
+                style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: _hereActors.isNotEmpty
+                    ? ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _hereActors.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+                        ),
+                        itemBuilder: (c, idx) {
+                          final a = _hereActors[idx];
+                          final name = (a['name'] ?? '').toString();
+                          final role = (a['role'] ?? '').toString();
+                          final act = (a['activity'] ?? '').toString();
+                          final isWife = RegExp(r'正妻|平妻|如夫人|侧室').hasMatch(role);
+                          final isGeneral = RegExp(r'亲兵|统领|副将|战将|随侍').hasMatch(role);
+                          final badgeColor = isWife
+                              ? const Color(0xFFEC4899)
+                              : (isGeneral ? const Color(0xFF0EA5E9) : const Color(0xFF8B5CF6));
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: badgeColor.withValues(alpha: 0.18),
+                                  child: Text(
+                                    name.isNotEmpty ? name.substring(0, 1) : '人',
+                                    style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            name,
+                                            style: TextStyle(
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          if (role.isNotEmpty) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: badgeColor.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                role,
+                                                style: TextStyle(fontSize: 10.5, color: badgeColor, fontWeight: FontWeight.w500),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      if (act.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          act,
+                                          style: TextStyle(fontSize: 11.5, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                InkWell(
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _textController.text = '@$name ';
+                                    _inputFocus.requestFocus();
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '与他对话',
+                                      style: TextStyle(fontSize: 11.5, color: badgeColor, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _hereNames.length,
+                        itemBuilder: (c, idx) {
+                          final name = _hereNames[idx];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              child: Text(name.isNotEmpty ? name.substring(0, 1) : '人'),
+                            ),
+                            title: Text(name),
+                            trailing: TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _textController.text = '@$name ';
+                                _inputFocus.requestFocus();
+                              },
+                              child: const Text('与他对话'),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   /// 只有本来就贴着底部时才自动滚动，避免你翻历史时被强行拽下去
@@ -1209,7 +1411,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
-                            _placeName.isEmpty ? '定位中…' : _placeName,
+                            _placeName.isEmpty
+                                ? '定位中…'
+                                : _placeName
+                                    .replaceAll(RegExp(r'（[^）]+）'), '')
+                                    .replaceFirst(RegExp(r'^临江·提督王府·'), '提督王府·')
+                                    .replaceFirst(RegExp(r'^京师·提督王府·'), '京师王府·'),
                             style: TextStyle(
                               color: isDark ? Colors.white : const Color(0xFF0F172A),
                               fontSize: 13,
@@ -1290,20 +1497,42 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       ],
                         ),
-                        // 此处有谁
+                        // 此处有谁（可点击呼出同堂在场全员名录）
                         Padding(
                           padding: const EdgeInsets.only(left: 20, top: 2),
-                          child: Text(
-                            _hereNames.isEmpty
-                                ? '此处无人'
-                                : '此处：${_hereNames.length <= 4 ? _hereNames.join('、') : '${_hereNames.take(4).join('、')}等${_hereNames.length}人'}',
-                            style: TextStyle(
-                              color: isDark ? Colors.white60 : const Color(0xFF334155),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
+                          child: InkWell(
+                            onTap: () => _showHereActorsSheet(context),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _hereNames.isEmpty
+                                          ? '此处无人'
+                                          : '此处：${_hereNames.length <= 4 ? _hereNames.join('、') : '${_hereNames.take(4).join('、')}等${_hereNames.length}人'}',
+                                      style: TextStyle(
+                                        color: isDark ? Colors.white70 : const Color(0xFF334155),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (_hereNames.isNotEmpty) ...[
+                                    const SizedBox(width: 2),
+                                    Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      size: 16,
+                                      color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],

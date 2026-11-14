@@ -1245,6 +1245,12 @@ export function executeNarrativeTags({
               }
             }
           } else if (!preDismissed && !multiDismissed && !targetName) {
+            // 若本轮已经执行了亲兵退下令，说明相公是令亲卫退出，亲兵已由单一入口归位外院值房，绝对不再清场屋内妻妾或同僚！
+            if (wF.flags?.guardsDismissedThisTurn) {
+              delete wF.flags.guardsDismissedThisTurn;
+              return reply;
+            }
+
             // 未点特定人名：必须明确触发通令清场（如“走吧”、“出去干活吧”、“退下吧”、“散了吧”）或面向单人的送客词
             const isPersonalFarewell = /^(?:好的|那|您|好|行)?\s*(?:你|你们|都|先|那您|您)?\s*(?:走(?:吧|啦)?|回去(?:吧)?|回吧|退下(?:吧)?|下去(?:吧)?|散了(?:吧)?|去吧|出门吧|慢走|走好|再见|回见|送客|睡吧|安歇吧)[。！!~…\s]*$/.test(sayStr)
               || /送客|慢走|走好|不送了|不远送|留步|再见|回见|改日再聚|改日再叙|告辞|你回吧|你走吧|退下吧|都散了吧|各自回房|都走吧|走吧|走啦/.test(sayStr);
@@ -1260,9 +1266,19 @@ export function executeNarrativeTags({
               // 若是亲军退下令，非亲军角色（妻妾、官员）一律不退
               if (isGuardDismiss && !isGuardActor) continue;
 
+              // 内宅妻妾女主人身份精准判定（涵盖婉儿、采儿、芸娘、婉宁、静儿、小翠等）
               const isFamily = a.household || a.spouse === 'husband'
-                || /正妻|大娘子|如夫人|二房|侧室|妾|通房|千金|并嫡/.test(String(a.role || ''))
-                || ['waner', 'caier', 'yunnia', 'wanning', 'cuiwanning', 'xiaocui'].includes(a.id);
+                || /正妻|大娘子|如夫人|二房|侧室|妾|自立娘子|通房|千金|并嫡|夫人/.test(String(a.role || ''))
+                || ['waner', 'shenwaner', 'caier', 'yangcaier', 'yunnia', 'yunniang', 'linyunniang', 'wanning', 'cuiwanning', 'zhanjing', 'xiaocui'].includes(a.id);
+
+              // 军门最高家规不变量：妻妾女主人在王宅/提督王府任何房间（无论正房、东厢房、西厢房、暖阁还是书房），
+              // 绝对不受通令“退下/走吧”驱逐！除非相公明确指名道姓（如“婉儿你回房歇着”），否则永远陪伴相公身侧！
+              if (isFamily) {
+                if (!targetName || !targetName.includes(a.name)) {
+                  continue;
+                }
+              }
+
               if (keepFamily && isFamily) continue;
 
               // 正房同寝规制保护：相公在正房主寝（无论是临江正房还是京师王府正房大殿），沈婉儿与杨采儿作为正室平妻，本就在主寝，绝不可作为客侍扫地出门！

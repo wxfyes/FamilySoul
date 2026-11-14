@@ -1,4 +1,4 @@
-import { addItem, itemsOf } from './items.js';
+import { addItem, itemsOf, getHusbandOfficialInfo } from './items.js';
 
 /**
  * 姻亲：说亲、婚配、结亲。
@@ -536,10 +536,19 @@ export function executeMarriageAlliance(world, {
   // 9. 大事记流水落账
   const noteKey = `${girlName}·${formalStatus}`;
   if (!world.notes.some((n) => String(n.text || '').includes(girlName) && String(n.text || '').includes(formalStatus))) {
+    const husCaller = (() => {
+      try {
+        const off = getHusbandOfficialInfo(world);
+        if (off?.hasOffice) {
+          return off.highestTitle.includes('提督') ? '水陆提督王甯' : (off.highestTitle.includes('总兵') ? '总兵王甯' : `${off.shortCall || '相公'}王甯`);
+        }
+      } catch (_) {}
+      return '相公王甯';
+    })();
     world.notes.push({
       day: weddingDay,
       hour: 12,
-      text: `王都司明媒正娶${girl.role || ''}${girlName}入府为${formalRank}，出具府衙官押红帖婚书，开席宴请临江官绅，两姓结为秦晋之好！`,
+      text: `${husCaller}明媒正娶${girl.role || ''}${girlName}入府为${formalRank}，出具府衙官押红帖婚书，开席宴请各方官绅，两姓结为秦晋之好！`,
     });
   }
 

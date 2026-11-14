@@ -9,6 +9,7 @@ import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems
 import { ensureActiveBanditWaves } from './bandits.js';
 import { isSameSpendSubject } from './ledger.js';
 import { marryYangCaier } from './marriage.js';
+import { syncAutoChronicle } from './auto-chronicle.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -1047,6 +1048,10 @@ export function healWorld(world) {
     const offInfo = getHusbandOfficialInfo(world);
     if (offInfo.hasOffice) {
       world.milestones = Array.isArray(world.milestones) ? world.milestones : [];
+      if (offInfo.highestTitle.includes('提督') && !world.milestones.some((m) => String(m).includes('天子钦授从一品·江南水陆提督总兵官') || String(m).includes('江南水陆提督总兵官'))) {
+        world.milestones.unshift('【天子钦授从一品·江南水陆提督总兵官（钦赐尚方宝剑·代天巡狩）】：当今天子圣谕褒嘉，叙相公经世武勋与靖难大功，破格特恩实授【从一品武官·江南水陆提督总兵官】，总督江南江北水陆诸镇官军兵马，开府建牙、加赐天子尚方宝剑（副将以下先斩后奏），节制沿江沿淮大营与天下水师，合朝文武官绅百姓莫不钦服拜谒。');
+        fixes.push('大事记补录：天子钦授从一品·江南水陆提督总兵官');
+      }
       const msTitle = `【朝廷叙功实授·${offInfo.highestTitle}】`;
       if (!world.milestones.some((m) => String(m).includes(offInfo.highestTitle))) {
         world.milestones.push(`${msTitle}王甯屡平巨寇（累计剿平 ${offInfo.quelled} 股），朝廷兵部武选司核发正式《告身敕牒》与《虎符官印》，实授「${offInfo.rank}·${offInfo.highestTitle}」，统兵镇守一方，满城官绅百姓莫不钦服。`);
@@ -1384,6 +1389,66 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 进京记忆自愈异常：', err.message);
+  }
+
+  // ㉙ 长期记忆与角色记忆去重自愈（彻底根治记忆自检重复告警）
+  try {
+    if (Array.isArray(world.memories)) {
+      const before = world.memories.length;
+      const seenMem = new Set();
+      world.memories = world.memories.filter((m) => {
+        if (!m || !String(m.text || '').trim()) return false;
+        const key = String(m.text).trim().slice(0, 20);
+        if (seenMem.has(key)) return false;
+        seenMem.add(key);
+        return true;
+      });
+      if (world.memories.length !== before) {
+        fixes.push(`记忆去重自愈：清理 ${before - world.memories.length} 条重复/空世界记忆`);
+      }
+    }
+    for (const a of Object.values(world.actors || {})) {
+      if (a && Array.isArray(a.memories)) {
+        const seenActorMem = new Set();
+        a.memories = a.memories.filter((m) => {
+          const t = typeof m === 'string' ? m : (m?.text || '');
+          if (!t.trim()) return false;
+          const key = t.trim().slice(0, 20);
+          if (seenActorMem.has(key)) return false;
+          seenActorMem.add(key);
+          return true;
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 记忆去重自愈异常：', err.message);
+  }
+
+  // ㉚ 全自动大事记智能捕获中枢同步
+  try {
+    const autoMs = syncAutoChronicle(world);
+    if (autoMs && autoMs.length > 0) {
+      fixes.push(`全自动大事记同步：录入 ${autoMs.length} 件天下大业纪实`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 全自动大事记同步异常：', err.message);
+  }
+
+  // ㉛ 地名精炼去冗自愈（彻底剔除（一品军门府邸）等冗长括号，防手机端标题被截断）
+  try {
+    let cleanedPlaces = 0;
+    for (const p of Object.values(world.places || {})) {
+      if (!p || !p.name) continue;
+      if (/（一品军门府邸）|（一品赐第）|（自住府邸）/.test(p.name)) {
+        p.name = p.name.replace(/（[^）]+）/g, '').trim();
+        cleanedPlaces += 1;
+      }
+    }
+    if (cleanedPlaces > 0) {
+      fixes.push(`地名去冗精炼：净化 ${cleanedPlaces} 处长括号冗余地名`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 地名去冗自愈异常：', err.message);
   }
 
   return fixes;

@@ -100,7 +100,7 @@ export function knock(world, visitorId, residenceId) {
   // 🛡️ 权威礼遇：相公登门杨府（知府官邸），千金杨采儿深心所系，门房按相公朝廷官衔恭敬通传直引中堂
   const offInfo = visitorId === 'husband' ? getHusbandOfficialInfo(world) : null;
   const honorific = offInfo?.hasOffice
-    ? (offInfo.highestTitle.includes('都司') ? '王都司' : (offInfo.highestTitle.includes('参将') ? '王参将' : (offInfo.highestTitle.includes('总兵') ? '王总兵' : (offInfo.highestTitle.includes('守备') ? '王守备' : '王大人'))))
+    ? (offInfo.highestTitle.includes('提督') ? '大帅' : (offInfo.highestTitle.includes('总兵') ? '王总兵' : (offInfo.highestTitle.includes('参将') ? '王参将' : (offInfo.highestTitle.includes('都司') ? '王都司' : (offInfo.highestTitle.includes('守备') ? '王守备' : '王大人')))))
     : '王少掌柜';
   if ((residenceId === 'yang_mansion' || home.id === 'yang_mansion') && visitorId === 'husband') {
     const rooms = home.rooms || {};

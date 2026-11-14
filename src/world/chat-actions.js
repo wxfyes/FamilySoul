@@ -18,6 +18,8 @@ import { actorSeniority } from './turn-target.js';
 import { materializeRoom } from './residence.js';
 import { applyUnifiedIntents } from './intent-router.js';
 import { summonGuards, dismissGuards, dispatchGarrison, reviewTroops, escortFamily, grantDivorce } from './military-dispatch.js';
+import { autoResolveMatrimony } from './auto-matrimony.js';
+import { syncAutoChronicle } from './auto-chronicle.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -933,6 +935,8 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     const r = dismissGuards(world);
     if (r?.ok && r.notice) {
       notices.push(r.notice.replace(/^（|）$/g, ''));
+      world.flags = world.flags || {};
+      world.flags.guardsDismissedThisTurn = true;
     }
   }
 
@@ -984,6 +988,23 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     if (r?.ok && r.notice) {
       notices.push(r.notice);
     }
+  }
+
+  // 6. 全自动迎娶纳妾与名分落账推演（彻底告别手动打补丁）
+  try {
+    const matrimonyRes = autoResolveMatrimony(world, { sayText: say });
+    if (matrimonyRes?.triggered && matrimonyRes.notice) {
+      notices.push(matrimonyRes.notice);
+    }
+  } catch (err) {
+    console.warn('[AutoMatrimony] 迎娶推演异常：', err.message);
+  }
+
+  // 7. 全自动大事记智能捕获中枢（官职、产业、大案全自动落盘）
+  try {
+    syncAutoChronicle(world);
+  } catch (err) {
+    console.warn('[AutoChronicle] 大事记同步异常：', err.message);
   }
 
   return notices;

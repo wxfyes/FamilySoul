@@ -98,7 +98,7 @@ export function showItem(world, holderId, toId, itemId) {
   if (!it) return { ok: false, line: '（没有这件东西。）' };
   if (it.holder !== String(holderId)) return { ok: false, line: `（这件东西不在手里。）` };
   const to = toId ? world.actors?.[toId] : null;
-  const holderName = world.actors?.[holderId]?.name || (holderId === 'husband' ? '王都司' : holderId);
+  const holderName = world.actors?.[holderId]?.name || (holderId === 'husband' ? '相公王甯' : holderId);
   const toName = to?.name || '在场众人';
   const isOfficialCred = /告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方|诏书/.test(String(it.name || '') + String(it.kind || ''));
   if (isOfficialCred) {
@@ -387,7 +387,7 @@ export const OFFICIAL_CREDENTIAL_DEFS = [
     rank: '从一品',
     title: '江南水陆提督总兵官',
     rankTitle: '从一品·江南水陆提督总兵官',
-    shortCall: '王提督',
+    shortCall: '大帅',
     credentials: [
       {
         name: '钦赐尚方剑·江南水陆提督军务诏书',
@@ -404,9 +404,25 @@ export const OFFICIAL_CREDENTIAL_DEFS = [
  */
 export function getHusbandOfficialInfo(world) {
   const offices = world?.court?.offices || {};
-  const heldDefs = OFFICIAL_CREDENTIAL_DEFS.filter(
+  let heldDefs = OFFICIAL_CREDENTIAL_DEFS.filter(
     (d) => offices[d.officeKey] && (String(offices[d.officeKey].holder || '') === 'husband' || String(offices[d.officeKey].formerHolder || '') === 'husband')
   );
+
+  // 尊严不变量保底：若相公已开府建牙、身处提督王府，或角色标注为水陆提督，直接具备从一品提督官职
+  const me = world?.actors?.husband;
+  const isTidu = String(me?.role || '').includes('提督')
+    || me?.office === 'tiduzongbing'
+    || String(offices?.tiduzongbing?.holder || '') === 'husband'
+    || String(me?.location || '').startsWith('capital_')
+    || String(world?.places?.[me?.location]?.name || '').includes('提督王府');
+
+  if (isTidu) {
+    const tiduDef = OFFICIAL_CREDENTIAL_DEFS.find((d) => d.officeKey === 'tiduzongbing');
+    if (tiduDef && !heldDefs.some((d) => d.officeKey === 'tiduzongbing')) {
+      heldDefs.push(tiduDef);
+    }
+  }
+
   if (heldDefs.length === 0) {
     return {
       hasOffice: false,
@@ -425,7 +441,7 @@ export function getHusbandOfficialInfo(world) {
     rank: highest.rank,
     highestTitle: highest.title,
     fullTitle: highest.rankTitle,
-    shortCall: highest.shortCall,
+    shortCall: highest.officeKey === 'tiduzongbing' ? '大帅' : highest.shortCall,
     quelled: Math.max(Number(world?.flags?.quelledTotal) || 0, heldDefs.length * 2),
     allTitles: heldDefs.map((d) => d.title),
   };
