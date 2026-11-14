@@ -450,8 +450,8 @@ export function sanitizeHusbandItems(world) {
     if (validOfficialNames.has(name) || (/告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方|诏书/.test(name) && (it.kind === '官印' || it.kind === '敕牒'))) {
       return true;
     }
-    // 2. 正规地契房契请帖与明媒正娶婚书
-    if (it.kind === '契纸' || it.kind === '请帖' || it.kind === '婚书' || /房契|酒楼契|茶坊契|茶山契|请帖|地契|字据|婚书|平妻|庚帖|聘单/.test(name)) {
+    // 2. 正规地契房契请帖、明媒正娶婚书与官准放妻和离文书
+    if (it.kind === '契纸' || it.kind === '请帖' || it.kind === '婚书' || it.kind === '和离书' || /房契|酒楼契|茶坊契|茶山契|请帖|地契|字据|婚书|平妻|庚帖|聘单|和离|放妻|放妻书/.test(name)) {
       return true;
     }
     // 3. 正规府库物资礼品与银票

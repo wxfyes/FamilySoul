@@ -191,20 +191,27 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
 
         // 大乾律法官准和离：相公主持府衙明断，准予女眷脱离旧夫自立门户
         try {
-          const divorceMatch = text.match(/(?:给|帮|为|准)?\s*(静儿|战静|柳如烟|如烟|采云|杨采云|紫嫣|刘文霞|老板娘)\s*(?:办|断|批|准予)?\s*(?:和离|放妻书|离异|休夫|脱离夫家|脱离翟家|离开翟家|离开随家|脱籍)/)
-            || text.match(/(?:办和离|断和离|准予和离|出具放妻书|写放妻书|断绝关系)\s*.*?(静儿|如烟|柳如烟|采云|紫嫣)/);
-          if (divorceMatch) {
-            const whoName = divorceMatch[1] || divorceMatch[2];
+          const hasDivorceWord = /(?:和离|放妻书|离异|休夫|脱离夫家|脱离翟家|离开翟家|离开随家|脱籍|办和离|判离)/.test(text);
+          let targetWomanName = null;
+          if (hasDivorceWord) {
+            if (/静儿|战静|随娘子/.test(text)) targetWomanName = '静儿';
+            else if (/如烟|柳如烟|采云|杨采云|翟家货栈老板娘|翟老板娘/.test(text)) targetWomanName = '柳如烟';
+            else if (/紫嫣|刘文霞|文霞|于家酒肆老板娘/.test(text)) targetWomanName = '紫嫣';
+          }
+          if (targetWomanName) {
             const { executeDivorce } = await import('../world/marriage.js');
             const wDiv = loadState(svc.dataDir);
-            const divRes = executeDivorce(wDiv, whoName, { mediator: '相公', reason: '相公主持公堂明断，自愿和离' });
+            const divRes = executeDivorce(wDiv, targetWomanName, { mediator: '相公', reason: '相公主持公堂明断，官准放妻和离' });
             if (divRes && divRes.ok) {
               const meD = wDiv.actors?.[svc._viewerActorId || 'husband'] || wDiv.actors?.husband;
               wDiv.chatPartners = wDiv.chatPartners || {};
               wDiv.chatPartners[meD.id] = divRes.girl.id;
               saveState(svc.dataDir, wDiv);
-              contextHintEarly += `（【官准和离放妻文书生效】：相公亲自主持府衙大堂明断，朱批大印落案！${divRes.girl.name}已正式脱离旧夫，领取《${divRes.certName}》，恢复自由身！本轮【必须】由【${divRes.girl.name}】热泪盈眶、深受大恩向相公盈盈下拜谢恩，诉说脱离苦海后的感激之情！）\n`;
-              console.log(`[MarriageEngine] 相公和离命令生效：${divRes.message}`);
+              const noticeLine = `《${divRes.certName}》已加盖官印入库您的随身行囊！民妇${divRes.girl.name}已官断和离，脱离旧夫，恢复自由身自立门户！`;
+              svc._turnNotices = svc._turnNotices || [];
+              svc._turnNotices.push(noticeLine);
+              contextHintEarly += `（【官准和离放妻文书生效】：相公亲自主持官府明断，大红官印落案！《${divRes.certName}》已核发入相公随身行囊！${divRes.girl.name}已正式脱离旧夫，恢复自由身！本轮在场长官（如周文达）与【${divRes.girl.name}】【必须】在回话中明确宣读判词、奉上和离文书，${divRes.girl.name}深受大恩盈盈下拜谢恩！）\n`;
+              console.log(`[MarriageEngine] 相公和离命令生效并注入提示：${divRes.message}`);
             }
           }
         } catch (eDiv) {

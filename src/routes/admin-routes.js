@@ -1527,6 +1527,42 @@ export async function handleAdminRoutes(req, res, ctx) {
       }
     }
 
+    // 9.35 赐赏/核发物品 POST /api/admin/items/grant { name, kind, holder, note }
+    if (req.method === 'POST' && pathname === '/api/admin/items/grant') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const { addItem } = await import('../world/items.js');
+        const world = peek(DATA_DIR);
+        const item = addItem(world, {
+          name: body.name,
+          kind: body.kind || '文书',
+          holder: body.holder || 'husband',
+          note: body.note || '',
+        });
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, item });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // 9.36 权威执行和离大典 POST /api/admin/marriage/divorce { target, mediator, reason }
+    if (req.method === 'POST' && pathname === '/api/admin/marriage/divorce') {
+      try {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const { executeDivorce } = await import('../world/marriage.js');
+        const world = peek(DATA_DIR);
+        const divRes = executeDivorce(world, body.target, {
+          mediator: body.mediator || '相公',
+          reason: body.reason || '相公主持公堂明断，官准放妻和离',
+        });
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, { ok: true, result: divRes });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // 9.32 重置某个世界人物的线 POST /api/admin/actor/reset（清空关系/身孕/与她有关的记忆）
     if (req.method === 'POST' && pathname === '/api/admin/actor/reset') {
       try {
