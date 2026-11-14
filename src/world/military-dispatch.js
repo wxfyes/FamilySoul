@@ -347,3 +347,4 @@ export function grantDivorce(world, targetNameOrId = '陈静儿') {
   const line = `【官府和离立案】临江县衙正堂大印朱笔勘合！县令当堂用印批红，正式出具并奉上${docName}！${womanName}前缘尽释、恢复自由之身，满怀感激拜谢大帅天高地厚之恩！`;
   return { ok: true, notice: line, woman: womanName, document: docName };
 }
+

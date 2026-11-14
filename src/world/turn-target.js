@@ -69,6 +69,16 @@ export function resolveTurnTarget({ world, viewerId = 'husband', say = '', prese
     }
   }
 
+  // ①.1 相公呼唤亲兵/侍卫/将领（如“亲兵”、“侍卫”、“亲军”、“左右”、“兵马”）
+  if (/(亲兵|侍卫|护卫|亲军|随从|手下|兵马|左右)/.test(said) && here.length > 0) {
+    const guardTarget = here.find((a) => a.id === 'general_zhaolei')
+      || here.find((a) => /统领|亲兵|侍卫|护卫/.test(String(a.role || '')))
+      || here.find((a) => a.id === 'general_lishitou');
+    if (guardTarget) {
+      return { kind: 'npc', actor: guardTarget, actorId: guardTarget.id, named: true };
+    }
+  }
+
   // ② 相公指名道姓/古风称呼呼唤（优先在当前在场者 here 中匹配，彻底防止同名/同字根的场外人干扰！）
   const namedHere = findTargetActorInText(here, said);
   if (namedHere) {

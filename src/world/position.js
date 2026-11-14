@@ -83,6 +83,9 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
     if (!isMasterFamily && isChamberRoom(destPlace) && !/特召|叫到跟前|相公召见|提审|安置居所|恩旨|分房|安歇|听召|召唤|奉召|传唤|叫来|带上来|相公宣召|随相公/.test(String(note || ''))) {
       if (/伙计|跑堂/.test(role)) {
         placeId = world.places?.tea_house ? 'tea_house' : 'street';
+      } else if (/统领|亲兵|侍卫|护卫|军士|武官|副将|参将|千总|百户/.test(role) || actorId.startsWith('general_')) {
+        const barracks = Object.keys(world.places || {}).find((id) => /私兵值房|侍卫营|校场|马厩|门房/.test(String(world.places[id]?.name || '')));
+        placeId = barracks || 'husband_room__barracks';
       } else {
         const gate = Object.keys(world.places || {}).find((id) => /朱漆大门|门房|外院|门头|大门/.test(String(world.places[id]?.name || '')));
         placeId = gate || (world.places?.tea_house ? 'tea_house' : 'street');

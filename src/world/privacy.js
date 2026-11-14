@@ -105,6 +105,8 @@ export function evictOutsiders(world) {
         let dest = 'street';
         if (/伙计|跑堂/.test(String(a.role || ''))) {
           dest = world.places?.tea_house ? 'tea_house' : (world.places?.['place_44__f1'] ? 'place_44__f1' : 'street');
+        } else if (/统领|亲兵|侍卫|护卫|军士|武官|副将|参将|千总|百户/.test(String(a.role || '')) || String(a.id || '').startsWith('general_')) {
+          dest = home?.rooms?.barracks?.id || home?.rooms?.gatehouse?.id || home?.rooms?.gate?.id || 'husband_room__barracks';
         } else if (/家丁|护院|门房|小厮|车夫|马夫/.test(String(a.role || ''))) {
           dest = home?.rooms?.gate?.id || home?.rooms?.gatehouse?.id || 'husband_room__gate';
         } else {

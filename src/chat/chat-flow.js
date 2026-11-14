@@ -963,17 +963,21 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           } else {
             personaRule = `【${tLabel}】乃朝廷正印命官，自称「本官/文达」，称呼相公「王少掌柜/贤契」，绝对严禁自称「小的」，绝对严禁称相公「东家」！`;
           }
+        } else if (/亲兵|侍卫|统领|副将|参将|千总|百户|护卫/.test(String(tActor.role || '')) || /赵雷|李石头|周武|陈海平|苏铁/.test(tName)) {
+          personaRule = `【${tLabel}】乃从一品水陆提督行辕正规铁血亲卫军官，军纪森严、受令如山！自称必须用「末将/标下/属下/末弁/小的」，称呼相公必须用「大帅/军门/提督大人」！【铁血军规严厉约束·严禁话痨】：行伍之人寡言少语，面如冷铁，绝不啰嗦多嘴，绝不插话话痨，绝不市井油腔滑调，绝不长篇大论叙述闲事！回话严格限制在短促有力的1到2句军令应诺之内（如：“大帅！标下在，请大帅示下！”、“末将得令，这就去办！”、“回大帅，库房已加派五十精锐严密看守！”），句短如铁，令行禁止！`;
         }
 
         const companions = hereActors.filter((a) => a.id !== tActor.id && !a.dead);
         const allCompanionNames = companions.map((a) => `${a.name}（${a.role || a.label || '同场'}）`).join('、');
+        const hasGuardCompanion = companions.some((a) => /亲兵|侍卫|护卫|军士/.test(String(a.role || '')) || /赵雷|李石头/.test(a.name));
+        const guardSilenceRule = hasGuardCompanion ? ' 在场的随侍亲兵侍卫按刀肃立侍卫警戒，非大帅传唤严禁开口，不得多嘴插话！' : '';
 
         if (turnTarget.named) {
-          turnDirective = `\n（【点名应答最高排他铁律】：相公明确指名道姓向在场的【${tName}】说话！本轮【100% 必须且只能由【${tLabel}】作为第一核心发言人】以「【${tActor.role || tLabel}·${tName.length > 2 ? tName.slice(-2) : tName}】：“台词”」正面开口回应相公！绝对严禁由${companions.length ? companions.map((a) => a.name).join('、') : '旁人'}抢白代答或压制她的台词！${personaRule}${companions.length ? ` 同在现场的【${allCompanionNames}】在此刻温言静听，绝不可喧宾夺主或霸占台词；若需应和，仅允许在【${tName}】说完整句话之后另起一行极简附和，不得抢话！` : ''}）`;
+          turnDirective = `\n（【点名应答最高排他铁律】：相公明确指名道姓向在场的【${tName}】说话！本轮【100% 必须且只能由【${tLabel}】作为第一核心发言人】以「【${tActor.role || tLabel}·${tName.length > 2 ? tName.slice(-2) : tName}】：“台词”」正面开口回应相公！绝对严禁由${companions.length ? companions.map((a) => a.name).join('、') : '旁人'}抢白代答或压制她的台词！${personaRule}${companions.length ? ` 同在现场的【${allCompanionNames}】在此刻温言静听，绝不可喧宾夺主或霸占台词；若需应和，仅允许在【${tName}】说完整句话之后另起一行极简附和，不得抢话！${guardSilenceRule}` : ''}）`;
         } else {
           const isStaff = /掌柜|管事|头领|领头|护院|家丁|门房|伙计/.test(String(tActor.role || '')) || /罗叔/.test(tName);
           if (companions.length > 0 && !isStaff) {
-            turnDirective = `\n（【同场多人互动法则】：此刻在场的有【${tLabel}】与【${allCompanionNames}】。本轮由【${tLabel}】主答，在场的【${allCompanionNames}】亦在同一屋中，若话语涉及双方（如取茶、赠礼、引荐、闲叙），须由双方各自另起一行以「【身份·姓名】：“台词”」独立分角对答，绝不可一人包揽或抹杀另一人的存在！${personaRule}）`;
+            turnDirective = `\n（【同场多人互动法则】：此刻在场的有【${tLabel}】与【${allCompanionNames}】。本轮由【${tLabel}】主答，在场的【${allCompanionNames}】亦在同一屋中，若话语涉及双方（如取茶、赠礼、引荐、闲叙），须由双方各自另起一行以「【身份·姓名】：“台词”」独立分角对答，绝不可一人包揽或抹杀另一人的存在！${personaRule}${guardSilenceRule}）`;
           } else if (isStaff && companions.length > 0) {
             turnDirective = `\n（主仆礼制：由掌事领头人【${tLabel}】上前从容回话，余人肃立各司其职。）`;
           } else {
