@@ -566,3 +566,155 @@ export function marryYangCaier(world, { dowry = 600, day = null } = {}) {
     chamber: 'wang_mansion__main_room',
   });
 }
+
+/**
+ * 权威通用大乾礼法与官准和离引擎（executeDivorce）：
+ * 彻底解除女眷与旧夫的封建婚约束缚，官府准批放妻立案：
+ *   ① 解除与旧夫的夫妻契约（清空双方 spouse 与夫妻羁绊）；
+ *   ② 核发《大乾临江府衙朱批·官准放妻和离文书》，随身行囊立案备查；
+ *   ③ 女眷身份正名为自由身清白娘子（自立女东家/自立娘子），心结与负罪感彻底消除；
+ *   ④ 提升对相公的感激与依恋（信赖+25，依恋+25），相公今后可堂堂正正迎纳入门；
+ *   ⑤ 写入天下大事记与永久不朽记忆（permanent: true）。
+ */
+export function executeDivorce(world, targetActorIdOrName, {
+  reason = '情义难谐，官断和离，各生欢喜',
+  mediator = '提督相公',
+  day = null,
+} = {}) {
+  world.actors = world.actors || {};
+  world.bonds = world.bonds || {};
+  world.notes = Array.isArray(world.notes) ? world.notes : [];
+  world.memories = Array.isArray(world.memories) ? world.memories : [];
+
+  const divorceDay = Number(day) || Number(world.clock?.day) || 26;
+  const targetKey = String(targetActorIdOrName || '').trim();
+
+  // 1. 精准解析女方实体（支持 ID 或模糊匹配）
+  let girl = world.actors[targetKey] || Object.values(world.actors).find((a) => a && (a.name === targetKey || a.id === targetKey));
+  if (!girl) {
+    if (/静儿|战静|随娘子/.test(targetKey)) girl = world.actors.zhanjing;
+    else if (/如烟|柳如烟|采云|杨采云|翟老板娘/.test(targetKey)) girl = world.actors.yangcaiyun;
+    else if (/紫嫣|刘文霞|文霞|于家酒肆/.test(targetKey)) girl = world.actors.liuwenxia;
+  }
+  if (!girl) {
+    return { ok: false, error: `世间查无此女眷（${targetKey}）` };
+  }
+
+  const girlId = girl.id;
+  const girlName = girl.name;
+
+  // 2. 查找旧夫实体
+  const exSpouseId = girl.spouse || girl.spouseId;
+  let exSpouse = exSpouseId ? world.actors[exSpouseId] : null;
+  if (!exSpouse) {
+    if (girlId === 'zhanjing') exSpouse = world.actors.npc_4 || Object.values(world.actors).find((a) => a && a.name === '随科');
+    else if (girlId === 'yangcaiyun') exSpouse = world.actors.npc_3 || Object.values(world.actors).find((a) => a && a.name === '翟勋柱');
+    else if (girlId === 'liuwenxia') exSpouse = world.actors.npc_2 || Object.values(world.actors).find((a) => a && a.name === '于子归');
+  }
+
+  const exSpouseName = exSpouse?.name || (exSpouseId ? '旧夫' : '前夫');
+
+  // 3. 彻底解除夫妻契约与名分
+  girl.spouse = null;
+  girl.spouseId = null;
+  girl.spouseName = null;
+  girl.marital = 'divorced';
+  girl.maritalText = '和离自立 · 自由身';
+  girl.divorced = true;
+  girl.divorcedFrom = exSpouse?.id || exSpouseId || null;
+  girl.divorceDay = divorceDay;
+
+  // 4. 重塑自立清白身份名号
+  if (girlId === 'zhanjing' || /静儿/.test(girlName)) {
+    girl.role = '自立娘子';
+    girl.title = '清白自立·静儿';
+    girl.duty = '操持家务·心系相公';
+  } else if (girlId === 'yangcaiyun' || /如烟/.test(girlName)) {
+    girl.role = '货栈女东家';
+    girl.title = '货栈女掌柜·柳如烟';
+    girl.duty = '执掌货栈·自主经商';
+  } else if (girlId === 'liuwenxia' || /紫嫣/.test(girlName)) {
+    girl.role = '酒肆女东家';
+    girl.title = '城南酒肆掌柜·紫嫣';
+    girl.duty = '掌管酒肆·自立门庭';
+  } else {
+    girl.role = '自立娘子';
+    girl.title = `自立娘子·${girlName}`;
+  }
+
+  // 5. 旧夫断绝关系
+  if (exSpouse) {
+    exSpouse.spouse = null;
+    exSpouse.spouseId = null;
+    exSpouse.spouseName = null;
+    exSpouse.marital = 'single';
+    exSpouse.maritalText = '离异·鳏居';
+  }
+
+  // 6. 解除夫妻羁绊网络
+  try {
+    if (world.bonds && exSpouse?.id) {
+      if (world.bonds[girlId]?.[exSpouse.id]) {
+        world.bonds[girlId][exSpouse.id] = { type: '断绝和离', score: 0 };
+      }
+      if (world.bonds[exSpouse.id]?.[girlId]) {
+        world.bonds[exSpouse.id][girlId] = { type: '断绝和离', score: 0 };
+      }
+    }
+    // 增加女方与相公的恩情依恋羁绊
+    world.bonds.husband = world.bonds.husband || {};
+    world.bonds[girlId] = world.bonds[girlId] || {};
+    world.bonds.husband[girlId] = { type: '相知红颜', score: 88 };
+    world.bonds[girlId].husband = { type: '相知红颜', score: 88 };
+  } catch { /* 忽略 */ }
+
+  // 7. 女方心境与好感大幅提升（脱离苦海、感恩相公）
+  girl.relations = girl.relations || {};
+  girl.relations.husband = girl.relations.husband || { trust: 50, desire: 30, fear: 0, grievance: 0 };
+  girl.relations.husband.trust = Math.min(100, Math.max(Number(girl.relations.husband.trust) || 0, 75) + 20);
+  girl.relations.husband.desire = Math.min(100, Math.max(Number(girl.relations.husband.desire) || 0, 60) + 20);
+  girl.relations.husband.fear = 0;
+  girl.relations.husband.grievance = 0;
+  girl.relations.husband.lover = true;
+
+  // 8. 官府朱批核发《官准放妻和离文书》并收归相公与女方随身行囊
+  const certName = `《大乾临江府衙朱批·${girlName}放妻和离文书》`;
+  const existingCert = itemsOf(world, 'husband').find((it) => it && (it.name === certName || String(it.name).includes(girlName) && String(it.name).includes('和离')));
+  if (!existingCert) {
+    addItem(world, {
+      name: certName,
+      kind: '和离书',
+      holder: 'husband',
+      note: `两淮水陆提督军门与临江府衙大红官印朱批。民妇${girlName}与${exSpouseName}两不相谐，查勘属实，官断和离。自此一别两宽，各生欢喜，女方改嫁婚娶由其自主，夫家亲族绝不得纠缠侵扰，违者严惩不贷。立此放妻书为照。`,
+      from: '临江府衙与提督军门明断',
+      day: divorceDay,
+    });
+  }
+
+  // 9. 写入永久不朽记忆与天下大事记
+  const memText = `【官断和离·重获自由】：在相公主持官府明断下，${girlName}已与${exSpouseName}正式官准和离，领取《${certName}》，脱离夫家羁绊，恢复自由身自立门户，从此对相公倾心依附、再无后顾之忧！`;
+  world.memories.push({
+    id: `divorce_${girlId}_${Date.now()}`,
+    actorId: girlId,
+    targetId: 'husband',
+    day: divorceDay,
+    text: memText,
+    type: 'life_milestone',
+    permanent: true,
+  });
+
+  world.notes.push({
+    day: divorceDay,
+    hour: 14,
+    text: `相公主持府衙官司明断，批落朱印，准予${girlName}与${exSpouseName}正式和离，颁发《${certName}》，立案两宽！`,
+  });
+
+  console.log(`[MarriageEngine] 和离大典落案完毕：${girlName} 与 ${exSpouseName} 和离，文书入囊，恢复自由身！`);
+  return {
+    ok: true,
+    girl,
+    exSpouse,
+    certName,
+    message: `${girlName} 已正式官断和离，领取《${certName}》，重获清白自由身！`,
+  };
+}

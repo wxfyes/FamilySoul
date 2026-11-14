@@ -6,13 +6,18 @@ export function actorSeniority(a) {
   const role = String(a.role || '');
   const title = String(a.title || '');
   const name = String(a.name || '');
-  // 1. 正妻最高
-  if (/正妻|发妻|大娘子/.test(role) || a.id === 'waner') return 1000;
+  // 0. 朝廷重臣与地方大员（知府、巡抚、尚书、总兵、提督、知县等，公堂政务执掌大印，公权至高）
+  if (/知府|巡抚|尚书|总兵|提督|都司|太守|布政使|按察使|知县|县令|大人/.test(role)
+      || /知府|巡抚|尚书|大人/.test(title)) {
+    return 1100 + (Number(a.age) || 30);
+  }
+  // 1. 正妻与并嫡平妻最高（内宅主母执掌中馈）
+  if (/正妻|正室|发妻|大娘子|平妻|并嫡/.test(role) || a.id === 'waner' || a.id === 'yangzhenhua') return 1000;
   // 2. 侧室如夫人/二房
   if (/如夫人|二房|侧室|妾/.test(role) || a.id === 'yunnia') return 900;
-  // 2.5 官宦名门千金、朝廷官员、诰命夫人（如知府千金杨采儿、知县周文达、知府杨慎之等，绝非下人跟班！）
-  if (/千金|大小姐|闺秀|知府|县令|知县|知州|巡抚|尚书|大人|太守|通判|县丞|主簿|夫人|员外|老爷|山长/.test(role)
-      || /千金|大小姐|大人|知府|知县/.test(title)) {
+  // 2.5 官宦名门千金、诰命夫人、士绅大家闺秀（如知府千金杨采儿、名门千金崔婉宁等，绝非下人跟班！）
+  if (/千金|大小姐|闺秀|通判|县丞|主簿|夫人|员外|老爷|山长/.test(role)
+      || /千金|大小姐/.test(title)) {
     return 880 + (Number(a.age) || 20);
   }
   // 3. 其他内眷/侍妾

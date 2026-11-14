@@ -80,7 +80,7 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
       || a.spouse === 'husband'
       || ['waner', 'yunnia', 'xiaocui', 'yangzhenhua'].includes(actorId)
       || /正妻|正室|平妻|大娘子|二房|如夫人|侧室|侍妾|通房/.test(role);
-    if (!isMasterFamily && isChamberRoom(destPlace) && !/特召|叫到跟前|相公召见|提审|安置居所|恩旨|分房|安歇/.test(String(note || ''))) {
+    if (!isMasterFamily && isChamberRoom(destPlace) && !/特召|叫到跟前|相公召见|提审|安置居所|恩旨|分房|安歇|听召|召唤|奉召|传唤|叫来|带上来|相公宣召|随相公/.test(String(note || ''))) {
       if (/伙计|跑堂/.test(role)) {
         placeId = world.places?.tea_house ? 'tea_house' : 'street';
       } else {

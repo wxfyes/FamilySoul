@@ -172,18 +172,64 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             if (summonedActor && meS && summonedActor.location !== meS.location) {
               const fromPlace = wS.places?.[summonedActor.location]?.name || '别处';
               delete summonedActor.awayUntil;
-              const mvRes = moveActor(wS, summonedActor.id, meS.location, 'world', '听召到场');
+              const mvRes = moveActor(wS, summonedActor.id, meS.location, 'world', '相公宣召到场');
               if (mvRes?.ok) {
+                // 传唤成功后，权威锁定当前对谈人为被召之人，防止其他人抢话
+                wS.chatPartners = wS.chatPartners || {};
+                wS.chatPartners[meS.id] = summonedActor.id;
                 saveState(svc.dataDir, wS);
                 summonedNames = [summonedActor.name];
-                svc._lastSummonNotice = `【提示】${summonedActor.name}听唤，已从${fromPlace}快步赶了过来。`;
-                contextHintEarly += `（【已召到场】：相公亲自传唤，${summonedActor.name} 已从「${fromPlace}」快步赶到相公跟前！本轮【必须】由 ${summonedActor.name} 亲自开口向相公请安奉茶应答，其他人切勿抢话！）\n`;
+                svc._lastSummonNotice = `【提示】${summonedActor.name}奉召，已从${fromPlace}快步赶到了跟前。`;
+                contextHintEarly += `（【已奉召到场】：相公亲自传唤，${summonedActor.name} 已从「${fromPlace}」快步赶到相公跟前！本轮【必须】由 ${summonedActor.name} 亲自开口向相公肃拜应答，在场其他人切勿抢话插嘴！）\n`;
                 console.log(`[Summon] 成功召来：${summonedActor.name} 从 ${fromPlace} 移至 ${wS.places?.[meS.location]?.name || meS.location}`);
               }
             }
           }
         } catch (errSummon) {
           console.warn('[Summon] 传唤处理异常:', errSummon.message);
+        }
+
+        // 大乾律法官准和离：相公主持府衙明断，准予女眷脱离旧夫自立门户
+        try {
+          const divorceMatch = text.match(/(?:给|帮|为|准)?\s*(静儿|战静|柳如烟|如烟|采云|杨采云|紫嫣|刘文霞|老板娘)\s*(?:办|断|批|准予)?\s*(?:和离|放妻书|离异|休夫|脱离夫家|脱离翟家|离开翟家|离开随家|脱籍)/)
+            || text.match(/(?:办和离|断和离|准予和离|出具放妻书|写放妻书|断绝关系)\s*.*?(静儿|如烟|柳如烟|采云|紫嫣)/);
+          if (divorceMatch) {
+            const whoName = divorceMatch[1] || divorceMatch[2];
+            const { executeDivorce } = await import('../world/marriage.js');
+            const wDiv = loadState(svc.dataDir);
+            const divRes = executeDivorce(wDiv, whoName, { mediator: '相公', reason: '相公主持公堂明断，自愿和离' });
+            if (divRes && divRes.ok) {
+              const meD = wDiv.actors?.[svc._viewerActorId || 'husband'] || wDiv.actors?.husband;
+              wDiv.chatPartners = wDiv.chatPartners || {};
+              wDiv.chatPartners[meD.id] = divRes.girl.id;
+              saveState(svc.dataDir, wDiv);
+              contextHintEarly += `（【官准和离放妻文书生效】：相公亲自主持府衙大堂明断，朱批大印落案！${divRes.girl.name}已正式脱离旧夫，领取《${divRes.certName}》，恢复自由身！本轮【必须】由【${divRes.girl.name}】热泪盈眶、深受大恩向相公盈盈下拜谢恩，诉说脱离苦海后的感激之情！）\n`;
+              console.log(`[MarriageEngine] 相公和离命令生效：${divRes.message}`);
+            }
+          }
+        } catch (eDiv) {
+          console.warn('[MarriageEngine] 和离指令处理异常:', eDiv.message);
+        }
+
+        // 家眷全家随行/跨城大搬迁：相公下令全家回京或回临江（发话才跟随，不发话稳居原地）
+        try {
+          const toCapitalMatch = /(?:全家|收拾行囊|收拾东西|带上家眷|家眷随行|随我|同去|举家|携家眷|妻妾).*?(?:进京|回京|去京城|去京师|赴京|迁往京城)/.test(text)
+            || /(?:回京|进京|去京城|去京师|赴京).*?(?:带上家眷|全家|家眷随行|收拾行囊|一起去|一起走|举家)/.test(text);
+          const toLinjiangMatch = /(?:全家|收拾行囊|收拾东西|带上家眷|家眷随行|随我|同去|举家|携家眷|妻妾).*?(?:回临江|去临江|迁回临江|回江南)/.test(text)
+            || /(?:回临江|去临江|回江南).*?(?:带上家眷|全家|家眷随行|收拾行囊|一起去|一起走|举家)/.test(text);
+          if (toCapitalMatch || toLinjiangMatch) {
+            const targetDest = toCapitalMatch ? 'capital' : 'linjiang';
+            const { relocateHousehold } = await import('../world/residence.js');
+            const wRelo = loadState(svc.dataDir);
+            const reloRes = relocateHousehold(wRelo, targetDest, { orderedBy: 'husband' });
+            if (reloRes && reloRes.ok) {
+              saveState(svc.dataDir, wRelo);
+              contextHintEarly += `（【举家随行大迁徙生效】：相公钧旨已下，内宅正妻婉儿、平妻采儿、二房芸娘、侧室婉宁、丫鬟小翠等全员家眷已收拾细软车驾随行，悉数进驻【${reloRes.targetCity}提督王府】！本轮后宅全员齐声欣然应诺奉侍相公！）\n`;
+              console.log(`[Residence] 全家随行大搬迁生效：${reloRes.message}`);
+            }
+          }
+        } catch (eRelo) {
+          console.warn('[Residence] 全家搬迁指令处理异常:', eRelo.message);
         }
 
         // 提督开府建牙：相公下令将王宅正名为王府
@@ -689,6 +735,19 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
             (namePattern && namePattern.test(a.name || '')) || (idPattern && idPattern.test(a.id || ''))
           );
 
+          const fallbackHereSpeaker = () => {
+            let p = null;
+            try {
+              const curSt = loadState(svc.dataDir);
+              const pId = String(curSt?.chatPartners?.husband || curSt?.chatPartners?.[svc._viewerActorId] || '');
+              if (pId) p = currentHereActors.find((a) => a.id === pId);
+            } catch {}
+            if (p && p.name) return p.name;
+            const official = currentHereActors.find((a) => /知府|知县|县令|尚书|总兵|提督|都司|大人|长官|管事|掌柜/.test(String(a.role || '')));
+            if (official && official.name) return official.name;
+            return currentHereActors[0]?.name || '婉儿';
+          };
+
           const namedPresentActor = findTargetActorInText(currentHereActors, say);
           if (namedPresentActor && namedPresentActor.name) {
             targetSpeaker = namedPresentActor.name;
@@ -699,54 +758,74 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
               targetSpeaker = '杨采云';
               haremNotice = '（【在场交谈对象：杨采云】：杨采云就在相公跟前，由其根据自身身份与当前事实应答。）';
             } else {
-              targetSpeaker = '婉儿';
-              haremNotice = '（【议论不在场之人】：相公提及杨采云，杨采云此刻不在现场，由在场之人接话，不在场者绝不插嘴。）';
+              targetSpeaker = fallbackHereSpeaker();
+              haremNotice = `（【议论不在场之人】：相公提及杨采云，杨采云此刻不在现场，由在场的【${targetSpeaker}】接话，不在场者绝不插嘴。）`;
             }
           } else if (/文霞|刘文霞|于杰|城南酒肆|紫嫣/i.test(say)) {
             if (isActorPresent(/紫嫣|文霞/, /ziyan|liuwenxia/)) {
               targetSpeaker = '紫嫣';
               haremNotice = '（【在场交谈对象：紫嫣】：紫嫣就在相公跟前，由其根据酒肆老板娘身份与自身处境应答。）';
             } else {
-              targetSpeaker = '婉儿';
-              haremNotice = '（【议论不在场之人】：相公提及紫嫣，紫嫣此刻不在现场，由在场之人接话，不在场者绝不插嘴。）';
+              targetSpeaker = fallbackHereSpeaker();
+              haremNotice = `（【议论不在场之人】：相公提及紫嫣，紫嫣此刻不在现场，由在场的【${targetSpeaker}】接话，不在场者绝不插嘴。）`;
             }
           } else if (/(?:随科|随典吏|随书办)/i.test(say)) {
             if (isActorPresent(/随科/, /suike|npc_4/)) {
               targetSpeaker = '随科';
               haremNotice = '（【在场交谈对象：随科】：随科就在相公跟前，由其如实作答。）';
             } else {
-              targetSpeaker = '婉儿';
-              haremNotice = '（【议论不在场之人】：相公提及随科，随科此刻不在现场，由在场之人接话，随科绝不可凭空出现。）';
+              targetSpeaker = fallbackHereSpeaker();
+              haremNotice = `（【议论不在场之人】：相公提及随科，随科此刻不在现场，由在场的【${targetSpeaker}】接话，随科绝不可凭空出现。）`;
             }
           } else if (/(?:静儿|战静|随娘子)/i.test(say)) {
             if (isActorPresent(/静儿|战静/, /zhanjing/)) {
               let name = '静儿';
               try { name = loadState(svc.dataDir).actors?.zhanjing?.name || '静儿'; } catch {}
               targetSpeaker = name;
-              haremNotice = `（【在场交谈对象：${name}】：${name}就在相公跟前，由其以发妻身份应答。）`;
+              haremNotice = `（【在场交谈对象：${name}】：${name}就在相公跟前，由其根据当前处境应答。）`;
             } else {
-              targetSpeaker = '婉儿';
-              haremNotice = '（【议论不在场之人】：相公提及静儿，静儿此刻不在现场，由在场之人自然回应，静儿绝不许凭空插嘴。）';
+              targetSpeaker = fallbackHereSpeaker();
+              haremNotice = `（【议论不在场之人】：相公提及静儿，静儿此刻不在现场，由在场的【${targetSpeaker}】自然回应，静儿绝不许凭空插嘴。）`;
             }
           } else if (/苏慕雪|慕雪|书院山长/i.test(say)) {
             if (isActorPresent(/苏慕雪|慕雪/, /sumuxue/)) {
               targetSpeaker = '苏慕雪';
               haremNotice = '（【在场交谈对象：苏慕雪】：苏慕雪就在相公跟前，由其知性矜持应答。）';
             } else {
-              targetSpeaker = '婉儿';
-              haremNotice = '（【议论不在场之人】：相公提及苏慕雪，苏慕雪此刻不在现场，由在场之人接话，苏慕雪绝不插嘴。）';
+              targetSpeaker = fallbackHereSpeaker();
+              haremNotice = `（【议论不在场之人】：相公提及苏慕雪，苏慕雪此刻不在现场，由在场的【${targetSpeaker}】接话，苏慕雪绝不插嘴。）`;
             }
           } else if (isDirectCallingXiaoCui) {
             targetSpeaker = '小翠';
             haremNotice = '（【当前接话分身：丫鬟·小翠】：你是相公与大娘子的心腹贴身大丫鬟小翠，忠心伶俐、跑腿传话、端茶递水，灵动可爱向相公回话并推进剧情！）';
-          } else if (/婉儿|大娘子|娘子|主母|夫人/i.test(say)) {
+          } else if (/婉儿|大娘子|主母|沈夫人/i.test(say)) {
             targetSpeaker = '婉儿';
           } else if (history.activeSpeaker && history.activeSpeaker !== 'all' && currentHereActors.some((a) => a.name && (a.name.includes(history.activeSpeaker) || history.activeSpeaker.includes(a.name)))) {
             targetSpeaker = history.activeSpeaker;
           } else if (currentHereActors.length === 1) {
             targetSpeaker = currentHereActors[0].name;
           } else {
-            targetSpeaker = '婉儿';
+            // 彻底杜绝盲目塞给婉儿抢话：
+            // ① 优先继承当前会话锁定之对谈人（chatPartners）
+            let partnerHit = null;
+            try {
+              const curSt = loadState(svc.dataDir);
+              const pId = String(curSt?.chatPartners?.husband || curSt?.chatPartners?.[svc._viewerActorId] || '');
+              if (pId) partnerHit = currentHereActors.find((a) => a.id === pId);
+            } catch {}
+            if (partnerHit && partnerHit.name) {
+              targetSpeaker = partnerHit.name;
+            } else {
+              // ② 若有朝廷官员（知府、知县等），由大员主答公事！绝不让内眷抢话！
+              const official = currentHereActors.find((a) => /知府|知县|县令|尚书|总兵|提督|都司|大人|长官|管事|掌柜/.test(String(a.role || '')));
+              if (official && official.name) {
+                targetSpeaker = official.name;
+              } else {
+                // ③ 按古代尊卑长幼位次最高者领头主答
+                const sorted = [...currentHereActors].sort((x, y) => actorSeniority(y) - actorSeniority(x));
+                targetSpeaker = sorted[0]?.name || '婉儿';
+              }
+            }
           }
         }
       }

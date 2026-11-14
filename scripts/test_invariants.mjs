@@ -500,6 +500,114 @@ assertInvariant(siegeRes.victory === true, '兵力优势与神机营攻城器械
 assertInvariant(testSiegeWorld.cities.太原府.owner === 'husband', '破城后城池所有权必须易帜归相公');
 assertInvariant(testSiegeWorld.assets.silver > 1000, '破城缴获太原府库白银必须入相公私库');
 
+// ── 26. 大乾律法官准和离不变量断言 ──
+const { executeDivorce } = await import('../src/world/marriage.js');
+const testDivorceWorld = {
+  actors: {
+    husband: { id: 'husband', name: '王甯' },
+    zhanjing: { id: 'zhanjing', name: '静儿', role: '县衙书吏发妻', spouse: 'npc_4', marital: 'married' },
+    npc_4: { id: 'npc_4', name: '随科', spouse: 'zhanjing', marital: 'married' },
+    yangcaiyun: { id: 'yangcaiyun', name: '柳如烟', role: '翟家货栈老板娘', spouse: 'npc_3', marital: 'married' },
+    npc_3: { id: 'npc_3', name: '翟勋柱', spouse: 'yangcaiyun', marital: 'married' },
+  },
+  items: { husband: [], zhanjing: [] },
+  bonds: {
+    zhanjing: { npc_4: { type: '夫妻', score: 60 } },
+    npc_4: { zhanjing: { type: '夫妻', score: 60 } },
+  },
+  memories: [],
+  notes: [],
+  clock: { day: 26 },
+};
+
+// 执行静儿和离
+const divJing = executeDivorce(testDivorceWorld, '静儿', { mediator: '相公', reason: '相公主持公堂明断，官准放妻' });
+assertInvariant(divJing.ok === true, '静儿官准和离必须成功执行');
+assertInvariant(testDivorceWorld.actors.zhanjing.spouse === null, '和离后静儿配偶必须清空为 null');
+assertInvariant(testDivorceWorld.actors.zhanjing.divorced === true, '静儿必须标记 divorced=true');
+assertInvariant(testDivorceWorld.actors.zhanjing.role === '自立娘子', '静儿身份必须正名为自立娘子');
+assertInvariant(testDivorceWorld.actors.npc_4.spouse === null, '随科配偶必须清空');
+assertInvariant(itemsOf(testDivorceWorld, 'husband').some((it) => it.name.includes('放妻和离文书') && it.name.includes('静儿')), '相公行囊必须核发《静儿放妻和离文书》');
+assertInvariant(testDivorceWorld.memories.some((m) => m.actorId === 'zhanjing' && m.permanent === true), '静儿必须写入永久不朽和离记忆');
+
+// 执行柳如烟和离
+const divRuyan = executeDivorce(testDivorceWorld, 'yangcaiyun');
+assertInvariant(divRuyan.ok === true, '柳如烟官准和离必须成功执行');
+assertInvariant(testDivorceWorld.actors.yangcaiyun.spouse === null, '和离后柳如烟配偶必须清空');
+assertInvariant(testDivorceWorld.actors.yangcaiyun.role === '货栈女东家', '柳如烟身份必须正名为自立货栈女东家');
+
+// ── 27. 家眷全家随行/跨城大搬迁不变量断言 ──
+const { relocateHousehold } = await import('../src/world/residence.js');
+const testReloWorld = {
+  places: {
+    husband_room: { id: 'husband_room', name: '临江·提督王府·正房暖阁' },
+    wang_mansion__main_room: { id: 'wang_mansion__main_room', name: '临江·提督王府·正房暖阁' },
+    wang_mansion__east_room: { id: 'wang_mansion__east_room', name: '临江·提督王府·东厢暖阁' },
+    wang_mansion_east: { id: 'wang_mansion_east', name: '临江·提督王府·东跨院' },
+    wang_mansion__servant: { id: 'wang_mansion__servant', name: '临江·提督王府·后罩房' },
+    capital_mansion__main: { id: 'capital_mansion__main', name: '京师·提督王府·正房暖阁' },
+    capital_mansion__east: { id: 'capital_mansion__east', name: '京师·提督王府·东跨院' },
+    capital_mansion__servant: { id: 'capital_mansion__servant', name: '京师·提督王府·后罩房下人院' },
+  },
+  actors: {
+    husband: { id: 'husband', location: 'capital_mansion__main' },
+    waner: { id: 'waner', name: '沈婉儿', role: '正妻·大娘子', location: 'wang_mansion__main_room', home: 'wang_mansion' },
+    yangzhenhua: { id: 'yangzhenhua', name: '杨采儿', role: '正室·平妻', location: 'wang_mansion__main_room', home: 'wang_mansion' },
+    yunnia: { id: 'yunnia', name: '林芸娘', role: '二房如夫人', location: 'wang_mansion__east_room', home: 'wang_mansion' },
+    cuiwanning: { id: 'cuiwanning', name: '崔婉宁', role: '侧室', location: 'wang_mansion_east', home: 'wang_mansion' },
+    xiaocui: { id: 'xiaocui', name: '小翠', role: '通房丫鬟', location: 'wang_mansion__servant', home: 'wang_mansion' },
+  },
+  notes: [],
+  memories: [],
+  clock: { day: 26 },
+};
+
+// 执行举家进京随行
+const reloToCap = relocateHousehold(testReloWorld, 'capital', { orderedBy: 'husband' });
+assertInvariant(reloToCap.ok === true, '举家进京随行搬迁必须成功执行');
+assertInvariant(testReloWorld.actors.waner.location === 'capital_mansion__main', '沈婉儿必须迁入京师正房暖阁');
+assertInvariant(testReloWorld.actors.yangzhenhua.location === 'capital_mansion__main', '杨采儿必须迁入京师正房暖阁');
+assertInvariant(testReloWorld.actors.yunnia.location === 'capital_mansion__east', '林芸娘必须迁入京师东跨院');
+assertInvariant(testReloWorld.actors.cuiwanning.location === 'capital_mansion__east', '崔婉宁必须迁入京师东跨院');
+assertInvariant(testReloWorld.actors.xiaocui.location === 'capital_mansion__servant', '小翠必须迁入京师后罩房');
+assertInvariant(testReloWorld.actors.waner.home === 'capital_mansion', '家眷 home 必须权威变更为 capital_mansion');
+
+// 执行举家回临江随行
+const reloToLin = relocateHousehold(testReloWorld, 'linjiang', { orderedBy: 'husband' });
+assertInvariant(reloToLin.ok === true, '举家回临江随行搬迁必须成功执行');
+assertInvariant(testReloWorld.actors.waner.location === 'wang_mansion__main_room', '沈婉儿必须迁回临江正房');
+assertInvariant(testReloWorld.actors.yunnia.location === 'wang_mansion__east_room', '林芸娘必须迁回临江东厢暖阁');
+assertInvariant(testReloWorld.actors.cuiwanning.location === 'wang_mansion_east', '崔婉宁必须迁回临江东跨院');
+
+// ── 28. 多人在场公堂接话礼制不变量断言 ──
+const { resolveTurnTarget } = await import('../src/world/turn-target.js');
+const testTurnWorld = {
+  actors: {
+    husband: { id: 'husband', name: '王甯' },
+    waner: { id: 'waner', name: '沈婉儿', role: '正妻·大娘子' },
+    yangshenzhi: { id: 'yangshenzhi', name: '杨慎之', role: '临江知府', age: 48 },
+  },
+  chatPartners: {},
+};
+// 公堂之上，杨知府与婉儿同在相公身旁，相公未点名时，朝廷知府优先主答公事
+const turnRes = resolveTurnTarget({
+  world: testTurnWorld,
+  viewerId: 'husband',
+  say: '依大乾律法，此案应当如何定夺？',
+  present: [testTurnWorld.actors.waner, testTurnWorld.actors.yangshenzhi],
+});
+assertInvariant(turnRes.actor.id === 'yangshenzhi', '同场议公事时朝廷大员知府杨慎之必须优先发言，正妻守礼旁听不抢话');
+
+// 锁定对谈人连续发言断言
+testTurnWorld.chatPartners.husband = 'yangshenzhi';
+const turnFollowRes = resolveTurnTarget({
+  world: testTurnWorld,
+  viewerId: 'husband',
+  say: '还有一人是谁？',
+  present: [testTurnWorld.actors.waner, testTurnWorld.actors.yangshenzhi],
+});
+assertInvariant(turnFollowRes.actor.id === 'yangshenzhi', '承接上一轮对话时对谈人必须锁定为杨慎之，绝不可由婉儿抢答');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

@@ -222,7 +222,22 @@ export async function finalizeResponse(svc, ctx) {
       const speakers = [...String(reply || '').matchAll(/【([^】\n]{1,12})】/g)].map((m) => m[1].trim());
       const last = speakers.filter((n) => !/天道|旁白|众人/.test(n)).pop();
       if (last) {
-        const hit = Object.values(wP.actors || {}).find((a) => a && a.name === last);
+        const cleanLast = last.replace(/^(?:知府|临江知府|府尹|知县|县令|尚书|总兵|提督|都司|正室|正妻|平妻|二房|侧室|丫鬟|侍女|大娘子|娘子|自立娘子|掌柜|老板娘|东家)[·\s]*/, '').trim();
+        let hit = Object.values(wP.actors || {}).find((a) => a && (a.name === last || a.name === cleanLast));
+        if (!hit) {
+          hit = Object.values(wP.actors || {}).find((a) => a && a.name && (last.includes(a.name) || (cleanLast && cleanLast.includes(a.name))));
+        }
+        if (!hit) {
+          if (/采儿|杨采儿/.test(last)) hit = wP.actors.yangzhenhua;
+          else if (/芸娘|林芸娘/.test(last)) hit = wP.actors.yunnia || wP.actors.yunniang;
+          else if (/婉儿|沈婉儿/.test(last)) hit = wP.actors.waner;
+          else if (/婉宁|崔婉宁/.test(last)) hit = wP.actors.cuiwanning || wP.actors.wanning;
+          else if (/小翠/.test(last)) hit = wP.actors.xiaocui;
+          else if (/静儿|战静/.test(last)) hit = wP.actors.zhanjing;
+          else if (/如烟|柳如烟|翟老板娘/.test(last)) hit = wP.actors.yangcaiyun;
+          else if (/紫嫣|刘文霞/.test(last)) hit = wP.actors.liuwenxia;
+          else if (/杨慎之|杨大人/.test(last)) hit = wP.actors.yangshenzhi;
+        }
         wP.chatPartners = wP.chatPartners || {};
         const key = svc._viewerActorId || 'husband';
         if (hit && wP.chatPartners[key] !== hit.id) {

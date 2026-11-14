@@ -926,3 +926,132 @@ export function upgradeToMansionPalace(world, { force = false } = {}) {
 
   return { ok: true, oldName, newName: newMansionTitle, renamedPlaces };
 }
+
+/**
+ * 权威通用家眷全家随行/跨城大搬迁引擎（relocateHousehold）：
+ * 严格遵循相公口令驱动（相公发话才跟随，不发话稳居原地）：
+ *   ① 支持跨城搬迁：进京（capital）或 回临江（linjiang）；
+ *   ② 正妻婉儿、平妻采儿位列正房暖阁；二房芸娘、侧室婉宁位列东跨院/东厢暖阁；丫鬟小翠位列后罩房；
+ *   ③ 权威更新每位家眷的 home、quarters、assignedRoom 并调用 moveActor 物理搬迁；
+ *   ④ 写入天下大事记与全家永久不朽随行记忆（permanent: true）。
+ */
+export function relocateHousehold(world, targetCity = 'capital', { orderedBy = 'husband' } = {}) {
+  world.actors = world.actors || {};
+  world.places = world.places || {};
+  world.notes = Array.isArray(world.notes) ? world.notes : [];
+  world.memories = Array.isArray(world.memories) ? world.memories : [];
+
+  const isToCapital = /capital|京|京师|京城|皇城/.test(String(targetCity || ''));
+  const targetCityName = isToCapital ? '京师' : '临江府';
+  const targetMansionKey = isToCapital ? 'capital_mansion' : 'wang_mansion';
+  const day = Number(world.clock?.day) || 26;
+
+  // 1. 甄选王府所有正式内宅家眷
+  const familyIds = new Set(['waner', 'yunnia', 'yunniang', 'cuiwanning', 'wanning', 'yangzhenhua', 'xiaocui']);
+  for (const [id, a] of Object.entries(world.actors)) {
+    if (!a || a.dead || id === 'husband') continue;
+    if (a.household === true || a.spouse === 'husband') {
+      familyIds.add(id);
+    }
+  }
+
+  const movedMembers = [];
+
+  for (const fid of familyIds) {
+    const actor = world.actors[fid];
+    if (!actor || actor.dead) continue;
+
+    let destRoomId = null;
+    let roomLabel = '';
+
+    if (isToCapital) {
+      // 迁往京师提督王府（21处大院全景规制）
+      if (fid === 'waner' || fid === 'yangzhenhua' || /正妻|平妻|大娘子/.test(actor.role || '')) {
+        destRoomId = 'capital_mansion__main';
+        roomLabel = '京师·提督王府·正房暖阁';
+      } else if (fid === 'yunnia' || fid === 'yunniang' || fid === 'cuiwanning' || fid === 'wanning' || /二房|侧室|如夫人/.test(actor.role || '')) {
+        destRoomId = 'capital_mansion__east';
+        roomLabel = '京师·提督王府·东跨院';
+      } else if (fid === 'xiaocui' || /通房|丫鬟|婢女/.test(actor.role || '')) {
+        destRoomId = 'capital_mansion__servant';
+        roomLabel = '京师·提督王府·后罩房下人院';
+      } else {
+        destRoomId = 'capital_mansion__west';
+        roomLabel = '京师·提督王府·西跨院';
+      }
+    } else {
+      // 迁回临江提督王府
+      if (fid === 'waner' || fid === 'yangzhenhua' || /正妻|平妻|大娘子/.test(actor.role || '')) {
+        destRoomId = 'wang_mansion__main_room';
+        roomLabel = '临江·提督王府·正房暖阁';
+      } else if (fid === 'yunnia' || fid === 'yunniang' || /二房|如夫人/.test(actor.role || '')) {
+        destRoomId = 'wang_mansion__east_room';
+        roomLabel = '临江·提督王府·东厢暖阁';
+      } else if (fid === 'cuiwanning' || fid === 'wanning' || /侧室/.test(actor.role || '')) {
+        destRoomId = 'wang_mansion_east';
+        roomLabel = '临江·提督王府·东跨院';
+      } else if (fid === 'xiaocui' || /通房|丫鬟|婢女/.test(actor.role || '')) {
+        destRoomId = 'wang_mansion__servant';
+        roomLabel = '临江·提督王府·后罩房';
+      } else {
+        destRoomId = 'wang_mansion__west_room';
+        roomLabel = '临江·提督王府·西跨院';
+      }
+    }
+
+    // 确保目标居室存在
+    if (!world.places[destRoomId]) {
+      world.places[destRoomId] = {
+        id: destRoomId,
+        name: roomLabel,
+        parent: targetMansionKey,
+        use: 'bedroom',
+        access: 'private_family',
+        owner: 'husband',
+      };
+    }
+
+    // 权威更新户籍与居所标识
+    actor.home = targetMansionKey;
+    actor.quarters = destRoomId;
+    actor.chamber = destRoomId;
+    actor.assignedRoom = destRoomId;
+    actor.assignedBy = orderedBy;
+    actor.assignedAt = day;
+    if (actor.residence) {
+      actor.residence.placeId = destRoomId;
+      actor.residence.placeName = roomLabel;
+    }
+
+    // 物理搬迁
+    moveActor(world, actor.id, destRoomId, 'ui', `相公命令举家迁往${targetCityName}随行`);
+
+    // 写入永久记忆
+    world.memories.push({
+      id: `relocate_${actor.id}_${Date.now()}`,
+      actorId: actor.id,
+      targetId: 'husband',
+      day,
+      text: `【举家随行·迁往${targetCityName}】：相公下令全家随行赴${targetCityName}，我已收拾齐整随相公车驾进驻【${roomLabel}】，荣辱与共，全心辅佐相公！`,
+      type: 'life_milestone',
+      permanent: true,
+    });
+
+    movedMembers.push({ id: actor.id, name: actor.name, role: actor.role, destRoom: roomLabel });
+  }
+
+  // 大事记
+  world.notes.push({
+    day,
+    hour: 16,
+    text: `相公颁布举家大搬迁令，内宅妻妾正室、侧室、丫鬟全员整装随行，自${isToCapital ? '临江府' : '京师'}车马浩荡迁往${targetCityName}提督王府安歇！`,
+  });
+
+  console.log(`[Residence] 全家大搬迁推演完成：${movedMembers.length} 名家眷已悉数随行进驻${targetCityName}提督王府！`);
+  return {
+    ok: true,
+    targetCity: targetCityName,
+    movedMembers,
+    message: `相公钧旨已下，内宅家眷（${movedMembers.map((m) => m.name).join('、')}）已全员收拾细软车驾随行，顺利迁入${targetCityName}提督王府对应房室！`,
+  };
+}
