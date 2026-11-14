@@ -181,17 +181,27 @@ export function isMassDismiss(sayText) {
 }
 
 /**
- * 名字 → 王宅内默认去处（纯映射，不写库；解析不到返回 null）。
+ * 名字 → 王宅内默认去处（动态适配京师王府与临江王府）。
  * @param {string} name 人物名
- * @param {{includeWife?:boolean, hasServantRoom?:boolean, places?:object}} opts
+ * @param {{includeWife?:boolean, hasServantRoom?:boolean, places?:object, city?:string, nearId?:string}} opts
  */
-export function homeRoomForName(name, { includeWife = false, hasServantRoom = false, places = null, role = '' } = {}) {
+export function homeRoomForName(name, { includeWife = false, hasServantRoom = false, places = null, role = '', city = '', nearId = '' } = {}) {
   const n = String(name || '');
   const r = String(role || '');
 
-  // 1. 外院当差仆从（家丁/护院/门房/小厮/马夫/车夫）：归宿必须是王宅外院门房/值房，绝不可进正房内室或留在议事厅
-  if (/家丁|护院|门房|小厮|马夫|车夫|仆役|下人/.test(r) || /常木|熊河|樊生|傅生|罗叔|盛哥|蓝郎|周山|尹木|阮汉|项郎/.test(n)) {
+  // 判定当前是否身处京师提督王府体系
+  const isCapital = city === '京城'
+    || String(nearId || '').startsWith('capital_')
+    || (places && typeof places === 'object' && Object.keys(places).some((k) => k.startsWith('capital_mansion') && places[k]?.name?.includes('提督王府') && nearId && nearId.startsWith('capital_')));
+
+  // 1. 外院当差仆从与亲军护卫（赵雷/李石头/护院/家丁/门房）：归宿必须是王宅外院门房/亲兵值房，绝不可进正房内室或留在议事厅
+  if (/亲兵|侍卫|统领|将领|护卫|军士|家丁|门房|小厮|马夫|车夫|仆役|下人/.test(r) || /赵雷|李石头|常木|熊河|樊生|傅生|罗叔|盛哥|蓝郎|周山|尹木|阮汉|项郎/.test(n)) {
+    if (isCapital) {
+      return (places && places['capital_mansion__barracks']) ? 'capital_mansion__barracks' : 'capital_mansion__gate';
+    }
     if (places && typeof places === 'object') {
+      const barracks = Object.keys(places).find((k) => /私兵值房|侍卫值房|亲兵营/.test(String(places[k]?.name || '')));
+      if (barracks) return barracks;
       const gate = Object.keys(places).find((k) => {
         const nm = String(places[k]?.name || '');
         if (!/朱漆大门|门房|外院|门头|大门|值房|下房|倒座/.test(nm)) return false;
@@ -199,16 +209,24 @@ export function homeRoomForName(name, { includeWife = false, hasServantRoom = fa
       });
       if (gate) return gate;
     }
-    return 'husband_room__gate';
+    return 'husband_room__barracks';
   }
 
-  // 2. 后宫内眷规制：沈婉儿正妻居正房，林芸娘二房居西厢（东跨院为崔婉宁所居）
+  // 2. 京师提督王府九进赐第规制
+  if (isCapital) {
+    if (n.includes('采儿') || n.includes('婉儿')) return 'capital_mansion__main';
+    if (n.includes('婉宁')) return 'capital_mansion__east';
+    if (n.includes('芸娘')) return 'capital_mansion__west';
+    if (n.includes('小翠') || n.includes('秋菊')) return 'capital_mansion__servant';
+    return 'capital_mansion__main';
+  }
+
+  // 3. 临江府提督王府规制：发妻沈婉儿和平妻杨采儿居正房，二房林芸娘居西厢，侧室崔婉宁居东跨院
   if (n.includes('婉宁')) return 'wang_mansion_east';
   if (n.includes('芸娘')) return 'wang_mansion_west';
-  if (n.includes('婉儿')) return 'husband_room';
-  if (n.includes('小翠')) {
+  if (n.includes('采儿') || n.includes('婉儿')) return 'husband_room';
+  if (n.includes('小翠') || n.includes('秋菊')) {
     if (places && typeof places === 'object') {
-      // 只认王宅自己的下房/后罩房/耳房，绝不把丫鬟送进别家宅院
       const houzhao = Object.keys(places).find((k) => {
         const nm = String(places[k]?.name || '');
         if (!/后罩房|下房|耳房/.test(nm)) return false;

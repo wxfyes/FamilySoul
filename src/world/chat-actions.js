@@ -17,7 +17,7 @@ import { callToArms, spawnMaids } from './warfare.js';
 import { actorSeniority } from './turn-target.js';
 import { materializeRoom } from './residence.js';
 import { applyUnifiedIntents } from './intent-router.js';
-import { summonGuards, dispatchGarrison, reviewTroops, escortFamily, grantDivorce } from './military-dispatch.js';
+import { summonGuards, dismissGuards, dispatchGarrison, reviewTroops, escortFamily, grantDivorce } from './military-dispatch.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -919,6 +919,18 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
   const isCallNotTroop = /来都来了|怎么才来|怎么还没来|谁来|人来人往/.test(say);
   if (!isCallNotTroop && /(?:^|[，。！？\s])(?:来人|亲兵(?:何在|听令)?|侍卫(?:何在)?|左右(?:何在)?|戒备|护驾)(?:[！!。？\s]|$)/.test(say)) {
     const r = summonGuards(world);
+    if (r?.ok && r.notice) {
+      notices.push(r.notice.replace(/^（|）$/g, ''));
+    }
+  }
+
+  // 1.5 亲兵退下令（“好，退出去吧”、“退下待命”）
+  const isGuardDismissCmd = /(?:退出去|退下吧|退下待命|退回外院|回营待命|回值房|退下|退吧)/.test(say);
+  const hasGuardHere = Object.values(world.actors || {}).some(
+    (a) => a && !a.dead && a.location === me.location && (/亲兵|侍卫|统领|护卫/.test(String(a.role || '')) || a.id.startsWith('general_')),
+  );
+  if (isGuardDismissCmd && hasGuardHere) {
+    const r = dismissGuards(world);
     if (r?.ok && r.notice) {
       notices.push(r.notice.replace(/^（|）$/g, ''));
     }

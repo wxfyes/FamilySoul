@@ -69,11 +69,17 @@ export function resolveTurnTarget({ world, viewerId = 'husband', say = '', prese
     }
   }
 
-  // ①.1 相公呼唤亲兵/侍卫/将领（如“亲兵”、“侍卫”、“亲军”、“左右”、“兵马”）
-  if (/(亲兵|侍卫|护卫|亲军|随从|手下|兵马|左右)/.test(said) && here.length > 0) {
-    const guardTarget = here.find((a) => a.id === 'general_zhaolei')
-      || here.find((a) => /统领|亲兵|侍卫|护卫/.test(String(a.role || '')))
-      || here.find((a) => a.id === 'general_lishitou');
+  // ①.1 相公发号施令传唤亲兵/侍卫/左右（如“来人”、“亲兵何在”、“侍卫”、“叫人来”、“左右何在”、“戒备”）
+  const isCallNotTroop = /来都来了|怎么才来|怎么还没来|谁来|人来人往|什么时候来/.test(said);
+  const isMilitarySummon = !isCallNotTroop && /(?:^|[，。！？\s])(?:来人|亲兵(?:何在|听令)?|侍卫(?:何在)?|左右(?:何在)?|护卫|戒备|护驾)(?:[！!。？\s]|$)/.test(said);
+  const isGuardKeywords = /(亲兵|侍卫|护卫|亲军|随从|手下|兵马|左右)/.test(said);
+
+  if (isMilitarySummon || isGuardKeywords) {
+    const zhao = actors.general_zhaolei || Object.values(actors).find((a) => a && a.id === 'general_zhaolei');
+    if (zhao) {
+      return { kind: 'npc', actor: zhao, actorId: 'general_zhaolei', named: true };
+    }
+    const guardTarget = here.find((a) => a.id === 'general_zhaolei' || a.id === 'general_lishitou' || /统领|亲兵|侍卫|护卫/.test(String(a.role || '')));
     if (guardTarget) {
       return { kind: 'npc', actor: guardTarget, actorId: guardTarget.id, named: true };
     }

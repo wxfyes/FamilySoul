@@ -1,7 +1,8 @@
 import assert from 'node:assert';
-import { ensureMilitaryGenerals, summonGuards, dispatchGarrison, reviewTroops } from '../src/world/military-dispatch.js';
+import { ensureMilitaryGenerals, summonGuards, dismissGuards, dispatchGarrison, reviewTroops, escortFamily } from '../src/world/military-dispatch.js';
 import { healDuplicateActors } from '../src/world/heal.js';
 import { materializeNarrativeActor } from '../src/world/dynamic-actor.js';
+import { resolveTurnTarget } from '../src/world/turn-target.js';
 
 console.log('🛡️ 开始验证提督将领中枢与重复人物去重修复...');
 
@@ -75,4 +76,31 @@ const spawn2 = materializeNarrativeActor(world, { name: '文达', role: '临江�
 assert.strictEqual(spawn2.id, 'county_magistrate', '再次提及文达必须直接返回原版周文达，严禁再造克隆人');
 console.log('✅ 动态生成防克隆漏洞拦截测试通过！');
 
+// 7. 测试“来人”时即便沈婉儿在场，发言人也100%强制为亲卫统领赵雷（沈婉儿绝不抢白！）
+world.actors.waner = { id: 'waner', name: '沈婉儿', role: '正妻', location: 'yamen' };
+const turnRes = resolveTurnTarget({
+  world,
+  viewerId: 'husband',
+  say: '来人',
+  present: [world.actors.husband, world.actors.waner],
+});
+assert.strictEqual(turnRes.actorId, 'general_zhaolei', '相公喊“来人”，主答人必须100%锁定为赵雷，绝不可由沈婉儿抢白');
+console.log('✅ 相公喊“来人”主答人排他锁定赵雷（沈婉儿守礼不插嘴）测试通过！');
+
+// 8. 测试进京随迁与采儿不朽永久记忆
+world.actors.caier = { id: 'caier', name: '杨采儿', role: '平妻', location: 'yang_mansion' };
+const escortRes = escortFamily(world, '京城');
+assert(escortRes.ok, '举家迁往京城必须成功');
+assert.strictEqual(world.actors.caier.city, '京城', '杨采儿城市必须变更为京城');
+assert(world.actors.caier.memories && world.actors.caier.memories.length > 0, '杨采儿必须写入永久不朽记忆');
+assert(world.actors.caier.memories[0].text.includes('提督王府'), '杨采儿记忆必须包含提督王府');
+console.log('✅ 举家进京随行与杨采儿永久不朽大事记忆落盘测试通过！');
+
+// 9. 测试亲兵退下令（只退亲兵，沈婉儿绝对不退场）
+const dismRes = dismissGuards(world);
+assert(dismRes.ok, '亲兵退下令必须成功');
+assert.strictEqual(world.actors.waner.location, 'yamen', '沈婉儿必须安稳留在正房原处，绝对不可被驱逐！');
+console.log('✅ 亲兵退下令只退亲兵侍卫（正妻沈婉儿安稳留正房）测试通过！');
+
 console.log('🎉 提督将领中枢与防克隆去重自愈全项测试 100% 完美通过！');
+

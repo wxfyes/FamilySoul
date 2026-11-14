@@ -11,6 +11,7 @@
 
 import { moveActor } from './position.js';
 import { addItem } from './items.js';
+import { addMemory } from './memory.js';
 import { getHusbandMilitaryCommand, ensureCourtSystem } from './court.js';
 
 /** 水陆提督麾下五大得力骨干将领编制 */
@@ -143,7 +144,7 @@ export function summonGuards(world, options = {}) {
     moveActor(world, li.id, targetPlace, 'world', '亲卫随侍听令');
   }
 
-  // 记录随侍侍卫阵列在地点状态中
+  // 记录随侍侍卫阵列在地点状态中，并锁定相公当前对话对象为亲军统领赵雷
   world.places[targetPlace] = world.places[targetPlace] || { name: placeName };
   world.places[targetPlace].guardsPresent = {
     commander: '赵雷',
@@ -152,9 +153,42 @@ export function summonGuards(world, options = {}) {
     ready: true,
     atDay: world.clock?.day || 1,
   };
+  world.chatPartners = world.chatPartners || {};
+  world.chatPartners.husband = 'general_zhaolei';
 
-  const line = `（脚步铿锵，甲片撞击有声！亲军统领赵雷按刀疾步而入，队正李石头率十名铁甲亲兵手执长枪利刃霍然列阵！赵雷单膝点地抱拳：“大帅！末将赵雷在此！亲兵精锐十人顶盔贯甲随侍阶前，请大帅示下！”）`;
+  const line = `（甲片铿锵，脚步整齐如一！亲军统领赵雷按刀疾步跨入，队正李石头率十名铁甲亲兵手执长枪利刃霍然列阵于阶前侍立！）`;
   return { ok: true, notice: line, count, commander: '赵雷' };
+}
+
+/**
+ * 亲兵退下令（“好，退出去吧”、“退下待命”）
+ */
+export function dismissGuards(world) {
+  ensureMilitaryGenerals(world);
+  const me = world.actors?.husband;
+  if (!me) return { ok: false, notice: '（大帅不在阵中。）' };
+
+  const isCapital = me.city === '京城' || (me.location && me.location.startsWith('capital_'));
+  const barracks = isCapital ? 'capital_mansion__barracks' : 'husband_room__barracks';
+  const outYard = isCapital ? 'capital_mansion__front' : 'husband_room__front';
+  const dest = world.places?.[barracks] ? barracks : (world.places?.[outYard] ? outYard : 'street');
+
+  const zhao = world.actors?.general_zhaolei;
+  const li = world.actors?.general_lishitou;
+
+  if (zhao && zhao.location === me.location) {
+    moveActor(world, zhao.id, dest, 'world', '亲兵领命退回外院待命');
+  }
+  if (li && li.location === me.location) {
+    moveActor(world, li.id, dest, 'world', '亲兵领命退回外院待命');
+  }
+
+  if (me.location && world.places?.[me.location]?.guardsPresent) {
+    delete world.places[me.location].guardsPresent;
+  }
+
+  const line = `（亲兵统领赵雷与队正李石头肃容按刀，躬身齐步倒退三步，领着十名铁甲亲兵无声退回院外值房待命。）`;
+  return { ok: true, notice: line, dest };
 }
 
 /**
@@ -289,6 +323,25 @@ export function escortFamily(world, destinationCity = '京城') {
     moveActor(world, a.id, destRoom, 'world', `王府家眷随行迁居${targetCity}`);
     a.home = destRoom;
     movedNames.push(a.name);
+
+    // 为每位家眷写入永久不朽迁徙记忆（严禁失忆！）
+    const day = Number(world.clock?.day) || 26;
+    const memText = isToCapital
+      ? `第${day}日，相公官拜从一品水陆提督，亲率铁甲亲兵车驾仪仗护送我与婉儿姐姐、采儿妹妹等举家进京，进驻京师东堂子胡同九进一品提督王府！正房暖阁朱漆雕梁，御赐王府风光无双！`
+      : `第${day}日，相公率王府亲兵仪仗护送全家自京城安然还乡临江府提督王府正房，正房西厢各院落妥善安歇。`;
+
+    addMemory(world, {
+      text: `【${a.name}】${memText}`,
+      about: [a.id, 'husband'],
+      visible: 'public',
+      kind: 'milestone',
+      permanent: true,
+      day,
+    });
+    a.memories = Array.isArray(a.memories) ? a.memories : [];
+    if (!a.memories.some((m) => String(m.text || m).includes('提督王府'))) {
+      a.memories.unshift({ text: memText, day, permanent: true });
+    }
   }
 
   const destTitle = isToCapital ? '京师·九进提督王府' : '临江·提督王府府邸';

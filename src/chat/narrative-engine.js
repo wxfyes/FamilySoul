@@ -1249,21 +1249,33 @@ export function executeNarrativeTags({
             const isPersonalFarewell = /^(?:好的|那|您|好|行)?\s*(?:你|你们|都|先|那您|您)?\s*(?:走(?:吧|啦)?|回去(?:吧)?|回吧|退下(?:吧)?|下去(?:吧)?|散了(?:吧)?|去吧|出门吧|慢走|走好|再见|回见|送客|睡吧|安歇吧)[。！!~…\s]*$/.test(sayStr)
               || /送客|慢走|走好|不送了|不远送|留步|再见|回见|改日再聚|改日再叙|告辞|你回吧|你走吧|退下吧|都散了吧|各自回房|都走吧|走吧|走啦/.test(sayStr);
             if (isMassDismiss(sayStr) || (hereActors.length === 1 && isPersonalFarewell)) {
-            // 说“家眷留下”时，妻妾丫鬟全部留下；没这句话则仍按原规矩清场。
+            // 最高军门规制：若在场有亲军侍卫且相公指令为“退出去/退下/退下待命/下去”，只退随侍亲兵，内宅妻妾女主人绝对永不驱逐！
+            const hasGuardsPresent = hereActors.some((a) => /亲兵|侍卫|统领|将领|护卫/.test(String(a.role || '')) || a.id.startsWith('general_'));
+            const isGuardDismiss = hasGuardsPresent && /(?:退出去|退下|下去|回营|侍卫退下|亲兵退下|回值房)/.test(sayStr);
+
             const names = [];
-            const keepFamily = /家眷|女眷|家小|夫人留下|妻妾留下/.test(sayStr);
+            const keepFamily = isGuardDismiss || /家眷|女眷|家小|夫人留下|妻妾留下/.test(sayStr);
             for (const a of hereActors) {
+              const isGuardActor = /亲兵|侍卫|统领|将领|护卫/.test(String(a.role || '')) || a.id.startsWith('general_');
+              // 若是亲军退下令，非亲军角色（妻妾、官员）一律不退
+              if (isGuardDismiss && !isGuardActor) continue;
+
               const isFamily = a.household || a.spouse === 'husband'
-                || /正妻|大娘子|如夫人|二房|侧室|妾|通房/.test(String(a.role || ''));
+                || /正妻|大娘子|如夫人|二房|侧室|妾|通房|千金|并嫡/.test(String(a.role || ''))
+                || ['waner', 'caier', 'yunnia', 'wanning', 'cuiwanning', 'xiaocui'].includes(a.id);
               if (keepFamily && isFamily) continue;
-              // 正房同寝规制保护：相公在正房睡觉/安歇时，沈婉儿是正妻，默认同房安歇，绝不能作为客侍扫地出门！
-              if (meF?.location === 'husband_room' && /睡|歇|安歇|休|卧/.test(sayStr) && a.id === 'waner') {
+
+              // 正房同寝规制保护：相公在正房主寝（无论是临江正房还是京师王府正房大殿），沈婉儿与杨采儿作为正室平妻，本就在主寝，绝不可作为客侍扫地出门！
+              if ((meF?.location === 'husband_room' || meF?.location === 'capital_mansion__main' || /正房|暖阁|主寝/.test(String(wF.places?.[meF?.location]?.name || ''))) && isFamily) {
                 continue;
               }
+
               let back = homeRoomForName(a.name, {
-                hasServantRoom: Boolean(wF.places?.['husband_room__servant']),
+                hasServantRoom: Boolean(wF.places?.['husband_room__servant'] || wF.places?.['capital_mansion__servant']),
                 places: wF.places,
                 role: a.role,
+                city: meF?.city || (meF?.location && meF.location.startsWith('capital_') ? '京城' : '临江府'),
+                nearId: meF?.location,
               }) || a.quarters || a.home;
 
               // 官员/外客送客兜底：知县/官员归位于县衙，客商归于货栈

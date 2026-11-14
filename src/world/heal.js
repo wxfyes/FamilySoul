@@ -1368,6 +1368,24 @@ export function healWorld(world) {
     console.warn('[Heal] 人物重名自愈异常：', err.message);
   }
 
+  // ㉘ 家眷进京随行不朽大事记忆自愈（采儿/婉儿/芸娘/婉宁绝不失忆！）
+  try {
+    const day = Number(world.clock?.day) || 26;
+    const capitalMemText = `第${day}日，相公官拜从一品水陆提督，亲率铁甲亲兵车驾仪仗护送全家进京，入住京师东堂子胡同九进一品提督王府！正房暖阁朱漆雕梁，御赐王府风光无双！`;
+    const famIds = ['waner', 'caier', 'yunnia', 'cuiwanning'];
+    for (const fid of famIds) {
+      const fa = world.actors?.[fid];
+      if (!fa || fa.dead) continue;
+      fa.memories = Array.isArray(fa.memories) ? fa.memories : [];
+      if (!fa.memories.some((m) => String(m.text || m).includes('京师') || String(m.text || m).includes('提督王府'))) {
+        fa.memories.unshift({ text: capitalMemText, day, permanent: true });
+        fixes.push(`家眷记忆锚定：补全【${fa.name}】随相公进驻京师提督王府之永久不朽记忆`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 进京记忆自愈异常：', err.message);
+  }
+
   return fixes;
 }
 
