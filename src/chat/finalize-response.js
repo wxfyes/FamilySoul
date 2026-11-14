@@ -8,6 +8,7 @@ import { personFacts } from '../world/person-facts.js';
 import { getPlaceDisplayName } from '../world/naming.js';
 import { moveActor, isHumanBound, healInnerFamilyAtNight } from '../world/position.js';
 import { applyChatActions } from '../world/chat-actions.js';
+import { addItem } from '../world/items.js';
 import path from 'node:path';
 
 import { buildStateSummary } from '../world/summarize.js';
@@ -466,6 +467,43 @@ export async function finalizeResponse(svc, ctx) {
         if (joined) reply = joined;
       }
     } catch { /* 忽略 */ }
+
+    // 证据与物件交付台词物理落地铁律：NPC在台词中明确说交付大人、双手奉上，必须实装入库行囊，绝不可沦为空头支票口头应承！
+    try {
+      const replyStr = String(reply || '');
+      const isDeliveringInReply = /(?:全在这里了|一并交给大人|呈给大人|交给大人|递交大人|呈递大人|取来交给大人|双手呈上|双手奉上|一并呈上)/.test(replyStr);
+      if (isDeliveringInReply) {
+        const wDev = loadState(svc.dataDir);
+        const meId = svc._viewerActorId || 'husband';
+        const spkMatch = replyStr.match(/【([^】\n]{1,16})】/);
+        const spkName = spkMatch ? spkMatch[1] : '';
+        const isSuikeSpeaking = /随科/.test(spkName) || (/随科/.test(replyStr) && /(?:朱笔|残页|小样|油布包)/.test(replyStr));
+        if (isSuikeSpeaking) {
+          const suikeDefs = [
+            { name: '《沈家旧案·朱笔签押勘验样纸》', kind: '证据', note: '随科私藏朱笔签押样纸，附半枚省外官印痕迹，系沈家案户部销账铁证' },
+            { name: '《沈家旧案·户部核报亏空底册残页》', kind: '卷宗', note: '沈侍郎抄家年份临江府库出入底册残页，记载当年亏空系人为核销抹平' },
+            { name: '《随科手抄·沈家案县衙私档小样》', kind: '密件', note: '随科在县衙夜班私自抄录留底之密录，详载底册被调包挪用之时间暗记' },
+            { name: '《随科贴身收藏沈案证物油布包》', kind: '证据', note: '随科贴身藏匿沈案关键证据之陈年油布包，沾有库房封泥' },
+          ];
+          let addedCount = 0;
+          for (const sd of suikeDefs) {
+            const hasIt = Object.values(wDev.items || {}).some((it) => it && it.holder === meId && it.name === sd.name);
+            if (!hasIt) {
+              addItem(wDev, { name: sd.name, kind: sd.kind, holder: meId, note: sd.note });
+              addedCount++;
+            }
+          }
+          if (addedCount > 0) {
+            saveState(svc.dataDir, wDev);
+            svc._turnNotices = svc._turnNotices || [];
+            svc._turnNotices.push(`（随科已将《沈家旧案·朱笔签押勘验样纸》、《沈家旧案·户部核报亏空底册残页》等关键铁证双手呈递奉上，已稳妥存入您的随身行囊。）`);
+            console.log(`[ItemDelivery] 台词承诺已闭环落地：随科关键证物 ${addedCount} 件入库相公行囊`);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ItemDelivery] 交付后处理异常：', err.message);
+    }
 
     // 出口：把本轮动作的【提示】并进最终正文（这里之后没人再改 reply）
     try {

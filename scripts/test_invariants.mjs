@@ -608,6 +608,46 @@ const turnFollowRes = resolveTurnTarget({
 });
 assertInvariant(turnFollowRes.actor.id === 'yangshenzhi', '承接上一轮对话时对谈人必须锁定为杨慎之，绝不可由婉儿抢答');
 
+// ── 索取与呈交证据证物物理落地断言 ──
+const { applyChatActions } = await import('../src/world/chat-actions.js');
+
+const testEvidenceWorld = {
+  flags: { itemSeq: 100 },
+  clock: { day: 26, hour: 14 },
+  actors: {
+    husband: { id: 'husband', name: '王甯', location: 'yamen' },
+    npc_4: { id: 'npc_4', name: '随科', role: '县衙典吏', location: 'yamen', relations: { husband: { trust: 40 } } },
+  },
+  places: { yamen: { id: 'yamen', name: '临江县衙' } },
+  items: {},
+  chatPartners: { husband: 'npc_4' },
+};
+
+const evActions1 = applyChatActions({
+  world: testEvidenceWorld,
+  viewerId: 'husband',
+  sayText: '我是说随科的东西',
+});
+
+assertInvariant(
+  evActions1.some((n) => n.includes('随科') && n.includes('沈家旧案') && n.includes('呈递奉上')),
+  '相公说“我是说随科的东西”必须触发随科双手呈交沈家案铁证并出具系统提示',
+);
+
+const suikeEvItems = Object.values(testEvidenceWorld.items || {}).filter((it) => it.holder === 'husband');
+assertInvariant(suikeEvItems.length >= 4, '相公随身行囊中必须实装入库随科呈交的 4 件核心证物');
+assertInvariant(suikeEvItems.some((it) => it.name.includes('朱笔签押')), '必须包含朱笔签押勘验样纸');
+assertInvariant(suikeEvItems.some((it) => it.name.includes('底册残页')), '必须包含户部核报亏空底册残页');
+assertInvariant(suikeEvItems.some((it) => it.name.includes('小样')), '必须包含随科手抄案卷小样');
+assertInvariant(suikeEvItems.some((it) => it.name.includes('油布包')), '必须包含随科贴身收藏油布包');
+
+const removedCount = sanitizeHusbandItems(testEvidenceWorld);
+assertInvariant(removedCount === 0, '随身物产白名单校验绝不可误删合法案卷铁证与密件');
+assertInvariant(
+  Object.values(testEvidenceWorld.items || {}).filter((it) => it.holder === 'husband').length >= 4,
+  '随身物产清洗后 4 件铁证必须完好保留在相公行囊',
+);
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

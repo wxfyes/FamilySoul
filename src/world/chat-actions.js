@@ -8,7 +8,7 @@
 import { moveActor } from './position.js';
 import { buyRice, sellRice, gamble, bribeOfficials, ensureDen, stockOf } from './goods.js';
 import { startTradeRun, startNightMarket, drainBizNotices } from './business.js';
-import { ensureItems, itemsOf, findItem, giveItem, prepareHouseholdItem } from './items.js';
+import { ensureItems, itemsOf, findItem, giveItem, prepareHouseholdItem, addItem } from './items.js';
 import { findTargetActorInText } from './naming.js';
 import { hireStaff } from './employment.js';
 import { fallbackName } from './migration.js';
@@ -545,15 +545,98 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
     }
   }
 
-  // 备物/取物/要东西入随身储物空间（支持："把春茶准备好给我"、"把茶给我"、"给我带点好茶叶来"、"拿银票给我"、"向某人要某物"）
+  // 备物/取物/要东西入随身储物空间（支持："把春茶准备好给我"、"把茶给我"、"把东西都给我"、"我是说随科的东西"、"把证据交出来"）
   {
     const othersHere = Object.values(world.actors || {}).filter((a) => a && !a.dead && a.id !== me.id && a.location === me.location);
-    const mAsk = /(?:向|问|跟|找)\s*([\u4e00-\u9fa5]{1,4})\s*(?:要|讨|索取|借|拿)\s*(?:一[份张封件罐盒坛支点些])?\s*(新茶|春茶|茶叶|好茶|紫阳茶|明前茶|雨前茶|茶|美酒|花雕|女儿红|酒|银票|首饰|步摇|玉镯|云锦|香粉|点心|糕点|酥酪|请帖|请柬|契纸)/.exec(say);
-    const mFetch = /(?:把|将)\s*(新茶|春茶|茶叶|好茶|紫阳茶|明前茶|雨前茶|茶|美酒|花雕|女儿红|酒|银票|首饰|步摇|玉镯|云锦|香粉|点心|糕点|酥酪|请帖|请柬|契纸)\s*(?:给我)?\s*(?:准备好|备好|拿来|取来|带来|端来|递我|交给我|给我|拿给我)/.exec(say)
-      || /(?:给我|替我|帮我)\s*(?:准备|备好|拿|取|带|装|备)?\s*(?:一点|一些|一罐|两罐|一盒|一份|一坛|一支|点|些|好)?\s*(新茶|春茶|茶叶|好茶|紫阳茶|明前茶|雨前茶|茶|美酒|花雕|女儿红|酒|银票|首饰|步摇|玉镯|云锦|香粉|点心|糕点|酥酪|请帖|请柬|契纸)(?:来|吧|呀|啊|呢|给我)?(?:[，,。！？\s]|$)/.exec(say)
-      || /(?:要|备|拿|取|带)\s*(?:一点|一些|一罐|两罐|一盒|一份|点|些|好|点好)?\s*(新茶|春茶|茶叶|好茶|紫阳茶|明前茶|雨前茶|茶|美酒|花雕|女儿红|酒|银票|首饰|步摇|玉镯|云锦|香粉|点心|糕点|酥酪|请帖|请柬|契纸)(?:来|给我|呈上|备好)?/.exec(say);
+    const sayClean = String(say || '').trim();
 
-    if (mAsk) {
+    // 1. 广义证据/密件/东西/账册索要与勒令呈交判断
+    const isDemandingEvidenceOrItems = /(?:把|将|拿)?\s*(?:所有的?|你的|他的|这[些个]|那些|手头的?|藏的?|私存的?)?\s*(?:证据|罪证|账本|账册|底册|残页|小样|密件|密信|卷宗|供状|画样|册子|字据|案卷|油布包|东西|物件|物什)\s*(?:都|全部|一并)?\s*(?:给我|交给我|交出来|呈上来|拿来|取来|拿给我|呈上|奉上|递过来|递给我|取出来)/.test(sayClean)
+      || /(?:把东西都给我|把东西给我|东西都给我|东西给我|都给我|全给我|交出来吧|交出来|呈上来吧|呈上来|拿出来吧|拿出来|证据交出来|账本交出来)/.test(sayClean)
+      || /(?:我是说|我是要|我要的是)\s*([\u4e00-\u9fa5]{1,8}?)\s*(?:的)?\s*(证据|罪证|账本|账册|底册|残页|小样|密件|密信|卷宗|供状|画样|册子|字据|案卷|油布包|东西|物件|物什)/.test(sayClean);
+
+    const mAsk = /(?:向|问|跟|找)\s*([\u4e00-\u9fa5]{1,4})\s*(?:要|讨|索取|借|拿)\s*(?:一[份张封件罐盒坛支点些])?\s*([\u4e00-\u9fa5]{1,16})/.exec(sayClean);
+    const mFetch = /(?:把|将)\s*([\u4e00-\u9fa5]{1,16}?)\s*(?:给我)?\s*(?:准备好|备好|拿来|取来|带来|端来|递我|交给我|给我|拿给我)/.exec(sayClean)
+      || /(?:给我|替我|帮我)\s*(?:准备|备好|拿|取|带|装|备)?\s*(?:一点|一些|一罐|两罐|一盒|一份|一坛|一支|点|些|好)?\s*([\u4e00-\u9fa5]{1,16})(?:来|吧|呀|啊|呢|给我)?(?:[，,。！？\s]|$)/.exec(sayClean)
+      || /(?:要|备|拿|取|带)\s*(?:一点|一些|一罐|两罐|一盒|一份|点|些|好|点好)?\s*([\u4e00-\u9fa5]{1,16})(?:来|给我|呈上|备好)?/.exec(sayClean);
+
+    if (isDemandingEvidenceOrItems && othersHere.length > 0) {
+      let targetActor = null;
+      // 优先从语句中提取特定人名（例如"我是说随科的东西"、"随科把东西给我"）
+      for (const a of othersHere) {
+        if (sayClean.includes(a.name) || (a.name.length > 2 && sayClean.includes(a.name.slice(-2)))) {
+          targetActor = a;
+          break;
+        }
+      }
+      // 若未在句中指名，寻找当前对谈对象（如上一轮对谈的随科）
+      if (!targetActor) {
+        const partnerId = String((world.chatPartners || {})[me.id] || '');
+        targetActor = othersHere.find((a) => a.id === partnerId);
+      }
+      // 若仍无，优先寻找在场的公门/涉案/官员/书吏/外人角色（排除相公妻妾内眷）
+      if (!targetActor) {
+        targetActor = othersHere.find((a) => !a.household && !['waner', 'yunnia', 'wanning', 'xiaocui'].includes(a.id));
+      }
+      if (!targetActor) targetActor = othersHere[0];
+
+      if (targetActor) {
+        const deliveredItems = [];
+        // 移交目标人身上现有物品
+        const existingItems = itemsOf(world, targetActor.id);
+        if (existingItems && existingItems.length > 0) {
+          for (const it of existingItems) {
+            giveItem(world, targetActor.id, me.id, it.id);
+            deliveredItems.push(it.name);
+          }
+        }
+
+        // 场景深度案情具象化：随科（典吏·沈家旧案关键证人）
+        const isSuike = targetActor.id === 'npc_4' || /随科/.test(targetActor.name);
+        if (isSuike) {
+          const suikeEvidenceDefs = [
+            { name: '《沈家旧案·朱笔签押勘验样纸》', kind: '证据', note: '随科私藏朱笔签押样纸，附半枚省外官印痕迹，系沈家案户部销账铁证' },
+            { name: '《沈家旧案·户部核报亏空底册残页》', kind: '卷宗', note: '沈侍郎抄家年份临江府库出入底册残页，记载当年亏空系人为核销抹平' },
+            { name: '《随科手抄·沈家案县衙私档小样》', kind: '密件', note: '随科在县衙夜班私自抄录留底之密录，详载底册被调包挪用之时间暗记' },
+            { name: '《随科贴身收藏沈案证物油布包》', kind: '证据', note: '随科贴身藏匿沈案关键证据之陈年油布包，沾有库房封泥' },
+          ];
+          for (const ed of suikeEvidenceDefs) {
+            const alreadyHas = Object.values(world.items || {}).some((it) => it && it.holder === me.id && it.name === ed.name);
+            if (!alreadyHas) {
+              addItem(world, { name: ed.name, kind: ed.kind, holder: me.id, note: ed.note });
+              deliveredItems.push(ed.name);
+            }
+          }
+        } else if (!deliveredItems.length) {
+          if (/通海|茶商|钱掌柜/.test(targetActor.name)) {
+            const edName = '《两淮茶商压价垄断分肥密账》';
+            if (!Object.values(world.items || {}).some((it) => it && it.holder === me.id && it.name === edName)) {
+              addItem(world, { name: edName, kind: '账册', holder: me.id, note: '钱通海暗中记下之两淮茶商垄断茶引与行贿分肥私账' });
+              deliveredItems.push(edName);
+            }
+          } else if (/有财|大掌柜/.test(targetActor.name)) {
+            const edName = '《运河大酒楼客商水运商情底册》';
+            if (!Object.values(world.items || {}).some((it) => it && it.holder === me.id && it.name === edName)) {
+              addItem(world, { name: edName, kind: '账册', holder: me.id, note: '周有财汇编之运河客商往来与淮水各关口商情底册' });
+              deliveredItems.push(edName);
+            }
+          } else if (/慎之|知府|周文达|县令/.test(targetActor.name)) {
+            const edName = '《大乾临江府衙朱批案卷通详》';
+            if (!Object.values(world.items || {}).some((it) => it && it.holder === me.id && it.name === edName)) {
+              addItem(world, { name: edName, kind: '卷宗', holder: me.id, note: '官府正式立案勘查定谳之卷宗通详' });
+              deliveredItems.push(edName);
+            }
+          }
+        }
+
+        if (deliveredItems.length > 0) {
+          const listStr = deliveredItems.slice(0, 4).join('、') + (deliveredItems.length > 4 ? '等物' : '');
+          notices.push(`（${targetActor.name}神色恭谨，不敢私藏，当即双手将${listStr}悉数呈递奉上，已稳妥存入您的随身行囊。）`);
+        } else {
+          notices.push(`（${targetActor.name}躬身禀道：“大人明鉴，卑职手头该交的物件前番已悉数呈交大人，眼下身上并无私藏。”）`);
+        }
+      }
+    } else if (mAsk) {
       const targetWord = mAsk[1];
       const itemWord = mAsk[2];
       let who = null;
@@ -582,7 +665,7 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
           notices.push(`（${who.name}手里没有「${itemWord}」。）`);
         }
       }
-    } else if (mFetch && !/给(?:你|她|他|采儿|婉儿|芸娘|婉宁|静儿)/.test(say)) {
+    } else if (mFetch && !/给(?:你|她|他|采儿|婉儿|芸娘|婉宁|静儿)/.test(sayClean)) {
       const rawItemWord = (mFetch[1] || '').trim();
       if (rawItemWord && !/^(我|你|他|她|它|谁|什么|哪)$/.test(rawItemWord)) {
         // 先看在场人手里有没有现成的

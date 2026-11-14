@@ -458,6 +458,10 @@ export function sanitizeHusbandItems(world) {
     if (validPresetNames.has(name) || /紫阳山头春茶|女儿红|绍兴|桂花酥酪|赤金|白玉|云锦|鹅蛋香粉|大通钱庄.*银票|天字阁雅席请柬/.test(name)) {
       return true;
     }
+    // 4. 正规案卷证据、密件底册、供状契书与实物证物（铁证如山，绝不误删）
+    if (it.kind === '证据' || it.kind === '密件' || it.kind === '卷宗' || it.kind === '账册' || it.kind === '证物' || it.kind === '供状' || it.kind === '文书' || /证据|证物|残页|样纸|小样|底册|油布包|密件|密信|卷宗|供状|画样|罪证|账本|账册|底单|船引|借据|口供|信函|手书|奏折|密奏/.test(name)) {
+      return true;
+    }
     // 其余非白名单物品（特别是口语、动词短语垃圾，如《办了》、《拟个章程出》、《说即可》等）一律清理
     return false;
   };
