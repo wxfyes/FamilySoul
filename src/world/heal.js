@@ -2,6 +2,7 @@ import { trimMemories, addMemory } from './memory.js';
 import { ensureResidence, upgradeToMansionPalace, assignChamber } from './residence.js';
 import { buildCapitalPlaces } from './capital.js';
 import { ensureCourtSystem } from './court.js';
+import { ensureMilitaryGenerals } from './military-dispatch.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
 import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems, ensureMarriageCredentials } from './items.js';
@@ -1349,6 +1350,95 @@ export function healWorld(world) {
     fixes.push('国朝权柄：中枢文武九卿与四大党争派系（帝党/相党/王党/清流）已全盘活化！');
   } catch (err) {
     console.warn('[Heal] 朝堂党争中枢自愈异常：', err.message);
+  }
+
+  // ㉖ 提督帅府骨干将领班底（赵雷/周武/陈海平/苏铁/李石头）与亲卫营自愈健全
+  try {
+    const genAdded = ensureMilitaryGenerals(world);
+    if (genAdded > 0) fixes.push(`帅府兵符：提督行辕五大骨干将领与亲卫营已威仪入籍（新增 ${genAdded} 员战将）！`);
+  } catch (err) {
+    console.warn('[Heal] 提督将领自愈异常：', err.message);
+  }
+
+  // ㉗ 全域人物重名与克隆体自动安全吸收归正自愈（彻底根治两个杨慎之、两个周文达）
+  try {
+    const dupFixes = healDuplicateActors(world);
+    if (dupFixes && dupFixes.length > 0) fixes.push(...dupFixes);
+  } catch (err) {
+    console.warn('[Heal] 人物重名自愈异常：', err.message);
+  }
+
+  return fixes;
+}
+
+/**
+ * 全域人物重名与克隆体自动安全吸收归正（单一写入口·幂等）
+ */
+export function healDuplicateActors(world) {
+  const fixes = [];
+  if (!world || !world.actors || typeof world.actors !== 'object') return fixes;
+
+  // 1. 核心正规人物 ID 与其容易被克隆的名字映射
+  const CANONICAL_MAP = [
+    { canonicalId: 'yangshenzhi', name: '杨慎之', shortNames: ['慎之'], roleMatch: /知府/ },
+    { canonicalId: 'county_magistrate', name: '周文达', shortNames: ['文达', '周县令'], roleMatch: /县令/ },
+  ];
+
+  for (const item of CANONICAL_MAP) {
+    const canonical = world.actors[item.canonicalId];
+    if (!canonical) continue;
+
+    for (const [id, a] of Object.entries(world.actors)) {
+      if (id === item.canonicalId || !a || a.dead) continue;
+      const isSameName = a.name === item.name;
+      const isShortName = item.shortNames && item.shortNames.includes(a.name) && (!a.role || item.roleMatch.test(a.role));
+      if (isSameName || isShortName) {
+        // 发现克隆体：安全合流好感与记忆
+        if (a.relations?.husband) {
+          canonical.relations = canonical.relations || {};
+          canonical.relations.husband = canonical.relations.husband || {};
+          canonical.relations.husband.trust = Math.max(canonical.relations.husband.trust || 0, a.relations.husband.trust || 0);
+          canonical.relations.husband.favor = Math.max(canonical.relations.husband.favor || 0, a.relations.husband.favor || 0);
+        }
+        if (a.location && !canonical.location) canonical.location = a.location;
+
+        delete world.actors[id];
+        fixes.push(`克隆人物吸收归正：清理重复克隆体「${a.name} (${id})」，合流至正本「${canonical.name} (${canonical.id})」`);
+      }
+    }
+  }
+
+  // 2. 通用全域重名克隆体扫描（优先保留 preset/正式 ID，清理动态 actor_dyn_ 重复）
+  const nameGroups = {};
+  for (const [id, a] of Object.entries(world.actors)) {
+    if (!a || !a.name || a.dead) continue;
+    nameGroups[a.name] = nameGroups[a.name] || [];
+    nameGroups[a.name].push({ id, actor: a });
+  }
+
+  for (const [name, list] of Object.entries(nameGroups)) {
+    if (list.length <= 1) continue;
+    // 找出最佳正本：非 actor_dyn_ 优先，origin === 'preset' 优先，relations.trust 较高者优先
+    list.sort((x, y) => {
+      const isDynX = x.id.startsWith('actor_dyn_');
+      const isDynY = y.id.startsWith('actor_dyn_');
+      if (isDynX !== isDynY) return isDynX ? 1 : -1;
+      const presetX = x.actor.origin === 'preset';
+      const presetY = y.actor.origin === 'preset';
+      if (presetX !== presetY) return presetY ? 1 : -1;
+      const trustX = Number(x.actor.relations?.husband?.trust) || 0;
+      const trustY = Number(y.actor.relations?.husband?.trust) || 0;
+      return trustY - trustX;
+    });
+
+    const canonical = list[0];
+    for (let i = 1; i < list.length; i++) {
+      const dup = list[i];
+      if (dup.id.startsWith('actor_dyn_') || dup.actor.dynamicSpawn) {
+        delete world.actors[dup.id];
+        fixes.push(`通用重名清理：移除动态重复克隆人「${name} (${dup.id})」，保留正本「${canonical.actor.name} (${canonical.id})」`);
+      }
+    }
   }
 
   return fixes;

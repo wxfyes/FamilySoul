@@ -17,6 +17,7 @@ import { callToArms, spawnMaids } from './warfare.js';
 import { actorSeniority } from './turn-target.js';
 import { materializeRoom } from './residence.js';
 import { applyUnifiedIntents } from './intent-router.js';
+import { summonGuards, dispatchGarrison, reviewTroops, escortFamily, grantDivorce } from './military-dispatch.js';
 
 const num = (v) => {
   const n = Number(v);
@@ -909,6 +910,67 @@ export function applyChatActions({ world, viewerId = 'husband', sayText = '' }) 
       const res = quellBandits(world, bt.id, troops, city);
       if (res?.ok) notices.push(res.text);
       else notices.push(`（${res?.error || '剿匪未成'}）`);
+    }
+  }
+
+  // ═══ 水陆提督帅府 · 骨干将领与亲军调遣中枢意图拦截 ═══
+
+  // 1. “来人！”随时召集亲兵护卫（10个8个铁甲护卫应声而入）
+  const isCallNotTroop = /来都来了|怎么才来|怎么还没来|谁来|人来人往/.test(say);
+  if (!isCallNotTroop && /(?:^|[，。！？\s])(?:来人|亲兵(?:何在|听令)?|侍卫(?:何在)?|左右(?:何在)?|戒备|护驾)(?:[！!。？\s]|$)/.test(say)) {
+    const r = summonGuards(world);
+    if (r?.ok && r.notice) {
+      notices.push(r.notice.replace(/^（|）$/g, ''));
+    }
+  }
+
+  // 2. 调兵遣将：派兵看守、封锁、镇压、驻防
+  const mGarrison = /(?:(赵雷|周武|陈海平|苏铁|李石头)[，,\s]*)?(?:带|遣|派|调)?\s*(?:(\d+|[一二两三四五六七八九十百]+)\s*(?:个|人|名|名精锐|精兵)?)?\s*(?:去|前往)?\s*(?:看守|把守|守着|守住|围起来|给我围了|封锁|查抄|镇压|驻防|看护)\s*([^\s，。！？]{2,15})/.exec(say)
+    || /(?:看守|把守|守住|围起来|封锁|镇压)\s*([^\s，。！？]{2,15})/.exec(say);
+  if (mGarrison && !/(吗|呢|？|\?|怎么)/.test(say)) {
+    const gName = mGarrison[1] || '赵雷';
+    const cStr = mGarrison[2];
+    const pTarget = mGarrison[3] || mGarrison[1];
+    const cnt = cStr ? cn2num(cStr) : 50;
+    if (pTarget && !/大帅|大人|本座|兄弟|弟兄/.test(pTarget)) {
+      const r = dispatchGarrison(world, {
+        generalName: gName,
+        placeTarget: pTarget,
+        count: cnt,
+        mission: /镇压|查抄/.test(say) ? '镇压' : (/围/.test(say) ? '合围' : '看守'),
+      });
+      if (r?.ok && r.notice) {
+        notices.push(r.notice);
+      }
+    }
+  }
+
+  // 3. “点兵”检阅帅帐兵马大账
+  if (/(?:^|[，。！？\s])(?:点兵|点将|检阅兵马|查看兵马|看我有多少兵|调兵遣将)(?:[！!。？\s]|$)/.test(say)) {
+    const r = reviewTroops(world);
+    if (r?.ok && r.notice) {
+      notices.push(r.notice);
+    }
+  }
+
+  // 4. 家眷随行大令（随我回京 / 回临江）
+  const mFamilyMove = /(?:随我|跟我|带家眷|举家|全家|率家眷|带上大家)\s*(?:回京|去京城|进京|迁回京师|回临江|去临江|回府)/.exec(say);
+  if (mFamilyMove && !/(吗|呢|？|\?|不|免)/.test(say)) {
+    const dest = /京/.test(mFamilyMove[0]) ? '京城' : '临江府';
+    const r = escortFamily(world, dest);
+    if (r?.ok && r.notice) {
+      notices.push(r.notice);
+    }
+  }
+
+  // 5. 官府和离文书大印立案（准予和离 / 出和离书）
+  const mDivorce = /(?:和离书|办和离|准予和离|出和离书|给.*办和离|立和离书|和离官凭)/.test(say);
+  if (mDivorce && !/(不准|休想|休得|免谈|吗|呢|？|\?)/.test(say)) {
+    const who = /(?:给|准|帮)\s*([\u4e00-\u9fa5]{2,4})\s*(?:办|立)?和离/.exec(say)?.[1]
+      || (/静儿|陈静/.test(say) ? '陈静儿' : (/老板娘|翟/.test(say) ? '翟家货栈老板娘' : '陈静儿'));
+    const r = grantDivorce(world, who);
+    if (r?.ok && r.notice) {
+      notices.push(r.notice);
     }
   }
 

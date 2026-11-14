@@ -1034,7 +1034,13 @@ const server = http.createServer(async (req, res) => {
             }
             return true;
           })
-          .map(([id, pl]) => ({ id, name: pl.name, names: occupied[id] || [], count: (occupied[id] || []).length, near: nearScore([id, pl]) }))
+          .map(([id, pl]) => {
+            const actorNames = [...(occupied[id] || [])];
+            if (pl.garrison && pl.garrison.count > 0) {
+              actorNames.push(`🛡️${pl.garrison.general}部${pl.garrison.count}人${pl.garrison.mission || '看守'}`);
+            }
+            return { id, name: pl.name, names: actorNames, count: actorNames.length, near: nearScore([id, pl]) };
+          })
           .sort((x, y) => (x.near - y.near) || (y.count - x.count) || x.name.localeCompare(y.name, 'zh'))
           .slice(0, 400);
 

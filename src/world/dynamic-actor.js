@@ -120,11 +120,52 @@ export function materializeNarrativeActor(world, {
   const pureName = cleanActorName(name);
   if (!pureName || !isPotentialActorName(pureName)) return null;
 
-  // 1. 查重：世界中若已有同名或近似者，直接返回已存人物
+  // 0. 核心名臣将领与预设人物权威映射（绝不许动态克隆）
+  const CANONICAL_ALIASES = {
+    '杨慎之': 'yangshenzhi',
+    '慎之': 'yangshenzhi',
+    '周文达': 'county_magistrate',
+    '文达': 'county_magistrate',
+    '周县令': 'county_magistrate',
+    '杨知府': 'yangshenzhi',
+    '崔元礼': 'cuiyuanli',
+    '元礼': 'cuiyuanli',
+    '韩崇': 'hanchong',
+    '卢承业': 'luchengye',
+    '裴敬之': 'peijingzhi',
+    '徐正道': 'xuzhengdao',
+    '高承恩': 'gaochengen',
+    '郑怀安': 'zhenghuaian',
+    '萧景隆': 'emperor',
+    '赵雷': 'general_zhaolei',
+    '周武': 'general_zhouwu',
+    '陈海平': 'general_chenhaiping',
+    '苏铁': 'general_sutie',
+    '李石头': 'general_lishitou',
+    '沈婉儿': 'waner',
+    '杨采儿': 'caier',
+    '林芸娘': 'yunnia',
+    '崔婉宁': 'cuiwanning',
+    '随科': 'suike',
+    '老宋': 'old_song',
+  };
+
+  const aliasTargetId = CANONICAL_ALIASES[pureName] || CANONICAL_ALIASES[name];
+  if (aliasTargetId && world.actors[aliasTargetId]) {
+    return world.actors[aliasTargetId];
+  }
+
+  // 1. 深度查重：世界中若已有同名、长短名匹配或同名官位者，直接返回已存人物
   for (const [id, a] of Object.entries(world.actors)) {
     if (!a || a.dead) continue;
     if (a.name === pureName || a.name === name) return a;
-    if (a.alias && Array.isArray(a.alias) && a.alias.includes(pureName)) return a;
+    if (a.alias && Array.isArray(a.alias) && (a.alias.includes(pureName) || a.alias.includes(name))) return a;
+    // 包含尊称/简称匹配：如「周文达」与「文达」，角色相仿时直接归一
+    if ((a.name.endsWith(pureName) || pureName.endsWith(a.name)) && (a.name.length >= 2 && pureName.length >= 2)) {
+      if (!role || !a.role || a.role.includes(role) || role.includes(a.role) || /知府|县令|尚书|侍郎|统领|副将|参将/.test(String(a.role || ''))) {
+        return a;
+      }
+    }
   }
 
   // 2. 推导属性
