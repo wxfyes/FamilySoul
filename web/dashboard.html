@@ -1493,10 +1493,11 @@ function human(sec){
 // 统一女眷名分位份推导
 function rankOf(a) {
   const r = String(a?.role || '');
-  if (/正妻|大娘子|结发/.test(r)) return '正妻';
+  if (/平妻|两头大|并嫡/.test(r)) return '平妻';
+  if (/正妻|正室|大娘子|结发/.test(r)) return '正妻';
   if (/如夫人|二房|侧室|妾/.test(r)) return '二房';
   if (/通房|丫鬟|婢/.test(r)) return '通房';
-  return a?.household ? '府内' : '外室';
+  return a?.household ? '府内眷属' : '外室';
 }
 // 统一同榻亲密与名分礼制推导（彻底杜绝将正妻/侧室误标为相好）
 function getIntimacyLabel(a, im) {
@@ -1506,12 +1507,14 @@ function getIntimacyLabel(a, im) {
   const isOut = !a?.household;
   if (im.consummated) {
     if (rank === '正妻') return '琴瑟和鸣 · 结发正妻';
+    if (rank === '平妻') return '琴瑟和鸣 · 并嫡平妻';
     if (rank === '二房') return '雨意云情 · 如夫人';
     if (rank === '通房') return '承欢侍寝 · 通房';
     if (isOut) return '私定终身 · 相好';
     return '温存燕好 · 府内';
   }
   if (rank === '正妻') return '相敬如宾 · 正房端庄';
+  if (rank === '平妻') return '并嫡尊贵 · 闺阁端庄';
   if (rank === '二房') return '守分安道 · 端庄';
   if (rank === '通房') return '贴身侍候 · 恪守本分';
   return '端庄守礼';
@@ -1595,15 +1598,8 @@ function render(w){
       Boolean(a.intimacy && a.intimacy.consummated) || isPreg(a)
     ));
     const pregCount = (arr) => arr.filter(isPreg).length;
-    const rankOf = (a) => {
-      const r = String(a.role || '');
-      if (/正妻|大娘子/.test(r)) return '正妻';
-      if (/如夫人|二房|侧室|妾/.test(r)) return '二房';
-      if (/通房|丫鬟|婢/.test(r)) return '通房';
-      return '府内';
-    };
-    const ord = { 正妻: 0, 二房: 1, 通房: 2, 府内: 3 };
-    inHouse.sort((x, y) => ord[rankOf(x)] - ord[rankOf(y)]);
+    const ord = { 正妻: 0, 平妻: 1, 二房: 2, 通房: 3, 府内眷属: 4, 府内: 5 };
+    inHouse.sort((x, y) => (ord[rankOf(x)] ?? 99) - (ord[rankOf(y)] ?? 99));
     const mainCnt = (k) => inHouse.filter(a => rankOf(a) === k).length;
     const outPreg = pregCount(outHouse);
 
@@ -1613,8 +1609,14 @@ function render(w){
       $('badge-preg').textContent = inPreg > 0 ? (inPreg === 1 ? '有喜' : `${inPreg}有喜`) : '';
     }
 
+    const zhengCnt = mainCnt('正妻');
+    const pingCnt = mainCnt('平妻');
+    const erCnt = mainCnt('二房');
+    const tongCnt = mainCnt('通房');
+    const wifeText = pingCnt > 0 ? `正妻 ${zhengCnt} · 平妻 ${pingCnt}` : `正妻 ${zhengCnt}`;
+
     $('h-family-top').textContent =
-      `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+      `${wifeText} · 侧室 ${erCnt} · 通房 ${tongCnt}`
       + (inPreg ? `（${inPreg} 有孕）` : '');
 
     const rowOf = (a, tag) => `<div class="row">
@@ -1637,7 +1639,7 @@ function render(w){
     if ($('family-full-rows')) {
       const allWomen = [...inHouse, ...outHouse];
       $('f-house-summary').textContent =
-        `正妻 ${mainCnt('正妻')} · 侧室 ${mainCnt('二房')} · 通房 ${mainCnt('通房')}`
+        `${wifeText} · 侧室 ${erCnt} · 通房 ${tongCnt}`
         + (inPreg ? `（${inPreg} 有孕）` : '');
 
       $('family-full-rows').innerHTML = allWomen.map(a => {
@@ -1960,10 +1962,38 @@ function render(w){
   } catch (e) { $('bind').innerHTML = '<div class="muted">渲染失败</div>'; }
 
   // ── 朝中 ──────────────────────────────
+  const courtRankOf = (key, title = '') => {
+    const k = String(key || '').toLowerCase();
+    const t = String(title || '');
+    if (/emperor|天子|皇帝|皇帝陛下/.test(k + t)) return '九五之尊 · 奉天承运';
+    if (/chancellor|宰相|首辅/.test(k + t)) return '正一品 · 当朝宰相';
+    if (/tiduzongbing|水陆提督|提督/.test(k + t)) return '从一品 · 水陆提督';
+    if (/revenue|户部尚书/.test(k + t)) return '从一品 · 户部尚书';
+    if (/war|兵部尚书/.test(k + t)) return '从一品 · 兵部尚书';
+    if (/尚书|吏部|刑部|工部|礼部/.test(k + t)) return '正二品 · 大内尚书';
+    if (/zongbing|两淮总兵|平贼将军/.test(k + t)) return '正二品 · 镇守总兵';
+    if (/governor|巡抚/.test(k + t)) return '从二品 · 江南巡抚';
+    if (/fuzongbing|副总兵/.test(k + t)) return '正三品 · 协守副将';
+    if (/canjiang|参将/.test(k + t)) return '从三品 · 分守参将';
+    if (/prefect|知府/.test(k + t)) return '正四品 · 亲民知府';
+    if (/dusi|都司/.test(k + t)) return '正四品 · 领军都司';
+    if (/shoubei|守备/.test(k + t)) return '从五品 · 卫城守备';
+    if (/知县|县令/.test(k + t)) return '正七品 · 百里知县';
+    if (/tuanlian|团练/.test(k + t)) return '从七品 · 乡勇团练';
+    return isCentral ? '从一品至正二品' : '正四品知府';
+  };
+
   const court = w.court || {};
-  const offsAll = Object.entries(court.offices || {});
-  const central = offsAll.filter(([k]) => !k.startsWith('city:'));
-  const local = offsAll.filter(([k]) => k.startsWith('city:'));
+  const offsAll = Object.entries(court.offices || {}).map(([k, o]) => [k, { ...o, key: k }]);
+  // 地方各省知府：city:* 归地方；prefect 合并去重
+  const local = offsAll.filter(([k]) => k.startsWith('city:') || k === 'prefect');
+  // 中枢与封疆军门：排除地方知府，排除已卸任交割开缺的低阶武职（避免重复霸占席位）
+  const central = offsAll.filter(([k, o]) => {
+    if (k.startsWith('city:') || k === 'prefect') return false;
+    // 卸任开缺的低阶官职（如都司、守备、副总兵等）不在中枢大屏中重复出现
+    if (o.vacant && !['chancellor', 'revenue', 'war', 'governor', 'tiduzongbing'].includes(k)) return false;
+    return true;
+  });
 
   const cardHtmlOf = (o, isCentral = false, sub = '') => {
     const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
@@ -1988,7 +2018,7 @@ function render(w){
     return `<div class="off-card">
       <div class="off-card-top">
         <span class="off-post ${isCentral ? 'central' : ''}">${o.title}</span>
-        <span class="muted" style="font-size:11px">${isCentral ? '正二品至从一品' : '正四品知府'}</span>
+        <span class="muted" style="font-size:11px">${courtRankOf(o.key, o.title)}</span>
       </div>
       <div class="off-who">
         ${nameHtml}

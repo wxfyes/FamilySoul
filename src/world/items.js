@@ -405,7 +405,7 @@ export const OFFICIAL_CREDENTIAL_DEFS = [
 export function getHusbandOfficialInfo(world) {
   const offices = world?.court?.offices || {};
   const heldDefs = OFFICIAL_CREDENTIAL_DEFS.filter(
-    (d) => offices[d.officeKey] && String(offices[d.officeKey].holder || '') === 'husband'
+    (d) => offices[d.officeKey] && (String(offices[d.officeKey].holder || '') === 'husband' || String(offices[d.officeKey].formerHolder || '') === 'husband')
   );
   if (heldDefs.length === 0) {
     return {
@@ -450,8 +450,8 @@ export function sanitizeHusbandItems(world) {
     if (validOfficialNames.has(name) || (/告身|敕牒|诰命|官印|兵符|虎符|委任牌票|尚方|诏书/.test(name) && (it.kind === '官印' || it.kind === '敕牒'))) {
       return true;
     }
-    // 2. 正规地契房契请帖
-    if (it.kind === '契纸' || it.kind === '请帖' || /房契|酒楼契|茶坊契|茶山契|请帖|地契|字据/.test(name)) {
+    // 2. 正规地契房契请帖与明媒正娶婚书
+    if (it.kind === '契纸' || it.kind === '请帖' || it.kind === '婚书' || /房契|酒楼契|茶坊契|茶山契|请帖|地契|字据|婚书|平妻|庚帖|聘单/.test(name)) {
       return true;
     }
     // 3. 正规府库物资礼品与银票
@@ -494,7 +494,7 @@ export function ensureOfficialCredentials(world) {
 
   for (const def of OFFICIAL_CREDENTIAL_DEFS) {
     const off = offices[def.officeKey];
-    if (!off || String(off.holder || '') !== 'husband') continue;
+    if (!off || (String(off.holder || '') !== 'husband' && String(off.formerHolder || '') !== 'husband')) continue;
     for (const cred of def.credentials) {
       const exists = myItems.some((it) => it && it.name === cred.name);
       if (!exists) {
@@ -520,6 +520,35 @@ export function ensureOfficialCredentials(world) {
     world.actors.husband.role = `${info.highestTitle}·临江王氏家主`;
   }
 
+  return issued;
+}
+
+/**
+ * 确保相公随身行囊权威保管明媒正娶婚书（采儿并嫡平妻婚书等）
+ */
+export function ensureMarriageCredentials(world) {
+  ensureItems(world);
+  const myItems = itemsOf(world, 'husband');
+  const marriages = Array.isArray(world?.marriages) ? world.marriages : [];
+  const issued = [];
+  const hasCaier = marriages.some((m) => m && (m.who === 'yangzhenhua' || m.id === 'marriage_yangcaier' || m.name === '杨采儿'));
+  if (hasCaier) {
+    const certName = '《大乾临江府正三品知府千金杨采儿并嫡平妻婚书》';
+    const exists = myItems.some((it) => it && (it.name === certName || String(it.name).includes('杨采儿并嫡平妻婚书')));
+    if (!exists) {
+      const added = addItem(world, {
+        name: certName,
+        kind: '婚书',
+        holder: 'husband',
+        note: '兵部武选司实授临江都司王甯与大乾正三品临江知府杨慎之千金杨采儿明媒正娶婚书。两府具结大红官押，写明采儿为王府并嫡平妻，两头并大，琴瑟和鸣，永结秦晋之好。',
+      });
+      if (added) {
+        added.from = '大乾临江府衙与兵部司堂红押';
+        added.day = Number(world.clock?.day) || 26;
+        issued.push(added);
+      }
+    }
+  }
   return issued;
 }
 

@@ -1,3 +1,5 @@
+import { addItem, itemsOf } from './items.js';
+
 /**
  * 姻亲：说亲、婚配、结亲。
  *
@@ -140,7 +142,19 @@ export function getHusbandHouseholdRoster(world) {
     known.add(cuiKey);
   }
 
-  // 4. 其余已纳之妾
+  // 4. 杨采儿：正室·并嫡平妻
+  if (world?.actors?.yangzhenhua && marriages.some((m) => m && (m.who === 'yangzhenhua' || m.id === 'marriage_yangcaier' || m.name === '杨采儿'))) {
+    roster.push({
+      id: 'yangzhenhua',
+      name: world.actors.yangzhenhua.name || '杨采儿',
+      rank: '正室·平妻',
+      role: '知府千金平妻',
+      location: world.actors.yangzhenhua.location || 'wang_mansion__east_room',
+    });
+    known.add('yangzhenhua');
+  }
+
+  // 5. 其余已纳之妾
   for (const m of marriages) {
     if (!m || !m.who || known.has(m.who)) continue;
     const a = world.actors?.[m.who];
@@ -336,4 +350,219 @@ export function declineAlliance(world) {
   world.flags.allianceOffer = null;
   console.log(`[Marriage] 回绝了 ${offer.familyName} 的提亲`);
   return { ok: true, line: `（${offer.familyName}的媒婆悻悻走了。）` };
+}
+
+/**
+ * 权威通用大乾礼法与婚聘生命周期引擎：
+ * 无论迎娶何人（千金、闺秀、才女、医女），依照大明律与大乾礼制全自动推演：
+ *   ① 礼法名分定级（正室 / 并嫡平妻 / 侧室 / 如夫人 / 贵妾）；
+ *   ② 官押大红婚书生成并自动收归相公随身行囊；
+ *   ③ 后宅厢房分配与居住空间自动挂载；
+ *   ④ 全方位编织夫妻羁绊与岳家姻亲关系网；
+ *   ⑤ 写入天下大事记与后宅权威名册。
+ */
+export function executeMarriageAlliance(world, {
+  wifeId,
+  rank = '并嫡平妻',
+  dowry = 100,
+  day = null,
+  chamber = null,
+  matchmaker = null,
+} = {}) {
+  world.marriages = Array.isArray(world.marriages) ? world.marriages : [];
+  world.actors = world.actors || {};
+  world.places = world.places || {};
+  world.bonds = world.bonds || {};
+  world.notes = Array.isArray(world.notes) ? world.notes : [];
+
+  const weddingDay = Number(day) || Number(world.clock?.day) || 26;
+  const targetKey = String(wifeId || '').trim();
+
+  // 1. 精准解析妻子实体（支持 ID 或姓名模糊匹配）
+  let girl = world.actors[targetKey] || Object.values(world.actors).find((a) => a && (a.name === targetKey || a.id === targetKey));
+  if (!girl) {
+    // 动态保护性补全知名角色
+    if (/采儿|yangzhenhua|知府千金/.test(targetKey)) {
+      girl = { id: 'yangzhenhua', name: '杨采儿', role: '知府千金', label: '知府千金', gender: 'female', age: 19 };
+      world.actors['yangzhenhua'] = girl;
+    } else {
+      return { ok: false, error: `未在世间寻得此女子（${targetKey}）` };
+    }
+  }
+
+  const girlId = girl.id;
+  const girlName = girl.name;
+
+  // 2. 依据大乾礼法归正名分与等级
+  let formalRank = '正室·平妻';
+  let formalStatus = '平妻';
+  let bondScore = 85;
+  let defaultChamber = 'wang_mansion__main_room';
+  let defaultChamberName = '临江·提督王府·正房暖阁';
+
+  const rStr = String(rank || '');
+  if (/正室|发妻|元配|正房|大娘子/.test(rStr) && !/平妻|两头大/.test(rStr)) {
+    formalRank = '正妻·大娘子';
+    formalStatus = '正室';
+    bondScore = 90;
+    defaultChamber = 'wang_mansion__main_room';
+    defaultChamberName = '临江·提督王府·正房暖阁';
+  } else if (/平妻|两头大|并嫡/.test(rStr)) {
+    formalRank = '正室·平妻';
+    formalStatus = '平妻';
+    bondScore = 85;
+    // 礼法铁律：平妻与正妻并嫡（两头大），位列正房，绝不发配偏房东厢！
+    defaultChamber = 'wang_mansion__main_room';
+    defaultChamberName = '临江·提督王府·正房暖阁';
+  } else if (/侧室|二房|如夫人/.test(rStr)) {
+    formalRank = girl.origin === 'noble' || /千金|名门/.test(girl.role || '') ? '名门侧室' : '二房如夫人';
+    formalStatus = '侧室';
+    bondScore = 75;
+    defaultChamber = 'wang_mansion__west_room';
+    defaultChamberName = '临江·提督王府·西跨院暖阁';
+  } else {
+    formalRank = '妾室';
+    formalStatus = '妾室';
+    bondScore = 65;
+    defaultChamber = 'wang_mansion__wing';
+    defaultChamberName = '临江·提督王府·侧厢居室';
+  }
+
+  const chosenChamber = chamber || defaultChamber;
+
+  // 3. 权威登册入 world.marriages
+  let m = world.marriages.find((x) => x && (x.who === girlId || x.wifeId === girlId || x.id === `marriage_${girlId}`));
+  if (!m) {
+    m = {
+      id: `marriage_${girlId}`,
+      who: girlId,
+      wifeId: girlId,
+      name: girlName,
+      wifeName: girlName,
+      rank: formalRank,
+      status: formalStatus,
+      dowry: Number(dowry) || 0,
+      day: weddingDay,
+      chamber: chosenChamber,
+    };
+    world.marriages.push(m);
+  } else {
+    m.who = m.who || girlId;
+    m.wifeId = m.wifeId || girlId;
+    m.name = m.name || girlName;
+    m.wifeName = m.wifeName || girlName;
+    m.rank = formalRank;
+    m.status = formalStatus;
+    m.dowry = Number(dowry) || m.dowry || 0;
+    m.day = weddingDay;
+    m.chamber = chosenChamber;
+  }
+
+  // 4. 确保居住空间物理存在
+  if (!world.places[chosenChamber]) {
+    world.places[chosenChamber] = {
+      id: chosenChamber,
+      name: defaultChamberName,
+      parent: 'wang_mansion',
+      use: 'bedroom',
+      access: 'private_family',
+      exits: ['wang_mansion', 'wang_mansion__hall'],
+      owner: 'husband',
+      occupant: girlId,
+    };
+  }
+
+  // 5. 女方状态确立与入籍王府
+  girl.household = true;
+  girl.spouse = 'husband';
+  girl.marital = 'married';
+  girl.role = formalRank;
+  girl.title = `${formalStatus}·${girl.title || girl.label || girlName}`;
+  girl.home = 'wang_mansion';
+  girl.location = chosenChamber;
+  girl.residence = { type: 'own', placeId: chosenChamber };
+  girl.relations = girl.relations || {};
+  girl.relations.husband = {
+    trust: Math.max(Number(girl.relations.husband?.trust) || 0, bondScore),
+    desire: Math.max(Number(girl.relations.husband?.desire) || 0, Math.round(bondScore * 0.7)),
+    lover: true,
+    fear: 0,
+    grievance: 0,
+  };
+  girl.intimacy = girl.intimacy || { level: 4, tone: 2, lastAt: Date.now() };
+
+  // 6. 编织夫妻羁绊网络
+  world.bonds.husband = world.bonds.husband || {};
+  world.bonds[girlId] = world.bonds[girlId] || {};
+  world.bonds.husband[girlId] = { type: '夫妻', score: bondScore };
+  world.bonds[girlId].husband = { type: '夫妻', score: bondScore };
+
+  // 7. 自动梳理岳家亲族社会网络（父辈翁婿羁绊）
+  const parents = [];
+  if (girl.father && world.actors[girl.father]) parents.push(world.actors[girl.father]);
+  if (girl.mother && world.actors[girl.mother]) parents.push(world.actors[girl.mother]);
+  // 智能推导长辈（如杨慎之之于杨采儿，崔文远之于崔婉宁）
+  if (parents.length === 0) {
+    if (girlId === 'yangzhenhua' && world.actors.yangshenzhi) parents.push(world.actors.yangshenzhi);
+    if (/cui/i.test(girlId) && world.actors.cuiwenyuan) parents.push(world.actors.cuiwenyuan);
+  }
+
+  for (const p of parents) {
+    world.bonds[p.id] = world.bonds[p.id] || {};
+    world.bonds.husband[p.id] = { type: '岳婿', score: 75 };
+    world.bonds[p.id].husband = { type: '岳婿', score: 75 };
+    p.relations = p.relations || {};
+    p.relations.husband = p.relations.husband || { trust: 50, desire: 0, fear: 0, grievance: 0 };
+    p.relations.husband.trust = Math.max(Number(p.relations.husband.trust) || 0, 80);
+  }
+
+  // 8. 官押大红婚书通用自动生成入相公随身行囊
+  const certName = formalStatus === '平妻'
+    ? `《大乾临江府正三品知府千金${girlName}并嫡平妻婚书》`
+    : `《大乾临江府衙朱印·${girlName}${formalStatus}婚书》`;
+
+  const existingCert = itemsOf(world, 'husband').find((it) => it && (it.name === certName || String(it.name).includes(`${girlName}`) && String(it.name).includes('婚书')));
+  if (!existingCert) {
+    addItem(world, {
+      name: certName,
+      kind: '婚书',
+      holder: 'husband',
+      note: `朝廷兵部武选司与临江府衙大红官押。两姓联姻，明媒正娶，载明${girlName}正式入籍临江王府为${formalRank}（${formalStatus}），两头并大，琴瑟和鸣，永结秦晋之好，立字为凭。`,
+      from: '大乾临江府衙与兵部司堂红押',
+      day: weddingDay,
+    });
+  }
+
+  // 9. 大事记流水落账
+  const noteKey = `${girlName}·${formalStatus}`;
+  if (!world.notes.some((n) => String(n.text || '').includes(girlName) && String(n.text || '').includes(formalStatus))) {
+    world.notes.push({
+      day: weddingDay,
+      hour: 12,
+      text: `王都司明媒正娶${girl.role || ''}${girlName}入府为${formalRank}，出具府衙官押红帖婚书，开席宴请临江官绅，两姓结为秦晋之好！`,
+    });
+  }
+
+  console.log(`[MarriageEngine] 礼法成亲推演完毕：${girlName} 礼聘为王府【${formalRank}】，婚书入囊，厢房【${chosenChamber}】`);
+  return {
+    ok: true,
+    marriage: m,
+    girl,
+    certName,
+    line: `（两府官押齐备，吉日良辰，${girlName}已明媒正娶迎入王府东厢暖阁为${formalRank}，《${certName}》已稳妥存入您的随身行囊！）`,
+  };
+}
+
+/**
+ * 权威落地：明媒正娶正三品知府千金杨采儿入府为并嫡平妻（两头大）
+ * （由通用大乾礼法引擎 executeMarriageAlliance 权威驱动，彻底废除个案特判）
+ */
+export function marryYangCaier(world, { dowry = 600, day = null } = {}) {
+  return executeMarriageAlliance(world, {
+    wifeId: 'yangzhenhua',
+    rank: '正室·平妻',
+    dowry,
+    day,
+    chamber: 'wang_mansion__main_room',
+  });
 }

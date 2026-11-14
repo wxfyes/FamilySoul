@@ -63,11 +63,29 @@ function maybePromote(world) {
   const day = Number(world.clock?.day) || 1;
   world.court = world.court || {};
   world.court.offices = world.court.offices || {};
+
+  // 1. 升迁交割：将此前相公持有的低阶武职在 court.offices 中正常交割卸任，只保留现任最高职衔
+  for (const prev of MILITARY_LADDER) {
+    if (prev.key !== n.key && world.court.offices[prev.key] && world.court.offices[prev.key].holder === 'husband') {
+      world.court.offices[prev.key].holder = null;
+      world.court.offices[prev.key].formerHolder = 'husband';
+      world.court.offices[prev.key].vacant = true;
+      world.court.offices[prev.key].note = `相公已奉旨升迁${n.title}，原职已交割开缺`;
+    }
+  }
+  if (world.court.offices.tuanlian && world.court.offices.tuanlian.holder === 'husband' && n.key !== 'tuanlian') {
+    world.court.offices.tuanlian.holder = null;
+    world.court.offices.tuanlian.formerHolder = 'husband';
+    world.court.offices.tuanlian.vacant = true;
+    world.court.offices.tuanlian.note = `相公已奉旨升任${n.title}，团练使原职已交割开缺`;
+  }
+
+  // 2. 实授新职
   world.court.offices[n.key] = {
     holder: 'husband',
     title: n.title,
     at: { day },
-    note: `剿匪累功，朝廷叙功授${n.title}`,
+    note: `剿匪累功，朝廷叙功实授${n.title}`,
   };
   // 核发兵部正式告身敕牒与虎符官印入随身行囊
   let credNames = '';

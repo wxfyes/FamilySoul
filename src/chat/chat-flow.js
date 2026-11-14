@@ -185,6 +185,42 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         } catch (errSummon) {
           console.warn('[Summon] 传唤处理异常:', errSummon.message);
         }
+
+        // 提督开府建牙：相公下令将王宅正名为王府
+        try {
+          if (/(?:王宅|宅子|府邸).*?(?:改名|改叫|换成|升格|唤作|正名).*?(?:王府|提督王府|提督府)|(?:换上?|挂上?).*?(?:王府|提督王府).*?(?:牌匾|金匾|匾额)/.test(text)) {
+            const { upgradeToMansionPalace } = await import('../world/residence.js');
+            const wM = loadState(svc.dataDir);
+            const upg = upgradeToMansionPalace(wM, { force: true });
+            if (upg && upg.ok) {
+              saveState(svc.dataDir, wM);
+              contextHintEarly += `（【提督王府正名生效】：相公钧旨已下，工匠已于正门换上御赐金字‘提督王府’朱红九叠篆金匾，一品军门开府建牙！府内上下仆从内眷齐声拜贺称颂！）\n`;
+              console.log(`[Residence] 相公口令生效：临江王宅已升格为 ${upg.newName}`);
+            }
+          }
+        } catch (eUpg) {
+          console.warn('[Residence] 王府升格指令处理异常:', eUpg.message);
+        }
+
+        // 后宅居所调配：相公自由分房令（如让采儿住正房、婉宁住东跨院、小翠住后罩房）
+        try {
+          const roomAssignMatch = text.match(/(?:安排|让|叫|调|把)\s*(采儿|杨采儿|婉儿|沈婉儿|芸娘|林芸娘|婉宁|崔婉宁|小翠|紫嫣|如烟)\s*(?:搬到|搬去|住|住进|迁到|迁入|居于|换到)\s*(正房暖阁|正房|上房|寝堂|东跨院|东厢房|东厢|西跨院|西厢房|西厢|后罩房|下房|临波后花园|花园暖阁)/)
+            || text.match(/(?:让|安排)\s*(采儿|杨采儿|婉儿|沈婉儿|芸娘|林芸娘|婉宁|崔婉宁|小翠)\s*住\s*(正房暖阁|正房|上房|东厢|西厢|东跨院|西跨院|后罩房)/);
+          if (roomAssignMatch) {
+            const whoName = roomAssignMatch[1];
+            const targetRoomName = roomAssignMatch[2];
+            const { assignChamber } = await import('../world/residence.js');
+            const wR = loadState(svc.dataDir);
+            const assignRes = assignChamber(wR, whoName, targetRoomName, { orderedBy: 'husband' });
+            if (assignRes && assignRes.ok) {
+              saveState(svc.dataDir, wR);
+              contextHintEarly += `（【内眷居所调迁生效】：相公恩旨已下，【${assignRes.actor.name}】已正式迁入【${assignRes.place.name}】！本轮【必须】由【${assignRes.actor.name}】深受感动、亲自向相公敛衽万福谢恩应答！）\n`;
+              console.log(`[Residence] 相公分房令生效：${assignRes.message}`);
+            }
+          }
+        } catch (eAssign) {
+          console.warn('[Residence] 分房令处理异常:', eAssign.message);
+        }
       } // end if (!engineMovedHusband)
     } catch (err) {
       console.warn('[Scene] 召唤失败：', err.message);
@@ -843,20 +879,20 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       if (lastShown && !lastShown.consumed && (Date.now() - Number(lastShown.time || 0) < 5 * 60 * 1000)) {
         const targetActor = turnTarget?.actor;
         const isInnerWife = targetActor && (/正妻|发妻|妻|妾|如夫人|侧室|丫鬟|通房/.test(String(targetActor.role || '')) || ['waner', 'yunnia', 'wanning', 'xiaocui'].includes(targetActor.id));
-        const isOfficialSubordinate = targetActor && (/知县|大人|官员|府尹|通判|典吏|书吏|书办|捕头|差役/.test(String(targetActor.role || '')) || targetActor.id.startsWith('county_') || targetActor.id === 'official_zhou');
+        const isOfficialSubordinate = targetActor && (/知县|县令|大人|官员|府尹|通判|典吏|书吏|书办|捕头|差役/.test(String(targetActor.role || '')) || targetActor.id.startsWith('county_') || targetActor.id === 'official_zhou' || /文达/.test(String(targetActor.name || '')));
 
         if (lastShown.isOfficial) {
           if (isInnerWife) {
             // 内宅妻妾闺房礼法：妻子以相公为荣，欢喜崇拜、娇嗔赞叹，严禁自称卑职或叩见大人！
-            shownItemHint = `\n（【当前场面事实·相公亮印与娇妻分享荣耀】：相公方才当面自怀中取出大明朝廷钦颁的《${lastShown.name}》（${lastShown.note || ''}）给在场的【${targetActor.name}】等内眷验看！此乃天大荣耀与夫君威仪！作为结发名门正妻/温顺妾室，自称必须用「妾身」，称相公「相公/夫君」！看到夫君手握兵权金印与尚方敕令，满心欢喜骄傲、崇拜依偎、替相公拭印温茶，夸赞夫君威风！【绝对严禁像下属衙门官员那样自称卑职/下官，绝对严禁诚惶诚恐长揖下拜或口称“叩见大人/拜见大人”】！）`;
+            shownItemHint = `\n（【当前现场绝对事实·相公亮印与眷属分享荣耀】：相公方才当面自怀中取出大明朝廷钦颁的《${lastShown.name}》（${lastShown.note || ''}）给在场的【${targetActor.name}】等内眷验看！此乃天大荣耀与夫君朝廷命官之威仪！结发正妻/平妻/侧室自称必须用「妾身」，称相公「相公/夫君」！看到夫君手握兵权金印与尚方敕令，满心欢喜骄傲、崇拜依偎、替相公拭印温茶，夸赞夫君威风！【绝对严禁像下属衙门官员那样自称卑职/下官，绝对严禁诚惶诚恐口称“叩见大人/拜见大人”】！）`;
           } else if (isOfficialSubordinate) {
-            // 下级地方官与衙门差役：执下属参拜上宪之礼
-            shownItemHint = `\n（【当前场面最高强制事实·相公亮印震慑下属】：相公刚刚当面取出大明朝廷钦颁的《${lastShown.name}》（${lastShown.note || ''}）亮在案前！鲜红兵部朱印与尚方宝剑寒光凛然！在场的【${targetActor.name}】已亲眼目睹这一铁证，本轮第一句话必须立即对此做出强烈的敬畏遵奉反应（离席肃立、躬身长揖、口称卑职参见/下官参见提督大人/总兵大人，遵奉号令），绝对严禁视而不见或说“眼生、把关”等昏话！）`;
+            // 下级地方官与衙门差役：执下属参拜上宪之礼，严禁质疑官凭真伪
+            shownItemHint = `\n（【当前现场最高强制事实·相公当面亮出朝廷铁证金印/虎符】：相公刚刚当面取出大明朝廷兵部钦颁之真凭实据《${lastShown.name}》（${lastShown.note || ''}）亮在公案之前！此印确凿无疑乃朝廷实授官凭真物，兵部朱印与敕命威严赫赫，绝非私造之物！在场官员差役【${targetActor.name}】亲睹此重器，第一反应必须肃然起敬、离席行大礼躬身作揖（“下官参见大人/都司大人/平贼总兵大人！”），敬畏遵奉听令，绝对严禁视而不见，绝对严禁说“眼生、把关、明日备文书”等荒唐轻慢之词！）`;
           } else {
-            shownItemHint = `\n（【当前场面事实·相公亮出朝廷官印威仪】：相公方才取出了大明朝廷《${lastShown.name}》（${lastShown.note || ''}），在场众人见此重器凛然敬畏，恭敬相待。）`;
+            shownItemHint = `\n（【当前现场最高强制事实·相公亮出朝廷命官真印】：相公方才当面亮出大明朝廷《${lastShown.name}》（${lastShown.note || ''}），鲜红朱印凛然。在场众人（商贾、百姓、名流）见此铁证确知相公乃朝廷实授命官，肃立敬畏，恭谨相待，绝不可当成寻常物什！）`;
           }
         } else {
-          shownItemHint = `\n（【当前场面事实·相公出示凭据】：相公刚刚当面取出了《${lastShown.name}》（${lastShown.note || ''}）让在场众人验看，在场人员须顺理成章承接勘验。）`;
+          shownItemHint = `\n（【当前现场事实·相公当面出示字据凭证】：相公刚刚当面取出了《${lastShown.name}》（${lastShown.note || ''}）让在场众人勘验，此文书契纸真实无伪，在场人员须顺理成章认真承接勘验。）`;
         }
 
         // 单次消费机制：本轮注入后立即消费清空，绝不在后续轮次无休止重复触发！
@@ -984,7 +1020,8 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       const HOME_MANSION = ['husband_room', 'backyard', 'tea_house'];
       const isHusbandInHome = HOME_MANSION.includes(hereP)
         || String(hereP || '').includes('wang_mansion')
-        || String(wP.places?.[hereP]?.name || '').includes('王宅');
+        || String(wP.places?.[hereP]?.name || '').includes('王宅')
+        || String(wP.places?.[hereP]?.name || '').includes('王府');
 
       const allowed = Object.values(wP.actors || {})
         .filter((a) => {
@@ -1567,6 +1604,19 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
       }
     } catch (err) {
       console.warn('[Scene] 同场投递失败：', err.message);
+    }
+
+    // 剧情新人物即时具象化落地（言出法随，天下人物寻访即至，彻底杜绝虚无空头）
+    try {
+      const { autoMaterializeFromDialogue } = await import('../world/dynamic-actor.js');
+      const wDyn = loadState(svc.dataDir);
+      const spawned = autoMaterializeFromDialogue(wDyn, reply);
+      if (spawned && spawned.length > 0) {
+        saveState(svc.dataDir, wDyn);
+        console.log(`[DynamicActor] 本轮对话涌现并具象化 ${spawned.length} 名新角色：${spawned.map((a) => `${a.role}·${a.name}`).join('、')}`);
+      }
+    } catch (eDyn) {
+      console.warn('[DynamicActor] 剧情人物具象化失败：', eDyn.message);
     }
 
     // 天道定下一步：她被推进了新的处境，就现生成那句（不写死）

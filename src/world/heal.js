@@ -1,10 +1,11 @@
 import { trimMemories, addMemory } from './memory.js';
-import { ensureResidence } from './residence.js';
+import { ensureResidence, upgradeToMansionPalace, assignChamber } from './residence.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
-import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems } from './items.js';
+import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems, ensureMarriageCredentials } from './items.js';
 import { ensureActiveBanditWaves } from './bandits.js';
 import { isSameSpendSubject } from './ledger.js';
+import { marryYangCaier } from './marriage.js';
 /**
  * 世界自愈 —— 不靠人管，账本坏了它自己修
  *
@@ -697,7 +698,7 @@ export function healWorld(world) {
     console.warn('[Heal] 运河船队自愈异常：', err.message);
   }
 
-  // ㉓ 知府千金杨采儿正名与年龄归正（杜绝被当成官员或老年知府）
+  // ㉓ 知府千金杨采儿正名与名分礼制归正（若已出嫁，尊奉正室·平妻）
   try {
     const caier = world.actors?.yangzhenhua || Object.values(world.actors || {}).find((a) => a && (a.name === '杨采儿' || a.id === 'yangzhenhua'));
     if (caier) {
@@ -705,17 +706,26 @@ export function healWorld(world) {
         fixes.push(`大小姐正名：${caier.name} → 杨采儿`);
         caier.name = '杨采儿';
       }
-      if (caier.role !== '知府千金') {
-        fixes.push(`身份正名：${caier.role} → 知府千金`);
-        caier.role = '知府千金';
+      const isCaierMarried = Boolean(
+        caier.spouse === 'husband' ||
+        caier.household ||
+        (world.marriages || []).some((m) => m && (m.who === 'yangzhenhua' || m.wifeId === 'yangzhenhua'))
+      );
+      const targetRole = isCaierMarried ? '正室·平妻' : '知府千金';
+      const targetLabel = isCaierMarried ? '正室·平妻·采儿' : '知府千金·采儿';
+      if (caier.role !== targetRole) {
+        fixes.push(`身份正名：${caier.role} → ${targetRole}`);
+        caier.role = targetRole;
       }
-      caier.label = '知府千金';
+      caier.label = targetLabel;
       caier.gender = 'female';
       if (!caier.age || caier.age > 25) {
         fixes.push(`年龄归位：杨采儿 ${caier.age}岁 → 19岁芳华`);
         caier.age = 19;
       }
-      caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
+      caier.desc = isCaierMarried
+        ? '临江知府杨慎之大人的掌上明珠，两家纳聘迎娶入王府，并嫡平妻位同发妻，性子英姿飒爽、傲娇清高又聪慧过人，执掌东次间正房。'
+        : '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
       caier.relations = caier.relations || {};
       const mine = (caier.relations.husband = caier.relations.husband || { trust: 55, desire: 35, fear: 0, grievance: 0 });
       if (Number(mine.trust || 0) < 55) {
@@ -873,24 +883,32 @@ export function healWorld(world) {
       }
     }
 
-    // 绑定采儿与父亲的亲情关系
+    // 绑定采儿与父亲的亲情关系（出阁后府邸从夫，未出阁居杨府）
     const caier = world.actors?.yangzhenhua || Object.values(world.actors || {}).find(a => a.name === '杨采儿');
     if (caier) {
       caier.name = '杨采儿';
       caier.father = 'yangshenzhi';
       caier.family = caier.family || {};
       caier.family.father = 'yangshenzhi';
-      caier.home = 'yang_mansion';
-      if (!caier.location || caier.location === 'yang_mansion') {
-        caier.location = 'yang_mansion__hall';
-        fixes.push('人物归位：知府千金杨采儿归位杨府中堂大厅');
+      const isCaierMarried = Boolean(
+        caier.spouse === 'husband' ||
+        caier.household ||
+        (world.marriages || []).some((m) => m && (m.who === 'yangzhenhua' || m.wifeId === 'yangzhenhua'))
+      );
+      if (!isCaierMarried) {
+        caier.home = 'yang_mansion';
+        if (!caier.location || caier.location === 'yang_mansion') {
+          caier.location = 'yang_mansion__hall';
+          fixes.push('人物归位：知府千金杨采儿归位杨府中堂大厅');
+        }
       }
-      caier.desc = '临江知府杨慎之大人的掌上明珠千金闺秀，性子英姿飒爽、傲娇清高又聪慧过人，自称用我/本姑娘/采儿，称相公少掌柜/王甯。';
     }
 
-    // 官职权威归正：临江知府大位归杨慎之，清除/退休路人知府许元朗
-    world.court.offices.prefect = { title: '临江知府', holder: 'yangshenzhi', vacant: false };
-    world.court.offices['city:临江府'] = { title: '临江知府', holder: 'yangshenzhi', vacant: false, city: '临江府' };
+    // 官职权威归正：临江知府大位归杨慎之（只保留地方府衙知府，清除中枢卡片重复之 prefect）
+    if (world.court?.offices) {
+      delete world.court.offices.prefect;
+      world.court.offices['city:临江府'] = { title: '临江知府', holder: 'yangshenzhi', vacant: false, city: '临江府' };
+    }
 
     const fakeOff = world.actors['off_临江府'];
     if (fakeOff && fakeOff.name === '许元朗') {
@@ -1120,6 +1138,197 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 行囊自愈净化异常：', err.message);
+  }
+
+  // ⑲ 四海钱庄实业资产、物理空间与大朝奉大掌柜自愈落账
+  try {
+    world.places = world.places || {};
+    world.actors = world.actors || {};
+    world.assets = world.assets || {};
+    world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
+
+    // 1. 确保物理空间
+    let pBank = world.places['sihai_bank'];
+    if (!pBank) {
+      world.places['sihai_bank'] = {
+        id: 'sihai_bank',
+        name: '临江·四海钱庄',
+        exits: ['street'],
+        owner: 'husband',
+        kind: '钱庄',
+        use: 'shop',
+        access: 'public_shop',
+        desc: '相公斥资三百二十两全款盘下的四海钱庄。朱红高柜、厚铁地窖金库齐备，承接两淮客商现银兑发、银票承兑与商号借贷。',
+        rooms: {
+          counter: { id: 'sihai_bank__counter', name: '高柜大堂', exits: ['sihai_bank', 'sihai_bank__vault', 'sihai_bank__office'], access: 'public_outer', use: 'shop_floor' },
+          vault: { id: 'sihai_bank__vault', name: '厚铁地窖金库', exits: ['sihai_bank__counter'], access: 'private_keeper', use: 'storage' },
+          office: { id: 'sihai_bank__office', name: '内账房', exits: ['sihai_bank__counter'], access: 'private_keeper', use: 'office' },
+        },
+      };
+      pBank = world.places['sihai_bank'];
+      fixes.push('生成真实建筑实体：临江·四海钱庄');
+    }
+    for (const [rid, r] of Object.entries(pBank.rooms || {})) {
+      const fullId = r.id || `sihai_bank__${rid}`;
+      if (!world.places[fullId]) {
+        world.places[fullId] = {
+          id: fullId,
+          name: `临江·四海钱庄·${r.name}`,
+          parent: 'sihai_bank',
+          use: r.use || 'shop_floor',
+          access: r.access || 'public_shop',
+          exits: ['sihai_bank', 'sihai_bank__counter'],
+        };
+      }
+      pBank.exits = Array.isArray(pBank.exits) ? pBank.exits : [];
+      if (!pBank.exits.includes(fullId)) pBank.exits.push(fullId);
+    }
+
+    // 2. 确保大朝奉钱文渊在位
+    if (!world.actors.qianwenyuan) {
+      world.actors.qianwenyuan = {
+        id: 'qianwenyuan',
+        name: '钱文渊',
+        role: '大朝奉',
+        title: '四海钱庄大朝奉',
+        gender: 'male',
+        age: 48,
+        home: 'sihai_bank',
+        location: 'sihai_bank__counter',
+        money: 15.0,
+        desc: '四海钱庄大朝奉，精研九章算术与大明商律，眼光极毒，经手银两票据分厘不差。',
+        duty: { propId: 'sihai_bank', post: 'manager' },
+        schedule: [
+          { at: 8, do: '在柜台称银验色兑换银票', place: 'sihai_bank__counter' },
+          { at: 13, do: '入厚铁地窖盘查现银银库', place: 'sihai_bank__vault' },
+          { at: 18, do: '在内账房核算当日钱水账簿', place: 'sihai_bank__office' },
+          { at: 21, do: '闭庄落锁巡夜歇息', place: 'sihai_bank' },
+        ],
+      };
+      fixes.push('四海钱庄大朝奉钱文渊确立归位');
+    }
+
+    // 3. 确保 assets.properties 中权威登记「四海钱庄」
+    let propBank = world.assets.properties.find((p) => p && (p.id === 'sihai_bank' || String(p.name || '').includes('四海钱庄')));
+    if (!propBank) {
+      world.assets.properties.push({
+        id: 'sihai_bank',
+        name: '四海钱庄',
+        kind: 'finance',
+        category: '钱银汇兑',
+        status: '已开张',
+        owner: 'husband',
+        keeper: 'qianwenyuan',
+        keeperName: '钱文渊',
+        ownerName: '王甯',
+        costSilver: 320.0,
+        capital: 320.0,
+        placeId: 'sihai_bank',
+        staff: 2,
+        staffIds: ['qianwenyuan'],
+        incomePerDay: 48.0,
+        autoIncome: true,
+        openedDay: 25,
+        openHour: 8,
+        closeHour: 20,
+        floors: 3,
+        floorNames: ['高柜大堂', '厚铁地窖金库', '内账房'],
+        desc: '相公斥资三百二十两全款盘下的四海钱庄。朱红高柜、厚铁地窖金库齐备，承接两淮客商现银兑发、银票承兑与商号借贷，每日钱水利钱滚滚进账。',
+        todayHighlight: '南北客商大宗承兑现银，汇水抽分与典当息银流水落账',
+      });
+      fixes.push('实业资产落账：四海钱庄（出资320两，日入48.0两）正式登记入册');
+    }
+  } catch (err) {
+    console.warn('[Heal] 四海钱庄自愈落账异常：', err.message);
+  }
+
+  // ⑳ 知府千金杨采儿明媒正娶平妻并嫡大典权威自愈落地与婚书入囊
+  try {
+    const resM = marryYangCaier(world, { dowry: 600, day: 26 });
+    if (resM?.ok) {
+      const certs = ensureMarriageCredentials(world);
+      if (certs && certs.length > 0) {
+        fixes.push('名门大婚：核发《大乾知府千金杨采儿并嫡平妻婚书》入相公行囊，两府结秦晋之好！');
+      }
+    }
+  } catch (err) {
+    console.warn('[Heal] 采儿大婚平妻自愈落地异常：', err.message);
+  }
+
+  // ㉑ 官职体系清正：相公历任低阶武职规范卸任交割开缺（仅保留最高从一品水陆提督现任），消除知府重复
+  try {
+    world.court = world.court || {};
+    world.court.offices = world.court.offices || {};
+    const offices = world.court.offices;
+
+    // 确定相公持有的最高官职 key
+    const ladderKeys = ['tuanlian', 'shoubei', 'dusi', 'canjiang', 'fuzongbing', 'zongbing', 'tiduzongbing'];
+    let highestKey = null;
+    for (let i = ladderKeys.length - 1; i >= 0; i--) {
+      const k = ladderKeys[i];
+      if (offices[k] && (offices[k].holder === 'husband' || offices[k].formerHolder === 'husband')) {
+        highestKey = k;
+        break;
+      }
+    }
+
+    if (highestKey) {
+      if (offices[highestKey]) {
+        offices[highestKey].holder = 'husband';
+        offices[highestKey].vacant = false;
+      }
+      for (const k of ladderKeys) {
+        if (k !== highestKey && offices[k]) {
+          if (offices[k].holder === 'husband') {
+            offices[k].holder = null;
+            offices[k].formerHolder = 'husband';
+            offices[k].vacant = true;
+            offices[k].note = `相公已升任${offices[highestKey]?.title || '更高级别'}，原职已交割开缺`;
+            fixes.push(`官职迁转交割：原「${offices[k].title}」已规范交割卸任开缺，不再重复霸占席位`);
+          }
+        }
+      }
+    }
+
+    if (offices.prefect && offices['city:临江府']) {
+      delete offices.prefect;
+      fixes.push('知府去重：移除中枢卡片重复之临江知府，统一保留在各省地方知府');
+    }
+  } catch (err) {
+    console.warn('[Heal] 官职迁转去重自愈异常：', err.message);
+  }
+
+  // ㉒ 水陆提督开府建牙：王宅正式升格为「提督王府」，全府房间前缀统一正名
+  try {
+    const upg = upgradeToMansionPalace(world);
+    if (upg && upg.ok) {
+      fixes.push(`府邸升格：临江王宅已奉旨正式升格为「${upg.newName}」，共规范同步 ${upg.renamedPlaces} 处子房间名号！`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 府邸升格提督王府异常：', err.message);
+  }
+
+  // ㉓ 内眷居所正规化：平妻杨采儿并嫡正房暖阁、小翠入后罩房
+  try {
+    const caier = world.actors?.yangzhenhua;
+    if (caier) {
+      const targetMain = world.places?.wang_mansion__main_room ? 'wang_mansion__main_room' : (world.places?.husband_room ? 'husband_room' : 'wang_mansion');
+      if (caier.location === 'wang_mansion__east_room' || caier.quarters === 'wang_mansion__east_room' || !caier.assignedRoom) {
+        assignChamber(world, 'yangzhenhua', targetMain, { orderedBy: 'husband' });
+        fixes.push('内眷正名：并嫡平妻杨采儿居所正式迁入提督王府正房暖阁，与发妻并尊！');
+      }
+    }
+
+    const cui = world.actors?.xiaocui;
+    if (cui && (cui.home === 'street' || !cui.home || cui.home === 'backyard')) {
+      const servantRoom = world.places?.wang_mansion__servant ? 'wang_mansion__servant' : 'wang_mansion';
+      cui.home = servantRoom;
+      if (cui.location === 'street') cui.location = servantRoom;
+      cui.quarters = servantRoom;
+      fixes.push('贴身丫鬟小翠归位：安置于提督王府后罩房，不再流寓街头');
+    }
+  } catch (err) {
+    console.warn('[Heal] 内眷居所正规化自愈异常：', err.message);
   }
 
   return fixes;

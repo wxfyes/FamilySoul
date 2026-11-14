@@ -1612,12 +1612,83 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
+        if (matched.length === 0) {
+          // 搜索智能兜底：若全库未命中且属于合理古代人名，即时在世间具象化此人物
+          try {
+            const { cleanActorName, isPotentialActorName, materializeNarrativeActor } = await import('./world/dynamic-actor.js');
+            const pureQ = cleanActorName(q);
+            if (isPotentialActorName(pureQ)) {
+              const wMutable = loadState(DATA_DIR);
+              const spawned = materializeNarrativeActor(wMutable, {
+                name: pureQ,
+                notes: '相公全域寻访特召涌现',
+              });
+              if (spawned) {
+                saveState(DATA_DIR, wMutable);
+                matched.push({
+                  id: spawned.id,
+                  name: spawned.name,
+                  role: spawned.role || '市井百姓',
+                  place: placeName(spawned.location || ''),
+                  locationId: spawned.location || '',
+                  city: spawned.city || '临江府',
+                  gender: spawned.gender || 'male',
+                  trust: 50,
+                  desire: 0,
+                  here: false,
+                  household: false,
+                });
+              }
+            }
+          } catch (eSpawn) {
+            console.warn('[Search] 动态人物寻访具象化异常:', eSpawn.message);
+          }
+        }
+
         matched.sort((a, b) => {
           if (a.here !== b.here) return a.here ? -1 : 1;
           return b.trust - a.trust;
         });
 
         return sendJson(res, 200, { ok: true, total: matched.length, actors: matched });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/residence/assign - 相公自由调配内眷分房令（单一写入口）
+    if (req.method === 'POST' && matchRoute('/world/residence/assign')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { actor, room } = body || {};
+        if (!actor || !room) return sendJson(res, 400, { ok: false, error: '缺少内眷姓名或居所房间' });
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { assignChamber } = await import('./world/residence.js');
+        const result = assignChamber(world, actor, room, { orderedBy: member.actor || 'husband' });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, {
+          ok: true,
+          message: result.message,
+          actor: {
+            id: result.actor.id,
+            name: result.actor.name,
+            home: result.actor.home,
+            location: result.actor.location,
+            quarters: result.actor.quarters,
+          },
+          place: {
+            id: result.place.id,
+            name: result.place.name,
+          },
+        });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
       }

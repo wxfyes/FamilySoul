@@ -76,9 +76,11 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
     const destPlace = world.places[placeId];
     const role = String(a.role || '');
     const isMasterFamily = actorId === 'husband'
-      || ['waner', 'yunnia', 'xiaocui'].includes(actorId)
-      || /正妻|二房|如夫人|侧室|侍妾|通房/.test(role);
-    if (!isMasterFamily && isChamberRoom(destPlace) && !/特召|叫到跟前|相公召见|提审/.test(String(note || ''))) {
+      || Boolean(a.household)
+      || a.spouse === 'husband'
+      || ['waner', 'yunnia', 'xiaocui', 'yangzhenhua'].includes(actorId)
+      || /正妻|正室|平妻|大娘子|二房|如夫人|侧室|侍妾|通房/.test(role);
+    if (!isMasterFamily && isChamberRoom(destPlace) && !/特召|叫到跟前|相公召见|提审|安置居所|恩旨|分房|安歇/.test(String(note || ''))) {
       if (/伙计|跑堂/.test(role)) {
         placeId = world.places?.tea_house ? 'tea_house' : 'street';
       } else {

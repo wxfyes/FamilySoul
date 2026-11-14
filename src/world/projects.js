@@ -203,19 +203,43 @@ function ensureProjectSpaces(world, prop, name, title = '') {
 }
 
 /**
+ * 通用商号字号提纯器：
+ * 将自然语言流水或对话标题（如“买下四海钱庄铺面”、“长风镖局开张本钱”）精准剥离为纯净实业名称
+ */
+export function extractBusinessName(rawText = '') {
+  let s = String(rawText || '').replace(/^[「『\s]+|[」』\s]+$/g, '').trim();
+  s = s.replace(/^(?:第\d+日(?:\d+时)?\s*)?/, '');
+  s = s.replace(/[，,].*$/, ''); // 截断逗号后补充说明
+  s = s.replace(/^(?:相公|我)?(?:出资|花销|盘下|买下|置办|购置|开办|开张|开设|打制|新建|筹备|筹建)+/, '');
+  s = s.replace(/(?:[·・](?:开张|本钱|定金))+$/g, '');
+  s = s.replace(/(?:开张本钱|取银入公账|开张|买铺|铺子|铺面|门面|商铺|本钱|花销|定金|银两)+$/g, '');
+  s = s.replace(/^[「『\s]+|[」』\s]+$/g, '').trim();
+  if (s.length >= 2 && s.length <= 20) return s;
+  return String(rawText || '').slice(0, 20).trim();
+}
+
+/**
  * 核心入口：落地相公出资的任何产业（完全无需人工加正则，全自动适配）
  */
 export function ensureProjectProperty(world, projectName, amount, { day = null, title = '' } = {}) {
-  const name = String(projectName || '').replace(/^[「『\s]+|[」』\s]+$/g, '').trim().slice(0, 20);
+  const extracted = extractBusinessName(projectName || title);
+  const name = extracted.length >= 2 ? extracted : String(projectName || '').replace(/^[「『\s]+|[」』\s]+$/g, '').trim().slice(0, 20);
   if (name.length < 2) return null;
   // 过滤明显的口语非产业词
   if (/^(相公|夫君|娘子|婉儿|芸娘|小翠|今天|明天|我们|他们|这个|那个|多少)$/.test(name)) return null;
 
   world.assets = world.assets || {};
   world.assets.properties = Array.isArray(world.assets.properties) ? world.assets.properties : [];
-  const exists = world.assets.properties.find((p) => p && (
-    String(p.name || '').includes(name) || name.includes(String(p.name || ''))
-  ));
+  const cleanName = name.replace(/^(?:临江[·・]|王家[·・]|王记[·・]?)/, '').replace(/(?:新铺|铺面|门面|商铺|产业)+$/g, '');
+  const exists = world.assets.properties.find((p) => {
+    if (!p || !p.name) return false;
+    const pName = String(p.name);
+    if (pName === name) return true;
+    // 严禁通用短词（如"新铺"、"铺子"）模糊吞并具体字号的新产业
+    if (pName.length <= 2 || name.length <= 2) return false;
+    if (cleanName.length >= 3 && pName.includes(cleanName)) return true;
+    return false;
+  });
 
   const profile = inferIndustryProfile(name, title);
 
@@ -322,8 +346,9 @@ export function repairProjectProperties(world) {
   for (const e of world?.ledger || []) {
     if (!e || Number(e.delta) >= 0) continue;
     const title = String(e.title || '').replace(/\s/g, '');
-    const m = title.match(/^([\u4e00-\u9fa5]{2,12}?)(?:开张|盘铺|盘店|开业|买船|打船|造船|建厂|开厂|设坊)/)
-      || title.match(/^(?:置办|购置|打制|买下|开办|筹建|设立|兴建)([\u4e00-\u9fa5]{2,12}?)$/);
+    const m = title.match(/^([\u4e00-\u9fa5]{2,12}?)(?:开张|盘铺|盘店|开业|买船|打船|造船|建厂|开厂|设坊|买铺|置办铺面)/)
+      || title.match(/^(?:置办|购置|打制|买下|开办|筹建|设立|兴建|开设)([\u4e00-\u9fa5]{2,12}?)$/)
+      || title.match(/^([\u4e00-\u9fa5]{2,10}?(?:钱庄|银号|票号|当铺|茶庄|酒肆|酒楼|货栈|镖局|堆栈|瓷窑|工坊|粮铺|盐铺))/);
     if (!m) continue;
     const cleanName = m[1];
     const amt = Math.abs(Number(e.delta) || 0);

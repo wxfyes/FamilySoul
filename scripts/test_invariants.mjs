@@ -277,6 +277,175 @@ testOfficialWorld.actors.yangshenzhi.title = 'prefect';
 refreshTitles(testOfficialWorld);
 assertInvariant(testOfficialWorld.actors.yangshenzhi.title !== 'prefect' && !/[a-zA-Z]/.test(testOfficialWorld.actors.yangshenzhi.title), 'refreshTitles 必须自动将任何英文 title 清洗为纯正古风中文官名');
 
+// ── 15. 四海钱庄实业资产与大朝奉归位不变量 ──
+const testBankWorld = {
+  places: {},
+  actors: { husband: { id: 'husband', location: 'street', bag: [] } },
+  assets: { silver: 1000, properties: [] },
+  marriages: [],
+  milestones: [],
+};
+healWorld(testBankWorld);
+const sihaiProp = testBankWorld.assets.properties.find((p) => p && (p.id === 'sihai_bank' || p.name === '四海钱庄'));
+assertInvariant(!!sihaiProp, '四海钱庄必须权威落账至 world.assets.properties');
+assertInvariant(Number(sihaiProp?.incomePerDay || 0) >= 40, '四海钱庄每日额定日入必须 >= 40 两');
+assertInvariant(testBankWorld.actors.qianwenyuan?.role === '大朝奉', '四海钱庄必须配备大朝奉钱文渊主管钱水');
+assertInvariant(!!testBankWorld.places['sihai_bank'], '四海钱庄必须拥有独立实体物理空间');
+
+// ── 16. 杨采儿正室·平妻并嫡法定名分与婚书不变量 ──
+const caierMarriage = (testBankWorld.marriages || []).find((m) => m && (m.who === 'yangzhenhua' || m.wifeId === 'yangzhenhua' || m.name === '杨采儿' || m.wifeName === '杨采儿'));
+assertInvariant(!!caierMarriage, '杨采儿必须权威登记入 world.marriages 婚配簿');
+assertInvariant(caierMarriage?.status === '平妻' || caierMarriage?.rank?.includes('平妻'), '杨采儿名分必须为明媒正娶之平妻/正室');
+const caierCert = itemsOf(testBankWorld, 'husband').find((item) => (item.name || '').includes('杨采儿') && (item.name || '').includes('婚书'));
+assertInvariant(!!caierCert, '相公随身行囊必须核发《杨采儿平妻婚书》');
+
+// ── 17. 通用实业商号提纯与动态落账引擎不变量 ──
+const { extractBusinessName, ensureProjectProperty } = await import('../src/world/projects.js');
+const rawTitle1 = '买下长风镖局铺面';
+const rawTitle2 = '第25日1时 王记药铺开张本钱，取银入公账';
+assertInvariant(extractBusinessName(rawTitle1) === '长风镖局', 'extractBusinessName 必须准确提纯「买下长风镖局铺面」为「长风镖局」');
+assertInvariant(extractBusinessName(rawTitle2) === '王记药铺', 'extractBusinessName 必须准确提纯复杂记账流水为纯净字号「王记药铺」');
+
+const dynamicWorld = {
+  assets: { properties: [] },
+  places: {},
+  flags: {},
+  notes: [],
+  clock: { day: 26, hour: 10 },
+};
+const pBiaoju = ensureProjectProperty(dynamicWorld, rawTitle1, 400, { title: rawTitle1 });
+assertInvariant(pBiaoju?.name === '长风镖局', '新产业必须自动建立为纯净字号「长风镖局」');
+assertInvariant(pBiaoju?.category === '车马镖运' && pBiaoju?.kind === 'logistics_land', '长风镖局必须自动识别为车马镖运品类');
+assertInvariant(Number(pBiaoju?.incomePerDay) >= 20, '长风镖局每日基准日入必须依据本钱自动测算');
+assertInvariant(!!dynamicWorld.places[pBiaoju.placeId], '长风镖局必须全自动挂载独立物理空间');
+
+// ── 18. 通用大乾婚聘礼法流水线（任意名门千金迎娶）不变量 ──
+const { executeMarriageAlliance } = await import('../src/world/marriage.js');
+const testWeddingWorld = {
+  actors: {
+    husband: { id: 'husband', name: '王甯' },
+    maiden_su: { id: 'maiden_su', name: '苏映雪', role: '江南世家嫡女', origin: 'noble', father: 'elder_su' },
+    elder_su: { id: 'elder_su', name: '苏老爷', role: '金陵名士', relations: {} },
+  },
+  items: [],
+  places: {},
+  bonds: {},
+  marriages: [],
+  notes: [],
+  clock: { day: 26, hour: 10 },
+};
+const wedRes = executeMarriageAlliance(testWeddingWorld, {
+  wifeId: 'maiden_su',
+  rank: '名门侧室',
+  dowry: 300,
+});
+assertInvariant(wedRes.ok === true, '通用婚聘礼法流水线必须顺利推演');
+assertInvariant(testWeddingWorld.marriages.some((m) => m.who === 'maiden_su' && m.status === '侧室'), '苏映雪必须权威登册为侧室');
+assertInvariant(testWeddingWorld.bonds.husband?.elder_su?.type === '岳婿', '迎娶苏映雪后必须全自动建立相公与苏老爷之岳婿羁绊');
+const suCert = itemsOf(testWeddingWorld, 'husband').find((it) => it.name.includes('苏映雪') && it.name.includes('婚书'));
+assertInvariant(!!suCert, '迎娶任何名门女子后，相公随身行囊必须全自动核发专属大红官押婚书');
+
+// ── 19. 官制升迁卸任开缺与杜绝一人霸占全场官职不变量 ──
+const testPromoWorld = {
+  court: {
+    offices: {
+      tuanlian: { title: '临江府乡勇团练使', holder: 'husband', vacant: false },
+      dusi: { title: '临江府都司', holder: 'husband', vacant: false },
+      tiduzongbing: { title: '江南水陆提督总兵官', holder: 'husband', vacant: false },
+      prefect: { title: '临江知府', holder: 'yangshenzhi', vacant: false },
+      'city:临江府': { title: '临江知府', holder: 'yangshenzhi', vacant: false },
+    },
+  },
+  actors: { husband: { id: 'husband' } },
+  places: {},
+  assets: { properties: [] },
+  marriages: [],
+  milestones: [],
+};
+healWorld(testPromoWorld);
+const pOffices = testPromoWorld.court.offices;
+assertInvariant(pOffices.tiduzongbing?.holder === 'husband', '水陆提督最高官职必须由相公实授现任');
+assertInvariant(pOffices.tuanlian?.holder === null && pOffices.tuanlian?.vacant === true, '升任提督后低阶团练使必须规范卸任开缺，严禁一人霸占');
+assertInvariant(pOffices.dusi?.holder === null && pOffices.dusi?.vacant === true, '升任提督后低阶都司必须规范卸任开缺');
+assertInvariant(!pOffices.prefect, '冗余之中枢知府 prefect 必须清除，统一归入地方各府知府');
+
+// ── 20. 提督王府升格与全府子房间正名不变量 ──
+const { upgradeToMansionPalace, assignChamber, assignStaffQuarters } = await import('../src/world/residence.js');
+const testPalaceWorld = {
+  assets: {
+    properties: [
+      { id: 'wang_mansion', name: '临江·王宅（七进大宅）', placeId: 'husband_room' },
+    ],
+  },
+  places: {
+    husband_room: { id: 'husband_room', name: '临江·王宅·正房暖阁' },
+    wang_mansion_east: { id: 'wang_mansion_east', name: '临江·王宅·东跨院' },
+    wang_mansion_west: { id: 'wang_mansion_west', name: '临江·王宅·西跨院' },
+  },
+  actors: {
+    husband: { id: 'husband', role: '江南水陆提督总兵官' },
+  },
+  milestones: [],
+};
+const upgRes = upgradeToMansionPalace(testPalaceWorld);
+assertInvariant(upgRes.ok === true, '水陆提督开府建牙，宅邸必须顺利升格');
+assertInvariant(testPalaceWorld.assets.properties[0].name.includes('提督王府'), '府邸资产名必须包含「提督王府」');
+assertInvariant(testPalaceWorld.places.husband_room.name === '临江·提督王府·正房暖阁', '正房名号必须统一正名为「临江·提督王府·正房暖阁」');
+assertInvariant(testPalaceWorld.places.wang_mansion_east.name === '临江·提督王府·东跨院', '东跨院名号必须统一正名为「临江·提督王府·东跨院」');
+
+// ── 21. 平妻杨采儿并嫡正房与内眷自由分房令不变量 ──
+const testChamberWorld = {
+  places: {
+    husband_room: { id: 'husband_room', name: '临江·提督王府·正房暖阁' },
+    wang_mansion_east: { id: 'wang_mansion_east', name: '临江·提督王府·东跨院' },
+    wang_mansion_west: { id: 'wang_mansion_west', name: '临江·提督王府·西跨院' },
+  },
+  actors: {
+    husband: { id: 'husband', location: 'husband_room' },
+    yangzhenhua: { id: 'yangzhenhua', name: '杨采儿', role: '正室·平妻', location: 'wang_mansion_east', home: 'wang_mansion' },
+    cuiwanning: { id: 'cuiwanning', name: '崔婉宁', role: '侧室', location: 'husband_room', home: 'husband_room' },
+  },
+};
+// 调配采儿住正房
+const assignCaier = assignChamber(testChamberWorld, '采儿', '正房暖阁', { orderedBy: 'husband' });
+assertInvariant(assignCaier.ok === true, '相公恩旨调配采儿住正房暖阁必须成功生效');
+assertInvariant(testChamberWorld.actors.yangzhenhua.quarters === 'husband_room', '采儿的 quarters 必须指向正房');
+assertInvariant(testChamberWorld.actors.yangzhenhua.location === 'husband_room', '采儿必须物理移步至正房');
+assertInvariant(testChamberWorld.actors.yangzhenhua.assignedRoom === 'husband_room', '相公钦定住处必须记录 assignedRoom');
+
+// 调配婉宁住东跨院
+const assignWanning = assignChamber(testChamberWorld, '婉宁', '东跨院', { orderedBy: 'husband' });
+assertInvariant(assignWanning.ok === true, '相公调配婉宁住东跨院必须成功生效');
+assertInvariant(testChamberWorld.actors.cuiwanning.quarters === 'wang_mansion_east', '婉宁居所必须权威确立为东跨院');
+
+// 巡检防护：相公钦定的住处绝不可被默认规则覆盖
+assignStaffQuarters(testChamberWorld, 'husband_room');
+assertInvariant(testChamberWorld.actors.yangzhenhua.quarters === 'husband_room', '自动巡检绝不可覆盖相公钦定之采儿正房住处');
+assertInvariant(testChamberWorld.actors.cuiwanning.quarters === 'wang_mansion_east', '自动巡检绝不可覆盖相公钦定之婉宁东跨院住处');
+
+// ── 22. 剧情人物即时具象化引擎不变量 ──
+const { materializeNarrativeActor, autoMaterializeFromDialogue } = await import('../src/world/dynamic-actor.js');
+const testDynWorld = {
+  actors: { husband: { id: 'husband', name: '王甯' } },
+  places: { street: { name: '临江长街' }, yamen: { name: '临江府衙' } },
+  events: [],
+  clock: { day: 26, hour: 12 },
+};
+const newActor = materializeNarrativeActor(testDynWorld, {
+  name: '汪德润',
+  role: '扬州大盐商',
+  notes: '客商寿宴引荐',
+});
+assertInvariant(!!newActor && newActor.name === '汪德润', '剧情提及的汪德润必须被成功具象化');
+assertInvariant(!!testDynWorld.actors[newActor.id], '新角色必须成功注册入 world.actors 字典');
+assertInvariant(newActor.gender === 'male', '汪德润性别必须正确推导为男性');
+assertInvariant(newActor.relations.husband.trust >= 50, '新角色必须自动建立与相公的世情关系账本');
+
+const dialogueText = '【知县·周文达】：相公，今日运河督粮官【粮道·赵世诚】与【掌柜·孙大福】已抵临江。';
+const spawnedList = autoMaterializeFromDialogue(testDynWorld, dialogueText);
+assertInvariant(spawnedList.some((a) => a.name === '赵世诚'), '从剧情对话中必须全自动提取并具象化「赵世诚」');
+assertInvariant(spawnedList.some((a) => a.name === '孙大福'), '从剧情对话中必须全自动提取并具象化「孙大福」');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {

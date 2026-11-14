@@ -376,10 +376,15 @@ export function assignStaffQuarters(world, rootId) {
       || (root.owner === 'husband' && (a.household || a.spouse === 'husband'));
     if (!livesHere) continue;
 
-    // 眷属按位份住：正妻住正房，二房住东厢，其余住西厢
+    // 眷属按位份住：正妻与平妻并嫡住正房，二房/侧室住东西跨院/东厢/西厢
     if (a.household || a.spouse === 'husband') {
-      const rank = /正妻|大娘子/.test(String(a.role || '')) ? 'main'
-        : /二房|如夫人|侧室|妾/.test(String(a.role || '')) ? 'east' : 'west';
+      // 铁律：若相公已明确钦定居所，最高优先级尊重，绝不随意覆盖！
+      if (a.assignedRoom && (byKey[a.assignedRoom] || world.places?.[a.assignedRoom] || Object.values(byKey).includes(a.assignedRoom))) {
+        continue;
+      }
+      const isPrincipal = /正妻|大娘子|平妻|并嫡/.test(String(a.role || '')) || /正室|平妻/.test(String(a.status || ''));
+      const isConcubine = /二房|如夫人|侧室|妾/.test(String(a.role || '')) || /侧室|妾室/.test(String(a.status || ''));
+      const rank = isPrincipal ? 'main' : isConcubine ? 'east' : 'west';
       const room = byKey[rank] || byKey.main || byUse.bedroom;
       if (room && a.quarters !== room) { a.quarters = room; placed += 1; }
       continue;
@@ -800,4 +805,124 @@ export function pruneRemoteCourts(world) {
     delete p.rooms;
   }
   return removed;
+}
+
+/**
+ * 相公调配府内眷属居所单一入口（自由分房调迁令）
+ */
+export function assignChamber(world, actorQuery, roomQuery, { orderedBy = 'husband' } = {}) {
+  const actorStr = String(actorQuery || '').trim();
+  const roomStr = String(roomQuery || '').trim();
+  if (!actorStr || !roomStr) return { ok: false, error: '缺少人名或房名' };
+
+  // 1. 查找内眷
+  const actors = Object.values(world.actors || {});
+  let targetActor = actors.find((a) => a && (a.id === actorStr || a.name === actorStr));
+  if (!targetActor) {
+    targetActor = actors.find((a) => a && (
+      (a.name && (a.name.includes(actorStr) || actorStr.includes(a.name))) ||
+      (a.role && a.role.includes(actorStr))
+    ));
+  }
+  if (!targetActor) return { ok: false, error: `府内查无此人：${actorStr}` };
+
+  // 2. 查找府内房间
+  const places = Object.values(world.places || {});
+  const mansionPlaces = places.filter((p) => p && (
+    p.id === 'husband_room' ||
+    (p.id && String(p.id).startsWith('wang_mansion')) ||
+    (p.parent && (p.parent === 'wang_mansion' || p.parent === 'husband_room')) ||
+    String(p.name || '').includes('王府') ||
+    String(p.name || '').includes('王宅')
+  ));
+
+  let targetPlace = mansionPlaces.find((p) => p && (p.id === roomStr || p.name === roomStr));
+  if (!targetPlace) {
+    // 模糊匹配
+    if (/正房|暖阁|上房|上堂|寝堂/.test(roomStr)) {
+      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion__main_room' || p.id === 'husband_room' || /正房/.test(p.name)));
+    } else if (/东跨|东院|东厢/.test(roomStr)) {
+      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion_east' || p.id === 'wang_mansion__east' || /东厢|东跨/.test(p.name)));
+    } else if (/西跨|西院|西厢/.test(roomStr)) {
+      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion_west' || p.id === 'wang_mansion__west' || /西厢|西跨/.test(p.name)));
+    } else if (/后罩|下房|丫鬟房/.test(roomStr)) {
+      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion__servant' || /后罩|下房/.test(p.name)));
+    } else if (/花园|临波/.test(roomStr)) {
+      targetPlace = mansionPlaces.find((p) => p && (p.id === 'wang_mansion__garden' || /花园/.test(p.name)));
+    }
+  }
+
+  if (!targetPlace) {
+    targetPlace = places.find((p) => p && (p.id === roomStr || p.name === roomStr || String(p.name).includes(roomStr)));
+  }
+
+  if (!targetPlace) return { ok: false, error: `府内查无此居所：${roomStr}` };
+
+  // 3. 权威更动并永久锁定相公钦定标识
+  targetActor.home = targetPlace.id;
+  targetActor.quarters = targetPlace.id;
+  targetActor.chamber = targetPlace.id;
+  targetActor.assignedRoom = targetPlace.id;
+  targetActor.assignedBy = orderedBy;
+  targetActor.assignedAt = world.clock?.day || 26;
+
+  // 4. 物理搬迁（以 ui 操作权限确保顺利入驻）
+  moveActor(world, targetActor.id, targetPlace.id, 'ui', `相公恩旨安置居所至${targetPlace.name}`);
+
+  return {
+    ok: true,
+    actor: targetActor,
+    place: targetPlace,
+    message: `${targetActor.name} 已遵旨迁入【${targetPlace.name}】`,
+  };
+}
+
+/**
+ * 升格相公宅邸为「提督王府」（单一入口）
+ */
+export function upgradeToMansionPalace(world, { force = false } = {}) {
+  const me = world.actors?.husband;
+  const rank = String(me?.role || '');
+  const isHighOfficer = /从一品|正一品|正二品|提督|总督|总兵/.test(rank) || force;
+
+  const props = Array.isArray(world.assets?.properties) ? world.assets.properties : [];
+  const mansionProp = props.find((p) => p && (p.id === 'wang_mansion' || p.placeId === 'husband_room' || /王宅/.test(p.name)));
+  if (!mansionProp) return false;
+
+  const oldName = mansionProp.name;
+  const newMansionTitle = '临江·提督王府（一品军门府邸）';
+  const prefix = '临江·提督王府·';
+
+  // 1. 更新资产表
+  mansionProp.name = newMansionTitle;
+  mansionProp.desc = '临江城中七进三进三出深宅大院，飞檐斗拱、气势恢宏，乃从一品水陆提督军门府邸，开府建牙、中军亲卫列宿。后宅正房、东跨院、西厢房一应俱全。';
+
+  // 2. 更新主地点与所有子地点名称
+  let renamedPlaces = 0;
+  for (const [pid, p] of Object.entries(world.places || {})) {
+    if (!p) continue;
+    if (pid === 'husband_room' || pid === 'wang_mansion' || pid.startsWith('wang_mansion_') || pid.startsWith('wang_mansion__')) {
+      const roomPart = String(p.name || '').replace(/^临江·(王宅|提督王府)·?/, '') || '正房暖阁';
+      const newPlaceName = `${prefix}${roomPart}`;
+      if (p.name !== newPlaceName) {
+        p.name = newPlaceName;
+        renamedPlaces += 1;
+      }
+    }
+  }
+
+  // 3. 补记大事记与里程碑
+  world.milestones = Array.isArray(world.milestones) ? world.milestones : [];
+  if (!world.milestones.some((m) => m && m.id === 'upgrade_to_mansion_palace')) {
+    world.milestones.push({
+      id: 'upgrade_to_mansion_palace',
+      type: 'residence_upgrade',
+      day: world.clock?.day || 26,
+      title: '临江王宅升格提督王府',
+      desc: '相公官拜从一品水陆提督总兵官，开府建牙，钦定将临江王宅正式正名升格为从一品“提督王府”，朱红九叠篆金匾高悬！',
+      impact: '府邸威仪倍增，地方文武百官登门参谒，家眷内外齐整肃穆。',
+    });
+  }
+
+  return { ok: true, oldName, newName: newMansionTitle, renamedPlaces };
 }
