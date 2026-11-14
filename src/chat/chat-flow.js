@@ -221,6 +221,56 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
         } catch (eAssign) {
           console.warn('[Residence] 分房令处理异常:', eAssign.message);
         }
+
+        // 攻城掠地：相公挥师出征攻伐州县
+        try {
+          const siegeMatch = text.match(/(?:发兵|出兵|带兵|率军|调兵|征讨|拿下|攻打|攻下|收复|平定)\s*([^\s，。！？]{2,6}?(?:府|城|县|关|寨))/);
+          if (siegeMatch) {
+            const targetCity = siegeMatch[1];
+            const { commandSiegeCity } = await import('../world/warfare.js');
+            const wSiege = loadState(svc.dataDir);
+            const siegeRes = await commandSiegeCity(wSiege, targetCity, { commander: 'husband' });
+            if (siegeRes && siegeRes.ok) {
+              saveState(svc.dataDir, wSiege);
+              if (siegeRes.victory) {
+                contextHintEarly += `（【破城大捷战报】：相公总督水陆大军出征，已势如破竹攻克【${targetCity}】！斩敌夺印，缴获府库白银 ${siegeRes.lootedSilver} 两归入相公公账！城池易帜归顺相公！本轮在场之人【必须】齐声向相公山呼拜贺不世武功！）\n`;
+              } else {
+                contextHintEarly += `（【军情前线合围】：相公兵锋直逼【${targetCity}】，城高壕深，水陆前锋已扎营围困四门，中军大阵赫赫威仪！）\n`;
+              }
+              console.log(`[Siege] 相公攻城军令生效：${siegeRes.message}`);
+            }
+          }
+        } catch (eSiege) {
+          console.warn('[Warfare] 攻城军令处理异常:', eSiege.message);
+        }
+
+        // 朝堂党争：相公弹劾罢黜官员
+        try {
+          const dismissMatch = text.match(/(?:罢免|革去|削去|撤掉|免去)\s*([^\s，。！？]{2,8}?(?:尚书|首辅|次辅|知府|御史|总兵|崔元礼|卢承业|裴敬之))/);
+          if (dismissMatch) {
+            const officeStr = dismissMatch[1];
+            const { dismissOfficial } = await import('../world/court.js');
+            const wCourt = loadState(svc.dataDir);
+            let offKey = null;
+            if (/首辅|宰相|崔元礼/.test(officeStr)) offKey = 'chancellor';
+            else if (/户部|卢承业/.test(officeStr)) offKey = 'revenue';
+            else if (/兵部|韩崇/.test(officeStr)) offKey = 'war';
+            else if (/吏部|裴敬之/.test(officeStr)) offKey = 'personnel';
+            else if (/御史|徐正道/.test(officeStr)) offKey = 'censor_chief';
+            else if (/九门提督|高承恩/.test(officeStr)) offKey = 'capital_commander';
+
+            if (offKey) {
+              const disRes = dismissOfficial(wCourt, offKey, { reason: '相公金銮殿奉旨弹劾削职', impeachedBy: 'husband' });
+              if (disRes && disRes.ok) {
+                saveState(svc.dataDir, wCourt);
+                contextHintEarly += `（【朝堂震动·削职圣谕】：相公奉旨弹劾，【${disRes.title}】已被当朝罢免开缺！朝野大哗，百官惊惧俯首！）\n`;
+                console.log(`[Court] 罢免官员生效：${disRes.message}`);
+              }
+            }
+          }
+        } catch (eDis) {
+          console.warn('[Court] 弹劾罢免指令处理异常:', eDis.message);
+        }
       } // end if (!engineMovedHusband)
     } catch (err) {
       console.warn('[Scene] 召唤失败：', err.message);

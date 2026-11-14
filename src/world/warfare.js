@@ -630,3 +630,82 @@ export function stationTroops(world, fid, fromCity, toCity, troops) {
   setStationed(world, f, toCity, troopsAt(world, f, toCity) + send);
   return { ok: true, from: fromCity, to: toCity, troops: send };
 }
+
+/**
+ * 水陆提督总兵官出征攻城掠地单一权威入口（总令天下大军征讨定鼎）
+ */
+export async function commandSiegeCity(world, targetCityName, { troops = 5000, commander = 'husband', tactic = 'assault' } = {}) {
+  const ct = world.cities?.[targetCityName];
+  if (!ct) return { ok: false, error: `大乾舆图上查无此城：${targetCityName}` };
+  if (ct.owner === 'husband') return { ok: false, error: `${targetCityName} 已是相公治下城池，无须攻打！` };
+
+  // 1. 获取水陆提督统帅大权
+  const { ensureCourtSystem, getHusbandMilitaryCommand } = await import('./court.js');
+  ensureCourtSystem(world);
+  const military = getHusbandMilitaryCommand(world);
+  if (!military.isCommander) {
+    return { ok: false, error: '非奉旨水陆提督总兵官，未持紫金虎符与尚方宝剑，无权专擅提调大军征伐！' };
+  }
+
+  const deployTroops = Math.min(Math.max(1000, Number(troops) || 5000), military.totalTroops);
+
+  // 2. 计算城防与攻防战力
+  const cityDefense = Math.max(10, Math.min(100, Number(ct.defense) || 50));
+  const garrisonTroops = Math.max(500, Number(ct.garrison) || 2000);
+  const totalEnemyDefense = cityDefense * 20 + garrisonTroops;
+  const husbandCombatPower = Math.round(deployTroops * 1.2 + (tactic === 'siege_engine' ? 5000 : 1000));
+
+  const roll = 0.9 + Math.random() * 0.3;
+  const isVictory = husbandCombatPower * roll >= totalEnemyDefense;
+
+  if (isVictory) {
+    // 3. 破城易帜
+    ct.owner = 'husband';
+    ct.ruler = 'husband';
+    ct.garrison = Math.round(deployTroops * 0.4);
+    ct.defense = 60;
+    ct.unrest = 15;
+
+    // 缴获府库金银入相公私库/公账
+    const lootedSilver = Math.round(300 + Math.random() * 500);
+    world.assets = world.assets || {};
+    world.assets.silver = Math.round(((Number(world.assets.silver) || 0) + lootedSilver) * 100) / 100;
+
+    // 记录大事记与不朽记忆
+    world.milestones = Array.isArray(world.milestones) ? world.milestones : [];
+    world.milestones.push({
+      id: `siege_victory_${targetCityName}_${world.clock?.day || 26}`,
+      type: 'siege_conquest',
+      day: world.clock?.day || 26,
+      title: `挥师攻克${targetCityName}`,
+      desc: `从一品水陆提督王甯统领水陆大军 ${deployTroops} 破城攻占【${targetCityName}】，缴获府库白银 ${lootedSilver} 两，出榜安民，设官分统！`,
+      impact: `天下震动！${targetCityName} 正式纳入相公治下版图，日后每日为王家输送税粮！`,
+    });
+
+    try {
+      const { addMemory } = await import('./memory.js');
+      addMemory(world, {
+        text: `沙场定鼎：相公统帅水陆诸军誓师攻克【${targetCityName}】，斩旗夺印，缴库银${lootedSilver}两，全城百姓箪食壶浆以迎军门！`,
+        type: 'warfare_victory',
+        permanent: true,
+      });
+    } catch {}
+
+    return {
+      ok: true,
+      victory: true,
+      city: targetCityName,
+      deployTroops,
+      lootedSilver,
+      message: `【大捷】相公水陆大军已攻破【${targetCityName}】！降将纳款、缴库银 ${lootedSilver} 两归公账，城池易帜归相公统御！`,
+    };
+  } else {
+    return {
+      ok: true,
+      victory: false,
+      city: targetCityName,
+      deployTroops,
+      message: `【战报】${targetCityName} 城高壕深、守军顽抗，我军水陆大队连攻未克，现已扎营严密封锁城池，待机再战！`,
+    };
+  }
+}

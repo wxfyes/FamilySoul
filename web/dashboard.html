@@ -1980,18 +1980,18 @@ function render(w){
     if (/shoubei|守备/.test(k + t)) return '从五品 · 卫城守备';
     if (/知县|县令/.test(k + t)) return '正七品 · 百里知县';
     if (/tuanlian|团练/.test(k + t)) return '从七品 · 乡勇团练';
+    if (/censor|御史/.test(k + t)) return '正二品 · 纠劾百官';
+    if (/commander|提督/.test(k + t)) return '正二品 · 节制京营';
+    if (/personnel|revenue|war|rites|justice|works|尚书/.test(k + t)) return '正二品 · 天下部堂';
     return isCentral ? '从一品至正二品' : '正四品知府';
   };
 
   const court = w.court || {};
   const offsAll = Object.entries(court.offices || {}).map(([k, o]) => [k, { ...o, key: k }]);
-  // 地方各省知府：city:* 归地方；prefect 合并去重
   const local = offsAll.filter(([k]) => k.startsWith('city:') || k === 'prefect');
-  // 中枢与封疆军门：排除地方知府，排除已卸任交割开缺的低阶武职（避免重复霸占席位）
   const central = offsAll.filter(([k, o]) => {
     if (k.startsWith('city:') || k === 'prefect') return false;
-    // 卸任开缺的低阶官职（如都司、守备、副总兵等）不在中枢大屏中重复出现
-    if (o.vacant && !['chancellor', 'revenue', 'war', 'governor', 'tiduzongbing'].includes(k)) return false;
+    if (o.vacant && !['chancellor', 'revenue', 'war', 'governor', 'tiduzongbing', 'personnel', 'censor_chief', 'capital_commander'].includes(k)) return false;
     return true;
   });
 
@@ -1999,8 +1999,10 @@ function render(w){
     const actor = o.holder ? (w.actors || []).find(a => a.id === o.holder) : null;
     let nameHtml = '';
     let tagsHtml = '';
+    let factionHtml = '';
+
     if (!o.holder) {
-      nameHtml = '<span class="bad" style="font-size:13px">职位空缺</span>';
+      nameHtml = '<span class="bad" style="font-size:13px;font-weight:600">【大位悬缺 · 待相公简任】</span>';
     } else if (!actor) {
       nameHtml = `<span class="muted" style="font-size:13px">${o.holder}（未入世）</span>`;
     } else {
@@ -2008,7 +2010,33 @@ function render(w){
       const t = Number(r.trust) || 0;
       const g = Number(r.grievance) || 0;
       const d = Number(r.desire) || 0;
-      nameHtml = `<span class="off-name" onclick="openActor('${actor.id}')">${actor.name}</span>`;
+      const f = actor.faction || (o.holder === 'husband' ? 'husband' : (actor.id === 'emperor' ? 'court' : 'neutral'));
+
+      let facText = '中立庶政';
+      let facColor = '#94a3b8';
+      let facBg = 'rgba(148,163,184,0.12)';
+
+      if (f === 'husband' || o.holder === 'husband') {
+        facText = '王党 · 提督派';
+        facColor = '#f43f5e';
+        facBg = 'rgba(244,63,94,0.18)';
+      } else if (f === 'court' || actor.id === 'emperor') {
+        facText = '帝党 · 天子';
+        facColor = '#fde047';
+        facBg = 'rgba(253,224,71,0.18)';
+      } else if (f === 'chancellor') {
+        facText = '相党 · 世家门阀';
+        facColor = '#c084fc';
+        facBg = 'rgba(192,132,252,0.18)';
+      } else if (f === 'censor') {
+        facText = '清流 · 风宪言官';
+        facColor = '#38bdf8';
+        facBg = 'rgba(56,189,248,0.18)';
+      }
+
+      factionHtml = `<span style="font-size:10px;padding:1px 6px;border-radius:4px;color:${facColor};background:${facBg};border:1px solid ${facColor}40">${facText}</span>`;
+
+      nameHtml = `<div style="display:flex;align-items:center;gap:6px"><span class="off-name" onclick="openActor('${actor.id}')">${actor.name}</span>${factionHtml}</div>`;
       tagsHtml = `<div class="off-tags">
         <span class="tag ${t>=60?'good':t>=30?'':'muted'}">信${t}</span>
         <span class="tag ${d>=50?'warn':'muted'}">欲${d}</span>

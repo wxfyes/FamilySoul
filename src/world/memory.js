@@ -85,11 +85,11 @@ function isNotice(m) {
   return m?.kind === 'notice' || /^新面孔入城/.test(String(m?.text || ''));
 }
 
-const CORE_MEMORY_RE = /(契纸|赎|还清|立约|托付终身|身孕|骨肉|私情|上房|留宿|侍寝|肌肤|定情|认下.*(关系|私情)|应了.*(相公|王甯)|夫妻之实|同床|云雨|圆房|收了房|和离|休书|婚嫁|嫁了|娶了|送官|衙门|收监|判(?:案|罪|了)|结案|亡故|病故|去世|死了)/;
+const CORE_MEMORY_RE = /(契纸|赎|还清|立约|托付终身|身孕|骨肉|私情|上房|留宿|侍寝|肌肤|定情|认下.*(关系|私情)|应了.*(相公|王甯)|夫妻之实|同床|云雨|圆房|收了房|和离|休书|婚嫁|嫁了|娶了|送官|衙门|收监|判(?:案|罪|了)|结案|亡故|病故|去世|死了|圣旨|诏书|尚方宝剑|提督|开府|金銮殿|廷辩|早朝|罢免|革职|实授|拜官|攻城|破城|誓师|大捷|承诺|誓言|立誓|答应|平妻|正房|王府|提督府)/;
 
 /** 核心旧事：不许被普通闲事挤掉 */
 export function isCoreMemory(m) {
-  return Boolean(m && CORE_MEMORY_RE.test(String(m.text || '')));
+  return Boolean(m && (m.permanent || CORE_MEMORY_RE.test(String(m.text || ''))));
 }
 
 /** 留存规则：公告单独限额；总量超限时先丢公告，再丢最旧的普通闲事，核心旧事优先保 */
@@ -116,7 +116,7 @@ export function trimMemories(world) {
  * 唯一写入口
  * @returns {object|null} 写入的记忆；重复或空文本返回 null
  */
-export function addMemory(world, { text, about = [], visible = 'private', kind = 'event', day, at, id } = {}) {
+export function addMemory(world, { text, about = [], visible = 'private', kind = 'event', day, at, id, permanent = false } = {}) {
   const t = String(text || '').trim().slice(0, 160);
   if (!t) return null;
   world.memories = Array.isArray(world.memories) ? world.memories : [];
@@ -129,6 +129,7 @@ export function addMemory(world, { text, about = [], visible = 'private', kind =
     return null;
   }
   const resolvedKind = /^新面孔入城/.test(t) ? 'notice' : String(kind || 'event');
+  const isPerma = Boolean(permanent || /(圣旨|诏书|尚方宝剑|誓言|立誓|提督王府|婚书)/.test(t));
   const rec = {
     ...(id ? { id } : {}),
     text: t,
@@ -137,6 +138,7 @@ export function addMemory(world, { text, about = [], visible = 'private', kind =
     about: normalizeAbout(world, { text: t, about }),
     visible: String(visible || 'private'),
     kind: resolvedKind,
+    permanent: isPerma,
   };
   world.memories.push(rec);
   trimMemories(world);

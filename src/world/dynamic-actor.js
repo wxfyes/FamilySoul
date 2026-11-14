@@ -223,3 +223,4 @@ export function autoMaterializeFromDialogue(world, text, { city = '临江府' } 
 
   return spawned;
 }
+

@@ -446,6 +446,241 @@ class _ArmySheetState extends State<ArmySheet> {
     }
   }
 
+  /// 挥师出征 · 攻城掠地弹窗
+  Future<void> _showSiegeDialog() async {
+    final availableCities = const [
+      '太原府', '扬州府', '杭州府', '洛阳府', '金陵府', '武昌府', '大同府', '青州府', '苏州府'
+    ];
+    String selectedCity = '太原府';
+    String tactic = 'frontal';
+    int maxTroops = _quellReady > 0 ? _quellReady : 5000;
+    int troops = maxTroops > 5000 ? 5000 : maxTroops;
+    if (troops <= 0) troops = 1000;
+
+    final confirm = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1B25),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            border: Border(top: BorderSide(color: Color(0xFFEF4444), width: 1.5)),
+          ),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.fort_rounded, color: Color(0xFFEF4444), size: 22),
+                  const SizedBox(width: 8),
+                  const Text('节制水陆大军 · 攻城掠地', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  Text('麾下可用：$_quellReady 人', style: const TextStyle(color: Color(0xFFE0B252), fontSize: 12)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text('以水陆提督总兵官之威，点齐军马战船攻取重镇城池。破城后缴获府库充公入相公私库，万民降顺！',
+                  style: TextStyle(color: Colors.white54, fontSize: 12.5, height: 1.4)),
+              const SizedBox(height: 16),
+              const Text('选择攻伐名城：', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: availableCities.map((c) {
+                  final sel = c == selectedCity;
+                  return InkWell(
+                    onTap: () => setSt(() => selectedCity = c),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: sel ? const Color(0xFFEF4444).withValues(alpha: 0.25) : const Color(0xFF12131A),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: sel ? const Color(0xFFEF4444) : Colors.white12),
+                      ),
+                      child: Text(c, style: TextStyle(color: sel ? Colors.white : Colors.white60, fontSize: 13, fontWeight: sel ? FontWeight.w700 : FontWeight.normal)),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('点齐出征兵力：', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  Text('$troops 人', style: const TextStyle(color: Color(0xFFEF4444), fontSize: 15, fontWeight: FontWeight.w800)),
+                ],
+              ),
+              Slider(
+                value: troops.toDouble().clamp(100.0, 50000.0),
+                min: 100.0,
+                max: 50000.0,
+                divisions: 100,
+                activeColor: const Color(0xFFEF4444),
+                inactiveColor: Colors.white12,
+                onChanged: (v) => setSt(() => troops = v.toInt()),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [1000, 3000, 5000, 10000, 20000].map((n) {
+                  return InkWell(
+                    onTap: () => setSt(() => troops = n),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('$n人', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text('主攻战术：', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _tacticChip('正面强攻', 'frontal', tactic, (t) => setSt(() => tactic = t)),
+                  const SizedBox(width: 8),
+                  _tacticChip('炮轰破城', 'siege_engine', tactic, (t) => setSt(() => tactic = t)),
+                  const SizedBox(width: 8),
+                  _tacticChip('夜袭登梯', 'ambush', tactic, (t) => setSt(() => tactic = t)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              InkWell(
+                onTap: () => Navigator.pop(ctx, true),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFF991B1B)]),
+                    boxShadow: [
+                      BoxShadow(color: const Color(0xFFEF4444).withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                    ],
+                  ),
+                  child: Text('⚔️ 旌旗猎猎 · 誓师发兵攻打$selectedCity',
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+
+    if (confirm != true) return;
+    if (_busy) return;
+    setState(() => _busy = true);
+
+    final res = await widget.api.commandSiege(city: selectedCity, troops: troops, tactic: tactic);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    final ok = res?['ok'] == true;
+    final victory = res?['victory'] == true;
+    final message = res?['message']?.toString() ?? res?['error']?.toString() ?? '战报未归';
+    final lootSilver = (res?['lootSilver'] as num?)?.toDouble() ?? 0.0;
+    final casualties = (res?['casualties'] as num?)?.toInt() ?? 0;
+    final title = victory ? '攻城大捷 · 降表已纳' : (ok ? '攻城鏖战' : '出征受阻');
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1B25),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: victory ? const Color(0xFFE0B252) : const Color(0xFFEF4444))),
+        title: Row(
+          children: [
+            Icon(victory ? Icons.military_tech_rounded : Icons.warning_rounded,
+                color: victory ? const Color(0xFFE0B252) : const Color(0xFFEF4444), size: 26),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF12131A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Text('目标名城：', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    Text(selectedCity, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Text('折损兵卒：', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    Text('$casualties 人', style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 13, fontWeight: FontWeight.w600)),
+                  ]),
+                  if (lootSilver > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Text('缴获府库：', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      Text('白银 $lootSilver 两已充实相公私库', style: const TextStyle(color: Color(0xFFE0B252), fontSize: 13, fontWeight: FontWeight.w700)),
+                    ]),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(message, style: const TextStyle(color: Color(0xFFCFD6E4), fontSize: 13.5, height: 1.45)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('班师回朝', style: TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok) {
+      await _load();
+      widget.onChanged?.call();
+    }
+  }
+
+  Widget _tacticChip(String label, String key, String current, ValueChanged<String> onSelect) {
+    final sel = current == key;
+    return Expanded(
+      child: InkWell(
+        onTap: () => onSelect(key),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: sel ? const Color(0xFFEF4444).withValues(alpha: 0.2) : const Color(0xFF12131A),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: sel ? const Color(0xFFEF4444) : Colors.white12),
+          ),
+          child: Text(label, style: TextStyle(color: sel ? Colors.white : Colors.white54, fontSize: 12, fontWeight: sel ? FontWeight.w700 : FontWeight.normal)),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cities = _stationed.entries.where((e) => (e.value as num) > 0).toList();
@@ -542,6 +777,12 @@ class _ArmySheetState extends State<ArmySheet> {
                       style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 12)),
                 ),
               Wrap(spacing: 10, runSpacing: 10, children: [
+                _pill(
+                  icon: Icons.fort_rounded,
+                  label: '⚔️ 挥师出征 · 攻城掠地',
+                  color: const Color(0xFFEF4444),
+                  onTap: _showSiegeDialog,
+                ),
                 _pill(
                   icon: Icons.military_tech_rounded,
                   label: '募私兵 ·需朝命',

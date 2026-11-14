@@ -1,5 +1,7 @@
 import { trimMemories, addMemory } from './memory.js';
 import { ensureResidence, upgradeToMansionPalace, assignChamber } from './residence.js';
+import { buildCapitalPlaces } from './capital.js';
+import { ensureCourtSystem } from './court.js';
 import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
 import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems, ensureMarriageCredentials } from './items.js';
@@ -1329,6 +1331,24 @@ export function healWorld(world) {
     }
   } catch (err) {
     console.warn('[Heal] 内眷居所正规化自愈异常：', err.message);
+  }
+
+  // ㉔ 京师大底座与紫禁城全景宫殿、一品提督府邸自愈健全
+  try {
+    const built = buildCapitalPlaces(world);
+    if (built > 0) {
+      fixes.push(`京华气象：紫禁城大内七殿与京师提督王府底座已威仪筑就（新增/健全 ${built} 处名胜宫殿）`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 京师底座健全自愈异常：', err.message);
+  }
+
+  // ㉕ 中枢文武百官体系、四大党争派系鼎立与人事缺分自愈健全
+  try {
+    ensureCourtSystem(world);
+    fixes.push('国朝权柄：中枢文武九卿与四大党争派系（帝党/相党/王党/清流）已全盘活化！');
+  } catch (err) {
+    console.warn('[Heal] 朝堂党争中枢自愈异常：', err.message);
   }
 
   return fixes;

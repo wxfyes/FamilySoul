@@ -631,4 +631,41 @@ class SurfCoreApiClient {
     } catch (_) {}
     return null;
   }
+
+  /// 攻城掠地：挥师出征夺取城池
+  Future<Map<String, dynamic>?> commandSiege({
+    required String city,
+    int? troops,
+    String tactic = 'frontal',
+  }) async {
+    try {
+      final res = await _dio.post(
+        '${config.baseUrl}/api/world/siege/command',
+        queryParameters: {'token': config.token.trim()},
+        data: {
+          'city': city,
+          if (troops != null) 'troops': troops,
+          'tactic': tactic,
+        },
+      );
+      if (res.statusCode == 200 && res.data is Map) {
+        return Map<String, dynamic>.from(res.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 节制天下兵符：获取天下总兵力与各路兵镇部署
+  Future<Map<String, dynamic>?> fetchMilitaryOverview() async {
+    try {
+      final res = await _dio.get(
+        '${config.baseUrl}/api/world/court/military',
+        queryParameters: {'token': config.token.trim()},
+      );
+      if (res.statusCode == 200 && res.data is Map) {
+        return Map<String, dynamic>.from(res.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
 }

@@ -2229,6 +2229,90 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // POST /api/world/siege/command - 水陆提督总令攻城掠地单一入口
+    if (req.method === 'POST' && matchRoute('/world/siege/command')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { city, troops, tactic } = body || {};
+        if (!city) return sendJson(res, 400, { ok: false, error: '请指定征讨城池' });
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { commandSiegeCity } = await import('./world/warfare.js');
+        const result = await commandSiegeCity(world, city, { troops: troops || 5000, commander: member.actor || 'husband', tactic });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/court/dismiss - 弹劾削职官员单一入口
+    if (req.method === 'POST' && matchRoute('/world/court/dismiss')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { office, reason } = body || {};
+        if (!office) return sendJson(res, 400, { ok: false, error: '请指定要削职开缺的官职 key' });
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { dismissOfficial } = await import('./world/court.js');
+        const result = dismissOfficial(world, office, { reason: reason || '相公于朝堂奉旨弹劾削职', impeachedBy: member.actor || 'husband' });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/court/appoint - 拜官提拔官员单一入口
+    if (req.method === 'POST' && matchRoute('/world/court/appoint')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { office, actor, reason } = body || {};
+        if (!office || !actor) return sendJson(res, 400, { ok: false, error: '请指定官职与任用人选' });
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { appointOfficial } = await import('./world/court.js');
+        const result = appointOfficial(world, office, actor, { reason: reason || '简在帝心，相公特简破格拜官', appointedBy: member.actor || 'husband' });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // GET /api/world/court/military - 相公节制天下水陆大军兵符与统兵概览
+    if (req.method === 'GET' && matchRoute('/world/court/military')) {
+      try {
+        const world = peek(DATA_DIR);
+        const { getHusbandMilitaryCommand } = await import('./world/court.js');
+        const data = getHusbandMilitaryCommand(world);
+        return sendJson(res, 200, { ok: true, military: data });
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // POST /api/world/confirm { actionId, option } → 确认一笔待付款
     // 开房、买东西、打点、赏钱、聘礼……凡是花银子的，都走这里
     if (req.method === 'POST' && (matchRoute('/world/confirm') || matchRoute('/world/pay'))) {

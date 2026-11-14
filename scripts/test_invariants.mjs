@@ -446,6 +446,54 @@ const spawnedList = autoMaterializeFromDialogue(testDynWorld, dialogueText);
 assertInvariant(spawnedList.some((a) => a.name === '赵世诚'), '从剧情对话中必须全自动提取并具象化「赵世诚」');
 assertInvariant(spawnedList.some((a) => a.name === '孙大福'), '从剧情对话中必须全自动提取并具象化「孙大福」');
 
+// ── 23. 京师与皇宫大内空间健全断言 ──
+const { initCapitalWorld, isCapitalPlace, isForbiddenCityPlace } = await import('../src/world/capital.js');
+const testCapWorld = { places: {}, assets: { realEstates: [] }, events: [] };
+initCapitalWorld(testCapWorld);
+assertInvariant(isForbiddenCityPlace('palace_throne_hall'), '金銮宝殿太和殿必须属于紫禁城皇宫空间');
+assertInvariant(isForbiddenCityPlace('palace_wenhua'), '文华殿内阁必须属于紫禁城皇宫空间');
+assertInvariant(isForbiddenCityPlace('palace_qianqing'), '乾清宫御书房必须属于紫禁城皇宫空间');
+assertInvariant(isCapitalPlace('capital_mansion'), '京师提督王府必须属于京师核心空间');
+assertInvariant(testCapWorld.assets.properties.some((r) => r.id === 'capital_mansion'), '提督王府必须入相公资产账本');
+
+// ── 24. 中枢朝堂与四大党争派系健全断言 ──
+const { initCourtOffices, appointOfficial, dismissOfficial, getHusbandMilitaryCommand } = await import('../src/world/court.js');
+const testCourtWorld = { court: {}, actors: { husband: { name: '王甯' } }, events: [] };
+initCourtOffices(testCourtWorld);
+assertInvariant(!!testCourtWorld.court.offices.chancellor, '中枢内阁首辅职位必须存在');
+assertInvariant(testCourtWorld.court.offices.chancellor.faction === 'chancellor', '首辅崔元礼初始派系为相党');
+assertInvariant(!!testCourtWorld.court.factions.court && !!testCourtWorld.court.factions.husband, '四大党争派系（帝党、相党、王党、清流）必须完备');
+
+// 弹劾削职断言
+const dismissRes = dismissOfficial(testCourtWorld, '兵部尚书', { reason: '贪渎受贿', impeachedBy: 'husband' });
+assertInvariant(dismissRes.ok === true, '弹劾兵部尚书必须成功');
+assertInvariant(testCourtWorld.court.offices.war.vacant === true, '兵部尚书被削职后必须处于空缺状态');
+
+// 拜官提拔断言
+const appointRes = appointOfficial(testCourtWorld, '兵部尚书', '韩崇', { appointedBy: 'husband' });
+assertInvariant(appointRes.ok === true, '提拔心腹继任兵部尚书必须成功');
+assertInvariant(testCourtWorld.court.offices.war.faction === 'husband', '提拔后的新任尚书派系必须归顺王党');
+
+// 天下兵符节制断言
+const militaryCmd = getHusbandMilitaryCommand(testCourtWorld);
+assertInvariant(militaryCmd.totalTroops >= 50000, '从一品水陆提督节制天下兵马总兵力必须达 5 万以上');
+assertInvariant(militaryCmd.divisions.some((d) => d.name.includes('神机')), '必须包含神机亲营');
+
+// ── 25. 攻城掠地闭环断言 ──
+const { commandSiegeCity } = await import('../src/world/warfare.js');
+const testSiegeWorld = {
+  cities: { 太原府: { defense: 60, garrison: 3000, unrest: 10 } },
+  assets: { silver: 1000 },
+  memories: [],
+  milestones: [],
+  events: [],
+};
+const siegeRes = await commandSiegeCity(testSiegeWorld, '太原府', { troops: 35000, tactic: 'siege_engine' });
+assertInvariant(siegeRes.ok === true, '挥师出征太原府必须成功执行');
+assertInvariant(siegeRes.victory === true, '兵力优势与神机营攻城器械必须取得大捷');
+assertInvariant(testSiegeWorld.cities.太原府.owner === 'husband', '破城后城池所有权必须易帜归相公');
+assertInvariant(testSiegeWorld.assets.silver > 1000, '破城缴获太原府库白银必须入相公私库');
+
 // ── 4. 总结与退出码 ──
 console.log('');
 if (errors > 0) {
