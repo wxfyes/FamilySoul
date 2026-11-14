@@ -455,6 +455,12 @@ assertInvariant(isForbiddenCityPlace('palace_wenhua'), '文华殿内阁必须属
 assertInvariant(isForbiddenCityPlace('palace_qianqing'), '乾清宫御书房必须属于紫禁城皇宫空间');
 assertInvariant(isCapitalPlace('capital_mansion'), '京师提督王府必须属于京师核心空间');
 assertInvariant(testCapWorld.assets.properties.some((r) => r.id === 'capital_mansion'), '提督王府必须入相公资产账本');
+assertInvariant(Object.keys(testCapWorld.places.capital_mansion.rooms || {}).length >= 20, '京师提督王府必须完整具备 20 处以上九进院落房间');
+assertInvariant(!!testCapWorld.places.capital_mansion__garden, '京师提督王府必须包含万景御花园');
+assertInvariant(!!testCapWorld.places.capital_mansion__drill, '京师提督王府必须包含亲兵演武校场');
+assertInvariant(!!testCapWorld.places.capital_mansion__study, '京师提督王府必须包含文澜御书房');
+assertInvariant(!!testCapWorld.actors.staff_bj_butler, '京师提督王府必须有王府大总管王福当差');
+assertInvariant(!!testCapWorld.actors.staff_bj_guard_leader, '京师提督王府必须有亲兵营统领赵铁山当差');
 
 // ── 24. 中枢朝堂与四大党争派系健全断言 ──
 const { initCourtOffices, appointOfficial, dismissOfficial, getHusbandMilitaryCommand } = await import('../src/world/court.js');

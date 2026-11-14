@@ -981,12 +981,19 @@ const server = http.createServer(async (req, res) => {
         // 先给"眼前这片"排前面：同宅的院子 → 同城 → 有人的 → 其它
         const curPlace = world.places?.[curId] || {};
         const myHome = world.actors?.[actorId]?.home || '';
-        const labelOf = (nm) => {
-          const seg = String(nm || '').split('·')[0];
+        const labelOf = (nm, plObj) => {
+          if (plObj?.city) return plObj.city;
+          const s = String(nm || '');
+          if (/^京师|^京城|^紫禁城/.test(s)) return '京城';
+          const seg = s.split('·')[0];
+          if (world.cities?.[seg]) return seg;
           if (/府$|州$|县$/.test(seg) && world.cities?.[seg]) return seg;
+          for (const c of Object.keys(world.cities || {})) {
+            if (s.startsWith(c) || s.startsWith(c.replace(/府$|县$|州$/g, ''))) return c;
+          }
           return '临江府';
         };
-        const myCity = curPlace ? labelOf(curPlace.name) : '';
+        const myCity = curPlace ? labelOf(curPlace.name, curPlace) : '';
         const nearScore = ([id, pl]) => {
           if (id === myHome) return 0;
           if (pl.parent && (pl.parent === curId || pl.parent === myHome)) return 1;
@@ -999,7 +1006,7 @@ const server = http.createServer(async (req, res) => {
           .filter(([id, pl]) => {
             if (id === curId || !pl || !pl.name || pl.private || pl.hidden) return false;
             // 只列本城的地方：成都的人不该看见临江的铺子
-            if (myCity && labelOf(pl.name) !== myCity) return false;
+            if (myCity && labelOf(pl.name, pl) !== myCity) return false;
             // 区分私密住所与公开商业/自有产业：酒楼、茶坊、茶肆的雅阁、天字阁、清幽雅间、单间、内账房全部放行
             const par = pl.parent ? world.places?.[pl.parent] : null;
             const isCommercialOrMine = Boolean(
@@ -1056,8 +1063,7 @@ const server = http.createServer(async (req, res) => {
               const fullName = `${houseName}·${rec.name}`;
               // 虚拟补进来的院子也要与本城一致（别把临江的衙署房间列到外城）
               if (myCity) {
-                const seg0 = String(parent.name || '').split('·')[0];
-                const pCity = /府$|州$|县$/.test(seg0) ? seg0 : '临江府';
+                const pCity = labelOf(parent.name, parent);
                 if (pCity !== myCity) continue;
               }
               const isCommOrMine = Boolean(
@@ -1966,12 +1972,21 @@ const server = http.createServer(async (req, res) => {
 
         // 说的是本城某个地方（集市/客栈/米行…）：先在本城找，不要跑到临江去
         try {
-          const labelOf2 = (nm) => {
-            const seg = String(nm || '').split('·')[0];
-            return /府$|州$|县$/.test(seg) ? seg : '临江府';
+          const labelOf2 = (nm, plObj) => {
+            if (plObj?.city) return plObj.city;
+            const s = String(nm || '');
+            if (/^京师|^京城|^紫禁城/.test(s)) return '京城';
+            const seg = s.split('·')[0];
+            if (world.cities?.[seg]) return seg;
+            if (/府$|州$|县$/.test(seg) && world.cities?.[seg]) return seg;
+            for (const c of Object.keys(world.cities || {})) {
+              if (s.startsWith(c) || s.startsWith(c.replace(/府$|县$|州$/g, ''))) return c;
+            }
+            return '临江府';
           };
           const meNow0 = world.actors?.[actorId] || world.actors?.husband;
-          const myCity2 = labelOf2(world.places?.[meNow0?.location]?.name);
+          const mePl0 = world.places?.[meNow0?.location];
+          const myCity2 = labelOf2(mePl0?.name, mePl0);
           // 优先看是否直接命中已有的地点 ID 或完整名称
           if (world.places?.[target]) {
             // target 本身就是合法地点 ID

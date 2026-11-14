@@ -305,7 +305,10 @@ export function streetOfCity(world, cityName) {
 
 /** 这处地方属于哪座城（按名字前缀认；老临江地点没有前缀，算临江府） */
 export function cityOfPlace(world, placeId) {
-  const name = String(world?.places?.[placeId]?.name || '');
+  const pl = world?.places?.[placeId];
+  if (pl?.city) return pl.city;
+  const name = String(pl?.name || '');
+  if (/^京师|^京城|^紫禁城/.test(name)) return '京城';
   const cities = Object.keys(world?.cities || {}).sort((a, b) => b.length - a.length);
   for (const c of cities) {
     const base = c.replace(/府$|县$|州$/g, '');
