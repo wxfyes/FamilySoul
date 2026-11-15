@@ -3,7 +3,7 @@ import { ensureResidence, upgradeToMansionPalace, assignChamber } from './reside
 import { buildCapitalPlaces } from './capital.js';
 import { ensureCourtSystem } from './court.js';
 import { ensureMilitaryGenerals } from './military-dispatch.js';
-import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity } from './persona.js';
+import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity, isOddOrInvalidName, isEligibleBeauty } from './persona.js';
 import { isPropertyOperational, getPropertyNominalIncome } from './employment.js';
 import { ensureOfficialCredentials, getHusbandOfficialInfo, sanitizeHusbandItems, ensureMarriageCredentials } from './items.js';
 import { ensureActiveBanditWaves } from './bandits.js';
@@ -1522,6 +1522,140 @@ export function healDuplicateActors(world) {
         fixes.push(`通用重名清理：移除动态重复克隆人「${name} (${dup.id})」，保留正本「${canonical.actor.name} (${canonical.id})」`);
       }
     }
+  }
+
+  // 3. 记忆自检重复自动去重（按文本前 30 字排他）
+  if (Array.isArray(world.memories)) {
+    const seenMem = new Set();
+    const dedupedMems = [];
+    let dupMemCount = 0;
+    for (const m of world.memories) {
+      const k = String(m?.text || '').slice(0, 30).trim();
+      if (!k) continue;
+      if (seenMem.has(k)) {
+        dupMemCount++;
+        continue;
+      }
+      seenMem.add(k);
+      dedupedMems.push(m);
+    }
+    if (dupMemCount > 0) {
+      world.memories = dedupedMems;
+      fixes.push(`世界记忆纯净去重：清理 ${dupMemCount} 条重复冗余记忆条目`);
+    }
+  }
+
+  // 4. 静儿（战静）二房名分与全域称谓彻底正名自愈
+  if (world.actors?.zhanjing) {
+    const zj = world.actors.zhanjing;
+    zj.name = '静儿';
+    zj.role = '二房如夫人';
+    zj.title = '二房如夫人';
+    zj.household = true;
+    zj.gender = 'female';
+    zj.home = zj.home && !zj.home.includes('suijia') ? zj.home : 'husband_room';
+    zj.location = zj.location && !zj.location.includes('suijia') ? zj.location : 'husband_room';
+    fixes.push('二房静儿正名：确立王府二房如夫人名分，清除旧县衙书吏残留');
+  }
+
+  // 5. 小翠（通房丫鬟）贴身侍奉名分规范
+  if (world.actors?.xiaocui) {
+    const xc = world.actors.xiaocui;
+    xc.name = '小翠';
+    xc.role = '贴身丫鬟';
+    xc.title = '贴身丫鬟';
+    xc.servant = true;
+    xc.household = true;
+    xc.gender = 'female';
+    fixes.push('小翠名分规范：确立王府贴身丫鬟权威标签');
+  }
+
+  // 6. 全量人物姓名与性别大清洗（彻底铲除“别家散”、“别人听”等怪名，纠偏伪娘与被错标为 female 的男性）
+  let cleansedOddNpc = 0;
+  let fixedMaleCount = 0;
+  for (const [id, a] of Object.entries(world.actors || {})) {
+    if (!a || id === 'husband') continue;
+    const name = String(a.name || '').trim();
+    const role = String(a.role || '').trim();
+
+    // 剔除机翻怪名与动宾短语 NPC（如别家散、别人听等）
+    if (isOddOrInvalidName(name)) {
+      if (a.origin === 'spawned' || a.dynamic || id.startsWith('npc_')) {
+        delete world.actors[id];
+        cleansedOddNpc++;
+        continue;
+      } else {
+        // 固定角色纠偏姓名
+        a.name = fallbackName(world, a.gender) || (a.gender === 'female' ? '柳娘' : '赵掌柜');
+        cleansedOddNpc++;
+      }
+    }
+
+    // 纠正被错标为 female 的男性角色（如贺水鬼、陆统领、屠户、掌柜、伙计等）
+    const trueGender = inferGenderFromIdentity(a.name, role, a.gender || 'male');
+    if (trueGender === 'male' && a.gender === 'female') {
+      a.gender = 'male';
+      fixedMaleCount++;
+    }
+  }
+  if (cleansedOddNpc > 0 || fixedMaleCount > 0) {
+    fixes.push(`世界人物鉴真大清洗：彻底清理怪名 NPC ${cleansedOddNpc} 名，纠偏被错标为女子的男性 ${fixedMaleCount} 名`);
+  }
+
+  // 7. 物理房间未翻译 ID 彻底正名自愈（彻底根除 place_44__f1 等未翻译英文 ID 泄漏）
+  if (world.places && typeof world.places === 'object') {
+    if (world.places['place_44__f1']) {
+      world.places['place_44__f1'].name = '运河码头三层大酒楼·一层大堂';
+      world.places['place_44__f1'].use = 'shop_floor';
+      world.places['place_44__f1'].access = 'public_shop';
+    }
+    if (world.places['place_44__f2']) {
+      world.places['place_44__f2'].name = '运河码头三层大酒楼·二层雅阁';
+      world.places['place_44__f2'].use = 'shop_floor';
+      world.places['place_44__f2'].access = 'public_shop';
+    }
+    if (world.places['place_44__f3']) {
+      world.places['place_44__f3'].name = '运河码头三层大酒楼·三层天字阁';
+      world.places['place_44__f3'].use = 'shop_floor';
+      world.places['place_44__f3'].access = 'public_shop';
+    }
+    if (world.places['place_44__private']) {
+      world.places['place_44__private'].name = '运河码头三层大酒楼·清幽雅间';
+      world.places['place_44__private'].use = 'shop_floor';
+      world.places['place_44__private'].access = 'public_shop';
+    }
+    if (world.places['place_44__office']) {
+      world.places['place_44__office'].name = '运河码头三层大酒楼·内账房';
+      world.places['place_44__office'].use = 'shop_floor';
+      world.places['place_44__office'].access = 'public_shop';
+    }
+    // 治理其余含有裸露英文 ID 的地点
+    for (const [pid, pl] of Object.entries(world.places)) {
+      if (!pl) continue;
+      if (pl.name === pid || /^place_\d+$/.test(pl.name || '')) {
+        pl.name = `${pl.city || '临江府'}·市井商铺`;
+      }
+    }
+    fixes.push('物理房间名称纯净化：运河大酒楼各楼层与市井地点正名完毕，根除未翻译英文 ID');
+  }
+
+  // 8. 羁绊关系网英文无用节点清理
+  if (world.bonds && typeof world.bonds === 'object') {
+    for (const k of Object.keys(world.bonds)) {
+      if (/^actor_dyn_|^off_/.test(k) || !world.actors?.[k]) {
+        delete world.bonds[k];
+      }
+    }
+  }
+
+  // 9. 相公从一品江南水陆提督官爵与全自动大事记全量同步
+  try {
+    const newMils = syncAutoChronicle(world);
+    if (newMils && newMils.length > 0) {
+      fixes.push(`大事记自动同步：成功收录 ${newMils.length} 条天下大事`);
+    }
+  } catch (err) {
+    console.warn('[Heal] 大事记同步异常:', err.message);
   }
 
   return fixes;

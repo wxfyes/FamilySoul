@@ -408,18 +408,34 @@ export function getHusbandOfficialInfo(world) {
     (d) => offices[d.officeKey] && (String(offices[d.officeKey].holder || '') === 'husband' || String(offices[d.officeKey].formerHolder || '') === 'husband')
   );
 
-  // 尊严不变量保底：若相公已开府建牙、身处提督王府，或角色标注为水陆提督，直接具备从一品提督官职
+  // 尊严不变量保底：若相公已开府建牙、身处提督王府、行囊有尚方诏书、大事记记载提督、或拥有王府资产，直接确立从一品水陆提督官爵
   const me = world?.actors?.husband;
+  const hasShangfangOrTiduItem = Array.isArray(world?.items?.husband) && world.items.husband.some((it) => it && (it.name?.includes('尚方宝剑') || it.name?.includes('提督')));
+  const hasTiduMilestone = Array.isArray(world?.milestones) && world.milestones.some((m) => String(m).includes('江南水陆提督总兵官'));
+  const hasWangMansion = world?.places?.wang_mansion != null;
+
   const isTidu = String(me?.role || '').includes('提督')
     || me?.office === 'tiduzongbing'
     || String(offices?.tiduzongbing?.holder || '') === 'husband'
     || String(me?.location || '').startsWith('capital_')
-    || String(world?.places?.[me?.location]?.name || '').includes('提督王府');
+    || String(world?.places?.[me?.location]?.name || '').includes('提督王府')
+    || hasShangfangOrTiduItem
+    || hasTiduMilestone
+    || hasWangMansion;
 
   if (isTidu) {
     const tiduDef = OFFICIAL_CREDENTIAL_DEFS.find((d) => d.officeKey === 'tiduzongbing');
     if (tiduDef && !heldDefs.some((d) => d.officeKey === 'tiduzongbing')) {
       heldDefs.push(tiduDef);
+    }
+    // 确立 court.offices 持久化记录
+    if (world?.court?.offices) {
+      world.court.offices.tiduzongbing = world.court.offices.tiduzongbing || {
+        holder: 'husband',
+        title: '江南水陆提督总兵官',
+        rank: '从一品',
+        assignedDay: world.clock?.day || 1,
+      };
     }
   }
 

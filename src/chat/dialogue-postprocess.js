@@ -93,10 +93,13 @@ export function normalizeSpeakers(text, dataDir) {
       map.set('侧妾', '二房·芸娘');
     }
     if (world.actors?.xiaocui) {
-      map.set('小翠', '丫鬟·小翠');
-      map.set('丫鬟', '丫鬟·小翠');
-      map.set('通房丫鬟', '丫鬟·小翠');
-      map.set('大丫鬟', '丫鬟·小翠');
+      map.set('小翠', '贴身丫鬟·小翠');
+      map.set('丫鬟', '贴身丫鬟·小翠');
+      map.set('丫鬟·小翠', '贴身丫鬟·小翠');
+      map.set('通房丫鬟', '贴身丫鬟·小翠');
+      map.set('通房丫鬟·小翠', '贴身丫鬟·小翠');
+      map.set('大丫鬟', '贴身丫鬟·小翠');
+      map.set('大丫鬟·小翠', '贴身丫鬟·小翠');
     }
     map.set('杨采儿', '知府千金·采儿');
     map.set('采儿', '知府千金·采儿');
@@ -109,8 +112,12 @@ export function normalizeSpeakers(text, dataDir) {
       map.set('紫嫣', '老板娘·紫嫣');
     }
     if (world.actors?.zhanjing) {
-      map.set('战静', '发妻·静儿');
-      map.set('静儿', '发妻·静儿');
+      map.set('战静', '二房·静儿');
+      map.set('静儿', '二房·静儿');
+      map.set('发妻·静儿', '二房·静儿');
+      map.set('县衙书吏·静儿', '二房·静儿');
+      map.set('书吏·静儿', '二房·静儿');
+      map.set('随娘子', '二房·静儿');
     }
     let res = String(text || '').replace(/【([^】\n]{1,10})】/g, (whole, name) => {
       const hit = map.get(String(name).trim());
@@ -171,7 +178,15 @@ export function normalizeSpeakers(text, dataDir) {
     });
     res = correctedSegs.join('');
 
-    return res;
+    // 治理沈婉儿擅自对暗号的神经质台词（严禁无暗号输入时冒出 12345--上山打老虎）
+    res = res.replace(/(?:^|\n)\s*12345\s*[-——]*\s*上山打老虎[^\n]*\n?/g, '\n');
+    res = res.replace(/……上山打老虎[。.]*/g, '');
+
+    // 治理同室在场时谎称眼前人物在暖阁/在东厢房/没到齐的严重逻辑违和
+    res = res.replace(/芸娘妹妹在暖阁[，,]\s*静儿妹妹还在东厢房点人手呢[，,]\s*哪里就都到齐了/g, '芸娘妹妹与静儿妹妹也都在这儿候着相公呢，瞧相公急的');
+    res = res.replace(/(?:芸娘|静儿)(?:妹妹)?还在(?:东厢房|暖阁|别处)[^，。！？\n]*[，。！？]\s*哪里就都到齐了/g, '妹妹们都在这儿候着相公呢');
+
+    return res.trim();
   } catch {
     return text;
   }

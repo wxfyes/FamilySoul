@@ -15,7 +15,7 @@ import { loadState, saveState, appendEvents, nextEvent, round2, forceOf } from '
 import { queueProactive } from './clock.js';
 import { propagateMood, easeBonds } from './bonds.js';
 import { moveActor } from './position.js';
-import { inferAgeFromIdentity, inferMaritalStatus } from './persona.js';
+import { inferAgeFromIdentity, inferMaritalStatus, inferGenderFromIdentity, isOddOrInvalidName } from './persona.js';
 import { addMemory } from './memory.js';
 import { appendLedger } from './ledger.js';
 
@@ -327,17 +327,15 @@ export function applyWorldTags(dataDir, ops, opts = {}) {
 
         const assignedHome = assignedLoc !== 'street' && assignedLoc !== 'yamen' ? assignedLoc : 'street';
 
+        const roleStr = String(args.role || '城中人');
+        const resolvedGender = String(args.gender || inferGenderFromIdentity(name, roleStr, 'male'));
+
         world.actors[id] = {
           id,
           name,
           origin: 'spawned', // 标记：天道自己长出来的人
-          gender: String(args.gender || (() => {
-          const r = String(args.role || '');
-          if (/郎中|大夫|掌柜|东家|镖头|镖师|先生|夫子|僧|道|捕头|仵作|书办|衙役|工头|船夫|艄公|小二|伙计|小厮|侍卫|门房|账房/.test(r)) return 'male';
-          if (/婆|娘|嫂|姑|妇|女|姐|妹|丫鬟|丫头|嬷嬷|稳婆|媒婆|绣娘|花魁/.test(r)) return 'female';
-          return Math.random() < 0.5 ? 'male' : 'female';
-        })()),
-          role: String(args.role || '城中人'),
+          gender: resolvedGender,
+          role: roleStr,
           location: assignedLoc,
           home: assignedHome,
           goals: String(args.goals || '').split(';').map((s) => s.trim()).filter(Boolean),

@@ -58,7 +58,7 @@ import { buyGoods, sellGoods, goodsSnapshot } from './world/trade.js';
 import { materializeMigrant, fallbackName } from './world/migration.js';
 import { quellBandits, banditStrengthTotal, nextPromotion, spawnBandit, ensureActiveBanditWaves } from './world/bandits.js';
 import { RECRUIT_KINDS } from './world/warfare.js';
-import { maritalTextOf, mensesStatusText } from './world/persona.js';
+import { maritalTextOf, mensesStatusText, inferGenderFromIdentity, isOddOrInvalidName, isEligibleBeauty } from './world/persona.js';
 import { addFame, fameOf, legitimacy } from './world/reputation.js';
 import { ensureClans, clanBacking, relatedClanIds } from './world/clans.js';
 import { canalFrozen } from './world/season.js';
@@ -1005,8 +1005,9 @@ const server = http.createServer(async (req, res) => {
         const places = Object.entries(world.places || {})
           .filter(([id, pl]) => {
             if (id === curId || !pl || !pl.name || pl.private || pl.hidden) return false;
-            // 只列本城的地方：成都的人不该看见临江的铺子
-            if (myCity && labelOf(pl.name, pl) !== myCity) return false;
+            // 州府跨城核心地标（皇城、提督府、府衙、主街大驿）向天下开放，其余市井小铺按本城过滤
+            const isNationalLandmark = /京城|京师|紫禁城|提督府|提督王府|知府衙门|巡抚衙门|水陆大营|大驿|运河码头|两淮盐署|西湖/.test(String(pl.name || ''));
+            if (myCity && labelOf(pl.name, pl) !== myCity && !isNationalLandmark) return false;
             // 区分私密住所与公开商业/自有产业：酒楼、茶坊、茶肆的雅阁、天字阁、清幽雅间、单间、内账房全部放行
             const par = pl.parent ? world.places?.[pl.parent] : null;
             const isCommercialOrMine = Boolean(
@@ -1039,7 +1040,16 @@ const server = http.createServer(async (req, res) => {
             if (pl.garrison && pl.garrison.count > 0) {
               actorNames.push(`🛡️${pl.garrison.general}部${pl.garrison.count}人${pl.garrison.mission || '看守'}`);
             }
-            return { id, name: pl.name, names: actorNames, count: actorNames.length, near: nearScore([id, pl]) };
+            // 裸露英文 ID 与未翻译房间名称彻底净化
+            let safeName = String(pl.name || id);
+            if (id === 'place_44__f1' || safeName.includes('place_44__f1')) safeName = '运河码头三层大酒楼·一层大堂';
+            else if (safeName.includes('place_44__f2')) safeName = '运河码头三层大酒楼·二层雅阁';
+            else if (safeName.includes('place_44__f3')) safeName = '运河码头三层大酒楼·三层天字阁';
+            else if (safeName.includes('place_44__private')) safeName = '运河码头三层大酒楼·清幽雅间';
+            else if (safeName.includes('place_44__office')) safeName = '运河码头三层大酒楼·内账房';
+            else if (/^place_\d+$/.test(safeName)) safeName = `${labelOf(safeName, pl)}·市井商铺`;
+
+            return { id, name: safeName, names: actorNames, count: actorNames.length, near: nearScore([id, pl]) };
           })
           .sort((x, y) => (x.near - y.near) || (y.count - x.count) || x.name.localeCompare(y.name, 'zh'))
           .slice(0, 400);
@@ -1251,12 +1261,63 @@ const server = http.createServer(async (req, res) => {
         // 天道最近该知道的事（你的决定会记在这里）
         const brief = (world.notes || []).slice(-8).map((n) => String(n.text || n).slice(0, 60));
 
+        // 各州府巡狩代表名胜快捷卡片
+        const cityLandmarks = [
+          {
+            city: '京城',
+            title: '京师 · 帝都',
+            subtitle: '一品提督府',
+            desc: '大明天子皇都，权倾四海',
+            target: 'capital_mansion__hall',
+            targetName: '京城·一品提督府正殿',
+            color: '0xFFEC4899',
+          },
+          {
+            city: '苏州府',
+            title: '苏州 · 水乡',
+            subtitle: '山塘水巷',
+            desc: '锦绣姑苏，商贾名媛云集',
+            target: 'suzhou_yamen',
+            targetName: '苏州府·府衙大堂',
+            color: '0xFF8B5CF6',
+          },
+          {
+            city: '扬州府',
+            title: '扬州 · 盐运',
+            subtitle: '运河大驿',
+            desc: '淮扬枢纽，两淮盐税重地',
+            target: 'yangzhou_dock',
+            targetName: '扬州府·运河大驿',
+            color: '0xFF3B82F6',
+          },
+          {
+            city: '杭州府',
+            title: '杭州 · 钱塘',
+            subtitle: '西湖美景',
+            desc: '西湖胜景，烟柳画桥游舫',
+            target: 'hangzhou_lake',
+            targetName: '杭州府·西湖画舫',
+            color: '0xFF10B981',
+          },
+          {
+            city: '临江府',
+            title: '临江 · 龙兴',
+            subtitle: '提督王府',
+            desc: '起于微末，龙兴治世王府',
+            target: 'wang_mansion__main',
+            targetName: '临江·提督王府·正房',
+            color: '0xFFF59E0B',
+          },
+        ];
+
         return sendJson(res, 200, {
           ok: true,
           where: { id: curId, name: curName },
           places, homes: props, people: peopleOut, todos,
           clock: { day: world.clock?.day, hour: world.clock?.hour },
           brief,
+          cities: Object.keys(world.cities || {}),
+          cityLandmarks,
         });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });
@@ -1531,8 +1592,9 @@ const server = http.createServer(async (req, res) => {
         for (const [id, a] of Object.entries(world.actors || {})) {
           if (!a || a.dead) continue;
           if (id === 'husband') continue;
-          if (a.gender !== 'female') continue;
-          if (/(老妪|婆|嬷嬷|老太|大娘|老妇|师太|老母|姑子)/.test((a.role || '') + (a.name || ''))) continue;
+
+          // 严格单一入口鉴真：排除男性、匪寇头子、怪名、英文名、老妪与仆从粗妇
+          if (!isEligibleBeauty(a)) continue;
 
           const age = beautyAgeOf(id, a);
           if (age > 35) continue;
@@ -1541,14 +1603,24 @@ const server = http.createServer(async (req, res) => {
           const isHere = isSameLocation(a.location, curLocation);
           const isLove = Boolean(a.intimacy?.consummated) || String(a.bondsWithHusband || '') === '相好' || Number(r.intimate) === 1;
 
+          // 头衔名分规范化（纠正历史县衙书吏或拼音标签）
+          let displayRole = a.role || '名媛佳丽';
+          if (id === 'zhanjing' || a.name === '静儿') displayRole = '二房如夫人';
+          else if (id === 'xiaocui' || a.name === '小翠') displayRole = '贴身丫鬟';
+          else if (id === 'waner' || id === 'shenwaner') displayRole = '正妻大娘子';
+          else if (id === 'yunnia' || id === 'linyunniang') displayRole = '二房如夫人';
+          else if (id === 'cuiwanning') displayRole = '东跨院侧室';
+
           beauties.push({
             id,
             name: a.name || id,
             age,
+            gender: 'female',
+            genderLabel: '坤身·女',
             city: cityOf(a),
             place: placeName(a.location || ''),
             locationId: a.location || '',
-            role: a.role || '名媛佳丽',
+            role: displayRole,
             marital: maritalTextOf(a, a.spouse ? (world.actors?.[a.spouse]?.name || '') : ''),
             trust: Math.max(0, Math.min(100, Number(r.trust) || 0)),
             desire: Math.max(0, Math.min(100, Number(r.desire) || 0)),
@@ -2083,19 +2155,20 @@ const server = http.createServer(async (req, res) => {
         const me2 = after.actors?.[actorId] || after.actors?.husband;
         const placeName2 = after.places?.[me2?.location]?.name || me2?.location || '';
         const isHere = (loc) => isSameLocation(me2?.location, loc);
-        const hereList = Object.values(after.actors || {})
-          .filter((a) => a && !a.dead && a.name && isHere(a.location) && a.id !== (me2?.id || 'husband'))
-          .slice(0, 5)
-          .map((a) => {
-            const act = String(a.activity?.text || '').trim();
-            // activity 若是过期的位移文本（如"去了X"），但人就在眼前，绝不拼出"在去了X"
-            if (!act || act.startsWith('去了') || act.startsWith('回了') || act.includes('离开')) {
-              return a.name;
+        // 转场提示只列出在场人员真实姓名，严禁拼接异地或过期的 activity 文本，杜绝误导大模型判断
+        const hereActors = Object.values(after.actors || {})
+          .filter((a) => a && !a.dead && a.name && isHere(a.location) && a.id !== (me2?.id || 'husband'));
+        // 同室在场状态同步：凡已同在当前房间者，清除异地操作 activity
+        for (const ha of hereActors) {
+          if (ha.activity && typeof ha.activity === 'object') {
+            const atxt = String(ha.activity.text || '');
+            if (/东厢房|暖阁|后院|客房|书房|别处|街|铺|去|回/.test(atxt)) {
+              ha.activity.text = '在房中伴随相公';
             }
-            const actClean = act.startsWith('在') ? act.slice(1) : act;
-            return `${a.name}（在${actClean}）`;
-          });
-        const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('，') + '。' : '此处无人。'}）`;
+          }
+        }
+        const hereList = hereActors.slice(0, 8).map((a) => a.name);
+        const line = `${knockLine}（你到了「${placeName2}」。${hereList.length ? '此处：' + hereList.join('、') + '。' : '此处无人。'}）`;
         let activeGreeter = null;
         let activeGreetText = '';
         // 走到有人处，让在场的人先开口；文字世界不能靠动画，只靠一句搭话
@@ -2206,6 +2279,7 @@ const server = http.createServer(async (req, res) => {
               h.messages.push({
                 id: `u-step-${nowMs}`,
                 role: 'assistant',
+                speaker: '旁白',
                 text: `${line}`,
                 time: nowMs,
                 at: nowMs,
@@ -3784,30 +3858,39 @@ const server = http.createServer(async (req, res) => {
           const payloadEvents = due.map((item, i) => {
               const textSpk = String(item.text || '').match(/^\s*【([^】\n]{1,16})】/);
               let spk = (textSpk ? textSpk[1].trim() : item.speaker) || '';
-              // 彻底杜绝拼音变量、系统代号或裸露英文污染（如 an, usr_, ancient, system）
-              // 关键铁律：凡台词在向东家汇报（"东家"、"等您示下"、"回来了"），绝不可被标为「提示」沦为居中小灰条！
-              const isSpokenErrand = /东家|掌柜|相公|少掌柜/.test(item.text || '') && /等您示下|请东家示下|留个心眼|不敢擅自|回来了|暗账|码头/.test(item.text || '');
-              if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown|提示)$/i.test(spk) || (isSpokenErrand && spk === '提示')) {
-                const textStr = String(item.text || '');
-                const mWho = textStr.match(/(伍兰|纪生|常木|熊河|樊生|傅生|盛哥|阿福|阿吉|陈二|老周)/);
-                if (mWho) {
-                  spk = `家丁·${mWho[1]}`;
-                } else if (/酒肆|续酒|旧账纸|紫嫣/.test(textStr)) spk = '酒肆伙计';
-                else if (/客栈|住处|打探|孙进/.test(textStr)) spk = '客栈掌柜·孙进';
-                else if (/货栈|水路|茶价|采云/.test(textStr)) spk = '货栈总管·采云';
-                else if (/县衙|茶税|公文|静儿/.test(textStr)) spk = '县衙书吏·静儿';
-                else if (/窑厂|砖瓦|鲁青/.test(textStr)) spk = '窑厂工头·鲁青';
-                else if (isSpokenErrand) spk = '当差仆役';
-                else if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown)$/i.test(spk)) spk = '传信小厮';
+              const textStr = String(item.text || '').trim();
+              const isNarrativeOrBracket = textStr.startsWith('（') || textStr.startsWith('(') || item.isNotice || item.type === 'scene_notice';
+
+              if (isNarrativeOrBracket) {
+                // 环境描写、转场提示与旁白播报：一律归属于纯净旁白，绝不可被任何 NPC 姓名探测逻辑冒名篡夺！
+                spk = '旁白';
+              } else {
+                // 彻底杜绝拼音变量、系统代号或裸露英文污染（如 an, usr_, ancient, system）
+                // 关键铁律：凡台词在向东家汇报（"东家"、"等您示下"、"回来了"），绝不可被标为「提示」沦为居中小灰条！
+                const isSpokenErrand = /东家|掌柜|相公|少掌柜/.test(textStr) && /等您示下|请东家示下|留个心眼|不敢擅自|回来了|暗账|码头/.test(textStr);
+                if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown|提示)$/i.test(spk) || (isSpokenErrand && spk === '提示')) {
+                  const mWho = textStr.match(/(伍兰|纪生|常木|熊河|樊生|傅生|盛哥|阿福|阿吉|陈二|老周)/);
+                  if (mWho) {
+                    spk = `家丁·${mWho[1]}`;
+                  } else if (/酒肆|续酒|旧账纸|紫嫣/.test(textStr)) spk = '酒肆伙计';
+                  else if (/客栈|住处|打探|孙进/.test(textStr)) spk = '客栈掌柜·孙进';
+                  else if (/货栈|水路|茶价|采云/.test(textStr)) spk = '货栈总管·采云';
+                  else if (/静儿/.test(textStr)) spk = '二房·静儿';
+                  else if (/窑厂|砖瓦|鲁青/.test(textStr)) spk = '窑厂工头·鲁青';
+                  else if (isSpokenErrand) spk = '当差仆役';
+                  else if (!spk || /^(an|usr_.*|ancient.*|system|ai|unknown)$/i.test(spk)) spk = '传信小厮';
+                }
               }
-              let finalText = String(item.text || '').trim();
-              if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk && spk !== '提示') {
+
+              let finalText = textStr;
+              if (finalText && !finalText.startsWith('【') && !finalText.startsWith('[') && spk && spk !== '提示' && spk !== '旁白') {
                 finalText = `【${spk}】：${finalText}`;
               }
               // 没有署名的回话，至少把出处补在末尾，别让它冒充系统提示
+              const isSpokenErrand = !isNarrativeOrBracket && /东家|掌柜|相公|少掌柜/.test(textStr) && /等您示下|请东家示下|留个心眼|不敢擅自|回来了|暗账|码头/.test(textStr);
               let itemSrc = item.source || (isSpokenErrand ? `差事回话·${spk}` : '');
               if (itemSrc === '系统提示' && isSpokenErrand) itemSrc = `差事回话·${spk}`;
-              if (!textSpk && itemSrc && itemSrc !== '系统提示') {
+              if (!textSpk && !isNarrativeOrBracket && itemSrc && itemSrc !== '系统提示' && itemSrc !== '旁白') {
                 finalText = `${finalText}\n（来源：${itemSrc}）`;
               }
 
@@ -4665,10 +4748,17 @@ server.listen(PORT, '0.0.0.0', () => {
       let made = 0;
       for (const item of Array.isArray(list) ? list.slice(0, 4) : []) {
         const shop = String(item?.shop || '').slice(0, 12);
-        const who = String(item?.who || '').slice(0, 8);
+        let who = String(item?.who || '').slice(0, 8);
         const kind = String(item?.kind || '铺子').slice(0, 8);
-        const role = String(item?.role || kind).slice(0, 12);
+        const role = String(item?.role || (kind.includes('楼') || kind.includes('馆') ? `${kind}掌柜` : `${kind}东家`)).slice(0, 12);
         if (!shop || !who) continue;
+
+        // 严格姓名与性别清洗：严禁动宾短语与机翻怪名（如别家散、别人听等），自动纠偏为正规古风汉名
+        const gender = inferGenderFromIdentity(who, role, 'male');
+        if (isOddOrInvalidName(who)) {
+          who = fallbackName(w2, gender) || (gender === 'female' ? '柳娘' : '赵掌柜');
+        }
+
         const fullName = `${city}·${shop}`.slice(0, 20);
         if (Object.values(w2.places).some((p) => p && p.name === fullName)) continue;
         if (Object.values(w2.actors).some((a) => a?.name === who)) continue;
@@ -4678,7 +4768,7 @@ server.listen(PORT, '0.0.0.0', () => {
         w2.flags.npcSeq = (Number(w2.flags.npcSeq) || 0) + 1;
         const nid = `npc_${w2.flags.npcSeq}`;
         w2.actors[nid] = {
-          id: nid, name: who, role, gender: 'female', origin: 'spawned',
+          id: nid, name: who, role, gender, origin: 'spawned',
           home: pid, location: pid, city,
           relations: { husband: { trust: 30, desire: 10, fear: 0, grievance: 0 } },
           schedule: [], goals: [],

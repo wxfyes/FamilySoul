@@ -158,7 +158,9 @@ export function auditReply(reply, world) {
     }
   }
 
-  const silverM = text.match(/现银[^0-9一二三四五六七八九十百]{0,4}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/) || text.match(/([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两现银/);
+  // 只有在明确指称府内库房总现银（如"账上/库内尚存/家中现银共有"）时，才与总现银比对，避免将单笔开销、采买用银误报为对不上
+  const silverM = text.match(/(?:家中|库内|账上|府里|共有|尚存|结余|现存)现银[^0-9一二三四五六七八九十百]{0,4}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两/)
+    || text.match(/(?:家中|库内|账上|府里|共有|尚存|结余|现存)[^0-9一二三四五六七八九十百]{0,4}([0-9]+(?:\.[0-9]+)?|[一二三四五六七八九十百千]+)\s*两现银/);
   if (silverM) {
     const v = parseAmount(silverM[1]);
     const real = Number(world.assets?.silver) || 0;
@@ -239,13 +241,14 @@ export function auditOwnership(world) {
 /** 全量自检 */
 export function auditAll(world) {
   const BAD_CITY = /(知|到|是|了|回|去|本|该|官|县|州|这|那|一|两|三|人|我|你|他|她|自|各|尊|敝|岳|杨|崔|林|沈|宋|赵|钱|孙|府|宅|院|门|某)/;
-  // 一次性清账：把历史上误报的假地名与序数误报丢掉
+  // 一次性清账：把历史上误报的假地名、序数与单笔开销银两误报丢掉
   if (Array.isArray(world.auditIssues)) {
     world.auditIssues = world.auditIssues.filter((x) => {
       const text = String(x?.text || '');
       const m = text.match(/她提到了「([^」]+)」/);
       if (m && /府$/.test(m[1]) && BAD_CITY.test(m[1])) return false;
       if (text.includes('第1日')) return false;
+      if (text.includes('两现银') && !/(?:库内|账上|家中|府里|共有|尚存)/.test(text)) return false;
       return true;
     });
   }
@@ -262,6 +265,7 @@ export function auditAll(world) {
         const m = text.match(/她提到了「([^」]+)」/);
         if (m && /府$/.test(m[1]) && BAD_CITY.test(m[1])) return false;
         if (text.includes('第1日')) return false;
+        if (text.includes('两现银') && !/(?:库内|账上|家中|府里|共有|尚存)/.test(text)) return false;
         return true;
       })
       .slice(-12)

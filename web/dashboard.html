@@ -2564,46 +2564,63 @@ function renderTimeline(w) {
 function renderBondMap(w) {
   const el = $('bondmap');
   if (!el) return;
-  const edges = w.bondEdges || [];
+  const rawEdges = w.bondEdges || [];
+  // 彻底过滤纯英文动态 ID、占位符或系统代码，保障关系网纯正中文古风人名
+  const edges = rawEdges.filter((e) => {
+    if (!e || !e.a || !e.b) return false;
+    if (/^actor_dyn_|^off_|[a-zA-Z0-9_]{6,}/.test(e.a) || /^actor_dyn_|^off_|[a-zA-Z0-9_]{6,}/.test(e.b)) return false;
+    return true;
+  });
   if (!edges.length) { el.innerHTML = '<div class="muted">还没有关系</div>'; return; }
 
-  // 1. 提取所有参与节点，并将相公王甯锚定在第一核心位置
+  // 1. 提取所有参与节点，并将相公王甯锚定在绝对中心核心位置
   const allNames = Array.from(new Set(edges.flatMap((e) => [e.a, e.b])));
   const isHusband = (name) => name === '王甯' || name === '相公';
   const hasHusband = allNames.some(isHusband);
   const husbandName = allNames.find(isHusband) || '王甯';
 
-  // 过滤其余节点（最多取 22 位关键人物环绕）
-  const outerNames = allNames.filter((n) => !isHusband(n)).slice(0, 22);
-  const n = outerNames.length;
-  const cx = 460, cy = 270, R = 210;
+  // 分层排布：内圈眷侣红颜，外圈文臣武将与地方名流
+  const innerFavorites = ['沈婉儿', '林芸娘', '崔婉宁', '杨采儿', '静儿', '小翠', '柳如烟', '紫嫣', '苏映雪'];
+  const nonHusband = allNames.filter((n) => !isHusband(n));
+  const innerNames = nonHusband.filter((n) => innerFavorites.some((f) => n.includes(f))).slice(0, 8);
+  const outerNames = nonHusband.filter((n) => !innerNames.includes(n)).slice(0, 16);
+
+  const cx = 460, cy = 260;
   const pos = {};
 
-  if (hasHusband) {
-    pos[husbandName] = [cx, cy];
-  }
+  // 中心：相公王甯
+  pos[husbandName] = [cx, cy, 0];
 
+  // 内圈：眷侣红颜（半径 120）
+  const rInner = 125;
+  innerNames.forEach((nm, i) => {
+    const ang = (Math.PI * 2 * i) / Math.max(1, innerNames.length) - Math.PI / 2;
+    pos[nm] = [cx + rInner * Math.cos(ang), cy + rInner * Math.sin(ang), ang];
+  });
+
+  // 外圈：文武百官与地方重臣（半径 210）
+  const rOuter = 215;
   outerNames.forEach((nm, i) => {
-    const ang = (Math.PI * 2 * i) / Math.max(1, n) - Math.PI / 2;
-    pos[nm] = [cx + R * Math.cos(ang), cy + R * Math.sin(ang), ang];
+    const ang = (Math.PI * 2 * i) / Math.max(1, outerNames.length) - Math.PI / 2;
+    pos[nm] = [cx + rOuter * Math.cos(ang), cy + rOuter * Math.sin(ang), ang];
   });
 
   const activeEdges = edges.filter((e) => pos[e.a] && pos[e.b]);
 
-  // 2. 绘制关系连线（绿亲近、红敌视、灰一般）
+  // 2. 绘制关系连线（绿归心、红掣肘、灰交好）
   const lines = activeEdges.map((e) => {
     const [x1, y1] = pos[e.a];
     const [x2, y2] = pos[e.b];
     const color = e.score >= 25 ? '#34d399' : e.score <= -10 ? '#f87171' : '#64748b';
-    const wd = Math.min(3.5, 1.2 + Math.abs(e.score) / 35);
-    const op = isHusband(e.a) || isHusband(e.b) ? '0.75' : '0.4';
+    const wd = Math.min(3.2, 1.2 + Math.abs(e.score) / 35);
+    const op = isHusband(e.a) || isHusband(e.b) ? '0.75' : '0.35';
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${wd}" opacity="${op}"><title>${e.a} ⟷ ${e.b} 【${e.type}】(${e.score})</title></line>`;
   }).join('');
 
   // 3. 绘制节点与放射状防重叠文字
   const nodeColor = (nm) => {
     if (isHusband(nm)) return '#f59e0b';
-    if (/婉儿|采儿|芸娘|婉宁|静儿|如烟|含烟|翠/.test(nm)) return '#f472b6';
+    if (/婉儿|采儿|芸娘|婉宁|静儿|如烟|含烟|翠|紫嫣/.test(nm)) return '#f472b6';
     if (/赵雷|李石头|周武|陈海平|苏铁/.test(nm)) return '#38bdf8';
     if (/萧景隆|韩崇|杨慎之|周文达|随科/.test(nm)) return '#34d399';
     if (/崔元礼|卢承业|裴敬之/.test(nm)) return '#f87171';
@@ -2617,7 +2634,7 @@ function renderBondMap(w) {
 
     if (isHusband(nm)) {
       return `
-        <circle cx="${x}" cy="${y}" r="14" fill="${col}" fill-opacity="0.25" stroke="${col}" stroke-width="2.5"/>
+        <circle cx="${x}" cy="${y}" r="15" fill="${col}" fill-opacity="0.25" stroke="${col}" stroke-width="2.5"/>
         <circle cx="${x}" cy="${y}" r="7" fill="${col}"><title>${nm} · 从一品江南水陆提督</title></circle>
         <text x="${x}" y="${y + 22}" font-size="13" font-weight="700" fill="#fef08a" text-anchor="middle">👑 相公·王甯 (提督大帅)</text>
       `;
@@ -2640,12 +2657,12 @@ function renderBondMap(w) {
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;margin-top:6px;color:#94a3b8;">
       <div>
         <span style="color:#f59e0b;font-weight:600">● 核心枢纽：相公(提督大帅)</span>　
-        <span style="color:#f472b6">● 内宅眷侣</span>　
+        <span style="color:#f472b6">● 内宅眷侣红颜</span>　
         <span style="color:#38bdf8">● 亲军武将</span>　
         <span style="color:#34d399">● 官府重臣</span>　
         <span style="color:#f87171">● 朝堂掣肘</span>
       </div>
-      <div>线色：<span style="color:#34d399">绿＝归心亲近</span> · <span style="color:#f87171">红＝掣肘戒备</span> · <span style="color:#64748b">灰＝故交</span>（悬停查看分值与深浅）</div>
+      <div>线色：<span style="color:#34d399">绿＝归心亲近</span> · <span style="color:#f87171">红＝掣肘戒备</span> · <span style="color:#64748b">灰＝故交</span>（悬停查看分值与类型）</div>
     </div>
   `;
 

@@ -288,6 +288,16 @@ class _BeautiesSheetState extends State<BeautiesSheet> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        const SizedBox(width: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF43F5E).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFFF43F5E).withValues(alpha: 0.3), width: 0.8),
+                          ),
+                          child: const Text('坤身·女', style: TextStyle(color: Color(0xFFFB7185), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
                         if (isHere) ...[
                           const SizedBox(width: 6),
                           Container(

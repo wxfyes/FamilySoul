@@ -7,30 +7,49 @@
  * 3. 自然生命周期与优雅退场：自适应推进节奏，一旦任何一方叫停/要走立刻体贴放行，绝不硬按强来。
  */
 
-// 开启私密亲密意图：涵盖自然求欢、解衣、暗号、身体接触、荤话与亲密动作
-const BED_START_RE = /(?:^|[^0-9])123456?(?:[^0-9]|$)|脱衣|解带|上床|做爱|侍寝|行房|云雨|大被同眠|欢好|一起睡|同榻|脱光|求欢|上榻|欢爱|想要了|伺候我|陪我睡|亲热|口一下|口交|含着|吹箫|吞吐|舔弄|插进|操你|小逼|鸡巴|肉棒|硬不硬|大不大|撅起屁股|后入|骑上来|揉胸|摸你|快点.*急死|爽不爽|刺激/;
+// 开启私密亲密意图：必须是明确的宽衣解带、床笫欢好动作、或显式数字暗号 12345
+const BED_START_RE = /(?:^|[^0-9])123456?(?:[^0-9]|$)|宽衣解带|褪去衣衫|脱衣侍寝|行房云雨|上榻云雨|翻云覆雨|入帐欢好|动情欢爱|含口龙根|褪去亵衣|脱光上床/;
 
-// 停止私密亲密意图：必须是明确的结束指令，避免正常承欢求饶或附和短句误伤
-const BED_STOP_RE = /(?:做完了|完事了|射完了|搞完了|收拾一下|结束了|歇息吧|收兵|穿衣服|穿衣|擦干净|回去了|回家了|不做了|别弄了|下榻|下床|起吧|起了|休息会|歇会|歇歇|聊会天|聊天吧|说说话|纯聊天|睡吧|睡觉|睡会儿|睡会|困了|熄灯|吹灯|熄灯吧|吹了灯|不用伺候了|安歇|就寝)/;
+// 停止私密亲密意图：包含明确的完事结束指令、或者转入正事商谈、公事朝政讨论
+const BED_STOP_RE = /(?:做完了|完事了|射完了|搞完了|收拾一下|结束了|歇息吧|收兵|穿衣服|穿衣|擦干净|回去了|回家了|不做了|别弄了|下榻|下床|起吧|起了|休息会|歇会|歇歇|聊会天|聊天吧|说说话|纯聊天|正经说话|谈正事|说正事|睡吧|睡觉|睡会儿|睡会|困了|熄灯|吹灯|熄灯吧|吹了灯|不用伺候了|安歇|就寝)/;
+
+// 正事商谈与公事行程词：一旦出现且无明确 12345 暗号，立刻自适应退出床笫房事状态机
+const BUSINESS_OR_AFFAIRS_RE = /(?:京城|进京|去京城|去北京|发展|商议|正事|公事|朝廷|官职|提督|都司|大帅|兵马|调兵|军营|水师|战船|船队|商路|生意|铺面|铺子|茶坊|酒楼|货栈|钱庄|当铺|账本|账册|查账|银子|银票|采买|置办|知府|知县|县衙|公堂|案子|查案|随科|手印|文书|路引|放妻|和离|打仗|出征|剿匪)/;
 
 /**
  * 自然语义检测当前对话中的床笫意图
  */
 export function evaluateBedIntent(text, wasInBed = false) {
   const t = String(text || '').trim();
-  const isStopping = BED_STOP_RE.test(t);
-  const isStarting = BED_START_RE.test(t);
+  const hasCode = /(?:^|[^0-9])123456?(?:[^0-9]|$)/.test(t);
 
+  // 1. 明确的停止词、或者转入正事公事商谈（未带 12345 暗号），立刻退出房事模式
+  const isStopping = BED_STOP_RE.test(t) || (!hasCode && BUSINESS_OR_AFFAIRS_RE.test(t));
   if (isStopping) {
     return { shouldEnd: true, inBed: false, isCode: false };
   }
-  if (wasInBed || isStarting) {
+
+  // 2. 问句排他（如"要大被同眠？"、"行吗？"）：疑问句调侃严禁自动开启房事
+  const isQuestion = /[?？吗呢]$/.test(t) || /(?:是不是|难道|要不|成不成|行不行|可好)/.test(t);
+  const isStarting = !isQuestion && BED_START_RE.test(t);
+
+  if (hasCode) {
+    return { shouldEnd: false, inBed: true, isCode: true };
+  }
+
+  if (isStarting) {
+    return { shouldEnd: false, inBed: true, isCode: false };
+  }
+
+  if (wasInBed) {
+    // 若原本处于房事中，但相公未发新求欢词且正常交谈，若无荤话，优雅保持温存闲聊，绝不强行死锁
     return {
       shouldEnd: false,
       inBed: true,
-      isCode: /(?:^|[^0-9])123456?(?:[^0-9]|$)/.test(t),
+      isCode: false,
     };
   }
+
   return { shouldEnd: false, inBed: false, isCode: false };
 }
 

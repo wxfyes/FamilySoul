@@ -302,6 +302,61 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
               ],
             ),
           ),
+          const SizedBox(height: 10),
+
+          // 巡狩四方 · 州府名胜横向卡片（京师、苏州、扬州、杭州、临江）
+          const Padding(
+            padding: EdgeInsets.only(left: 2, bottom: 6),
+            child: Row(
+              children: [
+                Icon(Icons.map_rounded, size: 13, color: Color(0xFFF472B6)),
+                SizedBox(width: 4),
+                Text('巡狩四方 · 州府名胜', style: TextStyle(fontSize: 11.5, color: Color(0xFFF472B6), fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _cityCard(
+                  title: '京师 · 帝都',
+                  subtitle: '一品提督府',
+                  tag: '天子皇都',
+                  color: const Color(0xFFEC4899),
+                  targetName: '京城·一品提督府正殿',
+                ),
+                _cityCard(
+                  title: '苏州 · 水乡',
+                  subtitle: '山塘水巷',
+                  tag: '锦绣姑苏',
+                  color: const Color(0xFFA855F7),
+                  targetName: '苏州府·水乡山塘',
+                ),
+                _cityCard(
+                  title: '扬州 · 盐运',
+                  subtitle: '运河大驿',
+                  tag: '两淮枢纽',
+                  color: const Color(0xFF38BDF8),
+                  targetName: '扬州府·运河大驿',
+                ),
+                _cityCard(
+                  title: '杭州 · 钱塘',
+                  subtitle: '西湖画舫',
+                  tag: '烟柳胜景',
+                  color: const Color(0xFF34D399),
+                  targetName: '杭州府·西湖画舫',
+                ),
+                _cityCard(
+                  title: '临江 · 龙兴',
+                  subtitle: '提督王府',
+                  tag: '王府正殿',
+                  color: const Color(0xFFFBBF24),
+                  targetName: '临江·提督王府·正房',
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
         ],
 
@@ -353,6 +408,56 @@ class _OutAndAboutSheetState extends State<OutAndAboutSheet> with SingleTickerPr
               const SizedBox(height: 4),
               Text(title, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
               Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10.5)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cityCard({
+    required String title,
+    required String subtitle,
+    required String tag,
+    required Color color,
+    required String targetName,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: () => _run(
+          () => _goTo(targetName),
+          '（大帅仪仗起驾，巡狩前往「$targetName」。）',
+        ),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 108,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(tag, style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(title, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 1),
+              Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
         ),

@@ -81,10 +81,14 @@ export function cleanSpeakerLabel(s) {
 export function cleanRoleLabel(raw) {
   if (!raw) return '';
   let r = String(raw).trim();
-  if (/正妻|正室|大娘子/.test(r)) return '正妻';
-  if (/二房|如夫人|侧妾/.test(r)) return '二房';
-  if (/丫鬟/.test(r)) return '丫鬟';
-  if (/发妻/.test(r)) return '发妻';
+  if (/正妻|正室|大娘子|主母/.test(r)) return '正妻';
+  if (/二房|如夫人|侧妾|静儿|战静/.test(r)) return '二房';
+  if (/贴身丫鬟|小翠|通房/.test(r)) return '贴身丫鬟';
+  if (/丫鬟|婢女|侍女/.test(r)) return '丫鬟';
+  if (/知府千金|杨采儿|采儿/.test(r)) return '知府千金';
+  if (/提督|水陆提督|总督|军门|大帅/.test(r)) return '提督大帅';
+  if (/总兵|总镇/.test(r)) return '总镇';
+  if (/都司/.test(r)) return '提督大人';
   if (/老鸨/.test(r)) return '老鸨';
   if (/跑堂/.test(r)) return '跑堂';
   if (/伙计/.test(r)) return '伙计';
