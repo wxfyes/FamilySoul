@@ -397,6 +397,27 @@ export const OFFICIAL_CREDENTIAL_DEFS = [
       },
     ],
   },
+  {
+    officeKey: 'taizitaibao',
+    rank: '从一品·东宫三师',
+    title: '太子太保兼江南水陆提督总兵官',
+    rankTitle: '从一品东宫三师·太子太保',
+    shortCall: '太保爷',
+    credentials: [
+      {
+        name: '天子朱批·太子太保实授敕命圣旨',
+        kind: '敕牒',
+        from: '当今天子萧景隆御笔亲书朱批敕命',
+        note: '大乾当今天子萧景隆御笔朱批敕命圣旨：实授从一品东宫三师太子太保，朝会站位在六部之上，见驾不拜，赐紫金鱼袋，代天巡狩节制百官。',
+      },
+      {
+        name: '东宫三师·紫金鱼袋与太保金印',
+        kind: '官印',
+        from: '司礼监与礼部铸印局钦颁',
+        note: '从一品东宫三师纯金太保大印与当今天子特赐紫金鱼袋，见印信如朕亲临，六部尚书与各省督抚皆听节制。',
+      },
+    ],
+  },
 ];
 
 /**
@@ -439,6 +460,31 @@ export function getHusbandOfficialInfo(world) {
     }
   }
 
+  // 尊严不变量保底：太子太保（东宫三师·从一品超阶，位在六部之上）
+  const hasTaibaoItem = Array.isArray(world?.items?.husband) && world.items.husband.some((it) => it && (it.name?.includes('太子太保') || it.name?.includes('紫金鱼袋')));
+  const hasTaibaoMilestone = Array.isArray(world?.milestones) && world.milestones.some((m) => String(m).includes('太子太保'));
+  const isTaibao = String(me?.role || '').includes('太保')
+    || me?.office === 'taizitaibao'
+    || String(offices?.taizitaibao?.holder || '') === 'husband'
+    || Boolean(world?.flags?.emperorGrantedTaibao)
+    || hasTaibaoItem
+    || hasTaibaoMilestone;
+
+  if (isTaibao) {
+    const taibaoDef = OFFICIAL_CREDENTIAL_DEFS.find((d) => d.officeKey === 'taizitaibao');
+    if (taibaoDef && !heldDefs.some((d) => d.officeKey === 'taizitaibao')) {
+      heldDefs.push(taibaoDef);
+    }
+    if (world?.court?.offices) {
+      world.court.offices.taizitaibao = world.court.offices.taizitaibao || {
+        holder: 'husband',
+        title: '太子太保兼江南水陆提督总兵官',
+        rank: '从一品·东宫三师',
+        assignedDay: world.clock?.day || 1,
+      };
+    }
+  }
+
   if (heldDefs.length === 0) {
     return {
       hasOffice: false,
@@ -457,7 +503,7 @@ export function getHusbandOfficialInfo(world) {
     rank: highest.rank,
     highestTitle: highest.title,
     fullTitle: highest.rankTitle,
-    shortCall: highest.officeKey === 'tiduzongbing' ? '大帅' : highest.shortCall,
+    shortCall: highest.officeKey === 'taizitaibao' ? '太保爷' : (highest.officeKey === 'tiduzongbing' ? '大帅' : highest.shortCall),
     quelled: Math.max(Number(world?.flags?.quelledTotal) || 0, heldDefs.length * 2),
     allTitles: heldDefs.map((d) => d.title),
   };
@@ -601,6 +647,33 @@ export function ensureMarriageCredentials(world) {
     }
   }
   return issued;
+}
+
+/**
+ * 皇帝/朝廷实授官爵单一入口（自动落官职、核发圣旨印信、刷新身份）
+ */
+export function grantHusbandOffice(world, officeKey = 'taizitaibao') {
+  world.court = world.court || {};
+  world.court.offices = world.court.offices || {};
+  const def = OFFICIAL_CREDENTIAL_DEFS.find((d) => d.officeKey === officeKey);
+  if (!def) return null;
+  world.court.offices[officeKey] = {
+    holder: 'husband',
+    title: def.title,
+    rank: def.rank,
+    assignedDay: world.clock?.day || 1,
+  };
+  if (officeKey === 'taizitaibao') {
+    world.flags = world.flags || {};
+    world.flags.emperorGrantedTaibao = true;
+  }
+  if (world.actors?.husband) {
+    world.actors.husband.office = officeKey;
+    world.actors.husband.officialTitle = def.title;
+    world.actors.husband.role = `${def.title}·临江王氏家主`;
+  }
+  ensureOfficialCredentials(world);
+  return def;
 }
 
 

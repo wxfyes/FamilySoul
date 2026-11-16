@@ -907,8 +907,8 @@ export function ensureCourt(world) {
         kind: 'official',
         office: post,
         household: false,
-        home: isYang ? 'yang_mansion' : ensureGovPlace(world, city),
-        location: ensureGovPlace(world, city),
+        home: isYang ? 'yang_mansion' : (id === 'emperor' ? 'palace_qianqing' : (id === 'cuiyuanli' ? 'palace_wenhua' : (id === 'hanchong' ? 'palace_wuying' : ensureGovPlace(world, city)))),
+        location: id === 'emperor' ? 'palace_qianqing' : (id === 'cuiyuanli' ? 'palace_wenhua' : (id === 'hanchong' ? 'palace_wuying' : ensureGovPlace(world, city))),
         alias: isYang ? ['知府大人', '杨知府', '杨大人', '临江知府', '杨老大人', '采儿父亲', '采儿她爹', '岳父大人', '岳父', '岳丈'] : [],
         daughter: isYang ? 'yangzhenhua' : undefined,
         relations: { husband: { trust: isYang ? 40 : 20, desire: 0, fear: 0, grievance: 0 } },
@@ -954,9 +954,24 @@ export function ensureCourt(world) {
     const off = world.court.offices[post];
     if (!off) world.court.offices[post] = { title: role, holder: id, vacant: false };
   }
-  // 老存档迁移：朝官（天子/宰相/尚书/巡抚/知府）回到各自的城
+  // 老存档迁移：朝官回到各自正统殿阁司署（天子居乾清宫御书房，首辅居文华殿内阁，兵部居武英殿枢密）
+  const courtPlaces = {
+    emperor: 'palace_qianqing',
+    cuiyuanli: 'palace_wenhua',
+    hanchong: 'palace_wuying',
+  };
+  for (const [id, pid] of Object.entries(courtPlaces)) {
+    const actor = world.actors?.[id];
+    if (actor) {
+      actor.home = pid;
+      if (!actor.location || actor.location === 'yamen' || actor.location.startsWith('gov_')) {
+        actor.location = pid;
+      }
+    }
+  }
+
   const seedCity = {
-    emperor: '京城', chancellor: '京城', revenue: '京城', war: '京城',
+    revenue: '京城', war: '京城',
     governor: '苏州府', prefect: '临江府',
   };
   for (const [id, cityName] of Object.entries(seedCity)) {

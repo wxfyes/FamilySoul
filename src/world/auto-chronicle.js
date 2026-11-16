@@ -1,3 +1,4 @@
+
 /**
  * 全自动大事记智能捕获中枢（Auto Chronicle Engine）
  *
@@ -45,6 +46,12 @@ export function syncAutoChronicle(world, dataDir = null) {
   // 1. 官职武勋大业全自动捕获
   const offInfo = getHusbandOfficialInfo(world);
   if (offInfo.hasOffice) {
+    if (offInfo.highestTitle.includes('太保') || offInfo.officeKey === 'taizitaibao') {
+      addIfAbsent(
+        '从一品东宫三师太子太保',
+        '【天子朱批实授·从一品东宫三师太子太保（加赐紫金鱼袋·见驾不拜·位在六部之上）】：当今天子萧景隆御笔亲批《天子朱批·太子太保实授敕命圣旨》，加赐东宫三师《紫金鱼袋与太保金印》入随身行囊！相公位列东宫三师，朝会班列六部尚书之上，见驾不拜，总领水陆兵戈与朝堂整肃纠察大权，威临九卿百官！'
+      );
+    }
     if (offInfo.highestTitle.includes('提督') || offInfo.rank.includes('一品')) {
       addIfAbsent(
         '江南水陆提督总兵官',

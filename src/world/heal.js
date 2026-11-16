@@ -1658,5 +1658,64 @@ export function healDuplicateActors(world) {
     console.warn('[Heal] 大事记同步异常:', err.message);
   }
 
+  // 10. 天子萧景隆与朝堂要员正统居所、京师天牢诏狱与太子太保圣旨印信自愈
+  try {
+    buildCapitalPlaces(world);
+    const emp = world.actors?.emperor;
+    if (emp) {
+      emp.name = '萧景隆';
+      emp.role = '当朝天子';
+      emp.title = '天子';
+      emp.city = '京城';
+      emp.home = 'palace_qianqing';
+      if (!emp.location || emp.location === 'yamen' || emp.location.startsWith('gov_') || !world.places?.[emp.location]) {
+        emp.location = 'palace_qianqing';
+        fixes.push('当朝天子萧景隆正统归位：从府衙迁驻紫禁城·乾清宫御书房');
+      }
+    }
+    const cui = world.actors?.cuiyuanli;
+    if (cui) {
+      cui.name = '崔元礼';
+      cui.role = '当朝首辅大学士';
+      cui.city = '京城';
+      cui.home = 'palace_wenhua';
+      if (!cui.location || cui.location === 'yamen' || cui.location.startsWith('gov_')) {
+        cui.location = 'palace_wenhua';
+      }
+    }
+
+    // 确立太子太保实授官位、核发信物圣旨入随身行囊
+    const hus = world.actors?.husband;
+    const hasTaibaoInHistory = world.court?.offices?.taizitaibao?.holder === 'husband'
+      || Boolean(world.flags?.emperorGrantedTaibao)
+      || (Array.isArray(world.milestones) && world.milestones.some((m) => String(m).includes('太子太保')))
+      || (Array.isArray(world.items?.husband) && world.items.husband.some((it) => it && String(it.name).includes('太子太保')));
+
+    // 鉴于皇上已在御前亲口下旨封官，本次自愈直接确立实授
+    world.court = world.court || {};
+    world.court.offices = world.court.offices || {};
+    world.court.offices.taizitaibao = {
+      holder: 'husband',
+      title: '太子太保兼江南水陆提督总兵官',
+      rank: '从一品·东宫三师',
+      assignedDay: world.clock?.day || 26,
+    };
+    world.flags = world.flags || {};
+    world.flags.emperorGrantedTaibao = true;
+
+    if (hus) {
+      hus.office = 'taizitaibao';
+      hus.officialTitle = '太子太保兼江南水陆提督总兵官';
+      hus.role = '太子太保兼江南水陆提督总兵官·临江王氏家主';
+    }
+
+    // 确保官凭印信入囊
+    ensureOfficialCredentials(world);
+    syncAutoChronicle(world);
+    fixes.push('太子太保官凭印信自愈：天子朱批圣旨与紫金鱼袋金印已入随身行囊，大事记已同步');
+  } catch (err) {
+    console.warn('[Heal] 天子与朝堂自愈异常:', err.message);
+  }
+
   return fixes;
 }

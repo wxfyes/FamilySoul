@@ -16,6 +16,9 @@ import { quellBandits } from '../world/bandits.js';
 import { addMemory } from '../world/memory.js';
 import { ensureProjectProperty } from '../world/projects.js';
 import { findSameDayDuplicateSpend } from '../world/ledger.js';
+import { grantHusbandOffice } from '../world/items.js';
+import { syncAutoChronicle } from '../world/auto-chronicle.js';
+import { arrestActorToPrison, interrogatePrisoner, executePrisoner, presentEvidenceToEmperor } from '../world/justice.js';
 import {
   parseSummonTarget, pickSummonActor,
   parseDismissIntent, isMassDismiss, homeRoomForName,
@@ -75,6 +78,9 @@ function formatDepartureNotice(names, destName = '', actorMap = {}) {
     const r = String(a.role || '');
     if (/知府|千金|大小姐/.test(r) || /采儿/.test(n)) {
       return `（杨大小姐含笑示意，提灯乘车回府去了。）`;
+    }
+    if (/当朝天子|皇帝|皇上/.test(r) || /萧景隆/.test(n)) {
+      return `（天子萧景隆摆驾回宫。）`;
     }
     if (/知县|县令|大人|官员/.test(r) || /文达/.test(n)) {
       return `（知县周大人拱手道别，下楼登轿回衙去了。）`;
@@ -1203,6 +1209,11 @@ export function executeNarrativeTags({
           if (!preDismissed && !multiDismissed && matchedWho) {
             // 精准锁定唯一在场角色
             const who = matchedWho;
+            // 天子至尊铁律：当朝天子萧景隆九五之尊，在皇宫大内绝不可被臣子打发离去！
+            if (who.id === 'emperor' || /当朝天子|皇帝|皇上/.test(String(who.role || ''))) {
+              console.log('[Departure] 拦截：当朝天子在御前绝对免疫臣子打发');
+              return reply;
+            }
             let dest = null;
 
             if (/铺子/.test(targetWhere || '')) {
@@ -1262,6 +1273,11 @@ export function executeNarrativeTags({
             const names = [];
             const keepFamily = isGuardDismiss || /家眷|女眷|家小|夫人留下|妻妾留下/.test(sayStr);
             for (const a of hereActors) {
+              // 天子至尊铁律：当朝天子萧景隆九五之尊，在皇宫大内绝不可能被通令清场驱逐！
+              if (a.id === 'emperor' || /当朝天子|皇帝|皇上/.test(String(a.role || ''))) {
+                continue;
+              }
+
               const isGuardActor = /亲兵|侍卫|统领|将领|护卫/.test(String(a.role || '')) || a.id.startsWith('general_');
               // 若是亲军退下令，非亲军角色（妻妾、官员）一律不退
               if (isGuardDismiss && !isGuardActor) continue;
@@ -1335,6 +1351,74 @@ export function executeNarrativeTags({
       applyNpcDeparture(dataDir, reply, sayText);
     } catch (err) {
       console.warn('[Departure] 离场处理失败：', err.message);
+    }
+
+    // 9.5 朝堂刑律与天子封官实授落账（太子太保实授、抓人下天牢、提审逼供铁证入囊、御前呈递）
+    try {
+      const wJ = loadState(dataDir);
+      const husJ = wJ.actors?.husband;
+
+      // 9.5.1 天子亲口下旨封太子太保：自动实授并核发圣旨与紫金鱼袋入随身行囊
+      const isEmperorGrant = /(?:朕封你太子太保|封你为太子太保|太子太保之旨|实授太子太保|赐紫金鱼袋)/.test(reply)
+        || (/太子太保/.test(reply) && /萧景隆|皇帝|天子/.test(reply) && /(?:准了|朕此刻就下|下旨|接了这道旨)/.test(reply));
+      if (isEmperorGrant && !wJ.flags?.emperorGrantedTaibao) {
+        grantHusbandOffice(wJ, 'taizitaibao');
+        syncAutoChronicle(wJ);
+        saveState(dataDir, wJ);
+        reply += '\n\n【天子朱批下达】：实授从一品东宫三师太子太保！《天子朱批·太子太保实授敕命圣旨》与《东宫三师·紫金鱼袋与太保金印》已正式收入随身行囊，位列六部之上，见驾不拜！';
+        console.log('[Court] 天子下旨封相公为太子太保，圣旨与印信已入囊！');
+      }
+
+      // 9.5.2 抓人下诏狱指令
+      const isArrestCmd = /(?:把|将)?\s*([\u4e00-\u9fa5]{2,6}?)\s*(?:拿下|抓起来|打入天牢|押入诏狱|革职查办|捉拿|拿办|下狱)/.exec(sayText);
+      const isDirectArrestTarget = /(?:卢承业|随科|宋延年|崔元礼党羽|吏部尚书|户部尚书|吏部侍郎|户部侍郎)/.test(sayText)
+        && /(?:拿下|抓|办|弄|办了|打入天牢|押入天牢|拿他开刀|绝不放过)/.test(sayText);
+      if (isArrestCmd || isDirectArrestTarget) {
+        const targetQ = isArrestCmd ? isArrestCmd[1] : sayText;
+        const resA = arrestActorToPrison(wJ, targetQ, { by: 'husband' });
+        if (resA.ok) {
+          saveState(dataDir, wJ);
+          reply = `${resA.text}\n\n` + reply;
+          console.log(`[Justice] 抓拿官员下天牢：${resA.actor.name}`);
+        }
+      }
+
+      // 9.5.3 天牢提审与证据入囊
+      const isInterrogateCmd = /(?:提审|审问|审讯|拷问|严刑拷打|逼供|交代|招供|查办|口供|亏空|沈家旧案|账本在哪)/.test(sayText);
+      const isAtPrison = husJ?.location === 'capital_prison';
+      if (isInterrogateCmd && (isAtPrison || /(?:提审|审问|审讯|拷问)\s*[\u4e00-\u9fa5]{2,6}/.test(sayText))) {
+        const resI = interrogatePrisoner(wJ, sayText, { by: 'husband' });
+        if (resI.ok) {
+          saveState(dataDir, wJ);
+          reply = `${resI.text}\n\n` + reply;
+          console.log(`[Justice] 天牢提审成功，铁证入囊：${resI.items.join('、')}`);
+        }
+      }
+
+      // 9.5.4 天牢处决斩立决
+      const isExecuteCmd = /(?:斩立决|推出去斩了|就地正法|赐死|斩首示众|处决)/.test(sayText);
+      if (isExecuteCmd && (isAtPrison || /(?:斩了|处死|赐死)\s*[\u4e00-\u9fa5]{2,6}/.test(sayText))) {
+        const resE = executePrisoner(wJ, sayText, { by: 'husband' });
+        if (resE.ok) {
+          saveState(dataDir, wJ);
+          reply = `${resE.text}\n\n` + reply;
+          console.log(`[Justice] 处决奸佞犯人：${resE.actor.name}`);
+        }
+      }
+
+      // 9.5.5 御前呈递铁证平反
+      const isPresentCmd = husJ?.location === 'palace_qianqing'
+        && /(?:呈递|呈上|递给皇上|证据|随科供状|私账|底册|请皇上御览|皇上请看)/.test(sayText);
+      if (isPresentCmd) {
+        const resP = presentEvidenceToEmperor(wJ);
+        if (resP.ok) {
+          saveState(dataDir, wJ);
+          reply = `${resP.text}\n\n` + reply;
+          console.log('[Justice] 御前呈递铁证平反沈家旧案！');
+        }
+      }
+    } catch (err) {
+      console.warn('[Justice] 朝堂刑律执行异常：', err.message);
     }
 
     // 10. 最终兜底：剔除任何未识别的系统标签，绝不向客户端吐裸露 [[...]]

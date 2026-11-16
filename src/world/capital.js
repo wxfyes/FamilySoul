@@ -94,6 +94,19 @@ export const CAPITAL_MANSION_STAFF = [
     desc: '曾任光禄寺御厨，精通八大菜系与御膳席面，专司相公与夫人日常养生玉食。',
     relations: { husband: { trust: 90, fear: 10, desire: 0, favor: 90, loyalty: 90 } },
   },
+  {
+    id: 'staff_jailer_lufeng',
+    name: '陆锋',
+    role: '锦衣卫诏狱千户',
+    gender: 'male',
+    age: 36,
+    city: '京城',
+    location: 'capital_prison',
+    home: 'capital_prison',
+    faction: 'husband',
+    desc: '锦衣卫北镇抚司掌刑千户，面容冷峻、铁面无私，精通刑名逼供之术，唯相公马首是瞻。',
+    relations: { husband: { trust: 95, fear: 10, desire: 0, favor: 90, loyalty: 98 } },
+  },
 ];
 
 export function buildCapitalPlaces(world) {
@@ -197,7 +210,7 @@ export function buildCapitalPlaces(world) {
       kind: '长街',
       use: 'street',
       access: 'public_outer',
-      exits: ['palace_meridian_gate', 'capital_mansion', 'capital_mansion__gate', 'capital_tianqiao', 'capital_bank', 'capital_restaurant', 'capital_garrison', 'dock'],
+      exits: ['palace_meridian_gate', 'capital_mansion', 'capital_mansion__gate', 'capital_tianqiao', 'capital_bank', 'capital_restaurant', 'capital_garrison', 'capital_prison', 'dock'],
       desc: '大乾京畿第一繁华通衢，八匹马并驰，青石板铺地。两旁酒楼、钱庄、缎庄鳞次栉比，达官显贵车舆与各地举子、商贾摩肩接踵。',
     },
     capital_tianqiao: {
@@ -244,6 +257,17 @@ export function buildCapitalPlaces(world) {
       access: 'guest_main',
       exits: ['capital_street'],
       desc: '统辖京城东西南北中五城巡防治安与火盗稽查之官署，班头差役日夜巡弋京城九门内外。',
+    },
+    capital_prison: {
+      id: 'capital_prison',
+      name: '京师·天牢诏狱（锦衣卫狱）',
+      parent: null,
+      city: '京城',
+      kind: '天牢',
+      use: 'jail',
+      access: 'restricted',
+      exits: ['capital_street', 'palace_meridian_gate'],
+      desc: '大乾京师第一重狱与锦衣卫北镇抚司诏狱。深墙铁壁，生铁铸栅，刑讯公案上布满皮鞭、拶指、烙铁与压杠。凡相公严令收押之六部贪官、崔党重臣与大案要犯皆锁拿于此，诏狱千户与掌刑狱吏日夜严加拷讯。',
     },
   };
 
@@ -309,7 +333,7 @@ export function buildCapitalPlaces(world) {
   // 双向连通街市与府门
   const street = world.places.capital_street;
   if (street) {
-    street.exits = Array.from(new Set([...(street.exits || []), 'palace_meridian_gate', 'capital_mansion', 'capital_mansion__gate', 'capital_tianqiao', 'capital_bank', 'capital_restaurant', 'capital_garrison']));
+    street.exits = Array.from(new Set([...(street.exits || []), 'palace_meridian_gate', 'capital_mansion', 'capital_mansion__gate', 'capital_tianqiao', 'capital_bank', 'capital_restaurant', 'capital_garrison', 'capital_prison']));
   }
 
   // 2.2 安置京师提督王府专属仆从与家臣

@@ -2408,6 +2408,96 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // POST /api/world/court/arrest - 太子太保专权：抓人下诏狱单一入口
+    if (req.method === 'POST' && matchRoute('/world/court/arrest')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { target, reason } = body || {};
+        if (!target) return sendJson(res, 400, { ok: false, error: '请指定要拘捕下狱的涉案官员' });
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { arrestActorToPrison } = await import('./world/justice.js');
+        const result = arrestActorToPrison(world, target, { reason, by: member.actor || 'husband' });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/court/interrogate - 天牢提审与证据入囊单一入口
+    if (req.method === 'POST' && matchRoute('/world/court/interrogate')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { target, method } = body || {};
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { interrogatePrisoner } = await import('./world/justice.js');
+        const result = interrogatePrisoner(world, target || '', { method, by: member.actor || 'husband' });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/court/execute - 天牢处决斩立决单一入口
+    if (req.method === 'POST' && matchRoute('/world/court/execute')) {
+      try {
+        const body = await parseJsonBody(req, 32 * 1024);
+        const { target } = body || {};
+
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { executePrisoner } = await import('./world/justice.js');
+        const result = executePrisoner(world, target || '', { by: member.actor || 'husband' });
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
+    // POST /api/world/court/present - 乾清宫御前呈递铁证平反单一入口
+    if (req.method === 'POST' && matchRoute('/world/court/present')) {
+      try {
+        const member = resolveMember(req, url);
+        if (!member) return sendJson(res, 401, { ok: false, error: '通行令牌无效：请先登录' });
+
+        const world = loadState(DATA_DIR);
+        const { presentEvidenceToEmperor } = await import('./world/justice.js');
+        const result = presentEvidenceToEmperor(world);
+        if (!result.ok) {
+          return sendJson(res, 400, result);
+        }
+
+        saveState(DATA_DIR, world);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 500, { ok: false, error: err.message });
+      }
+    }
+
     // POST /api/world/confirm { actionId, option } → 确认一笔待付款
     // 开房、买东西、打点、赏钱、聘礼……凡是花银子的，都走这里
     if (req.method === 'POST' && (matchRoute('/world/confirm') || matchRoute('/world/pay'))) {

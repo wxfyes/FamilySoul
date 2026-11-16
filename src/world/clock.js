@@ -52,12 +52,24 @@ function getHusbandProactiveHonor(world) {
       gatePlace: '临江·王宅·朱漆大门',
     };
   }
+  const isTaibao = off.highestTitle.includes('太保') || off.officeKey === 'taizitaibao';
   const isTidu = off.highestTitle.includes('提督') || off.officeKey === 'tiduzongbing' || off.rank.includes('一品');
   const isZongbing = off.highestTitle.includes('总兵') || off.rank.includes('二品');
-  const gatePlace = (world.places?.wang_mansion || String(world.actors?.husband?.location || '').includes('wang_mansion'))
-    ? '临江·提督王府·正门'
-    : '临江·王宅·朱漆大门';
+  const isCapital = String(world.actors?.husband?.city || '') === '京城' || String(world.actors?.husband?.location || '').startsWith('capital_');
+  const gatePlace = isCapital
+    ? '京师·提督王府·正大门'
+    : ((world.places?.wang_mansion || String(world.actors?.husband?.location || '').includes('wang_mansion'))
+      ? '临江·提督王府·正门'
+      : '临江·王宅·朱漆大门');
 
+  if (isTaibao) {
+    return {
+      lordCall: '太保爷',
+      merchantCall: '太保大人',
+      letterCall: '王太保',
+      gatePlace,
+    };
+  }
   if (isTidu) {
     return {
       lordCall: '大帅',
@@ -2798,6 +2810,12 @@ export function dispatchNaturalProactive(world, now = Date.now()) {
   // 🛡️ 在场绝对排他铁律：严禁当面当场、就在身旁同处一室的人还搞“飞鸽传书/递信”！
   const husLoc = world.actors?.husband?.location || 'husband_room';
   const husPlaceName = world.places?.[husLoc]?.name || husLoc;
+
+  // 🛡️ 皇宫大内与重狱禁地绝对隔离：天子御前议政（紫禁城乾清宫/太和殿等）或天牢提审，市井商贾与外室私信严禁穿透惊扰圣驾！
+  if (husLoc.startsWith('palace_') || husLoc === 'capital_prison') {
+    return false;
+  }
+
   const hereActors = Object.values(world.actors || {}).filter(
     (a) => a && !a.dead && a.id !== 'husband' && isSameLocation(a.location, husLoc)
   );

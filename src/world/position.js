@@ -136,7 +136,7 @@ export function moveActor(world, actorId, placeId, reason = 'world', note = '') 
   } catch { /* 忽略 */ }
 
   // 在押犯人：服刑期间严禁常规走动与作息闲逛，只能在狱中或提审
-  if (a.jailed && !/(jail|牢|大牢)/.test(placeId) && !String(note || '').startsWith('刑满') && reason !== 'admin') {
+  if (a.jailed && !/(jail|prison|牢|大牢|诏狱)/.test(placeId) && !String(note || '').startsWith('刑满') && !String(note || '').includes('收监') && reason !== 'admin') {
     return { ok: false, error: '在押犯人不可自由移出监牢' };
   }
 

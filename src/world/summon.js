@@ -709,6 +709,8 @@ export function applyNpcDeparture(dataDir, replyText, sayText = '') {
     const hint = String(m[2] || '').trim();
     const actor = matchActor(world.actors, name);
     if (!actor) continue;
+    // 天子至尊铁律：当朝天子萧景隆九五之尊，在皇宫大内绝不可能自动离场！
+    if (actor.id === 'emperor' || /当朝天子|皇帝/.test(actor.role || '')) continue;
 
     const from = actor.location;
     let dest = resolvePlaceTarget(world, hint, { nearId: from, actor });
