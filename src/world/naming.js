@@ -66,7 +66,9 @@ export function getPlaceDisplayName(world, placeId) {
   const p = world?.places?.[placeId] || world?.places?.[cleanId];
   const name = String(p?.name || '').trim();
   if (name && !/^[a-zA-Z0-9_ -]+$/.test(name)) {
-    return name;
+    // 治理顶栏超长截断：去除括号内的长篇说明，保持顶栏清爽典雅
+    const cleanName = name.replace(/[（(].*?[）)]/g, '').trim();
+    return cleanName || name;
   }
   if (EN_PLACE_MAP[cleanId]) return EN_PLACE_MAP[cleanId];
   return '别处';

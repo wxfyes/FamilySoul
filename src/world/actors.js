@@ -155,15 +155,15 @@ function applyNpcEffect(world, actor, events, queuePush) {
           });
         } else if (actor.id === 'zhanjing') {
           queuePush?.({
-            speaker: '发妻·静儿',
+            speaker: '二房·静儿',
             to: 'husband',
             reason: 'npc_intel',
             facts: {
-              who: '战静',
-              role: '县衙书吏发妻',
-              intel: '县衙新茶税知县尚未画押，托相熟老吏还能缓几天'
+              who: '静儿',
+              role: '二房如夫人',
+              intel: '内宅底档与茶坊账目核对完毕，请相公过目'
             },
-            fallback: '【发妻·静儿】：夫君，静儿在衙门听到些风声，新茶税的册子知县还没画押，托相熟的老吏递个话还能缓上几天，夫君心里好有个准备。',
+            fallback: '【二房·静儿】：相公，今日各铺子的底册与内宅月例银子静儿已同婉儿姐姐一同核对清爽了，账目分明，请相公宽心歇息。',
             force: true,
           });
         } else if (actor.id === 'yangcaiyun') {

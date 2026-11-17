@@ -2167,25 +2167,26 @@ export async function runChat(svc, { text = '', modality = 'text', profileKey = 
           }
           console.log(`[Presence] 该句只剩不在场者，改由在场者 ${presentOne.name} 回答`);
         } else {
-          // 府邸尊严与军门威仪守护：若相公身处王府私宅或发出召见号令，相公发话绝非"四下无人接话"的荒宅鬼域！
-          const isAtMansion = String(wPres.places?.[hereLoc]?.name || '').includes('王府') || String(wPres.places?.[hereLoc]?.name || '').includes('王宅');
-          const isSummonCall = /(?:所有人过来|都过来|来人|叫大家来|叫人|议事厅议事|家眷都过来|召集大家|所有人到|全都过来|齐聚|所有人)/.test(say);
-          if (isSummonCall && isAtMansion) {
+          // 府邸尊严与军门威仪守护：若相公身处王府私宅、议事厅或发出召见号令，绝非"四下无人接话"的荒宅鬼域！
+          const placeText = `${hereLoc || ''} ${wPres.places?.[hereLoc]?.name || ''}`;
+          const isAtMansion = /王府|王宅|帅堂|军门|府邸|官邸|议事|正房|暖阁|堂|衙门/.test(placeText);
+          const isSummonCall = /(?:所有人过来|都过来|来人|叫大家来|叫人|议事厅议事|家眷都过来|召集大家|所有人到|全都过来|齐聚|所有人|集合|聚将|升帐)/.test(say);
+          if (isSummonCall) {
             // 全自动召集府内内眷与亲随集合归拢到当前堂前
             const summoned = [];
             for (const [aId, a] of Object.entries(wPres.actors || {})) {
               if (!a || a.dead || aId === 'husband') continue;
-              if (a.household || ['waner', 'yunnia', 'xiaocui', 'zhanjing'].includes(aId) || /亲兵|侍卫|护院/.test(a.role || '')) {
+              if (a.household || ['waner', 'yunnia', 'xiaocui', 'zhanjing', 'yangzhenhua'].includes(aId) || /亲兵|侍卫|护院|副将|参将/.test(a.role || '')) {
                 moveActor(wPres, aId, hereLoc, 'husband_summon');
                 summoned.push(a.name);
               }
             }
             saveState(svc.dataDir, wPres);
-            reply = '【值守亲随】：“大帅有令，传各房内眷与值守亲兵入堂议事！”\n（俄顷脚步声密集，正妻沈婉儿领着二房芸娘、静儿、小翠，及值守亲随快步赶到厅前齐齐按礼肃立。）\n【正妻·沈婉儿】：“夫君唤我们过来，可是有军政机要或行止大事要商榷吩咐？”';
+            reply = '【值守亲随】：“大帅有令，传各房内眷与值守军士齐集堂前！”\n（俄顷环佩声与军靴踏步声齐至，正妻沈婉儿领着内眷与值守将士快步趋进，向相公万福抱拳侍立。）\n【正妻·沈婉儿】：“夫君唤大家聚齐，可是有军政大局或行止要务吩咐？”';
           } else if (isAtMansion || /(?:过来|来人|叫人|人呢|侍卫|亲兵|所有人|大家|诸位|都来)/.test(say)) {
             reply = '【值守亲随】：“大帅稍候！标下这就前去传唤各处！”\n（脚步声急促，值房亲随躬身快步退下通传。）';
           } else {
-            reply = '（你问的人此刻不在跟前，四下无人接话。）';
+            reply = '（四下清静安谧，暂无人接话；相公若欲唤人，吩咐一声“来人”或“都过来”便有值守随从应诺入堂。）';
           }
           console.log('[Presence] 该句只剩不在场者，且场上无人');
         }

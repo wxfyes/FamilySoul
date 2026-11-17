@@ -1014,6 +1014,8 @@ export async function handleAdminRoutes(req, res, ctx) {
           `cp -f $TMP/package.json '${root}'/package.json 2>/dev/null || true`,
           `cp -f $TMP/*.sh '${root}'/ 2>/dev/null || true`,
           `chmod +x '${root}'/*.sh 2>/dev/null || true`,
+          `chmod +x '${root}'/scripts/*.sh 2>/dev/null || true`,
+          `'${root}'/scripts/setup-autostart.sh 2>/dev/null || true`,
           `cd '${root}'`,
           './stop.sh || true',
           'sleep 1',
